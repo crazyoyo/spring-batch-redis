@@ -3,7 +3,7 @@ package org.springframework.batch.item.redis.support;
 import java.util.Collection;
 import java.util.List;
 
-import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.util.Assert;
@@ -12,7 +12,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @NoArgsConstructor
-public abstract class AbstractRedisItemWriter<K, V, T> implements ItemWriter<T>, InitializingBean {
+public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T>
+		implements InitializingBean {
 
 	protected @Setter RedisTemplate<K, V> redisTemplate;
 	protected @Setter boolean delete;

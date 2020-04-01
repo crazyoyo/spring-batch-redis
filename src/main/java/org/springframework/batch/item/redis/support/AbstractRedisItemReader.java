@@ -23,12 +23,9 @@ public abstract class AbstractRedisItemReader<K, V, T> extends AbstractPaginated
 
 	private Cursor<byte[]> cursor;
 
-	public AbstractRedisItemReader() {
-		setName(ClassUtils.getShortName(getClass()));
-	}
-
 	protected AbstractRedisItemReader(int currentItemCount, Integer maxItemCount, Boolean saveState,
 			RedisTemplate<K, V> redisTemplate, ScanOptions scanOptions, int batchSize) {
+		setName(ClassUtils.getShortName(getClass()));
 		setCurrentItemCount(currentItemCount);
 		setMaxItemCount(maxItemCount == null ? Integer.MAX_VALUE : maxItemCount);
 		setSaveState(saveState == null ? true : saveState);
@@ -38,7 +35,6 @@ public abstract class AbstractRedisItemReader<K, V, T> extends AbstractPaginated
 		this.redisTemplate = redisTemplate;
 		this.scanOptions = scanOptions;
 		this.batchSize = batchSize;
-
 	}
 
 	@Override
@@ -65,7 +61,6 @@ public abstract class AbstractRedisItemReader<K, V, T> extends AbstractPaginated
 	protected void doClose() throws Exception {
 		this.cursor.close();
 		this.cursor = null;
-		log.info("Items read: {}", getCurrentItemCount());
 	}
 
 }

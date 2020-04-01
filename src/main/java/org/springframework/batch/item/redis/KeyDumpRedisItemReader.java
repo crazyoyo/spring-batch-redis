@@ -11,9 +11,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
 
 import lombok.Builder;
-import lombok.NoArgsConstructor;
 
-@NoArgsConstructor
 public class KeyDumpRedisItemReader<K, V> extends AbstractRedisItemReader<K, V, KeyDump> {
 
 	@Builder
