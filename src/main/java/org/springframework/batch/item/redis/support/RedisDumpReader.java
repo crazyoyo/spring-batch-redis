@@ -17,7 +17,7 @@ public class RedisDumpReader<K, V> extends AbstractDumpReader<K, V> {
     private GenericObjectPool<StatefulRedisConnection<K, V>> pool;
 
     @Builder
-    public RedisDumpReader(GenericObjectPool<StatefulRedisConnection<K, V>> pool, Duration timeout) {
+    private RedisDumpReader(GenericObjectPool<StatefulRedisConnection<K, V>> pool, Duration timeout) {
         super(timeout);
         Assert.notNull(pool, "A connection pool is required.");
         this.pool = pool;

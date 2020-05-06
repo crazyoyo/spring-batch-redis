@@ -109,7 +109,7 @@ public class SpringBatchIntegrationTest extends BaseTest {
     public void testValueReader() throws Exception {
         redisWriter("scan-reader-populate");
         List<KeyValue<String>> values = new ArrayList<>();
-        RedisItemReader<String, KeyValue<String>> reader = RedisItemReader.valueReaderBuilder().client(client).build();
+        RedisItemReader<String, KeyValue<String>> reader = RedisItemReader.value().client(client).build();
         TaskletStep step = stepBuilderFactory.get("scan-reader-step").<KeyValue<String>, KeyValue<String>>chunk(10).reader(reader).writer(values::addAll).build();
         Job job = jobBuilderFactory.get("scan-reader-job").start(step).build();
         JobExecution execution = jobLauncher.run(job, new JobParameters());
@@ -119,7 +119,7 @@ public class SpringBatchIntegrationTest extends BaseTest {
 
     @Test
     public void testLiveValueReader() throws Exception {
-        RedisItemReader<String, KeyValue<String>> reader = RedisItemReader.liveValueReaderBuilder().client(client).threads(2).flushPeriod(Duration.ofMillis(50)).build();
+        RedisItemReader<String, KeyValue<String>> reader = RedisItemReader.liveValue().client(client).threads(2).flushPeriod(Duration.ofMillis(50)).build();
         List<KeyValue<String>> values = new ArrayList<>();
         TaskletStep step = stepBuilderFactory.get("keyspace-reader-step").<KeyValue<String>, KeyValue<String>>chunk(10).reader(reader).writer(values::addAll).build();
         Job job = jobBuilderFactory.get("keyspace-reader-job").start(step).build();
@@ -132,7 +132,7 @@ public class SpringBatchIntegrationTest extends BaseTest {
             Thread.sleep(1);
         }
         Thread.sleep(300);
-        ((RedisKeyspaceNotificationItemReader<String, String>) ((MultiplexingItemReader<String>) reader.getKeyReader()).getReaders().get(0)).stop();
+        ((RedisKeyspaceNotificationItemReader<String>) ((MultiplexingItemReader<String>) reader.getKeyReader()).getReaders().get(0)).stop();
         while (execution.isRunning()) {
             Thread.sleep(100);
         }
@@ -142,11 +142,7 @@ public class SpringBatchIntegrationTest extends BaseTest {
     @Test
     public void testMultiplexingReader() throws Exception {
         redisWriter("multiplexing-reader-populate");
-        RedisScanItemReader<String, String> scanReader = RedisScanItemReader.<String, String>builder().connection(client.connect()).build();
-        RedisKeyspaceNotificationItemReader<String, String> notificationReader = RedisKeyspaceNotificationItemReader.<String, String>builder().connection(client.connectPubSub()).channel(RedisItemReader.getDefaultKeyEventChannel()).build();
-        MultiplexingItemReader<String> compositeKeyReader = MultiplexingItemReader.<String>builder().readers(Arrays.asList(scanReader, notificationReader)).build();
-        RedisValueReader<String, String> keyProcessor = RedisValueReader.<String, String>builder().pool(connectionPool).build();
-        RedisItemReader<String, KeyValue<String>> reader = RedisItemReader.<String, KeyValue<String>>builder().keyReader(compositeKeyReader).valueReader(keyProcessor).threads(2).flushPeriod(Duration.ofMillis(50)).build();
+        RedisItemReader<String, KeyValue<String>> reader = RedisItemReader.liveValue().client(client).threads(2).flushPeriod(Duration.ofMillis(50)).build();
         Map<String, KeyValue<String>> values = new HashMap<>();
         TaskletStep step = stepBuilderFactory.get("multiplexing-reader-step").<KeyValue<String>, KeyValue<String>>chunk(10).reader(reader).writer(items -> {
             for (KeyValue<String> item : items) {
@@ -163,7 +159,7 @@ public class SpringBatchIntegrationTest extends BaseTest {
             Thread.sleep(1);
         }
         Thread.sleep(300);
-        notificationReader.stop();
+        ((RedisKeyspaceNotificationItemReader<String>) ((MultiplexingItemReader<String>) reader.getKeyReader()).getReaders().get(0)).stop();
         while (execution.isRunning()) {
             Thread.sleep(100);
         }
@@ -189,7 +185,7 @@ public class SpringBatchIntegrationTest extends BaseTest {
     @Test
     public void testReplication() throws Exception {
         populate(1039, client);
-        RedisItemReader<String, KeyDump<String>> reader = RedisItemReader.dumpReaderBuilder().client(client).build();
+        RedisItemReader<String, KeyDump<String>> reader = RedisItemReader.dump().client(client).build();
         RedisItemWriter<String, String, KeyDump<String>> writer = RedisItemWriter.<String, String, KeyDump<String>>builder().command(Restore.<String, String>builder().build()).pool(targetConnectionPool).build();
         TaskletStep step = stepBuilderFactory.get("replication-step").<KeyDump<String>, KeyDump<String>>chunk(10).reader(reader).writer(writer).build();
         Job job = jobBuilderFactory.get("replication-job").start(step).build();
@@ -200,7 +196,7 @@ public class SpringBatchIntegrationTest extends BaseTest {
     @Test
     public void testLiveReplication() throws Exception {
         populate(392, client);
-        RedisItemReader<String, KeyDump<String>> reader = RedisItemReader.liveDumpReaderBuilder().client(client).build();
+        RedisItemReader<String, KeyDump<String>> reader = RedisItemReader.liveDump().client(client).build();
         RedisItemWriter<String, String, KeyDump<String>> writer = RedisItemWriter.<String, String, KeyDump<String>>builder().command(Restore.<String, String>builder().build()).pool(targetConnectionPool).build();
         TaskletStep step = stepBuilderFactory.get("live-replication-step").<KeyDump<String>, KeyDump<String>>chunk(10).reader(reader).writer(writer).build();
         Job job = jobBuilderFactory.get("live-replication-job").start(step).build();
@@ -209,7 +205,7 @@ public class SpringBatchIntegrationTest extends BaseTest {
         while (!scanReader.isDone()) {
             Thread.sleep(100);
         }
-        ((RedisKeyspaceNotificationItemReader<String, String>) ((MultiplexingItemReader<String>) reader.getKeyReader()).getReaders().get(0)).stop();
+        ((RedisKeyspaceNotificationItemReader<String>) ((MultiplexingItemReader<String>) reader.getKeyReader()).getReaders().get(0)).stop();
         while (execution.isRunning()) {
             Thread.sleep(100);
         }

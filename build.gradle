@@ -2,11 +2,17 @@ plugins {
 	id 'org.springframework.boot' version '2.2.6.RELEASE'
 	id 'io.spring.dependency-management' version '1.0.9.RELEASE'
 	id 'java'
-    id 'com.github.ben-manes.versions' version '0.28.0'	
+	id 'java-library'
+	id 'maven-publish'
+	id 'net.researchgate.release' version '2.8.1'
+    id 'com.github.ben-manes.versions' version '0.28.0'
+	id 'com.github.breadmoirai.github-release' version '2.2.12'
+	id 'com.jfrog.bintray' version '1.8.5'
+
 }
 
 group = 'com.redislabs'
-version = '0.0.1-SNAPSHOT'
+description = 'Spring Batch Redis'
 sourceCompatibility = '1.8'
 
 repositories {
@@ -22,7 +28,6 @@ bootJar {
 jar {
   enabled = true
 }
-
 
 dependencies {
 	compileOnly 'org.projectlombok:lombok'
@@ -43,3 +48,95 @@ dependencies {
 test {
 	useJUnitPlatform()
 }
+
+bintray {
+	user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : ''
+	key = project.hasProperty('bintrayKey') ? project.property('bintrayKey') : ''
+	publications = ['mavenJava']
+	publish = true
+	pkg {
+		repo = 'maven'
+		name = 'com.redislabs:spring-redisearch'
+		licenses = ['Apache-2.0']
+		vcsUrl = 'https://github.com/RediSearch/spring-redisearch.git'
+		version {
+			gpg {
+				sign = true
+			}
+			mavenCentralSync {
+				sync = true
+				user = project.hasProperty('ossrhUsername') ? project.property('ossrhUsername') : ''
+				password = project.hasProperty('ossrhPassword') ? project.property('ossrhPassword') : ''
+			}
+		}
+	}
+}
+
+task sourcesJar(type: Jar) {
+	archiveClassifier = 'sources'
+	from sourceSets.main.allJava
+}
+
+task javadocJar(type: Jar) {
+	archiveClassifier = 'javadoc'
+	from javadoc.destinationDir
+}
+
+artifacts {
+	archives sourcesJar, javadocJar
+}
+
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			from components.java
+			artifact sourcesJar
+			artifact javadocJar
+			groupId 'com.redislabs'
+			artifactId 'spring-batch-redis'
+
+			pom {
+				name = 'Spring Batch Redis'
+				packaging = 'jar'
+				description = 'Spring Batch extension for Redis'
+				url = 'https://github.com/Redislabs-Solution-Architects/spring-batch-redis'
+
+				scm {
+					connection = 'scm:git:git://github.com/Redislabs-Solution-Architects/spring-batch-redis.git'
+					developerConnection = 'scm:git:git@github.com:Redislabs-Solution-Architects/spring-batch-redis.git'
+					url = 'https://github.com/Redislabs-Solution-Architects/spring-batch-redis'
+				}
+
+				licenses {
+					license {
+						name = 'The Apache License, Version 2.0'
+						url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+					}
+				}
+
+				developers {
+					developer {
+						id = 'jruaux'
+						name = 'Julien Ruaux'
+					}
+				}
+			}
+		}
+	}
+}
+
+task printVersion {
+	doLast {
+		println project.version
+	}
+}
+
+githubRelease {
+	token = project.hasProperty('githubToken') ? project.property('githubToken') : ''
+	owner "Redislabs-Solution-Architects"
+	repo "spring-batch-redis"
+	body changelog()
+}
+
+afterReleaseBuild.dependsOn ":githubRelease"
+afterReleaseBuild.dependsOn bintrayUpload

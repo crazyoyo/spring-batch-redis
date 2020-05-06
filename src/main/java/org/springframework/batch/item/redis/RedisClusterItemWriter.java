@@ -15,7 +15,7 @@ public class RedisClusterItemWriter<K, V, T> extends AbstractRedisItemWriter<K, 
     private final GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool;
 
     @Builder
-    protected RedisClusterItemWriter(Command<K, V, T> command, Duration timeout, GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool) {
+    private RedisClusterItemWriter(Command<K, V, T> command, Duration timeout, GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool) {
         super(command, timeout);
         Assert.notNull(pool, "A connection pool is required.");
         this.pool = pool;

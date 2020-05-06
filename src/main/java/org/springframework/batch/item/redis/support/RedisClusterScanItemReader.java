@@ -15,7 +15,7 @@ public class RedisClusterScanItemReader<K, V> extends AbstractScanItemReader<K> 
     private StatefulRedisClusterConnection<K, V> connection;
 
     @Builder
-    public RedisClusterScanItemReader(StatefulRedisClusterConnection<K, V> connection, Long count, String match) {
+    private RedisClusterScanItemReader(StatefulRedisClusterConnection<K, V> connection, Long count, String match) {
         super(count, match);
         Assert.notNull(connection, "A connection is required.");
         this.connection = connection;

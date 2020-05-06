@@ -39,7 +39,11 @@ public abstract class AbstractDumpComparator<K, V> implements ItemProcessor<List
     }
 
     protected List<KeyComparison<K>> compare(List<K> keys, BaseRedisAsyncCommands<K, V> commands) throws Exception {
+        List<KeyComparison<K>> comparisons = new ArrayList<>();
         List<KeyDump<K>> sourceDumps = reader.process(keys);
+        if (sourceDumps == null) {
+            return comparisons;
+        }
         commands.setAutoFlushCommands(false);
         List<RedisFuture<Long>> ttls = new ArrayList<>(sourceDumps.size());
         List<RedisFuture<byte[]>> dumps = new ArrayList<>(sourceDumps.size());
@@ -48,7 +52,6 @@ public abstract class AbstractDumpComparator<K, V> implements ItemProcessor<List
             dumps.add(((RedisKeyAsyncCommands<K, V>) commands).dump(source.getKey()));
         }
         commands.flushCommands();
-        List<KeyComparison<K>> comparisons = new ArrayList<>();
         for (int index = 0; index < sourceDumps.size(); index++) {
             try {
                 Long ttl = ttls.get(index).get(timeout, TimeUnit.SECONDS);

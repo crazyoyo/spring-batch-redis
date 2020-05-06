@@ -1,7 +1,6 @@
 package org.springframework.batch.item.redis;
 
 import io.lettuce.core.RedisClient;
-import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;

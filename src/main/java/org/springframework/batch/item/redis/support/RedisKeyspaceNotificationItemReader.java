@@ -10,58 +10,58 @@ import org.springframework.util.Assert;
 import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 
-public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceNotificationItemReader<K, V> implements RedisPubSubListener<K, V> {
+public class RedisKeyspaceNotificationItemReader<V> extends AbstractKeyspaceNotificationItemReader<V> implements RedisPubSubListener<String, V> {
 
     @Getter
     @Setter
-    private StatefulRedisPubSubConnection<K, V> connection;
+    private StatefulRedisPubSubConnection<String, V> connection;
 
-    public RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<K, V> connection, K channel, BlockingQueue<V> queue, Duration pollingTimeout) {
-        super(channel, queue, pollingTimeout);
+    private RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<String, V> connection, Integer database, BlockingQueue<V> queue, Duration pollingTimeout) {
+        super(database, queue, pollingTimeout);
         Assert.notNull(connection, "A connection is required.");
         this.connection = connection;
     }
 
     @Builder
-    public RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<K, V> connection, K channel, Integer queueCapacity, Duration pollingTimeout) {
-        this(connection, channel, createQueue(queueCapacity), pollingTimeout);
+    private RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<String, V> connection, Integer database, Integer queueCapacity, Duration pollingTimeout) {
+        this(connection, database, createQueue(queueCapacity), pollingTimeout);
     }
 
     @Override
-    protected void open(K channel) {
+    protected void open(String channel) {
         connection.addListener(this);
         connection.sync().psubscribe(channel);
     }
 
     @Override
-    protected void close(K channel) {
+    protected void close(String channel) {
         connection.sync().punsubscribe(channel);
         connection.removeListener(this);
     }
 
     @Override
-    public void message(K channel, V message) {
+    public void message(String channel, V message) {
         message(message);
     }
 
     @Override
-    public void message(K pattern, K channel, V message) {
+    public void message(String pattern, String channel, V message) {
         message(message);
     }
 
     @Override
-    public void subscribed(K channel, long count) {
+    public void subscribed(String channel, long count) {
     }
 
     @Override
-    public void psubscribed(K pattern, long count) {
+    public void psubscribed(String pattern, long count) {
     }
 
     @Override
-    public void unsubscribed(K channel, long count) {
+    public void unsubscribed(String channel, long count) {
     }
 
     @Override
-    public void punsubscribed(K pattern, long count) {
+    public void punsubscribed(String pattern, long count) {
     }
 }

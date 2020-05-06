@@ -2,8 +2,6 @@ package org.springframework.batch.item.redis.support;
 
 import lombok.*;
 
-import java.util.Arrays;
-
 @Builder
 @Data
 @NoArgsConstructor

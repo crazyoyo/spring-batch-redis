@@ -17,7 +17,7 @@ public class RedisClusterValueReader<K, V> extends AbstractValueReader<K, V> {
     private GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool;
 
     @Builder
-    public RedisClusterValueReader(GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool, Duration timeout) {
+    private RedisClusterValueReader(GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool, Duration timeout) {
         super(timeout);
         Assert.notNull(pool, "A connection pool is required.");
         this.pool = pool;

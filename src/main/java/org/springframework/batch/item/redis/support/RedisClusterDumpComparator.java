@@ -18,7 +18,7 @@ public class RedisClusterDumpComparator<K, V> extends AbstractDumpComparator<K, 
     private GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool;
 
     @Builder
-    protected RedisClusterDumpComparator(GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool, ItemProcessor<List<K>, List<KeyDump<K>>> reader, Duration timeout, Long pttlTolerance) {
+    private RedisClusterDumpComparator(GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool, ItemProcessor<List<K>, List<KeyDump<K>>> reader, Duration timeout, Long pttlTolerance) {
         super(reader, timeout, pttlTolerance);
         Assert.notNull(pool, "A connection pool is required.");
         this.pool = pool;
