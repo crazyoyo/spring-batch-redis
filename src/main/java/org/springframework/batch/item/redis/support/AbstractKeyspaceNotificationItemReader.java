@@ -1,77 +1,49 @@
 package org.springframework.batch.item.redis.support;
 
 import lombok.Getter;
-import lombok.Setter;
-import org.apache.commons.text.StringSubstitutor;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 
-public abstract class AbstractKeyspaceNotificationItemReader<V> extends AbstractItemCountingItemStreamItemReader<V> {
+public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<V> {
 
-    public final static int DEFAULT_DATABASE = 0;
-    public final static long DEFAULT_POLLING_TIMEOUT = 100;
-    public final static int DEFAULT_QUEUE_CAPACITY = 10000;
-    private static final String DATABASE_TOKEN_NAME = "database";
-    private static final String DATABASE_TOKEN = "${" + DATABASE_TOKEN_NAME + "}";
-    private static final String KEYEVENT_CHANNEL_TEMPLATE = "__keyevent@" + DATABASE_TOKEN + "__:*";
+    private final K[] patterns;
+    private final BlockingQueue<V> queue;
+    private final long timeout;
+    private final BiFunction<K, V, V> function;
 
-    private static String getKeyEventChannel(Integer database) {
-        Map<String, String> variables = new HashMap<>();
-        variables.put(DATABASE_TOKEN_NAME, String.valueOf(database == null ? DEFAULT_DATABASE : database));
-        StringSubstitutor substitutor = new StringSubstitutor(variables);
-        return substitutor.replace(KEYEVENT_CHANNEL_TEMPLATE);
-    }
-
-    @Getter
-    @Setter
-    private String channel;
-    @Getter
-    @Setter
-    private BlockingQueue<V> queue;
-    @Getter
-    @Setter
-    private long pollingTimeout;
     @Getter
     private boolean stopped;
 
-    protected AbstractKeyspaceNotificationItemReader(Integer database, BlockingQueue<V> queue, Duration pollingTimeout) {
+    protected AbstractKeyspaceNotificationItemReader(BlockingQueue<V> queue, long pollingTimeout, K[] patterns, BiFunction<K, V, V> keyExtractor) {
         setName(ClassUtils.getShortName(getClass()));
-        this.channel = getKeyEventChannel(database);
+        Assert.notNull(queue, "A queue is required.");
+        Assert.notNull(patterns, "A channel name is required.");
+        Assert.isTrue(pollingTimeout > 0, "Polling timeout must be positive.");
+        Assert.notNull(keyExtractor, "A key extractor is required.");
         this.queue = queue;
-        this.pollingTimeout = pollingTimeout == null ? DEFAULT_POLLING_TIMEOUT : pollingTimeout.toMillis();
-    }
-
-    protected AbstractKeyspaceNotificationItemReader(Integer database, Integer queueCapacity, Duration pollingTimeout) {
-        this(database, createQueue(queueCapacity), pollingTimeout);
-    }
-
-    protected static <V> BlockingQueue<V> createQueue(Integer queueCapacity) {
-        if (queueCapacity == null) {
-            return new LinkedBlockingDeque<>(DEFAULT_QUEUE_CAPACITY);
-        }
-        return new LinkedBlockingDeque<>(queueCapacity);
+        this.timeout = pollingTimeout;
+        this.patterns = patterns;
+        this.function = keyExtractor;
     }
 
     @Override
     protected void doOpen() {
-        open(channel);
+        open(patterns);
     }
 
-    protected abstract void open(String channel);
+    protected abstract void open(K[] patterns);
 
     @Override
     protected void doClose() {
-        close(channel);
+        close(patterns);
     }
 
-    protected abstract void close(String channel);
+    protected abstract void close(K[] patterns);
 
     public void stop() {
         this.stopped = true;
@@ -81,14 +53,15 @@ public abstract class AbstractKeyspaceNotificationItemReader<V> extends Abstract
     protected V doRead() throws Exception {
         V key;
         do {
-            key = queue.poll(pollingTimeout, TimeUnit.MILLISECONDS);
+            key = queue.poll(timeout, TimeUnit.MILLISECONDS);
         } while (key == null && !stopped);
         return key;
     }
 
-    protected void message(V message) {
+    protected void enqueue(K channel, V message) {
+        V value = function.apply(channel, message);
         try {
-            queue.put(message);
+            queue.put(value);
         } catch (InterruptedException e) {
             // ignore
         }

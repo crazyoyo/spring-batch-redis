@@ -9,7 +9,7 @@ public class Zadd<K, V> implements Command<K, V, ZaddArgs<K, V>> {
 
     @Override
     public RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, ZaddArgs<K, V> args) {
-        return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(args.getKey(), args.getScore(), args.getMember());
+        return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(args.getKey(), args.getScore(), args.getMemberId());
     }
 
 

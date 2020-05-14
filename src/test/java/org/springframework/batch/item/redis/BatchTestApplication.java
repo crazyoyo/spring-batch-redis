@@ -24,14 +24,24 @@ public class BatchTestApplication {
         SpringApplication.run(BatchTestApplication.class, args);
     }
 
-    @Bean(destroyMethod = "shutdown")
-    RedisClient client() {
-        return RedisClient.create(RedisURI.create("localhost", BaseTest.REDIS_PORT));
+    @Bean
+    RedisURI redisURI() {
+        return RedisURI.create("localhost", BaseTest.REDIS_PORT);
+    }
+
+    @Bean
+    RedisURI targetRedisURI() {
+        return RedisURI.create("localhost", BaseTest.TARGET_REDIS_PORT);
     }
 
     @Bean(destroyMethod = "shutdown")
-    RedisClient targetClient() {
-        return RedisClient.create(RedisURI.create("localhost", BaseTest.TARGET_REDIS_PORT));
+    RedisClient client(RedisURI redisURI) {
+        return RedisClient.create(redisURI);
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    RedisClient targetClient(RedisURI targetRedisURI) {
+        return RedisClient.create(targetRedisURI);
     }
 
     @Bean(destroyMethod = "close")

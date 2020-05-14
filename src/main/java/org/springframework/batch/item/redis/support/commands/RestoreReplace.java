@@ -3,9 +3,7 @@ package org.springframework.batch.item.redis.support.commands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import lombok.Builder;
 
-@Builder
 public class RestoreReplace<K, V> extends AbstractRestore<K, V> {
 
     @Override

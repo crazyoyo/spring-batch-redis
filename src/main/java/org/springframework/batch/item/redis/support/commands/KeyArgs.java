@@ -7,7 +7,7 @@ public class KeyArgs<K> {
     @Getter
     private final K key;
 
-    protected KeyArgs(K key) {
+    public KeyArgs(K key) {
         this.key = key;
     }
 

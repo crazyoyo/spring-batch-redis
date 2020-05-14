@@ -22,10 +22,8 @@ public class BaseTest {
 
     @BeforeAll
     public static void setup() {
-        System.out.println("Starting redis-server on port " + REDIS_PORT);
-        server = RedisServer.builder().port(REDIS_PORT).setting("notify-keyspace-events AE").build();
+        server = RedisServer.builder().port(REDIS_PORT).setting("notify-keyspace-events AK").build();
         server.start();
-        System.out.println("Starting target redis-server on port " + TARGET_REDIS_PORT);
         targetServer = RedisServer.builder().port(TARGET_REDIS_PORT).build();
         targetServer.start();
     }

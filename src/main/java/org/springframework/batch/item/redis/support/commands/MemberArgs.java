@@ -5,10 +5,10 @@ import lombok.Getter;
 public class MemberArgs<K, V> extends KeyArgs<K> {
 
     @Getter
-    private final V member;
+    private final V memberId;
 
-    protected MemberArgs(K key, V member) {
+    public MemberArgs(K key, V memberId) {
         super(key);
-        this.member = member;
+        this.memberId = memberId;
     }
 }

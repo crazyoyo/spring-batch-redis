@@ -3,65 +3,57 @@ package org.springframework.batch.item.redis.support;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
 import org.springframework.util.Assert;
 
-import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
+import java.util.function.BiFunction;
 
-public class RedisKeyspaceNotificationItemReader<V> extends AbstractKeyspaceNotificationItemReader<V> implements RedisPubSubListener<String, V> {
+public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceNotificationItemReader<K, V> implements RedisPubSubListener<K, V> {
 
-    @Getter
-    @Setter
-    private StatefulRedisPubSubConnection<String, V> connection;
+    private final StatefulRedisPubSubConnection<K, V> connection;
 
-    private RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<String, V> connection, Integer database, BlockingQueue<V> queue, Duration pollingTimeout) {
-        super(database, queue, pollingTimeout);
+    @Builder
+    public RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<K, V> connection, BlockingQueue<V> queue, long pollingTimeout, K[] patterns, BiFunction<K,V,V> keyExtractor) {
+        super(queue, pollingTimeout, patterns, keyExtractor);
         Assert.notNull(connection, "A connection is required.");
         this.connection = connection;
     }
 
-    @Builder
-    private RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<String, V> connection, Integer database, Integer queueCapacity, Duration pollingTimeout) {
-        this(connection, database, createQueue(queueCapacity), pollingTimeout);
-    }
-
     @Override
-    protected void open(String channel) {
+    protected void open(K[] patterns) {
         connection.addListener(this);
-        connection.sync().psubscribe(channel);
+        connection.sync().psubscribe(patterns);
     }
 
     @Override
-    protected void close(String channel) {
-        connection.sync().punsubscribe(channel);
+    protected void close(K[] patterns) {
+        connection.sync().punsubscribe(patterns);
         connection.removeListener(this);
     }
 
     @Override
-    public void message(String channel, V message) {
-        message(message);
+    public void message(K channel, V message) {
+        enqueue(channel, message);
     }
 
     @Override
-    public void message(String pattern, String channel, V message) {
-        message(message);
+    public void message(K pattern, K channel, V message) {
+        message(channel, message);
     }
 
     @Override
-    public void subscribed(String channel, long count) {
+    public void subscribed(K channel, long count) {
     }
 
     @Override
-    public void psubscribed(String pattern, long count) {
+    public void psubscribed(K pattern, long count) {
     }
 
     @Override
-    public void unsubscribed(String channel, long count) {
+    public void unsubscribed(K channel, long count) {
     }
 
     @Override
-    public void punsubscribed(String pattern, long count) {
+    public void punsubscribed(K pattern, long count) {
     }
 }

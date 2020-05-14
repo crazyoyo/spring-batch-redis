@@ -5,16 +5,15 @@ import lombok.Getter;
 import java.util.Map;
 
 public class XaddArgs<K, V> extends KeyArgs<K> {
-    @Getter
-    private String id;
-    @Getter
-    private long maxlen;
-    @Getter
-    private boolean approximateTrimming;
-    @Getter
-    private Map<K, V> fields;
 
-    protected XaddArgs(K key) {
+    @Getter
+    private final String id;
+    @Getter
+    private final Map<K, V> fields;
+
+    public XaddArgs(K key, String id, Map<K, V> fields) {
         super(key);
+        this.id = id;
+        this.fields = fields;
     }
 }

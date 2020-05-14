@@ -1,137 +1,62 @@
 package org.springframework.batch.item.redis;
 
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.RedisURI;
+import io.lettuce.core.ScanArgs;
+import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.sync.RedisKeyCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import io.lettuce.core.support.ConnectionPoolSupport;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.commons.text.StringSubstitutor;
 import org.springframework.batch.item.*;
 import org.springframework.batch.item.redis.support.*;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 @Slf4j
-public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemReader<T> {
-
-    @Builder(builderMethodName = "dump", builderClassName = "RedisDumpItemReaderBuilder")
-    private static RedisItemReader<String, KeyDump<String>> redisDumpItemReader(RedisClient client, Long scanCount, String scanMatch, Duration timeout, Integer batchSize, Integer threads, Integer queueCapacity, Long maxWait) {
-        return RedisItemReader.<String, KeyDump<String>>builder().keyReader(RedisScanItemReader.<String, String>builder().connection(client.connect()).count(scanCount).match(scanMatch).build()).valueReader(RedisDumpReader.<String, String>builder().pool(pool(client, threads)).timeout(timeout).build()).batchSize(batchSize).threads(threads).queueCapacity(queueCapacity).maxWait(maxWait).build();
-    }
-
-    @Builder(builderMethodName = "liveDump", builderClassName = "RedisLiveDumpItemReaderBuilder")
-    private static RedisItemReader<String, KeyDump<String>> redisLiveDumpItemReader(RedisClient client, Integer database, Long scanCount, String scanMatch, Duration timeout, Integer batchSize, Integer threads, Integer queueCapacity, Long maxWait, Duration flushPeriod) {
-        return RedisItemReader.<String, KeyDump<String>>builder().keyReader(liveKeyReader().client(client).database(database).scanCount(scanCount).scanMatch(scanMatch).queueCapacity(queueCapacity).build()).valueReader(RedisDumpReader.<String, String>builder().pool(pool(client, threads)).timeout(timeout).build()).batchSize(batchSize).threads(threads).queueCapacity(queueCapacity).maxWait(maxWait).flushPeriod(flushPeriod).build();
-    }
-
-    @Builder(builderMethodName = "value", builderClassName = "RedisValueItemReaderBuilder")
-    private static RedisItemReader<String, KeyValue<String>> redisValueItemReader(RedisClient client, Long scanCount, String scanMatch, Duration timeout, Integer batchSize, Integer threads, Integer queueCapacity, Long maxWait) {
-        return RedisItemReader.<String, KeyValue<String>>builder().keyReader(RedisScanItemReader.<String, String>builder().connection(client.connect()).count(scanCount).match(scanMatch).build()).valueReader(RedisValueReader.<String, String>builder().pool(pool(client, threads)).timeout(timeout).build()).batchSize(batchSize).threads(threads).queueCapacity(queueCapacity).maxWait(maxWait).build();
-    }
-
-    @Builder(builderMethodName = "liveValue", builderClassName = "RedisLiveValueItemReaderBuilder")
-    private static RedisItemReader<String, KeyValue<String>> redisLiveValueItemReader(RedisClient client, Integer database, Long scanCount, String scanMatch, Duration timeout, Integer batchSize, Integer threads, Integer queueCapacity, Long maxWait, Duration flushPeriod) {
-        return RedisItemReader.<String, KeyValue<String>>builder().keyReader(liveKeyReader().client(client).database(database).scanCount(scanCount).scanMatch(scanMatch).queueCapacity(queueCapacity).build()).valueReader(RedisValueReader.<String, String>builder().pool(pool(client, threads)).timeout(timeout).build()).batchSize(batchSize).threads(threads).queueCapacity(queueCapacity).maxWait(maxWait).flushPeriod(flushPeriod).build();
-    }
-
-    @Builder(builderMethodName = "liveKeyReader", builderClassName = "RedisLiveKeyItemReaderBuilder")
-    private static MultiplexingItemReader<String> redisLiveKeyItemReader(RedisClient client, Integer database, Long scanCount, String scanMatch, Integer queueCapacity) {
-        return MultiplexingItemReader.<String>builder().queueCapacity(queueCapacity).readers(RedisKeyspaceNotificationItemReader.<String>builder().connection(client.connectPubSub()).database(database).build(), RedisScanItemReader.<String, String>builder().connection(client.connect()).count(scanCount).match(scanMatch).build()).build();
-    }
-
-    @Builder(builderMethodName = "clusterDump", builderClassName = "RedisClusterDumpItemReaderBuilder")
-    private static RedisItemReader<String, KeyDump<String>> redisClusterDumpItemReader(RedisClusterClient client, Long scanCount, String scanMatch, Duration timeout, Integer batchSize, Integer threads, Integer queueCapacity, Long maxWait) {
-        return RedisItemReader.<String, KeyDump<String>>builder().keyReader(RedisClusterScanItemReader.<String, String>builder().connection(client.connect()).count(scanCount).match(scanMatch).build()).valueReader(RedisClusterDumpReader.<String, String>builder().pool(clusterPool(client, threads)).timeout(timeout).build()).batchSize(batchSize).threads(threads).queueCapacity(queueCapacity).maxWait(maxWait).build();
-    }
-
-    @Builder(builderMethodName = "clusterLiveDump", builderClassName = "RedisClusterLiveDumpItemReaderBuilder")
-    private static RedisItemReader<String, KeyDump<String>> redisClusterLiveDumpItemReader(RedisClusterClient client, Integer database, Long scanCount, String scanMatch, Duration timeout, Integer batchSize, Integer threads, Integer queueCapacity, Long maxWait, Duration flushPeriod) {
-        return RedisItemReader.<String, KeyDump<String>>builder().keyReader(clusterLiveKeyReader().client(client).database(database).scanCount(scanCount).scanMatch(scanMatch).queueCapacity(queueCapacity).build()).valueReader(RedisClusterDumpReader.<String, String>builder().pool(clusterPool(client, threads)).timeout(timeout).build()).batchSize(batchSize).threads(threads).queueCapacity(queueCapacity).maxWait(maxWait).flushPeriod(flushPeriod).build();
-    }
-
-    @Builder(builderMethodName = "clusterValue", builderClassName = "RedisClusterValueItemReaderBuilder")
-    private static RedisItemReader<String, KeyValue<String>> redisClusterValueItemReader(RedisClusterClient client, Long scanCount, String scanMatch, Duration timeout, Integer batchSize, Integer threads, Integer queueCapacity, Long maxWait) {
-        return RedisItemReader.<String, KeyValue<String>>builder().keyReader(RedisClusterScanItemReader.<String, String>builder().connection(client.connect()).count(scanCount).match(scanMatch).build()).valueReader(RedisClusterValueReader.<String, String>builder().pool(clusterPool(client, threads)).timeout(timeout).build()).batchSize(batchSize).threads(threads).queueCapacity(queueCapacity).maxWait(maxWait).build();
-    }
-
-    @Builder(builderMethodName = "clusterLiveValue", builderClassName = "RedisClusterLiveValueItemReaderBuilder")
-    private static RedisItemReader<String, KeyValue<String>> redisClusterLiveValueItemReader(RedisClusterClient client, Integer database, Long scanCount, String scanMatch, Duration timeout, Integer batchSize, Integer threads, Integer queueCapacity, Long maxWait, Duration flushPeriod) {
-        return RedisItemReader.<String, KeyValue<String>>builder().keyReader(clusterLiveKeyReader().client(client).database(database).scanCount(scanCount).scanMatch(scanMatch).queueCapacity(queueCapacity).build()).valueReader(RedisClusterValueReader.<String, String>builder().pool(clusterPool(client, threads)).timeout(timeout).build()).batchSize(batchSize).threads(threads).queueCapacity(queueCapacity).maxWait(maxWait).flushPeriod(flushPeriod).build();
-    }
-
-    @Builder(builderMethodName = "clusterLiveKeyReader", builderClassName = "RedisClusterLiveKeyItemReaderBuilder")
-    private static MultiplexingItemReader<String> redisClusterLiveKeyReader(RedisClusterClient client, Integer database, Long scanCount, String scanMatch, Integer queueCapacity) {
-        return MultiplexingItemReader.<String>builder().queueCapacity(queueCapacity).readers(RedisClusterKeyspaceNotificationItemReader.<String>builder().connection(client.connectPubSub()).database(database).build(), RedisClusterScanItemReader.<String, String>builder().connection(client.connect()).count(scanCount).match(scanMatch).build()).build();
-    }
-
-    private static GenericObjectPool<StatefulRedisConnection<String, String>> pool(RedisClient client, Integer threads) {
-        return ConnectionPoolSupport.createGenericObjectPool(client::connect, poolConfig(threads));
-    }
-
-    private static GenericObjectPool<StatefulRedisClusterConnection<String, String>> clusterPool(RedisClusterClient client, Integer threads) {
-        return ConnectionPoolSupport.createGenericObjectPool(client::connect, poolConfig(threads));
-    }
-
-    private static <T> GenericObjectPoolConfig<T> poolConfig(Integer threads) {
-        GenericObjectPoolConfig<T> config = new GenericObjectPoolConfig<>();
-        config.setMaxTotal(threads == null ? DEFAULT_THREADS : threads);
-        return config;
-    }
-
-    public final static int DEFAULT_BATCH_SIZE = 50;
-    public final static long DEFAULT_MAX_WAIT = 50;
-    public static final int DEFAULT_QUEUE_CAPACITY = 10000;
-    public static final int DEFAULT_THREADS = 1;
+public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemReader<T> implements InitializingBean {
 
     @Getter
-    @Setter
-    private int batchSize;
-    @Getter
-    @Setter
-    private int queueCapacity;
-    @Getter
-    @Setter
-    private long maxWait;
-    @Getter
-    @Setter
-    private ItemReader<K> keyReader;
-    @Getter
-    @Setter
-    private int threads;
-    @Getter
-    @Setter
-    private Duration flushPeriod;
-    @Getter
-    @Setter
-    private ItemProcessor<List<K>, List<T>> valueReader;
+    private final ItemReader<K> keyReader;
+    private final ItemProcessor<List<K>, List<T>> valueReader;
+    private final int batchSize;
+    private final int queueCapacity;
+    private final long maxWait;
+    private final int nThreads;
 
     private BlockingQueue<T> valueQueue;
     private ExecutorService executor;
-    private ScheduledExecutorService scheduler;
+    private List<KeyProcessorThread> threads;
 
-    @Builder
-    private RedisItemReader(ItemReader<K> keyReader, ItemProcessor<List<K>, List<T>> valueReader, Integer batchSize, Integer threads, Integer queueCapacity, Long maxWait, Duration flushPeriod) {
+    public RedisItemReader(ItemReader<K> keyReader, ItemProcessor<List<K>, List<T>> valueReader, int batchSize, int queueCapacity, long maxWait, int nThreads) {
         setName(ClassUtils.getShortName(getClass()));
-        Assert.notNull(keyReader, "A key reader is required.");
-        Assert.notNull(valueReader, "A key processor is required.");
         this.keyReader = keyReader;
         this.valueReader = valueReader;
-        this.batchSize = batchSize == null ? DEFAULT_BATCH_SIZE : batchSize;
-        this.queueCapacity = queueCapacity == null ? DEFAULT_QUEUE_CAPACITY : queueCapacity;
-        this.maxWait = maxWait == null ? DEFAULT_MAX_WAIT : maxWait;
-        this.threads = threads == null ? DEFAULT_THREADS : threads;
-        this.flushPeriod = flushPeriod;
+        this.batchSize = batchSize;
+        this.queueCapacity = queueCapacity;
+        this.maxWait = maxWait;
+        this.nThreads = nThreads;
+    }
+
+    @Override
+    public void afterPropertiesSet() {
+        Assert.notNull(keyReader, "A key reader is required.");
+        Assert.notNull(valueReader, "A key processor is required.");
     }
 
     @Override
@@ -145,16 +70,20 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
     @Override
     protected void doOpen() {
         valueQueue = new LinkedBlockingDeque<>(queueCapacity);
-        executor = Executors.newFixedThreadPool(threads);
-        scheduler = Executors.newSingleThreadScheduledExecutor();
-        for (int index = 0; index < threads; index++) {
-            KeyProcessorThread threads = new KeyProcessorThread();
-            if (flushPeriod != null) {
-                scheduler.scheduleAtFixedRate(threads::flush, flushPeriod.toMillis(), flushPeriod.toMillis(), TimeUnit.MILLISECONDS);
-            }
-            executor.submit(threads);
+        threads = new ArrayList<>(nThreads);
+        executor = Executors.newFixedThreadPool(nThreads);
+        for (int index = 0; index < nThreads; index++) {
+            KeyProcessorThread thread = new KeyProcessorThread();
+            threads.add(thread);
+            executor.submit(thread);
         }
         executor.shutdown();
+    }
+
+    public void flush() {
+        for (KeyProcessorThread thread : threads) {
+            thread.flush();
+        }
     }
 
     @Override
@@ -167,8 +96,15 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 
     @Override
     protected void doClose() {
-        scheduler.shutdown();
-        scheduler = null;
+        for (KeyProcessorThread thread : threads) {
+            thread.stop();
+        }
+        try {
+            executor.awaitTermination(100, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            log.error("Interruped while waiting for executor termination");
+        }
+        threads = null;
         executor = null;
         if (!valueQueue.isEmpty()) {
             log.warn("Closing reader with non-empty value queue");
@@ -188,12 +124,17 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
     private class KeyProcessorThread implements Runnable {
 
         private final List<K> keys = new ArrayList<>(batchSize);
+        private boolean stopped;
+
+        public void stop() {
+            this.stopped = true;
+        }
 
         @Override
         public void run() {
             K key;
             try {
-                while ((key = keyReader.read()) != null) {
+                while ((key = keyReader.read()) != null && !stopped) {
                     addKey(key);
                 }
             } catch (Exception e) {
@@ -229,6 +170,136 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
             }
         }
 
+    }
+
+    public static RedisItemReaderBuilder builder() {
+        return new RedisItemReaderBuilder();
+    }
+
+    @Setter
+    @Accessors(fluent = true)
+    public static class RedisItemReaderBuilder extends RedisBuilder {
+        public static final int DEFAULT_BATCH_SIZE = 50;
+        public static final int DEFAULT_QUEUE_CAPACITY = 10000;
+        public static final int DEFAULT_THREADS = 1;
+        public static final long DEFAULT_MAX_WAIT = 50;
+        public static final long DEFAULT_QUEUE_POLLING_TIMEOUT = 100;
+        public static final String DATABASE_TOKEN = "database";
+        public static final String KEYSPACE_CHANNEL_TEMPLATE = "__keyspace@${" + DATABASE_TOKEN + "}__:*";
+        private static final BiFunction<String, String, String> KEY_EXTRACTOR = (c, m) -> c.substring(c.indexOf(":") + 1);
+
+        private RedisURI redisURI;
+        private boolean cluster;
+        private ScanArgs scanArgs = new ScanArgs();
+        private long commandTimeout = RedisURI.DEFAULT_TIMEOUT;
+        private int batchSize = DEFAULT_BATCH_SIZE;
+        private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+        private long maxWait = DEFAULT_MAX_WAIT;
+        private int threads = DEFAULT_THREADS;
+        private int maxTotal = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
+        private int minIdle = GenericObjectPoolConfig.DEFAULT_MIN_IDLE;
+        private int maxIdle = GenericObjectPoolConfig.DEFAULT_MAX_IDLE;
+        private long queuePollingTimeout = DEFAULT_QUEUE_POLLING_TIMEOUT;
+        private String[] keyspacePatterns;
+
+        private void validate() {
+            Assert.notNull(redisURI, "A RedisURI instance is required.");
+        }
+
+        private GenericObjectPool<StatefulRedisClusterConnection<String, String>> connectionPool(RedisClusterClient client) {
+            return connectionPool(client, maxTotal, minIdle, maxIdle);
+        }
+
+        private GenericObjectPool<StatefulRedisConnection<String, String>> connectionPool(RedisClient client) {
+            return connectionPool(client, maxTotal, minIdle, maxIdle);
+        }
+
+        private <T> RedisItemReader<String, T> reader(ItemReader<String> keyReader, ItemProcessor<List<String>, List<T>> valueProcessor) {
+            return new RedisItemReader<>(keyReader, valueProcessor, batchSize, queueCapacity, maxWait, threads);
+        }
+
+        public RedisItemReader<String, KeyValue<String>> valueReader() {
+            if (cluster) {
+                RedisClusterClient client = RedisClusterClient.create(redisURI);
+                return reader(scanReader(client.connect(), StatefulRedisClusterConnection::sync), keyValueProcessor(connectionPool(client), StatefulRedisClusterConnection::async));
+            }
+            RedisClient client = RedisClient.create(redisURI);
+            return reader(scanReader(client.connect(), StatefulRedisConnection::sync), keyValueProcessor(connectionPool(client), StatefulRedisConnection::async));
+        }
+
+        public RedisItemReader<String, KeyValue<String>> continuousValueReader() {
+            if (cluster) {
+                RedisClusterClient client = RedisClusterClient.create(redisURI);
+                return reader(continuousKeyReader(client), keyValueProcessor(connectionPool(client), StatefulRedisClusterConnection::async));
+            }
+            RedisClient client = RedisClient.create(redisURI);
+            return reader(continuousKeyReader(client), keyValueProcessor(connectionPool(client), StatefulRedisConnection::async));
+        }
+
+        private ItemReader<String> continuousKeyReader(RedisClient client) {
+            return multiplexingReader(keyspaceNotificationReader(client), scanReader(client.connect(), StatefulRedisConnection::sync));
+        }
+
+        private ItemReader<String> continuousKeyReader(RedisClusterClient client) {
+            return multiplexingReader(keyspaceNotificationReader(client), scanReader(client.connect(), StatefulRedisClusterConnection::sync));
+        }
+
+        private ItemReader<String> multiplexingReader(ItemReader<String>... readers) {
+            return MultiplexingItemReader.<String>builder().readers(Arrays.asList(readers)).queue(queue()).pollingTimeout(queuePollingTimeout).build();
+        }
+
+        public RedisItemReader<String, KeyDump<String>> dumpReader() {
+            if (cluster) {
+                RedisClusterClient client = RedisClusterClient.create(redisURI);
+                return reader(scanReader(client.connect(), StatefulRedisClusterConnection::sync), keyDumpProcessor(connectionPool(client), StatefulRedisClusterConnection::async));
+            }
+            RedisClient client = RedisClient.create(redisURI);
+            return reader(scanReader(client.connect(), StatefulRedisConnection::sync), keyDumpProcessor(connectionPool(client), StatefulRedisConnection::async));
+        }
+
+        public RedisItemReader<String, KeyDump<String>> continuousDumpReader() {
+            if (cluster) {
+                RedisClusterClient client = RedisClusterClient.create(redisURI);
+                return reader(continuousKeyReader(client), keyDumpProcessor(connectionPool(client), StatefulRedisClusterConnection::async));
+
+            }
+            RedisClient client = RedisClient.create(redisURI);
+            return reader(continuousKeyReader(client), keyDumpProcessor(connectionPool(client), StatefulRedisConnection::async));
+        }
+
+        private <C extends StatefulConnection<String, String>> ItemProcessor<List<String>, List<KeyValue<String>>> keyValueProcessor(GenericObjectPool<C> connectionPool, Function<C, BaseRedisAsyncCommands<String, String>> commands) {
+            return KeyValueItemProcessor.<String, String, C>builder().pool(connectionPool).commands(commands).commandTimeout(commandTimeout).build();
+        }
+
+        private <C extends StatefulConnection<String, String>> ItemProcessor<List<String>, List<KeyDump<String>>> keyDumpProcessor(GenericObjectPool<C> connectionPool, Function<C, BaseRedisAsyncCommands<String, String>> commands) {
+            return KeyDumpItemProcessor.<String, String, C>builder().pool(connectionPool).commands(commands).commandTimeout(commandTimeout).build();
+        }
+
+        private ItemReader<String> keyspaceNotificationReader(RedisClient client) {
+            return RedisKeyspaceNotificationItemReader.<String, String>builder().connection(client.connectPubSub()).queue(queue()).pollingTimeout(queuePollingTimeout).patterns(keyspacePatterns()).keyExtractor(KEY_EXTRACTOR).build();
+        }
+
+        private ItemReader<String> keyspaceNotificationReader(RedisClusterClient client) {
+            return RedisClusterKeyspaceNotificationItemReader.<String, String>builder().connection(client.connectPubSub()).queue(queue()).pollingTimeout(queuePollingTimeout).patterns(keyspacePatterns()).keyExtractor(KEY_EXTRACTOR).build();
+        }
+
+        private <C extends StatefulConnection<String, String>> ItemReader<String> scanReader(C connection, Function<C, RedisKeyCommands<String, String>> commands) {
+            return ScanItemReader.<String, String, C>builder().connection(connection).commands(commands).scanArgs(scanArgs).build();
+        }
+
+        private String[] keyspacePatterns() {
+            if (keyspacePatterns == null) {
+                Map<String, String> variables = new HashMap<>();
+                variables.put(DATABASE_TOKEN, String.valueOf(redisURI.getDatabase()));
+                StringSubstitutor substitutor = new StringSubstitutor(variables);
+                return new String[]{substitutor.replace(KEYSPACE_CHANNEL_TEMPLATE)};
+            }
+            return keyspacePatterns;
+        }
+
+        private <T> BlockingQueue<T> queue() {
+            return new LinkedBlockingDeque<>(queueCapacity);
+        }
     }
 
 }
