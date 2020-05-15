@@ -21,10 +21,7 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
 
     protected AbstractKeyspaceNotificationItemReader(BlockingQueue<V> queue, long pollingTimeout, K[] patterns, BiFunction<K, V, V> keyExtractor) {
         setName(ClassUtils.getShortName(getClass()));
-        Assert.notNull(queue, "A queue is required.");
-        Assert.notNull(patterns, "A channel name is required.");
         Assert.isTrue(pollingTimeout > 0, "Polling timeout must be positive.");
-        Assert.notNull(keyExtractor, "A key extractor is required.");
         this.queue = queue;
         this.timeout = pollingTimeout;
         this.patterns = patterns;

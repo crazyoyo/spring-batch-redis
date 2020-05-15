@@ -3,10 +3,10 @@ package org.springframework.batch.item.redis.support.commands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import org.springframework.batch.item.redis.support.Command;
+import org.springframework.batch.item.redis.support.WriteCommand;
 import org.springframework.batch.item.redis.support.KeyDump;
 
-public abstract class AbstractRestore<K, V> implements Command<K, V, KeyDump<K>> {
+public abstract class AbstractRestore<K, V> implements WriteCommand<K, V, KeyDump<K>> {
 
     private static final long NO_EXPIRE_TTL = 0;
 

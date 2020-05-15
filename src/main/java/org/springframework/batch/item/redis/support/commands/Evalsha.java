@@ -5,10 +5,10 @@ import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 import lombok.Builder;
-import org.springframework.batch.item.redis.support.Command;
+import org.springframework.batch.item.redis.support.WriteCommand;
 
 @Builder
-public class Evalsha<K, V> implements Command<K, V, EvalshaArgs<K, V>> {
+public class Evalsha<K, V> implements WriteCommand<K, V, EvalshaArgs<K, V>> {
 
     private final String sha;
     private final ScriptOutputType outputType;

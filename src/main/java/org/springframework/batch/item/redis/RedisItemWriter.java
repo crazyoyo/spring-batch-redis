@@ -1,22 +1,14 @@
 package org.springframework.batch.item.redis;
 
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.springframework.batch.item.redis.support.Command;
-import org.springframework.batch.item.redis.support.RedisBuilder;
+import org.springframework.batch.item.redis.support.RedisClusterItemWriterBuilder;
+import org.springframework.batch.item.redis.support.RedisItemWriterBuilder;
+import org.springframework.batch.item.redis.support.WriteCommand;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
@@ -26,35 +18,28 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 @Slf4j
-public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> implements InitializingBean {
+public class RedisItemWriter<K, V, C extends StatefulConnection<K,V>, T> extends AbstractItemStreamItemWriter<T> {
 
-    private final GenericObjectPool<? extends StatefulConnection<K, V>> pool;
-    private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands;
-    private final Command<K, V, T> command;
+    private final GenericObjectPool<C> pool;
+    private final Function<C, BaseRedisAsyncCommands<K, V>> commands;
+    private final WriteCommand<K, V, T> command;
     private final long timeout;
 
-    public RedisItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> connectionPool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Command<K, V, T> command, long commandTimeout) {
+    public RedisItemWriter(GenericObjectPool<C> connectionPool, Function<C, BaseRedisAsyncCommands<K, V>> commands, WriteCommand<K, V, T> writeCommand, long commandTimeout) {
+        setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(connectionPool, "A connection pool is required.");
-        Assert.notNull(commands, "A commands function is required.");
-        Assert.notNull(command, "A command instance is required.");
+        Assert.notNull(commands, "A commands provider is required.");
+        Assert.notNull(writeCommand, "A write command is required.");
         Assert.isTrue(commandTimeout > 0, "Command timeout must be positive.");
         this.pool = connectionPool;
         this.commands = commands;
-        this.command = command;
+        this.command = writeCommand;
         this.timeout = commandTimeout;
     }
 
     @Override
-    public void afterPropertiesSet() {
-        setName(ClassUtils.getShortName(getClass()));
-        Assert.notNull(pool, "A connection pool is required.");
-        Assert.notNull(commands, "A commands function is required.");
-        Assert.notNull(command, "A write command is required.");
-    }
-
-    @Override
     public void write(List<? extends T> items) throws Exception {
-        try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+        try (C connection = pool.borrowObject()) {
             BaseRedisAsyncCommands<K, V> commands = this.commands.apply(connection);
             commands.setAutoFlushCommands(false);
             List<RedisFuture<?>> futures = new ArrayList<>();
@@ -86,25 +71,8 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> im
         return new RedisItemWriterBuilder<>();
     }
 
-    @Setter
-    @Accessors(fluent = true)
-    public static class RedisItemWriterBuilder<T> extends RedisBuilder {
-
-        private RedisURI redisURI;
-        private boolean cluster;
-        private int maxTotal = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
-        private int minIdle = GenericObjectPoolConfig.DEFAULT_MIN_IDLE;
-        private int maxIdle = GenericObjectPoolConfig.DEFAULT_MAX_IDLE;
-        private Command<String, String, T> command;
-        private long commandTimeout = RedisURI.DEFAULT_TIMEOUT;
-
-
-        public RedisItemWriter<String, String, T> build() {
-            if (cluster) {
-                return new RedisItemWriter<>(connectionPool(RedisClusterClient.create(redisURI), maxTotal, minIdle, maxIdle), c -> ((StatefulRedisClusterConnection<String, String>) c).async(), command, commandTimeout);
-            }
-            return new RedisItemWriter<>(connectionPool(RedisClient.create(redisURI), maxTotal, minIdle, maxIdle), c -> ((StatefulRedisConnection<String, String>) c).async(), command, commandTimeout);
-        }
-
+    public static <T> RedisClusterItemWriterBuilder<T> clusterBuilder() {
+        return new RedisClusterItemWriterBuilder<>();
     }
+
 }

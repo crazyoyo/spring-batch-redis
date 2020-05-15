@@ -4,10 +4,9 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import lombok.Builder;
-import lombok.Getter;
-import org.springframework.batch.item.redis.support.Command;
+import org.springframework.batch.item.redis.support.WriteCommand;
 
-public class Xadd<K, V> implements Command<K, V, XaddArgs<K, V>> {
+public class Xadd<K, V> implements WriteCommand<K, V, XaddArgs<K, V>> {
 
     @Override
     public RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, XaddArgs<K, V> args) {
@@ -15,7 +14,7 @@ public class Xadd<K, V> implements Command<K, V, XaddArgs<K, V>> {
     }
 
     @Builder
-    public static class XaddId<K, V> implements Command<K, V, XaddArgs<K, V>> {
+    public static class XaddId<K, V> implements WriteCommand<K, V, XaddArgs<K, V>> {
 
         @Override
         public RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, XaddArgs<K, V> args) {
@@ -25,7 +24,7 @@ public class Xadd<K, V> implements Command<K, V, XaddArgs<K, V>> {
     }
 
     @Builder
-    public static class XaddMaxlen<K, V> implements Command<K, V, XaddArgs<K, V>> {
+    public static class XaddMaxlen<K, V> implements WriteCommand<K, V, XaddArgs<K, V>> {
 
         private final long maxlen;
         private final boolean approximateTrimming;
@@ -38,7 +37,7 @@ public class Xadd<K, V> implements Command<K, V, XaddArgs<K, V>> {
     }
 
     @Builder
-    public static class XaddIdMaxlen<K, V> implements Command<K, V, XaddArgs<K, V>> {
+    public static class XaddIdMaxlen<K, V> implements WriteCommand<K, V, XaddArgs<K, V>> {
 
         private final long maxlen;
         private final boolean approximateTrimming;

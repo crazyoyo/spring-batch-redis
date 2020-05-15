@@ -5,6 +5,7 @@ import io.lettuce.core.ScanArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.RedisKeyCommands;
 import lombok.Builder;
+import lombok.NonNull;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -23,11 +24,8 @@ public class ScanItemReader<K, V, C extends StatefulConnection<K, V>> extends Ab
     private KeyScanCursor<K> cursor;
 
     @Builder
-    public ScanItemReader(C connection, Function<C, RedisKeyCommands<K, V>> commands, ScanArgs scanArgs) {
+    public ScanItemReader(@NonNull C connection, @NonNull Function<C, RedisKeyCommands<K, V>> commands, @NonNull ScanArgs scanArgs) {
         setName(ClassUtils.getShortName(getClass()));
-        Assert.notNull(connection, "A connection is required.");
-        Assert.notNull(commands, "A commands function is required.");
-        Assert.notNull(scanArgs, "Scan args are required.");
         this.connection = connection;
         this.commands = commands;
         this.scanArgs = scanArgs;

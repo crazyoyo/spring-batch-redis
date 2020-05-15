@@ -5,6 +5,7 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import lombok.Builder;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ItemProcessor;
@@ -20,19 +21,19 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 @Slf4j
-public class KeyDumpComparator<K, V, C extends StatefulConnection<K, V>> implements ItemProcessor<List<K>, List<KeyComparison<K>>> {
+public class KeyDumpComparator<K, V, C extends StatefulConnection<K, V>> implements ItemProcessor<List<? extends K>, List<? extends KeyComparison<K>>> {
 
-    private final ItemProcessor<List<K>, List<KeyDump<K>>> reader;
+    @NonNull
+    private final ItemProcessor<List<? extends K>, List<? extends KeyDump<K>>> reader;
+    @NonNull
     private final GenericObjectPool<C> pool;
+    @NonNull
     private final Function<C, BaseRedisAsyncCommands<K, V>> commands;
     private final long timeout;
     private final long pttlTolerance;
 
     @Builder
-    public KeyDumpComparator(ItemProcessor<List<K>, List<KeyDump<K>>> reader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, long pttlTolerance) {
-        Assert.notNull(reader, "A KeyDump reader is required.");
-        Assert.notNull(pool, "A connection pool is required.");
-        Assert.notNull(commands, "A commands function is required.");
+    public KeyDumpComparator(ItemProcessor<List<? extends K>, List<? extends KeyDump<K>>> reader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, long pttlTolerance) {
         Assert.isTrue(commandTimeout > 0, "Command timeout must be positive.");
         this.reader = reader;
         this.pool = pool;
@@ -42,8 +43,8 @@ public class KeyDumpComparator<K, V, C extends StatefulConnection<K, V>> impleme
     }
 
     @Override
-    public List<KeyComparison<K>> process(List<K> keys) throws Exception {
-        List<KeyDump<K>> sourceDumps = reader.process(keys);
+    public List<KeyComparison<K>> process(List<? extends K> keys) throws Exception {
+        List<? extends KeyDump<K>> sourceDumps = reader.process(keys);
         if (sourceDumps == null) {
             return Collections.emptyList();
         }

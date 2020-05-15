@@ -5,6 +5,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.*;
 import lombok.Builder;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ItemProcessor;
@@ -18,16 +19,16 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 @Slf4j
-public class KeyValueItemProcessor<K, V, C extends StatefulConnection<K, V>> implements ItemProcessor<List<K>, List<KeyValue<K>>> {
+public class KeyValueItemProcessor<K, V, C extends StatefulConnection<K, V>> implements ItemProcessor<List<? extends K>, List<? extends KeyValue<K>>> {
 
+    @NonNull
     private final GenericObjectPool<C> pool;
+    @NonNull
     private final Function<C, BaseRedisAsyncCommands<K, V>> commands;
     private final long timeout;
 
     @Builder
     public KeyValueItemProcessor(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout) {
-        Assert.notNull(pool, "A connection pool is required.");
-        Assert.notNull(commands, "A commands function is required.");
         Assert.isTrue(commandTimeout > 0, "Command timeout must be positive.");
         this.pool = pool;
         this.commands = commands;
@@ -35,7 +36,7 @@ public class KeyValueItemProcessor<K, V, C extends StatefulConnection<K, V>> imp
     }
 
     @Override
-    public List<KeyValue<K>> process(List<K> keys) throws Exception {
+    public List<KeyValue<K>> process(List<? extends K> keys) throws Exception {
         try (C connection = pool.borrowObject()) {
             BaseRedisAsyncCommands<K, V> commands = this.commands.apply(connection);
             commands.setAutoFlushCommands(false);

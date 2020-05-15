@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Slf4j
-public class KeyValueCommand<K, V> implements Command<K, V, KeyValue<K>> {
+public class KeyValueCommand<K, V> implements WriteCommand<K, V, KeyValue<K>> {
 
     @Override
     public RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, KeyValue<K> args) {

@@ -3,7 +3,7 @@ package org.springframework.batch.item.redis.support;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import lombok.Builder;
-import org.springframework.util.Assert;
+import lombok.NonNull;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.function.BiFunction;
@@ -13,9 +13,8 @@ public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceN
     private final StatefulRedisPubSubConnection<K, V> connection;
 
     @Builder
-    public RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<K, V> connection, BlockingQueue<V> queue, long pollingTimeout, K[] patterns, BiFunction<K,V,V> keyExtractor) {
+    public RedisKeyspaceNotificationItemReader(@NonNull StatefulRedisPubSubConnection<K, V> connection, @NonNull BlockingQueue<V> queue, long pollingTimeout, @NonNull K[] patterns, @NonNull BiFunction<K, V, V> keyExtractor) {
         super(queue, pollingTimeout, patterns, keyExtractor);
-        Assert.notNull(connection, "A connection is required.");
         this.connection = connection;
     }
 

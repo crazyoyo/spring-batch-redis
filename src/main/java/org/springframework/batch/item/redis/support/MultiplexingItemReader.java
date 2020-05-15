@@ -2,6 +2,7 @@ package org.springframework.batch.item.redis.support;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
@@ -20,7 +21,9 @@ import java.util.concurrent.TimeUnit;
 public class MultiplexingItemReader<K> extends AbstractItemStreamItemReader<K> {
 
     @Getter
+    @NonNull
     private final List<ItemReader<K>> readers;
+    @NonNull
     private final BlockingQueue<K> queue;
     private final long timeout;
 
@@ -30,18 +33,17 @@ public class MultiplexingItemReader<K> extends AbstractItemStreamItemReader<K> {
     public MultiplexingItemReader(List<ItemReader<K>> readers, BlockingQueue<K> queue, long pollingTimeout) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.isTrue(readers != null && !readers.isEmpty(), "No reader specified.");
-        Assert.notNull(queue, "A queue instance is required.");
         Assert.isTrue(pollingTimeout > 0, "Polling timeout must be positive.");
         this.readers = readers;
         this.queue = queue;
         this.timeout = pollingTimeout;
+        this.executor = Executors.newFixedThreadPool(readers.size());
     }
 
 
     @Override
     public void open(ExecutionContext executionContext) {
         super.open(executionContext);
-        executor = Executors.newFixedThreadPool(readers.size());
         for (ItemReader<K> reader : readers) {
             if (reader instanceof ItemStream) {
                 ((ItemStream) reader).open(executionContext);
@@ -51,6 +53,16 @@ public class MultiplexingItemReader<K> extends AbstractItemStreamItemReader<K> {
         executor.shutdown();
     }
 
+
+    @Override
+    public void close() {
+        for (ItemReader<K> reader : readers) {
+            if (reader instanceof ItemStream) {
+                ((ItemStream) reader).close();
+            }
+        }
+        super.close();
+    }
 
     @Override
     public K read() throws Exception {
@@ -86,13 +98,4 @@ public class MultiplexingItemReader<K> extends AbstractItemStreamItemReader<K> {
         }
     }
 
-    @Override
-    public void close() {
-        for (ItemReader<K> reader : readers) {
-            if (reader instanceof ItemStream) {
-                ((ItemStream) reader).close();
-            }
-        }
-        super.close();
-    }
 }
