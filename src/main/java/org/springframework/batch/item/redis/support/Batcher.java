@@ -15,7 +15,7 @@ public class Batcher<K> implements Runnable {
     private final ItemReader<K> reader;
     private final int batchSize;
     private final ItemWriter<K> writer;
-    private List<K> items;
+    private final List<K> items;
     private boolean stopped;
 
     @Builder

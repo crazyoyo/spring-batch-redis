@@ -4,8 +4,6 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import lombok.Builder;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ItemProcessor;
@@ -23,28 +21,27 @@ import java.util.function.Function;
 @Slf4j
 public class KeyDumpComparator<K, V, C extends StatefulConnection<K, V>> implements ItemProcessor<List<? extends K>, List<? extends KeyComparison<K>>> {
 
-    @NonNull
-    private final ItemProcessor<List<? extends K>, List<? extends KeyDump<K>>> reader;
-    @NonNull
+    private final ItemProcessor<List<? extends K>, List<? extends KeyDump<K>>> keyProcessor;
     private final GenericObjectPool<C> pool;
-    @NonNull
     private final Function<C, BaseRedisAsyncCommands<K, V>> commands;
-    private final long timeout;
+    private final long commandTimeout;
     private final long pttlTolerance;
 
-    @Builder
-    public KeyDumpComparator(ItemProcessor<List<? extends K>, List<? extends KeyDump<K>>> reader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, long pttlTolerance) {
+    protected KeyDumpComparator(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, ItemProcessor<List<? extends K>, List<? extends KeyDump<K>>> keyProcessor, long commandTimeout, long pttlTolerance) {
+        Assert.notNull(pool, "A connection pool is required.");
+        Assert.notNull(commands, "A commands provider is required.");
+        Assert.notNull(keyProcessor, "A key processor is required.");
         Assert.isTrue(commandTimeout > 0, "Command timeout must be positive.");
-        this.reader = reader;
         this.pool = pool;
         this.commands = commands;
-        this.timeout = commandTimeout;
+        this.keyProcessor = keyProcessor;
+        this.commandTimeout = commandTimeout;
         this.pttlTolerance = pttlTolerance;
     }
 
     @Override
     public List<KeyComparison<K>> process(List<? extends K> keys) throws Exception {
-        List<? extends KeyDump<K>> sourceDumps = reader.process(keys);
+        List<? extends KeyDump<K>> sourceDumps = keyProcessor.process(keys);
         if (sourceDumps == null) {
             return Collections.emptyList();
         }
@@ -61,8 +58,8 @@ public class KeyDumpComparator<K, V, C extends StatefulConnection<K, V>> impleme
             List<KeyComparison<K>> comparisons = new ArrayList<>();
             for (int index = 0; index < sourceDumps.size(); index++) {
                 try {
-                    Long ttl = ttls.get(index).get(timeout, TimeUnit.SECONDS);
-                    byte[] dump = dumps.get(index).get(timeout, TimeUnit.SECONDS);
+                    Long ttl = ttls.get(index).get(commandTimeout, TimeUnit.SECONDS);
+                    byte[] dump = dumps.get(index).get(commandTimeout, TimeUnit.SECONDS);
                     KeyDump<K> source = sourceDumps.get(index);
                     KeyDump<K> target = new KeyDump<>(source.getKey(), ttl, dump);
                     comparisons.add(new KeyComparison<>(source, target, getStatus(source, target)));

@@ -9,12 +9,12 @@ public class PoolOptions {
 
     @Getter
     @Builder.Default
-    private int maxTotal = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
+    private final int maxTotal = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
     @Getter
     @Builder.Default
-    private int minIdle = GenericObjectPoolConfig.DEFAULT_MIN_IDLE;
+    private final int minIdle = GenericObjectPoolConfig.DEFAULT_MIN_IDLE;
     @Getter
     @Builder.Default
-    private int maxIdle = GenericObjectPoolConfig.DEFAULT_MAX_IDLE;
+    private final int maxIdle = GenericObjectPoolConfig.DEFAULT_MAX_IDLE;
 
 }

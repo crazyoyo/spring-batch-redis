@@ -1,20 +1,19 @@
 package org.springframework.batch.item.redis.support;
 
+import io.lettuce.core.RedisClient;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
-import lombok.Builder;
-import lombok.NonNull;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 
-import java.util.concurrent.BlockingQueue;
 import java.util.function.BiFunction;
 
 public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceNotificationItemReader<K, V> implements RedisPubSubListener<K, V> {
 
     private final StatefulRedisPubSubConnection<K, V> connection;
 
-    @Builder
-    public RedisKeyspaceNotificationItemReader(@NonNull StatefulRedisPubSubConnection<K, V> connection, @NonNull BlockingQueue<V> queue, long pollingTimeout, @NonNull K[] patterns, @NonNull BiFunction<K, V, V> keyExtractor) {
-        super(queue, pollingTimeout, patterns, keyExtractor);
+    public RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<K, V> connection, K[] patterns, int queueCapacity, long queuePollingTimeout, BiFunction<K, V, V> keyExtractor) {
+        super(patterns, queueCapacity, queuePollingTimeout, keyExtractor);
         this.connection = connection;
     }
 
@@ -55,4 +54,23 @@ public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceN
     @Override
     public void punsubscribed(K pattern, long count) {
     }
+
+    public static RedisKeyspaceNotificationItemReaderBuilder builder() {
+        return new RedisKeyspaceNotificationItemReaderBuilder();
+    }
+
+    @Accessors(fluent = true)
+    @Setter
+    public static class RedisKeyspaceNotificationItemReaderBuilder extends KeyspaceNotificationItemReaderBuilder {
+
+        private RedisClient client;
+        private String[] patterns;
+        private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+        private long queuePollingTimeout = DEFAULT_QUEUE_POLLING_TIMEOUT;
+
+        public RedisKeyspaceNotificationItemReader<String, String> build() {
+            return new RedisKeyspaceNotificationItemReader<>(client.connectPubSub(), patterns, queueCapacity, queuePollingTimeout, DEFAULT_KEY_EXTRACTOR);
+        }
+    }
+
 }

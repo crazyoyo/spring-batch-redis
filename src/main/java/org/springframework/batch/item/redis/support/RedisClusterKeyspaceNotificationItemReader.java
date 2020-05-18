@@ -1,21 +1,20 @@
 package org.springframework.batch.item.redis.support;
 
+import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
-import lombok.Builder;
-import lombok.NonNull;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 
-import java.util.concurrent.BlockingQueue;
 import java.util.function.BiFunction;
 
 public class RedisClusterKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceNotificationItemReader<K, V> implements RedisClusterPubSubListener<K, V> {
 
     private final StatefulRedisClusterPubSubConnection<K, V> connection;
 
-    @Builder
-    public RedisClusterKeyspaceNotificationItemReader(@NonNull StatefulRedisClusterPubSubConnection<K, V> connection, @NonNull BlockingQueue<V> queue, long pollingTimeout, @NonNull K[] patterns, @NonNull BiFunction<K,V,V> keyExtractor) {
-        super(queue, pollingTimeout, patterns, keyExtractor);
+    public RedisClusterKeyspaceNotificationItemReader(StatefulRedisClusterPubSubConnection<K, V> connection, K[] patterns, int queueCapacity, long queuePollingTimeout, BiFunction<K, V, V> keyExtractor) {
+        super(patterns, queueCapacity, queuePollingTimeout, keyExtractor);
         this.connection = connection;
     }
 
@@ -56,5 +55,23 @@ public class RedisClusterKeyspaceNotificationItemReader<K, V> extends AbstractKe
 
     @Override
     public void punsubscribed(RedisClusterNode node, K pattern, long count) {
+    }
+
+    public static RedisClusterKeyspaceNotificationItemReaderBuilder builder() {
+        return new RedisClusterKeyspaceNotificationItemReaderBuilder();
+    }
+
+    @Accessors(fluent = true)
+    @Setter
+    public static class RedisClusterKeyspaceNotificationItemReaderBuilder extends KeyspaceNotificationItemReaderBuilder {
+
+        private RedisClusterClient client;
+        private String[] patterns;
+        private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+        private long queuePollingTimeout = DEFAULT_QUEUE_POLLING_TIMEOUT;
+
+        public RedisClusterKeyspaceNotificationItemReader<String,String> build() {
+            return new RedisClusterKeyspaceNotificationItemReader<>(client.connectPubSub(), patterns, queueCapacity, queuePollingTimeout, DEFAULT_KEY_EXTRACTOR);
+        }
     }
 }

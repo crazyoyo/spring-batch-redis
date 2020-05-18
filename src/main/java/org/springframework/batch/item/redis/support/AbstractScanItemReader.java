@@ -4,8 +4,6 @@ import io.lettuce.core.KeyScanCursor;
 import io.lettuce.core.ScanArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.RedisKeyCommands;
-import lombok.Builder;
-import lombok.NonNull;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -13,7 +11,7 @@ import org.springframework.util.ClassUtils;
 import java.util.Iterator;
 import java.util.function.Function;
 
-public class ScanItemReader<K, V, C extends StatefulConnection<K, V>> extends AbstractItemCountingItemStreamItemReader<K> {
+public abstract class AbstractScanItemReader<K, V, C extends StatefulConnection<K, V>> extends AbstractItemCountingItemStreamItemReader<K> {
 
     private final C connection;
     private final Function<C, RedisKeyCommands<K, V>> commands;
@@ -23,12 +21,13 @@ public class ScanItemReader<K, V, C extends StatefulConnection<K, V>> extends Ab
     private Iterator<K> keyIterator;
     private KeyScanCursor<K> cursor;
 
-    @Builder
-    public ScanItemReader(@NonNull C connection, @NonNull Function<C, RedisKeyCommands<K, V>> commands, @NonNull ScanArgs scanArgs) {
+    protected AbstractScanItemReader(C connection, Function<C, RedisKeyCommands<K, V>> commands, ScanArgs scanArgs) {
+        Assert.notNull(connection, "A connection is required.");
+        Assert.notNull(commands, "A commands supplier is required.");
         setName(ClassUtils.getShortName(getClass()));
         this.connection = connection;
         this.commands = commands;
-        this.scanArgs = scanArgs;
+        this.scanArgs = scanArgs == null ? new ScanArgs() : scanArgs;
     }
 
     @Override

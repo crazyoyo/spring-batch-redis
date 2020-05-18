@@ -4,8 +4,6 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import lombok.Builder;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ItemProcessor;
@@ -21,18 +19,17 @@ import java.util.function.Function;
 @Slf4j
 public class KeyDumpItemProcessor<K, V, C extends StatefulConnection<K, V>> implements ItemProcessor<List<? extends K>, List<? extends KeyDump<K>>> {
 
-    @NonNull
     private final GenericObjectPool<C> pool;
-    @NonNull
     private final Function<C, BaseRedisAsyncCommands<K, V>> commands;
-    private final long timeout;
+    private final long commandTimeout;
 
-    @Builder
-    public KeyDumpItemProcessor(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout) {
+    protected KeyDumpItemProcessor(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout) {
+        Assert.notNull(pool, "A connection pool is required.");
+        Assert.notNull(commands, "A commands provider is required.");
         Assert.isTrue(commandTimeout > 0, "Command timeout must be positive.");
         this.pool = pool;
         this.commands = commands;
-        this.timeout = commandTimeout;
+        this.commandTimeout = commandTimeout;
     }
 
     @Override
@@ -50,8 +47,8 @@ public class KeyDumpItemProcessor<K, V, C extends StatefulConnection<K, V>> impl
             List<KeyDump<K>> keyDumps = new ArrayList<>();
             for (int index = 0; index < keys.size(); index++) {
                 try {
-                    Long ttl = ttls.get(index).get(timeout, TimeUnit.SECONDS);
-                    byte[] dump = dumps.get(index).get(timeout, TimeUnit.SECONDS);
+                    Long ttl = ttls.get(index).get(commandTimeout, TimeUnit.SECONDS);
+                    byte[] dump = dumps.get(index).get(commandTimeout, TimeUnit.SECONDS);
                     keyDumps.add(new KeyDump<>(keys.get(index), ttl, dump));
                 } catch (InterruptedException e) {
                     log.debug("Interrupted while dumping", e);

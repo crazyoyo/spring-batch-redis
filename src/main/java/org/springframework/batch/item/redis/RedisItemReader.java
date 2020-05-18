@@ -1,21 +1,46 @@
 package org.springframework.batch.item.redis;
 
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.ScanArgs;
+import io.lettuce.core.cluster.RedisClusterClient;
+import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.text.StringSubstitutor;
 import org.springframework.batch.item.*;
 import org.springframework.batch.item.redis.support.*;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 
 @Slf4j
 public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemReader<T> {
 
-    private final ReaderOptions options;
+    @Data
+    @Builder
+    public static class Options {
+
+        public static final int DEFAULT_BATCH_SIZE = 50;
+        public static final int DEFAULT_THREADS = 1;
+        public static final int DEFAULT_QUEUE_CAPACITY = 10000;
+        public static final long DEFAULT_QUEUE_POLLING_TIMEOUT = 100;
+
+        @Builder.Default
+        private final int batchSize = DEFAULT_BATCH_SIZE;
+        @Builder.Default
+        private final int threads = DEFAULT_THREADS;
+        @Builder.Default
+        private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+        @Builder.Default
+        private long queuePollingTimeout = DEFAULT_QUEUE_POLLING_TIMEOUT;
+
+    }
+
+    private final Options options;
     @Getter
     private final ItemReader<K> keyReader;
     private final ItemProcessor<List<? extends K>, List<? extends T>> valueReader;
@@ -24,22 +49,14 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
     private ExecutorService executor;
     private List<Batcher<K>> threads;
 
-    public RedisItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<? extends T>> valueReader, ReaderOptions options) {
+    protected RedisItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<? extends T>> valueReader, Options options) {
+        setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(keyReader, "A key reader is required.");
         Assert.notNull(valueReader, "A value reader is required.");
-        Assert.notNull(options, "Reader options are required.");
-        setName(ClassUtils.getShortName(getClass()));
+        Assert.notNull(options, "Options are required.");
         this.keyReader = keyReader;
         this.valueReader = valueReader;
         this.options = options;
-    }
-
-    public static RedisItemReaderBuilder builder() {
-        return new RedisItemReaderBuilder();
-    }
-
-    public static RedisClusterItemReaderBuilder clusterBuilder() {
-        return new RedisClusterItemReaderBuilder();
     }
 
     @Override
@@ -106,6 +123,73 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
             value = valueQueue.poll(options.getQueuePollingTimeout(), TimeUnit.MILLISECONDS);
         } while (value == null && !executor.isTerminated());
         return value;
+    }
+
+    protected static abstract class AbstractRedisItemReaderBuilder {
+
+        public enum Mode {
+            SCAN, NEW, LIVE
+        }
+
+        public static final RedisOptions DEFAULT_REDIS_OPTIONS = RedisOptions.builder().build();
+        public static final Options DEFAULT_OPTIONS = Options.builder().build();
+        public static final Mode DEFAULT_MODE = Mode.SCAN;
+        public static final ScanArgs DEFAULT_SCAN_OPTIONS = new ScanArgs();
+        private static final String DATABASE_TOKEN = "database";
+        private static final String KEYSPACE_CHANNEL_TEMPLATE = "__keyspace@${" + DATABASE_TOKEN + "}__:*";
+
+        private String[] patterns(RedisOptions redisOptions) {
+            Map<String, String> variables = new HashMap<>();
+            variables.put(DATABASE_TOKEN, String.valueOf(redisOptions.getRedisURI().getDatabase()));
+            StringSubstitutor substitutor = new StringSubstitutor(variables);
+            String pattern = substitutor.replace(KEYSPACE_CHANNEL_TEMPLATE);
+            return new String[]{pattern};
+        }
+
+        private ItemReader<String> multiplexingReader(Options options, ItemReader<String> notificationReader, ItemReader<String> scanReader) {
+            return MultiplexingItemReader.<String>builder().queueCapacity(options.getQueueCapacity()).queuePollingTimeout(options.getQueuePollingTimeout()).readers(Arrays.asList(notificationReader, scanReader)).build();
+        }
+
+        protected ItemReader<String> keyReader(Mode mode, RedisClient client, RedisOptions redisOptions, Options options, ScanArgs scanArgs) {
+            switch (mode) {
+                case LIVE:
+                    return multiplexingReader(options, notificationReader(client, redisOptions, options), scanReader(client, scanArgs));
+                case NEW:
+                    return notificationReader(client, redisOptions, options);
+                default:
+                    return scanReader(client, scanArgs);
+            }
+        }
+
+        protected ItemReader<String> keyReader(Mode mode, RedisClusterClient client, RedisOptions redisOptions, Options options, ScanArgs scanArgs) {
+            switch (mode) {
+                case LIVE:
+                    return multiplexingReader(options, notificationReader(client, redisOptions, options), scanReader(client, scanArgs));
+                case NEW:
+                    return notificationReader(client, redisOptions, options);
+                default:
+                    return scanReader(client, scanArgs);
+            }
+        }
+
+
+        private RedisKeyspaceNotificationItemReader<String, String> notificationReader(RedisClient client, RedisOptions redisOptions, Options options) {
+            return RedisKeyspaceNotificationItemReader.builder().client(client).patterns(patterns(redisOptions)).queueCapacity(options.getQueueCapacity()).queuePollingTimeout(options.getQueuePollingTimeout()).build();
+        }
+
+        private RedisClusterKeyspaceNotificationItemReader<String, String> notificationReader(RedisClusterClient client, RedisOptions redisOptions, Options options) {
+            return RedisClusterKeyspaceNotificationItemReader.builder().client(client).patterns(patterns(redisOptions)).queueCapacity(options.getQueueCapacity()).queuePollingTimeout(options.getQueuePollingTimeout()).build();
+        }
+
+        private RedisScanItemReader<String, String> scanReader(RedisClient client, ScanArgs options) {
+            return new RedisScanItemReader<>(client.connect(), options);
+        }
+
+
+        private RedisClusterScanItemReader<String, String> scanReader(RedisClusterClient client, ScanArgs options) {
+            return new RedisClusterScanItemReader<>(client.connect(), options);
+        }
+
     }
 
 }

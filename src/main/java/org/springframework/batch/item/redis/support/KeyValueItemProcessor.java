@@ -4,8 +4,6 @@ import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.*;
-import lombok.Builder;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ItemProcessor;
@@ -21,18 +19,17 @@ import java.util.function.Function;
 @Slf4j
 public class KeyValueItemProcessor<K, V, C extends StatefulConnection<K, V>> implements ItemProcessor<List<? extends K>, List<? extends KeyValue<K>>> {
 
-    @NonNull
     private final GenericObjectPool<C> pool;
-    @NonNull
     private final Function<C, BaseRedisAsyncCommands<K, V>> commands;
-    private final long timeout;
+    private final long commandTimeout;
 
-    @Builder
     public KeyValueItemProcessor(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout) {
+        Assert.notNull(pool, "A connection pool is required.");
+        Assert.notNull(commands, "A commands provider is required.");
         Assert.isTrue(commandTimeout > 0, "Command timeout must be positive.");
         this.pool = pool;
         this.commands = commands;
-        this.timeout = commandTimeout;
+        this.commandTimeout = commandTimeout;
     }
 
     @Override
@@ -50,7 +47,7 @@ public class KeyValueItemProcessor<K, V, C extends StatefulConnection<K, V>> imp
             List<Long> ttls = new ArrayList<>(ttlFutures.size());
             for (RedisFuture<Long> future : ttlFutures) {
                 try {
-                    ttls.add(future.get(timeout, TimeUnit.SECONDS));
+                    ttls.add(future.get(commandTimeout, TimeUnit.SECONDS));
                 } catch (InterruptedException e) {
                     log.debug("Interrupted while getting type", e);
                 } catch (ExecutionException e) {
@@ -62,7 +59,7 @@ public class KeyValueItemProcessor<K, V, C extends StatefulConnection<K, V>> imp
             List<DataType> types = new ArrayList<>(typeFutures.size());
             for (RedisFuture<String> future : typeFutures) {
                 try {
-                    String type = future.get(timeout, TimeUnit.SECONDS);
+                    String type = future.get(commandTimeout, TimeUnit.SECONDS);
                     types.add(DataType.fromCode(type));
                 } catch (InterruptedException e) {
                     log.debug("Interrupted while getting type", e);
@@ -85,7 +82,7 @@ public class KeyValueItemProcessor<K, V, C extends StatefulConnection<K, V>> imp
                 keyValue.setTtl(ttls.get(index));
                 keyValue.setType(types.get(index));
                 try {
-                    keyValue.setTtl(ttlFutures.get(index).get(timeout, TimeUnit.SECONDS));
+                    keyValue.setTtl(ttlFutures.get(index).get(commandTimeout, TimeUnit.SECONDS));
                 } catch (InterruptedException e) {
                     log.debug("Interrupted while getting TTL for key {}", key, e);
                 } catch (ExecutionException e) {
@@ -94,7 +91,7 @@ public class KeyValueItemProcessor<K, V, C extends StatefulConnection<K, V>> imp
                     log.error("Timeout in TTL command", e);
                 }
                 try {
-                    keyValue.setValue(valueFutures.get(index).get(timeout, TimeUnit.SECONDS));
+                    keyValue.setValue(valueFutures.get(index).get(commandTimeout, TimeUnit.SECONDS));
                 } catch (NullPointerException e) {
                     log.error("Nullpointer for key {}", key, e);
                 } catch (InterruptedException e) {
