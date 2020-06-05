@@ -3,7 +3,6 @@ package org.springframework.batch.item.redis;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.sync.RedisCommands;
 import io.lettuce.core.support.ConnectionPoolSupport;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
@@ -34,39 +33,39 @@ public class BatchTestApplication {
         return RedisURI.create("localhost", BaseTest.TARGET_REDIS_PORT);
     }
 
-    @Bean(destroyMethod = "shutdown")
-    RedisClient client(RedisURI redisURI) {
+    @Bean
+    RedisClient redisClient(RedisURI redisURI) {
         return RedisClient.create(redisURI);
     }
 
-    @Bean(destroyMethod = "shutdown")
-    RedisClient targetClient(RedisURI targetRedisURI) {
+    @Bean
+    RedisClient targetRedisClient(RedisURI targetRedisURI) {
         return RedisClient.create(targetRedisURI);
     }
 
-    @Bean(destroyMethod = "close")
-    StatefulRedisConnection<String, String> redisConnection(RedisClient client) {
-        return client.connect();
-    }
-
-    @Bean(destroyMethod = "close")
-    StatefulRedisConnection<String, String> targetRedisConnection(RedisClient targetClient) {
-        return targetClient.connect();
-    }
-
-    @Bean(destroyMethod = "close")
-    GenericObjectPool<StatefulRedisConnection<String, String>> connectionPool(RedisClient client) {
-        return ConnectionPoolSupport.createGenericObjectPool(client::connect, new GenericObjectPoolConfig<>());
-    }
-
-    @Bean(destroyMethod = "close")
-    GenericObjectPool<StatefulRedisConnection<String, String>> targetConnectionPool(RedisClient targetClient) {
-        return ConnectionPoolSupport.createGenericObjectPool(targetClient::connect, new GenericObjectPoolConfig<>());
+    @Bean
+    StatefulRedisConnection<String, String> connection(RedisClient redisClient) {
+        return redisClient.connect();
     }
 
     @Bean
-    RedisCommands<String, String> syncCommands(StatefulRedisConnection<String, String> redisConnection) {
-        return redisConnection.sync();
+    StatefulRedisConnection<String, String> targetConnection(RedisClient targetRedisClient) {
+        return targetRedisClient.connect();
+    }
+
+    @Bean
+    GenericObjectPoolConfig<StatefulRedisConnection<String, String>> poolConfig() {
+        return new GenericObjectPoolConfig<>();
+    }
+
+    @Bean
+    GenericObjectPool<StatefulRedisConnection<String, String>> pool(RedisClient redisClient, GenericObjectPoolConfig<StatefulRedisConnection<String, String>> poolConfig) {
+        return ConnectionPoolSupport.createGenericObjectPool(redisClient::connect, poolConfig);
+    }
+
+    @Bean
+    GenericObjectPool<StatefulRedisConnection<String, String>> targetPool(RedisClient targetRedisClient, GenericObjectPoolConfig<StatefulRedisConnection<String, String>> poolConfig) {
+        return ConnectionPoolSupport.createGenericObjectPool(targetRedisClient::connect, poolConfig);
     }
 
     @Bean

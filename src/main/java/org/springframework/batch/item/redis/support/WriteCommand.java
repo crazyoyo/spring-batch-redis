@@ -5,6 +5,6 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public interface WriteCommand<K, V, T> {
 
-    RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, T args);
+    RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, T value);
 
 }

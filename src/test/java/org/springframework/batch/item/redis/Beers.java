@@ -11,6 +11,7 @@ import java.util.Map;
 
 public class Beers {
 
+    public final static long SIZE = 2410;
     public final static String FIELD_ABV = "abv";
     public final static String FIELD_ID = "id";
     public final static String FIELD_NAME = "name";

@@ -5,7 +5,10 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
+import redis.embedded.RedisExecProvider;
 import redis.embedded.RedisServer;
+import redis.embedded.util.Architecture;
+import redis.embedded.util.OS;
 
 public class BaseTest {
 
@@ -16,22 +19,24 @@ public class BaseTest {
     private static RedisServer targetServer;
 
     @Autowired
-    private RedisClient client;
+    private RedisClient redisClient;
     @Autowired
-    private RedisClient targetClient;
+    private RedisClient targetRedisClient;
 
     @BeforeAll
     public static void setup() {
-        server = RedisServer.builder().port(REDIS_PORT).setting("notify-keyspace-events AK").build();
+        RedisExecProvider customProvider = RedisExecProvider.defaultProvider()
+                .override(OS.MAC_OS_X, Architecture.x86_64, "/usr/local/bin/redis-server");
+        server = RedisServer.builder().redisExecProvider(customProvider).port(REDIS_PORT).setting("notify-keyspace-events AK").build();
         server.start();
-        targetServer = RedisServer.builder().port(TARGET_REDIS_PORT).build();
+        targetServer = RedisServer.builder().redisExecProvider(customProvider).port(TARGET_REDIS_PORT).build();
         targetServer.start();
     }
 
     @BeforeEach
     public void flushAll() {
-        client.connect().sync().flushall();
-        targetClient.connect().sync().flushall();
+        redisClient.connect().sync().flushall();
+        targetRedisClient.connect().sync().flushall();
     }
 
     @AfterAll
