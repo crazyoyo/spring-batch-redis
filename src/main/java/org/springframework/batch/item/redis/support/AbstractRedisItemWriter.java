@@ -17,14 +17,14 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 @Slf4j
-public abstract class AbstractItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractItemStreamItemWriter<T> {
+public abstract class AbstractRedisItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractItemStreamItemWriter<T> {
 
 
     private final GenericObjectPool<C> pool;
     private final Function<C, BaseRedisAsyncCommands<K, V>> commands;
     private final long commandTimeout;
 
-    public AbstractItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout) {
+    public AbstractRedisItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(pool, "A connection pool is required.");
         Assert.notNull(commands, "A commands provider is required.");

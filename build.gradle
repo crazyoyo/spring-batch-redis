@@ -57,9 +57,9 @@ bintray {
 	publish = true
 	pkg {
 		repo = 'maven'
-		name = 'com.redislabs:spring-redisearch'
+		name = 'spring-batch-redis'
 		licenses = ['Apache-2.0']
-		vcsUrl = 'https://github.com/RediSearch/spring-redisearch.git'
+		vcsUrl = 'https://github.com/Redislabs-Solution-Architects/spring-batch-redis.git'
 		version {
 			gpg {
 				sign = true

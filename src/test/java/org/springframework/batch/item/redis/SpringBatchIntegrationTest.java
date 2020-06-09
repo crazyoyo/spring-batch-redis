@@ -140,7 +140,7 @@ public class SpringBatchIntegrationTest extends BaseTest {
     @Test
     public void testLiveReplication() throws Exception {
         DataPopulator.builder().redisClient(redisClient).start(0).end(1000).build().run();
-        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.<String, String>builder().keyReader(RedisLiveKeyItemReader.builder().redisClient(redisClient).build()).pool(pool).options(ReaderOptions.builder().build()).build();
+        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.<String, String>builder().keyReader(RedisLiveKeyItemReader.builder().redisClient(redisClient).build()).pool(pool).options(ReaderOptions.builder().threadCount(2).build()).build();
         RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.<String, String>builder().commandTimeout(RedisURI.DEFAULT_TIMEOUT).pool(targetPool).replace(true).build();
         Job job = job("live-replication", 50, reader, writer);
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());

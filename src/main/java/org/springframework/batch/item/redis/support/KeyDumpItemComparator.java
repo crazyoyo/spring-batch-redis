@@ -4,7 +4,7 @@ import lombok.Builder;
 
 import java.util.Arrays;
 
-public class KeyDumpItemComparator<K, V> extends AbstractItemComparator<K, V, byte[], KeyValue<K, byte[]>> {
+public class KeyDumpItemComparator<K, V> extends AbstractRedisItemComparator<K, V, byte[], KeyValue<K, byte[]>> {
 
     @Builder
     public KeyDumpItemComparator(KeyDumpItemReader<K, V, ?> targetReader, long ttlTolerance) {

@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.function.Function;
 
 @Slf4j
-public class KeyValueItemReader<K, V, C extends StatefulConnection<K, V>> extends AbstractItemReader<K, V, C, TypeKeyValue<K>> {
+public class KeyValueItemReader<K, V, C extends StatefulConnection<K, V>> extends AbstractRedisItemReader<K, V, C, TypeKeyValue<K>> {
 
     public KeyValueItemReader(ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, ReaderOptions options) {
         super(keyReader, pool, commands, options);

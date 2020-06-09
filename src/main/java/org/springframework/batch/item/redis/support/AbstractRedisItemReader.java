@@ -20,7 +20,7 @@ import java.util.concurrent.*;
 import java.util.function.Function;
 
 @Slf4j
-public abstract class AbstractItemReader<K, V, C extends StatefulConnection<K, V>, T> extends AbstractItemCountingItemStreamItemReader<T> {
+public abstract class AbstractRedisItemReader<K, V, C extends StatefulConnection<K, V>, T> extends AbstractItemCountingItemStreamItemReader<T> {
 
     @Getter
     private final ItemReader<K> keyReader;
@@ -29,9 +29,9 @@ public abstract class AbstractItemReader<K, V, C extends StatefulConnection<K, V
     private final ReaderOptions options;
     private final BlockingQueue<T> itemQueue;
     private final ExecutorService executor;
-    private final List<ItemEnqueuer> enqueuers;
+    private final List<BatchRunnable<K>> enqueuers;
 
-    protected AbstractItemReader(ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, ReaderOptions options) {
+    protected AbstractRedisItemReader(ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, ReaderOptions options) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(keyReader, "A key reader is required.");
         Assert.notNull(pool, "A connection pool is required.");
@@ -42,37 +42,8 @@ public abstract class AbstractItemReader<K, V, C extends StatefulConnection<K, V
         this.commands = commands;
         this.options = options;
         this.itemQueue = new LinkedBlockingDeque<>(options.getQueueCapacity());
-        this.executor = Executors.newFixedThreadPool(options.getNThreads());
-        this.enqueuers = new ArrayList<>(options.getNThreads());
-    }
-
-    private class ItemEnqueuer implements Runnable {
-
-        private final List<K> keys = new ArrayList<>(options.getBatchSize());
-
-        @Override
-        public void run() {
-            try {
-                K key;
-                while ((key = keyReader.read()) != null) {
-                    keys.add(key);
-                    if (keys.size() >= options.getBatchSize()) {
-                        flush();
-                    }
-                }
-                flush();
-            } catch (Exception e) {
-                log.error("Could not read values", e);
-            }
-        }
-
-        public synchronized void flush() throws Exception {
-            if (keys.isEmpty()) {
-                return;
-            }
-            itemQueue.addAll(read(keys));
-            keys.clear();
-        }
+        this.executor = Executors.newFixedThreadPool(options.getThreadCount());
+        this.enqueuers = new ArrayList<>(options.getThreadCount());
     }
 
     @Override
@@ -100,11 +71,15 @@ public abstract class AbstractItemReader<K, V, C extends StatefulConnection<K, V
 
     @Override
     protected void doOpen() {
-        for (int index = 0; index < options.getNThreads(); index++) {
-            enqueuers.add(new ItemEnqueuer());
+        for (int index = 0; index < options.getThreadCount(); index++) {
+            enqueuers.add(new BatchRunnable<K>(keyReader, this::write, options.getBatchSize()));
         }
         enqueuers.forEach(executor::submit);
         executor.shutdown();
+    }
+
+    private void write(List<? extends K> keys) throws Exception {
+        itemQueue.addAll(read(keys));
     }
 
     @Override
@@ -116,7 +91,7 @@ public abstract class AbstractItemReader<K, V, C extends StatefulConnection<K, V
     }
 
     public void flush() {
-        for (ItemEnqueuer enqueuer : enqueuers) {
+        for (BatchRunnable<K> enqueuer : enqueuers) {
             try {
                 enqueuer.flush();
             } catch (Exception e) {

@@ -96,6 +96,9 @@ public abstract class AbstractLiveKeyItemReader<K, V, C extends StatefulConnecti
 
     protected void enqueue(K channel) {
         K key = channelToKeyConverter.convert(channel);
+        if (key == null) {
+            return;
+        }
         try {
             queue.put(key);
         } catch (InterruptedException e) {

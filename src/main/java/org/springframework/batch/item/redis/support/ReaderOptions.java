@@ -16,7 +16,7 @@ public class ReaderOptions {
     @Builder.Default
     private long commandTimeout = RedisURI.DEFAULT_TIMEOUT;
     @Builder.Default
-    private int nThreads = DEFAULT_THREAD_COUNT;
+    private int threadCount = DEFAULT_THREAD_COUNT;
     @Builder.Default
     private int batchSize = DEFAULT_BATCH_SIZE;
     @Builder.Default

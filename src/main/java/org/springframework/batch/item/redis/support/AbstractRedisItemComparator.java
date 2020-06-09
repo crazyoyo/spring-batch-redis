@@ -8,9 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public abstract class AbstractItemComparator<K, V, TV, T extends KeyValue<K, TV>> extends AbstractItemStreamItemWriter<T> {
+public abstract class AbstractRedisItemComparator<K, V, TV, T extends KeyValue<K, TV>> extends AbstractItemStreamItemWriter<T> {
 
-    private final AbstractItemReader<K, V, ?, T> targetReader;
+    private final AbstractRedisItemReader<K, V, ?, T> targetReader;
     private final long ttlTolerance;
     @Getter
     private final List<K> ok = new ArrayList<>();
@@ -23,7 +23,7 @@ public abstract class AbstractItemComparator<K, V, TV, T extends KeyValue<K, TV>
     @Getter
     private final List<K> badTtls = new ArrayList<>();
 
-    protected AbstractItemComparator(AbstractItemReader<K, V, ?, T> targetReader, long ttlTolerance) {
+    protected AbstractRedisItemComparator(AbstractRedisItemReader<K, V, ?, T> targetReader, long ttlTolerance) {
         setName(ClassUtils.getShortName(getClass()));
         this.targetReader = targetReader;
         this.ttlTolerance = ttlTolerance;

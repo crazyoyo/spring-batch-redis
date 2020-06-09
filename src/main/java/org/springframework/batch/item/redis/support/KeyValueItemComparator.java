@@ -2,7 +2,7 @@ package org.springframework.batch.item.redis.support;
 
 import lombok.Builder;
 
-public class KeyValueItemComparator<K, V> extends AbstractItemComparator<K, V, Object, TypeKeyValue<K>> {
+public class KeyValueItemComparator<K, V> extends AbstractRedisItemComparator<K, V, Object, TypeKeyValue<K>> {
 
     @Builder
     public KeyValueItemComparator(KeyValueItemReader<K, V, ?> targetReader, long ttlTolerance) {

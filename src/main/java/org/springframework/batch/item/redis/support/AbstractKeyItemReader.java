@@ -65,20 +65,17 @@ public abstract class AbstractKeyItemReader<K, V, C extends StatefulConnection<K
     @Override
     @SuppressWarnings("unchecked")
     protected synchronized K doRead() throws Exception {
+        while (!(keyIterator.hasNext() || cursor.isFinished())) {
+            cursor = ((RedisKeyCommands<K, V>) commands.apply(connection)).scan(cursor, scanArgs);
+            keyIterator = cursor.getKeys().iterator();
+        }
         if (keyIterator.hasNext()) {
             return keyIterator.next();
         }
         if (cursor.isFinished()) {
             return null;
         }
-        do {
-            cursor = ((RedisKeyCommands<K, V>) commands.apply(connection)).scan(cursor, scanArgs);
-            keyIterator = cursor.getKeys().iterator();
-        } while (!keyIterator.hasNext() && !cursor.isFinished());
-        if (keyIterator.hasNext()) {
-            return keyIterator.next();
-        }
-        return null;
+        throw new IllegalStateException("No more keys but cursor not finished");
     }
 
 }
