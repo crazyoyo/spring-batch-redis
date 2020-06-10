@@ -29,6 +29,7 @@ Spring Batch Redis supports two data types: key dumps and key values.
 
 === `KeyValue`
 `org.springframework.batch.item.redis.KeyValue` represents a Redis data structure and stores key, TTL in seconds, the type of data structure (hash, list, ...), and the Lettuce representation (Java object) of the value.
+
 .Data Structures
 |===
 |Redis |Command |Java
