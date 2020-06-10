@@ -8,8 +8,6 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
@@ -31,7 +29,6 @@ import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.batch.item.redis.support.KeyValueItemComparator;
 import org.springframework.batch.item.redis.support.ReaderOptions;
 import org.springframework.batch.item.redis.support.RedisDataStructureItemWriters;
-import org.springframework.batch.item.redis.support.TypeKeyValue;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,8 +45,6 @@ import java.util.Map;
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
 public class SpringBatchIntegrationTest extends BaseTest {
-
-    private final static Logger log = LoggerFactory.getLogger(SpringBatchIntegrationTest.class);
 
     @Autowired
     private JobLauncher jobLauncher;
@@ -111,8 +106,8 @@ public class SpringBatchIntegrationTest extends BaseTest {
     @Test
     public void testValueReader() throws Exception {
         redisWriter("scan-reader-populate");
-        RedisKeyValueItemReader<String, String> reader = RedisKeyValueItemReader.<String, String>builder().pool(pool).keyReader(RedisKeyItemReader.builder().redisClient(redisClient).build()).options(ReaderOptions.builder().build()).build();
-        ListItemWriter<TypeKeyValue<String>> writer = new ListItemWriter<>();
+        RedisKeyValueItemReader<String, String> reader = RedisKeyValueItemReader.<String, String>builder().pool(pool).keyReader(RedisKeyItemReader.<String, String>builder().connection(redisClient.connect()).build()).options(ReaderOptions.builder().build()).build();
+        ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
         JobExecution execution = execute("scan-reader", reader, writer);
         Assert.assertTrue(execution.getAllFailureExceptions().isEmpty());
         Assert.assertEquals(Beers.SIZE, writer.getWrittenItems().size());
@@ -121,28 +116,28 @@ public class SpringBatchIntegrationTest extends BaseTest {
     @Test
     public void testReplication() throws Exception {
         DataPopulator.builder().redisClient(redisClient).start(0).end(1039).build().run();
-        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.<String, String>builder().keyReader(RedisKeyItemReader.builder().redisClient(redisClient).build()).pool(pool).options(ReaderOptions.builder().build()).build();
+        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.<String, String>builder().keyReader(RedisKeyItemReader.<String, String>builder().connection(redisClient.connect()).build()).pool(pool).options(ReaderOptions.builder().build()).build();
         RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.<String, String>builder().commandTimeout(RedisURI.DEFAULT_TIMEOUT).pool(targetPool).replace(true).build();
         execute("replication", reader, writer);
         compare("replication-comparison");
     }
 
     private <I, O> JobExecution execute(String name, ItemReader<? extends I> reader, ItemWriter<? super O> writer) throws JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
-        Job job = job(name, 50, reader, writer);
+        Job job = job(name, reader, writer);
         return jobLauncher.run(job, new JobParameters());
     }
 
-    private <I, O> Job job(String name, int batchSize, ItemReader<? extends I> reader, ItemWriter<? super O> writer) {
-        TaskletStep step = stepBuilderFactory.get(name + "-step").<I, O>chunk(batchSize).reader(reader).writer(writer).build();
+    private <I, O> Job job(String name, ItemReader<? extends I> reader, ItemWriter<? super O> writer) {
+        TaskletStep step = stepBuilderFactory.get(name + "-step").<I, O>chunk(50).reader(reader).writer(writer).build();
         return jobBuilderFactory.get(name + "-job").start(step).build();
     }
 
     @Test
     public void testLiveReplication() throws Exception {
         DataPopulator.builder().redisClient(redisClient).start(0).end(1000).build().run();
-        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.<String, String>builder().keyReader(RedisLiveKeyItemReader.builder().redisClient(redisClient).build()).pool(pool).options(ReaderOptions.builder().threadCount(2).build()).build();
+        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.<String, String>builder().keyReader(RedisLiveKeyItemReader.builder().client(redisClient).build()).pool(pool).options(ReaderOptions.builder().threadCount(2).build()).build();
         RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.<String, String>builder().commandTimeout(RedisURI.DEFAULT_TIMEOUT).pool(targetPool).replace(true).build();
-        Job job = job("live-replication", 50, reader, writer);
+        Job job = job("live-replication", reader, writer);
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         DataPopulator.builder().redisClient(redisClient).start(1000).end(2000).sleep(1L).build().run();
         Thread.sleep(100);
@@ -159,8 +154,8 @@ public class SpringBatchIntegrationTest extends BaseTest {
         RedisCommands<String, String> sourceCommands = connection.sync();
         RedisCommands<String, String> targetCommands = targetConnection.sync();
         Assert.assertEquals(sourceCommands.dbsize(), targetCommands.dbsize());
-        RedisKeyValueItemReader<String, String> reader = RedisKeyValueItemReader.<String, String>builder().pool(pool).keyReader(RedisKeyItemReader.builder().redisClient(redisClient).build()).options(ReaderOptions.builder().build()).build();
-        KeyValueItemComparator<String, String> comparator = KeyValueItemComparator.<String, String>builder().targetReader(RedisKeyValueItemReader.<String, String>builder().pool(targetPool).keyReader(RedisKeyItemReader.builder().redisClient(targetRedisClient).build()).options(ReaderOptions.builder().build()).build()).ttlTolerance(1).build();
+        RedisKeyValueItemReader<String, String> reader = RedisKeyValueItemReader.<String, String>builder().pool(pool).keyReader(RedisKeyItemReader.<String, String>builder().connection(redisClient.connect()).build()).options(ReaderOptions.builder().build()).build();
+        KeyValueItemComparator<String, String> comparator = KeyValueItemComparator.<String, String>builder().targetReader(RedisKeyValueItemReader.<String, String>builder().pool(targetPool).keyReader(RedisKeyItemReader.<String, String>builder().connection(targetRedisClient.connect()).build()).options(ReaderOptions.builder().build()).build()).ttlTolerance(1).build();
         execute(name, reader, comparator);
         Assert.assertEquals(Math.toIntExact(sourceCommands.dbsize()), comparator.getOk().size());
     }

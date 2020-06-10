@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public abstract class AbstractRedisItemComparator<K, V, TV, T extends KeyValue<K, TV>> extends AbstractItemStreamItemWriter<T> {
+public abstract class AbstractRedisItemComparator<K, V, TV, T extends AbstractKeyValue<K, TV>> extends AbstractItemStreamItemWriter<T> {
 
     private final AbstractRedisItemReader<K, V, ?, T> targetReader;
     private final long ttlTolerance;
@@ -31,7 +31,7 @@ public abstract class AbstractRedisItemComparator<K, V, TV, T extends KeyValue<K
 
     @Override
     public void write(List<? extends T> sources) throws Exception {
-        List<K> keys = sources.stream().map(KeyValue::getKey).collect(Collectors.toList());
+        List<K> keys = sources.stream().map(AbstractKeyValue::getKey).collect(Collectors.toList());
         List<T> targets = targetReader.read(keys);
         for (int index = 0; index < sources.size(); index++) {
             T source = sources.get(index);

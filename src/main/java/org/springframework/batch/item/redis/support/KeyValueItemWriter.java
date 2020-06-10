@@ -7,13 +7,14 @@ import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.*;
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.springframework.batch.item.redis.KeyValue;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-public class KeyValueItemWriter<K, V, C extends StatefulConnection<K, V>> extends AbstractKeyValueItemWriter<K, V, C, TypeKeyValue<K>> {
+public class KeyValueItemWriter<K, V, C extends StatefulConnection<K, V>> extends AbstractKeyValueItemWriter<K, V, C, KeyValue<K>> {
 
     public KeyValueItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout) {
         super(pool, commands, commandTimeout);
@@ -21,7 +22,7 @@ public class KeyValueItemWriter<K, V, C extends StatefulConnection<K, V>> extend
 
     @Override
     @SuppressWarnings("unchecked")
-    protected void doWrite(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, TypeKeyValue<K> item) {
+    protected void doWrite(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, KeyValue<K> item) {
         switch (item.getType()) {
             case STRING:
                 futures.add(((RedisStringAsyncCommands<K, V>) commands).set(item.getKey(), (V) item.getValue()));
@@ -49,7 +50,7 @@ public class KeyValueItemWriter<K, V, C extends StatefulConnection<K, V>> extend
 
     @Override
     @SuppressWarnings("unchecked")
-    protected void doWrite(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, TypeKeyValue<K> item, long ttl) {
+    protected void doWrite(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, KeyValue<K> item, long ttl) {
         doWrite(commands, futures, item);
         futures.add(((RedisKeyAsyncCommands<K, V>) commands).expire(item.getKey(), item.getTtl()));
     }

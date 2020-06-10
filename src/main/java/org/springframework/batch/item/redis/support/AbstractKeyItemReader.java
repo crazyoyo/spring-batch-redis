@@ -23,24 +23,13 @@ public abstract class AbstractKeyItemReader<K, V, C extends StatefulConnection<K
     private Iterator<K> keyIterator;
     private KeyScanCursor<K> cursor;
 
-    protected AbstractKeyItemReader(C connection, Function<C, BaseRedisCommands<K, V>> commands, Long scanCount, String scanPattern) {
+    protected AbstractKeyItemReader(C connection, Function<C, BaseRedisCommands<K, V>> commands, ScanArgs scanArgs) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(connection, "A connection is required.");
         Assert.notNull(commands, "A commands supplier is required.");
         this.connection = connection;
         this.commands = commands;
-        this.scanArgs = scanArgs(scanCount, scanPattern);
-    }
-
-    private static ScanArgs scanArgs(Long count, String pattern) {
-        ScanArgs scanArgs = new ScanArgs();
-        if (count != null) {
-            scanArgs.limit(count);
-        }
-        if (pattern != null) {
-            scanArgs.match(pattern);
-        }
-        return scanArgs;
+        this.scanArgs = scanArgs == null ? new ScanArgs() : scanArgs;
     }
 
     @Override

@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class KeyValue<K, V> {
+public abstract class AbstractKeyValue<K, V> {
 
     public final static long TTL_NOT_EXISTS = -2;
     public final static long TTL_NO_EXPIRE = -1;

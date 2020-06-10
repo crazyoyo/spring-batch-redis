@@ -4,28 +4,32 @@ import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
-import lombok.Builder;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 import org.springframework.batch.item.redis.support.AbstractLiveKeyItemReader;
-import org.springframework.core.convert.converter.Converter;
+import org.springframework.batch.item.redis.support.LiveKeyReaderOptions;
+import org.springframework.util.Assert;
 
 public class RedisLiveKeyItemReader<K, V> extends AbstractLiveKeyItemReader<K, V, StatefulRedisConnection<K, V>> implements RedisPubSubListener<K, V> {
 
     private final StatefulRedisPubSubConnection<K, V> pubSubConnection;
 
-    public RedisLiveKeyItemReader(StatefulRedisConnection<K, V> connection, Long scanCount, String scanPattern, StatefulRedisPubSubConnection<K, V> pubSubConnection, K[] patterns, Integer queueCapacity, Long queuePollingTimeout, Converter<K, K> channelKeyConverter) {
-        super(connection, StatefulRedisConnection::sync, scanCount, scanPattern, patterns, queueCapacity, queuePollingTimeout, channelKeyConverter);
+    public RedisLiveKeyItemReader(StatefulRedisConnection<K, V> connection, StatefulRedisPubSubConnection<K, V> pubSubConnection, LiveKeyReaderOptions<K> options) {
+        super(connection, StatefulRedisConnection::sync, options);
         this.pubSubConnection = pubSubConnection;
     }
 
     @Override
-    protected void open(K[] patterns) {
+    @SuppressWarnings("unchecked")
+    protected void open(K channelPattern) {
         pubSubConnection.addListener(this);
-        pubSubConnection.sync().psubscribe(patterns);
+        pubSubConnection.sync().psubscribe(channelPattern);
     }
 
     @Override
-    protected void close(K[] patterns) {
-        pubSubConnection.sync().punsubscribe(patterns);
+    @SuppressWarnings("unchecked")
+    protected void close(K channelPattern) {
+        pubSubConnection.sync().punsubscribe(channelPattern);
         pubSubConnection.removeListener(this);
     }
 
@@ -55,9 +59,22 @@ public class RedisLiveKeyItemReader<K, V> extends AbstractLiveKeyItemReader<K, V
     public void punsubscribed(K pattern, long count) {
     }
 
-    @Builder
-    private static RedisLiveKeyItemReader<String, String> build(RedisClient redisClient, int database, Long scanCount, String scanPattern, String[] pubSubPatterns, Integer queueCapacity, Long queuePollingTimeout) {
-        return new RedisLiveKeyItemReader<>(redisClient.connect(), scanCount, scanPattern, redisClient.connectPubSub(), channels(database, scanPattern, pubSubPatterns), queueCapacity, queuePollingTimeout, DEFAULT_CHANNEL_KEY_CONVERTER);
+    public static RedisLiveKeyItemReaderBuilder builder() {
+        return new RedisLiveKeyItemReaderBuilder();
     }
 
+    @Setter
+    @Accessors(fluent = true)
+    public static class RedisLiveKeyItemReaderBuilder {
+
+        private RedisClient client;
+        private LiveKeyReaderOptions<String> options = LiveKeyReaderOptions.builder().build();
+
+        public RedisLiveKeyItemReader<String, String> build() {
+            Assert.notNull(client, "A RedisClient is required.");
+            Assert.notNull(options, "Options are required.");
+            return new RedisLiveKeyItemReader<>(client.connect(), client.connectPubSub(), options);
+        }
+
+    }
 }

@@ -1,0 +1,109 @@
+= Spring Batch Redis
+// Settings
+:idprefix:
+:idseparator: -
+ifdef::env-github,env-browser[:outfilesuffix: .adoc]
+ifndef::env-github[:icons: font]
+// URIs
+:project-repo: Redislabs-Solution-Architects/spring-batch-redis
+:repo-url: https://github.com/{project-repo}
+// GitHub customization
+ifdef::env-github[]
+:badges:
+:tag: master
+:!toc-title:
+:tip-caption: :bulb:
+:note-caption: :paperclip:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+
+ItemReader and ItemWriter implementations for Redis based on https://lettuce.io[Lettuce].
+
+== Data Types
+Spring Batch Redis supports two data types: key dumps and key values.
+
+=== `KeyDump`
+`org.springframework.batch.item.redis.KeyDump` represents a key dump and stores key, TTL in seconds, and binary representation (byte array) of the value.
+
+=== `KeyValue`
+`org.springframework.batch.item.redis.KeyValue` represents a Redis data structure and stores key, TTL in seconds, the type of data structure (hash, list, ...), and the Lettuce representation (Java object) of the value.
+.Data Structures
+|===
+|Redis |Command |Java
+
+|Hash
+|HGETALL
+|Map<String,String>
+
+|List
+|LRANGE
+|List<String>
+
+|Set
+|SMEMBERS
+|Set<String>
+
+|Stream
+|XRANGE
+|List<StreamMessage<String, String>>
+
+|String
+|GET
+|String
+
+|Sorted Set
+|ZRANGE
+|List<ScoredValue<String>>
+
+|===
+
+== Item Readers
+
+=== Key Readers
+
+There are two kinds of key readers: snapshot and live (AKA continuous). Both produce keys using the SCAN command where COUNT and MATCH options can be configured, but the live key reader also uses keyspace notifications to keep producing keys that have been updated. Each kind can be either standalone or cluster.
+
+=== Key Dump Readers
+
+Key dump readers return `KeyDump` objects and like their underlying key reader can be snapshot or live.
+
+=== Key Value Readers
+
+Key value readers return `KeyDump` objects and like their underlying key reader can be snapshot or live.
+
+== Item Writers
+
+=== Key Dump Writers
+
+Key dump writers accept `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
+
+=== Key Value Writers
+
+Key value writers accept `KeyValue` objects and call the write command specific to the data type:
+
+|===
+|Type |Command
+
+|Hash
+|HMSET
+
+|List
+|LPUSH
+
+|Set
+|SADD
+
+|Stream
+|XADD
+
+|String
+|SET
+
+|Sorted Set
+|ZADD
+
+|===
+
+If the `KeyValue` has a TTL then an additional call is made to the EXPIRE command.

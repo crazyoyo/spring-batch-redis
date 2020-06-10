@@ -5,29 +5,33 @@ import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
-import lombok.Builder;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 import org.springframework.batch.item.redis.support.AbstractLiveKeyItemReader;
-import org.springframework.core.convert.converter.Converter;
+import org.springframework.batch.item.redis.support.LiveKeyReaderOptions;
+import org.springframework.util.Assert;
 
 public class RedisClusterLiveKeyItemReader<K, V> extends AbstractLiveKeyItemReader<K, V, StatefulRedisClusterConnection<K, V>> implements RedisClusterPubSubListener<K, V> {
 
     private final StatefulRedisClusterPubSubConnection<K, V> pubSubConnection;
 
-    public RedisClusterLiveKeyItemReader(StatefulRedisClusterConnection<K, V> connection, Long scanCount, String scanPattern, StatefulRedisClusterPubSubConnection<K, V> pubSubConnection, K[] patterns, Integer queueCapacity, Long queuePollingTimeout, Converter<K, K> channelKeyConverter) {
-        super(connection, StatefulRedisClusterConnection::sync, scanCount, scanPattern, patterns, queueCapacity, queuePollingTimeout, channelKeyConverter);
+    public RedisClusterLiveKeyItemReader(StatefulRedisClusterConnection<K, V> connection, StatefulRedisClusterPubSubConnection<K, V> pubSubConnection, LiveKeyReaderOptions<K> options) {
+        super(connection, StatefulRedisClusterConnection::sync, options);
         this.pubSubConnection = pubSubConnection;
     }
 
     @Override
-    protected void open(K[] patterns) {
+    @SuppressWarnings("unchecked")
+    protected void open(K pubsubPattern) {
         pubSubConnection.addListener(this);
         pubSubConnection.setNodeMessagePropagation(true);
-        pubSubConnection.sync().masters().commands().psubscribe(patterns);
+        pubSubConnection.sync().masters().commands().psubscribe(pubsubPattern);
     }
 
     @Override
-    protected void close(K[] patterns) {
-        pubSubConnection.sync().masters().commands().punsubscribe(patterns);
+    @SuppressWarnings("unchecked")
+    protected void close(K pubsubPattern) {
+        pubSubConnection.sync().masters().commands().punsubscribe(pubsubPattern);
         pubSubConnection.removeListener(this);
     }
 
@@ -57,9 +61,23 @@ public class RedisClusterLiveKeyItemReader<K, V> extends AbstractLiveKeyItemRead
     public void punsubscribed(RedisClusterNode node, K pattern, long count) {
     }
 
-    @Builder
-    private static RedisClusterLiveKeyItemReader<String, String> build(RedisClusterClient redisClusterClient, int database, Long scanCount, String scanPattern, String[] pubSubPatterns, Integer queueCapacity, Long queuePollingTimeout) {
-        return new RedisClusterLiveKeyItemReader<>(redisClusterClient.connect(), scanCount, scanPattern, redisClusterClient.connectPubSub(), channels(database, scanPattern, pubSubPatterns), queueCapacity, queuePollingTimeout, DEFAULT_CHANNEL_KEY_CONVERTER);
+    public static RedisClusterLiveKeyItemReaderBuilder builder() {
+        return new RedisClusterLiveKeyItemReaderBuilder();
+    }
+
+    @Setter
+    @Accessors(fluent = true)
+    public static class RedisClusterLiveKeyItemReaderBuilder {
+
+        private RedisClusterClient client;
+        private LiveKeyReaderOptions<String> options = LiveKeyReaderOptions.builder().build();
+
+        public RedisClusterLiveKeyItemReader<String, String> build() {
+            Assert.notNull(client, "A RedisClusterClient is required.");
+            Assert.notNull(options, "Options are required.");
+            return new RedisClusterLiveKeyItemReader<>(client.connect(), client.connectPubSub(), options);
+        }
+
     }
 
 }
