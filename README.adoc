@@ -25,46 +25,28 @@ ItemReader and ItemWriter implementations for Redis based on https://lettuce.io[
 Spring Batch Redis supports two data types: key dumps and key values.
 
 === `KeyDump`
-`org.springframework.batch.item.redis.KeyDump` represents a key dump and stores key, TTL in seconds, and binary representation (byte array) of the value.
+A `KeyDump` stores a key, its TTL in seconds, and its binary representation (byte array).
 
 === `KeyValue`
-`org.springframework.batch.item.redis.KeyValue` represents a Redis data structure and stores key, TTL in seconds, the type of data structure (hash, list, ...), and the Lettuce representation (Java object) of the value.
+A `KeyValue` represents a Redis data structure and stores a key, its TTL in seconds, type of data structure (hash, list, ...), and Java representation.
 
-.Data Structures
-|===
-|Redis |Command |Java
+* Hash: `HGETALL` -> `Map<String,String>`
+* List: `LRANGE` -> `List<String>`
+* Set: `SMEMBERS` -> `Set<String>`
+* Stream: `XRANGE` -> `List<StreamMessage<String, String>>`
+* String: `GET` -> `String`
+* Sorted Set: `ZRANGE` -> `List<ScoredValue<String>>`
 
-|Hash
-|HGETALL
-|Map<String,String>
-
-|List
-|LRANGE
-|List<String>
-
-|Set
-|SMEMBERS
-|Set<String>
-
-|Stream
-|XRANGE
-|List<StreamMessage<String, String>>
-
-|String
-|GET
-|String
-
-|Sorted Set
-|ZRANGE
-|List<ScoredValue<String>>
-
-|===
+NOTE: `StreamMessage` and `ScoredValue` are Lettuce core types (`io.lettuce.core` package).
 
 == Item Readers
 
 === Key Readers
 
-There are two kinds of key readers: snapshot and live (AKA continuous). Both produce keys using the SCAN command where COUNT and MATCH options can be configured, but the live key reader also uses keyspace notifications to keep producing keys that have been updated. Each kind can be either standalone or cluster.
+There are two kinds of key readers:
+
+* Snapshot: uses SCAN command to produce keys.
+* Live (AKA continuous): also uses SCAN but also keyspace notifications to keep producing keys that have been updated.
 
 === Key Dump Readers
 
@@ -76,6 +58,11 @@ Key value readers return `KeyDump` objects and like their underlying key reader 
 
 == Item Writers
 
+All item writers can perform both inserts or deletes depending on the value and TTL in the incoming object:
+
+* If value is null or TTL is -2 then the `DEL` command is called
+* Otherwise a write is performed
+
 === Key Dump Writers
 
 Key dump writers accept `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
@@ -84,27 +71,11 @@ Key dump writers accept `KeyDump` objects and call the RESTORE command using the
 
 Key value writers accept `KeyValue` objects and call the write command specific to the data type:
 
-|===
-|Type |Command
+* Hash -> HMSET
+* List -> LPUSH
+* Set -> SADD
+* Stream -> XADD
+* String -> SET
+* Sorted Set -> ZADD
 
-|Hash
-|HMSET
-
-|List
-|LPUSH
-
-|Set
-|SADD
-
-|Stream
-|XADD
-
-|String
-|SET
-
-|Sorted Set
-|ZADD
-
-|===
-
-If the `KeyValue` has a TTL then an additional call is made to the EXPIRE command.
+If TTL >= 0 then an additional call is made to `EXPIRE` command.
