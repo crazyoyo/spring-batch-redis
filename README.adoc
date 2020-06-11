@@ -13,7 +13,7 @@ ifdef::env-github[]
 :tag: master
 :!toc-title:
 :tip-caption: :bulb:
-:note-caption: :paperclip:
+:note-caption: :information_source:
 :important-caption: :heavy_exclamation_mark:
 :caution-caption: :fire:
 :warning-caption: :warning:
@@ -28,7 +28,7 @@ Spring Batch Redis supports two data types: key dumps and key values.
 A `KeyDump` stores a key, its TTL in seconds, and its binary representation (byte array).
 
 === `KeyValue`
-A `KeyValue` represents a Redis data structure and stores a key, its TTL in seconds, type of data structure (hash, list, ...), and Java representation.
+A `KeyValue` stores a key, its TTL in seconds, the type of data structure (hash, list, ...), and its Java representation.
 
 * Hash: `HGETALL` -> `Map<String,String>`
 * List: `LRANGE` -> `List<String>`
