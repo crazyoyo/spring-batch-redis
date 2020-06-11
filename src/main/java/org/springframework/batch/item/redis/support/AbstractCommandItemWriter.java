@@ -5,12 +5,13 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.function.Function;
 
-public abstract class AbstractCommandItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractRedisItemWriter<K, V, C, T> {
+public abstract class AbstractCommandItemWriter<K, V, T> extends AbstractRedisItemWriter<K, V, T> {
 
-    protected AbstractCommandItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout) {
+    protected AbstractCommandItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
         super(pool, commands, commandTimeout);
     }
 

@@ -9,6 +9,7 @@ import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -17,25 +18,25 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 @Slf4j
-public abstract class AbstractRedisItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractItemStreamItemWriter<T> {
+public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 
-
-    private final GenericObjectPool<C> pool;
-    private final Function<C, BaseRedisAsyncCommands<K, V>> commands;
+    private final GenericObjectPool<? extends StatefulConnection<K, V>> pool;
+    private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands;
     private final long commandTimeout;
 
-    public AbstractRedisItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout) {
+    public AbstractRedisItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(pool, "A connection pool is required.");
         Assert.notNull(commands, "A commands provider is required.");
+        Assert.notNull(commandTimeout, "A command timeout is required.");
         this.pool = pool;
         this.commands = commands;
-        this.commandTimeout = commandTimeout;
+        this.commandTimeout = commandTimeout.getSeconds();
     }
 
     @Override
     public void write(List<? extends T> items) throws Exception {
-        try (C connection = pool.borrowObject()) {
+        try (StatefulConnection<K, V> connection = pool.borrowObject()) {
             BaseRedisAsyncCommands<K, V> commands = this.commands.apply(connection);
             commands.setAutoFlushCommands(false);
             List<RedisFuture<?>> futures = new ArrayList<>();
@@ -56,8 +57,6 @@ public abstract class AbstractRedisItemWriter<K, V, C extends StatefulConnection
         }
     }
 
-
     protected abstract void write(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item);
-
 
 }

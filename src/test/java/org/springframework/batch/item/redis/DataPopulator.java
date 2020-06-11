@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis;
 
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
 import lombok.Builder;
@@ -14,16 +13,16 @@ import java.util.Map;
 public class DataPopulator implements Runnable {
     private static final long EXPIRE_TIME = System.currentTimeMillis() / 1000 + 600;
 
+    private final StatefulRedisConnection<String, String> connection;
     private final int start;
     private final int end;
-    private final RedisClient redisClient;
     private final Long sleep;
     @Getter
     private boolean finished;
 
     @Builder
-    public DataPopulator(RedisClient redisClient, int start, int end, Long sleep) {
-        this.redisClient = redisClient;
+    public DataPopulator(StatefulRedisConnection<String, String> connection, int start, int end, Long sleep) {
+        this.connection = connection;
         this.start = start;
         this.end = end;
         this.sleep = sleep;
@@ -31,7 +30,6 @@ public class DataPopulator implements Runnable {
 
     @Override
     public void run() {
-        StatefulRedisConnection<String, String> connection = redisClient.connect();
         RedisCommands<String, String> commands = connection.sync();
         for (int index = start; index < end; index++) {
             String stringKey = "string:" + index;

@@ -8,20 +8,21 @@ import io.lettuce.core.api.async.*;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.core.convert.converter.Converter;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.function.Function;
 
 @SuppressWarnings("unchecked")
-public class DataStructureItemWriterBuilder {
+public class RedisCommandItemWriters {
 
-    public static class EvalItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractCommandItemWriter<K, V, C, T> {
+    public static class Eval<K, V, T> extends AbstractCommandItemWriter<K, V, T> {
 
         private final String sha;
         private final ScriptOutputType outputType;
         private final Converter<T, K[]> keysConverter;
         private final Converter<T, V[]> argsConverter;
 
-        public EvalItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, String sha, ScriptOutputType outputType, Converter<T, K[]> keysConverter, Converter<T, V[]> argsConverter) {
+        public Eval(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, String sha, ScriptOutputType outputType, Converter<T, K[]> keysConverter, Converter<T, V[]> argsConverter) {
             super(pool, commands, commandTimeout);
             this.sha = sha;
             this.outputType = outputType;
@@ -35,11 +36,11 @@ public class DataStructureItemWriterBuilder {
         }
     }
 
-    public static class ExpireItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractKeyItemWriter<K, V, C, T> {
+    public static class Expire<K, V, T> extends AbstractKeyItemWriter<K, V, T> {
 
         private final Converter<T, Long> timeoutConverter;
 
-        public ExpireItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, Converter<T, K> keyConverter, Converter<T, Long> timeoutConverter) {
+        public Expire(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, Long> timeoutConverter) {
             super(pool, commands, commandTimeout, keyConverter);
             this.timeoutConverter = timeoutConverter;
         }
@@ -55,12 +56,12 @@ public class DataStructureItemWriterBuilder {
 
     }
 
-    public static class GeoSetItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractCollectionItemWriter<K, V, C, T> {
+    public static class Geoadd<K, V, T> extends AbstractCollectionItemWriter<K, V, T> {
 
         private final Converter<T, Double> longitudeConverter;
         private final Converter<T, Double> latitudeConverter;
 
-        public GeoSetItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter, Converter<T, Double> longitudeConverter, Converter<T, Double> latitudeConverter) {
+        public Geoadd(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter, Converter<T, Double> longitudeConverter, Converter<T, Double> latitudeConverter) {
             super(pool, commands, commandTimeout, keyConverter, memberIdConverter);
             this.longitudeConverter = longitudeConverter;
             this.latitudeConverter = latitudeConverter;
@@ -80,11 +81,11 @@ public class DataStructureItemWriterBuilder {
         }
     }
 
-    public static class HashItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractKeyItemWriter<K, V, C, T> {
+    public static class Hmset<K, V, T> extends AbstractKeyItemWriter<K, V, T> {
 
         private final Converter<T, Map<K, V>> mapConverter;
 
-        public HashItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, Converter<T, K> keyConverter, Converter<T, Map<K, V>> mapConverter) {
+        public Hmset(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, Map<K, V>> mapConverter) {
             super(pool, commands, commandTimeout, keyConverter);
             this.mapConverter = mapConverter;
         }
@@ -96,28 +97,35 @@ public class DataStructureItemWriterBuilder {
 
     }
 
-    public static class ListItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractCollectionItemWriter<K, V, C, T> {
+    public static class Lpush<K, V, T> extends AbstractCollectionItemWriter<K, V, T> {
 
-        private final boolean right;
-
-        public ListItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter, boolean right) {
+        public Lpush(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter) {
             super(pool, commands, commandTimeout, keyConverter, memberIdConverter);
-            this.right = right;
         }
 
         @Override
         protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, T item, K key, V memberId) {
-            if (right) {
-                return ((RedisListAsyncCommands<K, V>) commands).rpush(key, memberId);
-            }
             return ((RedisListAsyncCommands<K, V>) commands).lpush(key, memberId);
         }
 
     }
 
-    public static class NoopItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractCommandItemWriter<K, V, C, T> {
+    public static class Rpush<K, V, T> extends AbstractCollectionItemWriter<K, V, T> {
 
-        public NoopItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout) {
+        public Rpush(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter) {
+            super(pool, commands, commandTimeout, keyConverter, memberIdConverter);
+        }
+
+        @Override
+        protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, T item, K key, V memberId) {
+            return ((RedisListAsyncCommands<K, V>) commands).rpush(key, memberId);
+        }
+
+    }
+
+    public static class Noop<K, V, T> extends AbstractCommandItemWriter<K, V, T> {
+
+        public Noop(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
             super(pool, commands, commandTimeout);
         }
 
@@ -127,9 +135,9 @@ public class DataStructureItemWriterBuilder {
         }
     }
 
-    public static class SetItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractCollectionItemWriter<K, V, C, T> {
+    public static class Sadd<K, V, T> extends AbstractCollectionItemWriter<K, V, T> {
 
-        public SetItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter) {
+        public Sadd(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter) {
             super(pool, commands, commandTimeout, keyConverter, memberIdConverter);
         }
 
@@ -140,11 +148,11 @@ public class DataStructureItemWriterBuilder {
 
     }
 
-    public static class SortedSetItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractCollectionItemWriter<K, V, C, T> {
+    public static class Zadd<K, V, T> extends AbstractCollectionItemWriter<K, V, T> {
 
         private final Converter<T, Double> scoreConverter;
 
-        public SortedSetItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter, Converter<T, Double> scoreConverter) {
+        public Zadd(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter, Converter<T, Double> scoreConverter) {
             super(pool, commands, commandTimeout, keyConverter, memberIdConverter);
             this.scoreConverter = scoreConverter;
         }
@@ -160,14 +168,14 @@ public class DataStructureItemWriterBuilder {
 
     }
 
-    public static class StreamItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractKeyItemWriter<K, V, C, T> {
+    public static class Xadd<K, V, T> extends AbstractKeyItemWriter<K, V, T> {
 
         private final Converter<T, Map<K, V>> bodyConverter;
         private final Converter<T, String> idConverter;
         private final Long maxlen;
         private final boolean approximateTrimming;
 
-        public StreamItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, Converter<T, K> keyConverter, Converter<T, Map<K, V>> bodyConverter, Converter<T, String> idConverter, Long maxlen, boolean approximateTrimming) {
+        public Xadd(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, Map<K, V>> bodyConverter, Converter<T, String> idConverter, Long maxlen, boolean approximateTrimming) {
             super(pool, commands, commandTimeout, keyConverter);
             this.bodyConverter = bodyConverter;
             this.idConverter = idConverter;
@@ -190,11 +198,11 @@ public class DataStructureItemWriterBuilder {
 
     }
 
-    public static class StringItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractKeyItemWriter<K, V, C, T> {
+    public static class Set<K, V, T> extends AbstractKeyItemWriter<K, V, T> {
 
         private final Converter<T, V> valueConverter;
 
-        public StringItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, long commandTimeout, Converter<T, K> keyConverter, Converter<T, V> valueConverter) {
+        public Set(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, V> valueConverter) {
             super(pool, commands, commandTimeout, keyConverter);
             this.valueConverter = valueConverter;
         }

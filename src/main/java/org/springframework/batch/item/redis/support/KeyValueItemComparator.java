@@ -1,12 +1,11 @@
 package org.springframework.batch.item.redis.support;
 
-import lombok.Builder;
 import org.springframework.batch.item.redis.KeyValue;
+import org.springframework.batch.item.redis.RedisKeyValueItemReader;
 
 public class KeyValueItemComparator<K, V> extends AbstractRedisItemComparator<K, V, Object, KeyValue<K>> {
 
-    @Builder
-    public KeyValueItemComparator(KeyValueItemReader<K, V, ?> targetReader, long ttlTolerance) {
+    public KeyValueItemComparator(RedisKeyValueItemReader<K, V> targetReader, long ttlTolerance) {
         super(targetReader, ttlTolerance);
     }
 

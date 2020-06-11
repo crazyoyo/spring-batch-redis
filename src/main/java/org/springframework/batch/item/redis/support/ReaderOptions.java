@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis.support;
 
-import io.lettuce.core.RedisURI;
 import lombok.Builder;
 import lombok.Data;
 
@@ -9,18 +8,22 @@ import lombok.Data;
 public class ReaderOptions {
 
     public static final int DEFAULT_THREAD_COUNT = 1;
-    public static final int DEFAULT_QUEUE_CAPACITY = 10000;
-    public static final long DEFAULT_QUEUE_POLLING_TIMEOUT = 100;
     public static final int DEFAULT_BATCH_SIZE = 50;
+    public static final long DEFAULT_SCAN_COUNT = 1000;
+    public static final String DEFAULT_SCAN_MATCH = "*";
 
-    @Builder.Default
-    private long commandTimeout = RedisURI.DEFAULT_TIMEOUT;
     @Builder.Default
     private int threadCount = DEFAULT_THREAD_COUNT;
     @Builder.Default
     private int batchSize = DEFAULT_BATCH_SIZE;
     @Builder.Default
-    private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+    private QueueOptions valueQueueOptions = QueueOptions.builder().build();
     @Builder.Default
-    private long queuePollingTimeout = DEFAULT_QUEUE_POLLING_TIMEOUT;
+    private QueueOptions keyspaceNotificationQueueOptions = QueueOptions.builder().build();
+    @Builder.Default
+    private long scanCount = DEFAULT_SCAN_COUNT;
+    @Builder.Default
+    private String scanMatch = DEFAULT_SCAN_MATCH;
+    private boolean live;
+
 }

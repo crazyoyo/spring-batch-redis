@@ -41,20 +41,10 @@ NOTE: `StreamMessage` and `ScoredValue` are Lettuce core types (`io.lettuce.core
 
 == Item Readers
 
-=== Key Readers
-
-There are two kinds of key readers:
+Each data type has an item reader that can operate in 2 modes:
 
 * Snapshot: uses SCAN command to produce keys.
-* Live (AKA continuous): also uses SCAN but also keyspace notifications to keep producing keys that have been updated.
-
-=== Key Dump Readers
-
-Key dump readers return `KeyDump` objects and like their underlying key reader can be snapshot or live.
-
-=== Key Value Readers
-
-Key value readers return `KeyDump` objects and like their underlying key reader can be snapshot or live.
+* Live (AKA continuous): also relies on SCAN but in addition uses keyspace notifications to keep producing keys that have been updated.
 
 == Item Writers
 
@@ -79,3 +69,14 @@ Key value writers accept `KeyValue` objects and call the write command specific 
 * Sorted Set -> ZADD
 
 If TTL >= 0 then an additional call is made to `EXPIRE` command.
+
+== Usage
+
+[source,java]
+----
+ReaderOptions options = ReaderOptions.builder().live(true).threadCount(2).build();
+RedisKeyDumpItemReader reader = RedisKeyDumpItemReader.builder().redisURI(redisURI).options(options).build();
+RedisKeyDumpItemWriter writer = RedisKeyDumpItemWriter.builder().redisURI(targetRedisURI).replace(true).build();
+TaskletStep step = step.get("step").<KeyDump, KeyDump>chunk(50).reader(reader).writer(writer).build();
+jobFactory.get("job").start(step).build();
+----

@@ -14,22 +14,23 @@ import java.util.Iterator;
 import java.util.function.Function;
 
 @Slf4j
-public abstract class AbstractKeyItemReader<K, V, C extends StatefulConnection<K, V>> extends AbstractItemCountingItemStreamItemReader<K> {
+public class KeyItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<K> {
 
-    private final C connection;
-    private final Function<C, BaseRedisCommands<K, V>> commands;
+    private final StatefulConnection<K, V> connection;
+    private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands;
     private final ScanArgs scanArgs;
 
     private Iterator<K> keyIterator;
     private KeyScanCursor<K> cursor;
 
-    protected AbstractKeyItemReader(C connection, Function<C, BaseRedisCommands<K, V>> commands, ScanArgs scanArgs) {
+    public KeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands, ScanArgs scanArgs) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(connection, "A connection is required.");
         Assert.notNull(commands, "A commands supplier is required.");
+        Assert.notNull(scanArgs, "Scan args are required.");
         this.connection = connection;
         this.commands = commands;
-        this.scanArgs = scanArgs == null ? new ScanArgs() : scanArgs;
+        this.scanArgs = scanArgs;
     }
 
     @Override
