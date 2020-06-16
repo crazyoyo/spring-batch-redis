@@ -1,18 +1,13 @@
 package org.springframework.batch.item.redis.support;
 
-import io.lettuce.core.RedisClient;
+import com.redislabs.lettuce.helper.RedisOptions;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.RedisURI;
 import io.lettuce.core.ScanArgs;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.apache.commons.text.StringSubstitutor;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStream;
@@ -23,9 +18,7 @@ import org.springframework.util.ClassUtils;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.*;
 import java.util.function.Function;
 
@@ -156,41 +149,24 @@ public abstract class AbstractRedisItemReader<K, V, T> extends AbstractItemCount
 
     public static class AbstractRedisItemReaderBuilder {
 
-        private static final String KEYSPACE_CHANNEL_TEMPLATE = "__keyspace@${db}__:${p}";
+        private static final String KEYSPACE_CHANNEL_PREFIX = "__keyspace@";
+        private static final String KEYSPACE_CHANNEL_SUFFIX = "__:";
 
-        protected void asserts(RedisURI redisURI, PoolOptions poolOptions, ReaderOptions options) {
-            Assert.notNull(redisURI, "Redis URI is required.");
-            Assert.notNull(poolOptions, "Pool options are required.");
-            Assert.notNull(options, "Reader options are required.");
-        }
+        protected ItemReader<String> keyReader(RedisOptions redisOptions, ReaderOptions readerOptions) {
 
-        protected ItemReader<String> keyReader(RedisClient client, RedisURI redisURI, ReaderOptions options) {
-            if (options.isLive()) {
-                RedisKeyspaceNotificationProducer<String, String> keyspaceNotificationProducer = new RedisKeyspaceNotificationProducer<>(client.connectPubSub(), pubSubPattern(redisURI, options.getScanMatch()), new StringChannelConverter());
-                return new LiveKeyItemReader<>(client.connect(), c -> ((StatefulRedisConnection<String, String>) c).sync(), scanArgs(options), options.getKeyspaceNotificationQueueOptions().getCapacity(), options.getKeyspaceNotificationQueueOptions().getPollingTimeout(), keyspaceNotificationProducer);
+            if (readerOptions.isLive()) {
+                return new LiveKeyItemReader<>(redisOptions.connection(), redisOptions.sync(), scanArgs(readerOptions), redisOptions.pubSubConnection(), readerOptions.getKeyspaceNotificationQueueOptions().getCapacity(), readerOptions.getKeyspaceNotificationQueueOptions().getPollingTimeout(), pubSubPattern(redisOptions, readerOptions), new StringChannelConverter());
             }
-            return new KeyItemReader<>(client.connect(), c -> ((StatefulRedisConnection<String, String>) c).sync(), scanArgs(options));
+            return new KeyItemReader<>(redisOptions.connection(), redisOptions.sync(), scanArgs(readerOptions));
         }
 
-        protected ItemReader<String> keyReader(RedisClusterClient client, RedisURI redisURI, ReaderOptions options) {
-            if (options.isLive()) {
-                RedisClusterKeyspaceNotificationProducer<String, String> keyspaceNotificationProducer = new RedisClusterKeyspaceNotificationProducer<>(client.connectPubSub(), pubSubPattern(redisURI, options.getScanMatch()), new StringChannelConverter());
-                return new LiveKeyItemReader<>(client.connect(), c -> ((StatefulRedisClusterConnection<String, String>) c).sync(), scanArgs(options), options.getKeyspaceNotificationQueueOptions().getCapacity(), options.getKeyspaceNotificationQueueOptions().getPollingTimeout(), keyspaceNotificationProducer);
-            }
-            return new KeyItemReader<>(client.connect(), c -> ((StatefulRedisClusterConnection<String, String>) c).sync(), scanArgs(options));
+        private ScanArgs scanArgs(ReaderOptions readerOptions) {
+            return ScanArgs.Builder.limit(readerOptions.getScanCount()).match(readerOptions.getScanMatch());
         }
 
-        private ScanArgs scanArgs(ReaderOptions options) {
-            return ScanArgs.Builder.limit(options.getScanCount()).match(options.getScanMatch());
-        }
-
-        private String pubSubPattern(RedisURI redisURI, String scanMatch) {
-            Assert.notNull(scanMatch, "A scan match pattern is required.");
-            Map<String, String> variables = new HashMap<>();
-            variables.put("db", String.valueOf(redisURI.getDatabase()));
-            variables.put("p", scanMatch);
-            StringSubstitutor substitutor = new StringSubstitutor(variables);
-            return substitutor.replace(KEYSPACE_CHANNEL_TEMPLATE);
+        private String pubSubPattern(RedisOptions redisOptions, ReaderOptions readerOptions) {
+            Assert.notNull(readerOptions.getScanMatch(), "A scan match pattern is required.");
+            return KEYSPACE_CHANNEL_PREFIX + redisOptions.getRedisURI().getDatabase() + KEYSPACE_CHANNEL_SUFFIX + readerOptions.getScanMatch();
         }
 
     }

@@ -1,15 +1,16 @@
 package org.springframework.batch.item.redis;
 
-import io.lettuce.core.*;
+import com.redislabs.lettuce.helper.RedisOptions;
+import io.lettuce.core.RedisFuture;
+import io.lettuce.core.ScoredValue;
+import io.lettuce.core.StreamMessage;
+import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.*;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractKeyValueItemWriter;
-import org.springframework.batch.item.redis.support.PoolOptions;
 import org.springframework.util.Assert;
 
 import java.time.Duration;
@@ -67,21 +68,11 @@ public class RedisKeyValueItemWriter<K, V> extends AbstractKeyValueItemWriter<K,
     @Accessors(fluent = true)
     public static class RedisKeyValueItemWriterBuilder {
 
-        private RedisURI redisURI;
-        private boolean cluster;
-        private PoolOptions poolOptions = PoolOptions.builder().build();
+        private RedisOptions redisOptions;
 
         public RedisKeyValueItemWriter<String, String> build() {
-            Assert.notNull(redisURI, "A Redis URI is required.");
-            Assert.notNull(poolOptions, "Pool options are required.");
-            return new RedisKeyValueItemWriter<>(poolOptions.create(redisURI, cluster), async(), redisURI.getTimeout());
-        }
-
-        protected Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async() {
-            if (cluster) {
-                return c -> ((StatefulRedisClusterConnection<String, String>) c).async();
-            }
-            return c -> ((StatefulRedisConnection<String, String>) c).async();
+            Assert.notNull(redisOptions, "Redis options are required.");
+            return new RedisKeyValueItemWriter<>(redisOptions.connectionPool(), redisOptions.async(), redisOptions.getTimeout());
         }
 
     }

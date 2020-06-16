@@ -1,22 +1,18 @@
 package org.springframework.batch.item.redis;
 
-import io.lettuce.core.RedisClient;
+import com.redislabs.lettuce.helper.RedisOptions;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.AbstractRedisItemReader;
-import org.springframework.batch.item.redis.support.PoolOptions;
 import org.springframework.batch.item.redis.support.ReaderOptions;
+import org.springframework.util.Assert;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -63,19 +59,13 @@ public class RedisKeyDumpItemReader<K, V> extends AbstractRedisItemReader<K, V, 
     @Accessors(fluent = true)
     public static class RedisKeyDumpItemReaderBuilder extends AbstractRedisItemReaderBuilder {
 
-        private RedisURI redisURI;
-        private boolean cluster;
-        private PoolOptions poolOptions = PoolOptions.builder().build();
-        private ReaderOptions options = ReaderOptions.builder().build();
+        private RedisOptions redisOptions = RedisOptions.builder().build();
+        private ReaderOptions readerOptions = ReaderOptions.builder().build();
 
         public RedisKeyDumpItemReader<String, String> build() {
-            asserts(redisURI, poolOptions, options);
-            if (cluster) {
-                RedisClusterClient redisClusterClient = RedisClusterClient.create(redisURI);
-                return new RedisKeyDumpItemReader<>(keyReader(redisClusterClient, redisURI, options), poolOptions.create(redisClusterClient), c -> ((StatefulRedisClusterConnection<String, String>) c).async(), options.getThreadCount(), options.getBatchSize(), redisURI.getTimeout(), options.getValueQueueOptions().getCapacity(), options.getValueQueueOptions().getPollingTimeout());
-            }
-            RedisClient redisClient = RedisClient.create(redisURI);
-            return new RedisKeyDumpItemReader<>(keyReader(redisClient, redisURI, options), poolOptions.create(redisClient), c -> ((StatefulRedisConnection<String, String>) c).async(), options.getThreadCount(), options.getBatchSize(), redisURI.getTimeout(), options.getValueQueueOptions().getCapacity(), options.getValueQueueOptions().getPollingTimeout());
+            Assert.notNull(redisOptions, "Redis options are required.");
+            Assert.notNull(readerOptions, "Reader options are required.");
+            return new RedisKeyDumpItemReader<>(keyReader(redisOptions, readerOptions), redisOptions.connectionPool(), redisOptions.async(), readerOptions.getThreadCount(), readerOptions.getBatchSize(), redisOptions.getTimeout(), readerOptions.getValueQueueOptions().getCapacity(), readerOptions.getValueQueueOptions().getPollingTimeout());
         }
 
     }

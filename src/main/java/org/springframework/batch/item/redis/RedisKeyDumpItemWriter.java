@@ -1,18 +1,15 @@
 package org.springframework.batch.item.redis;
 
+import com.redislabs.lettuce.helper.RedisOptions;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.RedisURI;
 import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractKeyValueItemWriter;
-import org.springframework.batch.item.redis.support.PoolOptions;
 import org.springframework.util.Assert;
 
 import java.time.Duration;
@@ -48,22 +45,12 @@ public class RedisKeyDumpItemWriter<K, V> extends AbstractKeyValueItemWriter<K, 
     @Accessors(fluent = true)
     public static class RedisKeyDumpItemWriterBuilder {
 
-        private RedisURI redisURI;
-        private boolean cluster;
-        private PoolOptions poolOptions = PoolOptions.builder().build();
+        private RedisOptions redisOptions;
         private boolean replace;
 
         public RedisKeyDumpItemWriter<String, String> build() {
-            Assert.notNull(redisURI, "A Redis URI is required.");
-            Assert.notNull(poolOptions, "Pool options are required.");
-            return new RedisKeyDumpItemWriter<>(poolOptions.create(redisURI, cluster), async(), redisURI.getTimeout(), replace);
-        }
-
-        protected Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async() {
-            if (cluster) {
-                return c -> ((StatefulRedisClusterConnection<String, String>) c).async();
-            }
-            return c -> ((StatefulRedisConnection<String, String>) c).async();
+            Assert.notNull(redisOptions, "Redis options are required.");
+            return new RedisKeyDumpItemWriter<>(redisOptions.connectionPool(), redisOptions.async(), redisOptions.getTimeout(), replace);
         }
 
     }

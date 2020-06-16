@@ -1,5 +1,6 @@
 package org.springframework.batch.item.redis;
 
+import com.redislabs.lettuce.helper.RedisOptions;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -12,14 +13,10 @@ import org.junit.runner.RunWith;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.JobParametersInvalidException;
+import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
-import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
-import org.springframework.batch.core.repository.JobRestartException;
-import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.DefaultBufferedReaderFactory;
@@ -59,9 +56,9 @@ public class SpringBatchRedisTests extends BaseTest {
     @Autowired
     private StepBuilderFactory stepBuilderFactory;
     @Autowired
-    private RedisURI redisURI;
+    private RedisOptions redisOptions;
     @Autowired
-    private RedisURI targetRedisURI;
+    private RedisOptions targetRedisOptions;
     @Autowired
     private StatefulRedisConnection<String, String> connection;
     @Autowired
@@ -71,12 +68,10 @@ public class SpringBatchRedisTests extends BaseTest {
     @Autowired
     private GenericObjectPool<StatefulRedisConnection<String, String>> targetPool;
 
-    private void redisWriter(String name) throws IOException, JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
+    private void redisWriter(String name) throws Exception {
         FlatFileItemReader<Map<String, String>> reader = fileReader(new ClassPathResource("beers.csv"));
         RedisCommandItemWriters.Hmset<String, String, Map<String, String>> writer = new RedisCommandItemWriters.Hmset<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> m.get(Beers.FIELD_ID), m -> m);
-        TaskletStep step = stepBuilderFactory.get(name + "-step").<Map<String, String>, Map<String, String>>chunk(10).reader(reader).writer(writer).build();
-        Job job = jobBuilderFactory.get(name + "-job").start(step).build();
-        jobLauncher.run(job, new JobParameters());
+        run(name, reader, writer);
     }
 
     private Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async() {
@@ -114,9 +109,9 @@ public class SpringBatchRedisTests extends BaseTest {
     @Test
     public void testValueReader() throws Exception {
         redisWriter("scan-reader-populate");
-        RedisKeyValueItemReader<String, String> reader = RedisKeyValueItemReader.builder().redisURI(redisURI).build();
+        RedisKeyValueItemReader<String, String> reader = RedisKeyValueItemReader.builder().redisOptions(redisOptions).build();
         ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
-        JobExecution execution = execute("scan-reader", reader, writer);
+        JobExecution execution = run("scan-reader", reader, writer);
         Assert.assertTrue(execution.getAllFailureExceptions().isEmpty());
         Assert.assertEquals(Beers.SIZE, writer.getWrittenItems().size());
     }
@@ -124,28 +119,18 @@ public class SpringBatchRedisTests extends BaseTest {
     @Test
     public void testReplication() throws Exception {
         DataPopulator.builder().connection(connection).start(0).end(1039).build().run();
-        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.builder().redisURI(redisURI).build();
-        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetRedisURI).replace(true).build();
-        execute("replication", reader, writer);
+        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).build();
+        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisOptions(targetRedisOptions).replace(true).build();
+        run("replication", reader, writer);
         compare("replication-comparison");
-    }
-
-    private <I, O> JobExecution execute(String name, ItemReader<? extends I> reader, ItemWriter<? super O> writer) throws JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
-        Job job = job(name, reader, writer);
-        return jobLauncher.run(job, new JobParameters());
-    }
-
-    private <I, O> Job job(String name, ItemReader<? extends I> reader, ItemWriter<? super O> writer) {
-        TaskletStep step = stepBuilderFactory.get(name + "-step").<I, O>chunk(50).reader(reader).writer(writer).build();
-        return jobBuilderFactory.get(name + "-job").start(step).build();
     }
 
     @Test
     public void testLiveReplication() throws Exception {
         DataPopulator.builder().connection(connection).start(0).end(1000).build().run();
-        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.builder().redisURI(redisURI).options(ReaderOptions.builder().live(true).threadCount(2).build()).build();
+        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).readerOptions(ReaderOptions.builder().live(true).threadCount(2).build()).build();
         LiveKeyItemReader<String, String> keyReader = (LiveKeyItemReader<String, String>) reader.getKeyReader();
-        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetRedisURI).replace(true).build();
+        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisOptions(targetRedisOptions).replace(true).build();
         Job job = job("live-replication", reader, writer);
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         while (!keyReader.isRunning()) {
@@ -162,13 +147,13 @@ public class SpringBatchRedisTests extends BaseTest {
         compare("live-replication-comparison");
     }
 
-    private void compare(String name) throws JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
+    private void compare(String name) throws Exception {
         RedisCommands<String, String> sourceCommands = connection.sync();
         RedisCommands<String, String> targetCommands = targetConnection.sync();
         Assert.assertEquals(sourceCommands.dbsize(), targetCommands.dbsize());
-        RedisKeyValueItemReader<String, String> reader = RedisKeyValueItemReader.builder().redisURI(redisURI).build();
-        KeyValueItemComparator<String, String> comparator = new KeyValueItemComparator<>(RedisKeyValueItemReader.builder().redisURI(targetRedisURI).build(), 1);
-        execute(name, reader, comparator);
+        RedisKeyValueItemReader<String, String> reader = RedisKeyValueItemReader.builder().redisOptions(redisOptions).build();
+        KeyValueItemComparator<String, String> comparator = new KeyValueItemComparator<>(RedisKeyValueItemReader.builder().redisOptions(targetRedisOptions).build(), 1);
+        run(name, reader, comparator);
         Assert.assertEquals(Math.toIntExact(sourceCommands.dbsize()), comparator.getOk().size());
     }
 
@@ -198,10 +183,17 @@ public class SpringBatchRedisTests extends BaseTest {
         return new ListItemReader<>(Beers.load());
     }
 
-    private <T> void run(String name, ItemReader<T> reader, ItemWriter<T> writer) throws Exception {
-        TaskletStep step = stepBuilderFactory.get(name + "-step").<T, T>chunk(50).reader(reader).writer(writer).build();
-        Job job = jobBuilderFactory.get(name + "-job").start(step).build();
-        jobLauncher.run(job, new JobParameters());
+    private <T> JobExecution run(String name, ItemReader<T> reader, ItemWriter<T> writer) throws Exception {
+        return jobLauncher.run(job(name, reader ,writer), new JobParameters());
     }
+
+    private <I, O> Job job(String name, ItemReader<? extends I> reader, ItemWriter<? super O> writer) {
+        return jobBuilderFactory.get(name + "-job").start(step(name, reader, writer)).build();
+    }
+
+    private <I, O> Step step(String name, ItemReader<? extends I> reader, ItemWriter<? super O> writer) {
+        return stepBuilderFactory.get(name + "-step").<I, O>chunk(50).reader(reader).writer(writer).build();
+    }
+
 
 }

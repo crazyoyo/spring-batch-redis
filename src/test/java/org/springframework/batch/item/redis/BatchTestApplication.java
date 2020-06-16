@@ -1,5 +1,6 @@
 package org.springframework.batch.item.redis;
 
+import com.redislabs.lettuce.helper.RedisOptions;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -31,6 +32,16 @@ public class BatchTestApplication {
     @Bean
     RedisURI targetRedisURI() {
         return RedisURI.create("localhost", BaseTest.TARGET_REDIS_PORT);
+    }
+
+    @Bean
+    RedisOptions redisOptions(RedisURI redisURI) {
+        return RedisOptions.builder().redisURI(redisURI).build();
+    }
+
+    @Bean
+    RedisOptions targetRedisOptions(RedisURI targetRedisURI) {
+        return RedisOptions.builder().redisURI(targetRedisURI).build();
     }
 
     @Bean
