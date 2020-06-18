@@ -11,6 +11,7 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractKeyValueItemWriter;
+import org.springframework.batch.item.redis.support.KeyValue;
 import org.springframework.util.Assert;
 
 import java.time.Duration;

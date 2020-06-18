@@ -31,14 +31,16 @@ jar {
 dependencies {
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
-	implementation 'com.redislabs:lettuce-helper:1.0.0-SNAPSHOT'
+	implementation 'com.redislabs:lettuce-helper:1.0.1'
 	implementation 'org.springframework.boot:spring-boot-starter-batch'
 	testImplementation('org.springframework.boot:spring-boot-starter-test') {
 		exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
 	}
 	testImplementation 'org.springframework.batch:spring-batch-test'
 	testImplementation 'org.hsqldb:hsqldb'
-	testImplementation 'it.ozimov:embedded-redis:0.7.3'
+	testImplementation('it.ozimov:embedded-redis:0.7.3') {
+		exclude group: 'org.slf4j', module: 'slf4j-simple'
+	}
 	testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv:2.11.0'
 	testImplementation 'org.projectlombok:lombok'
 	testAnnotationProcessor 'org.projectlombok:lombok'

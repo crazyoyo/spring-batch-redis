@@ -1,8 +1,7 @@
-package org.springframework.batch.item.redis;
+package org.springframework.batch.item.redis.support;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.springframework.batch.item.redis.support.AbstractKeyValue;
 
 @Data
 @EqualsAndHashCode(callSuper = true)

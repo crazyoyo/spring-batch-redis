@@ -11,6 +11,7 @@ import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.util.Assert;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -30,11 +31,15 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V> implements Redi
     @Getter
     private boolean running;
 
-    public LiveKeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands, ScanArgs scanArgs, StatefulRedisPubSubConnection<K, V> pubSubConnection, int queueCapacity, long queuePollingTimeout, K pubSubPattern, Converter<K, K> keyExtractor) {
+    public LiveKeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands, ScanArgs scanArgs, StatefulRedisPubSubConnection<K, V> pubSubConnection, QueueOptions queueOptions, K pubSubPattern, Converter<K, K> keyExtractor) {
         super(connection, commands, scanArgs);
+        Assert.notNull(pubSubConnection, "A PubSub connection is required.");
+        Assert.notNull(queueOptions, "Queue options are required.");
+        Assert.notNull(pubSubPattern, "A PubSub channel pattern is required.");
+        Assert.notNull(keyExtractor, "A key extractor is required.");
         this.pubSubConnection = pubSubConnection;
-        this.queue = new LinkedBlockingDeque<>(queueCapacity);
-        this.queuePollingTimeout = queuePollingTimeout;
+        this.queue = new LinkedBlockingDeque<>(queueOptions.getCapacity());
+        this.queuePollingTimeout = queueOptions.getPollingTimeout();
         this.pubSubPattern = pubSubPattern;
         this.keyExtractor = keyExtractor;
     }
@@ -92,6 +97,7 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V> implements Redi
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected synchronized void doOpen() {
         super.doOpen();
         if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
@@ -107,6 +113,7 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V> implements Redi
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected synchronized void doClose() {
         if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
             StatefulRedisClusterPubSubConnection<K, V> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<K, V>) pubSubConnection;

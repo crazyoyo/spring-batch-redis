@@ -19,15 +19,13 @@ public class ReaderOptions {
     private int batchSize = DEFAULT_BATCH_SIZE;
     @NonNull
     @Builder.Default
-    private QueueOptions valueQueueOptions = QueueOptions.builder().build();
+    private QueueOptions itemQueueOptions = QueueOptions.builder().build();
     @NonNull
     @Builder.Default
-    private QueueOptions keyspaceNotificationQueueOptions = QueueOptions.builder().build();
+    private QueueOptions keyQueueOptions = QueueOptions.builder().build();
     @Builder.Default
     private long scanCount = DEFAULT_SCAN_COUNT;
-    @NonNull
     @Builder.Default
     private String scanMatch = DEFAULT_SCAN_MATCH;
     private boolean live;
-
 }

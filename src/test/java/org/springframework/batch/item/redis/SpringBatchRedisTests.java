@@ -17,6 +17,7 @@ import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.DefaultBufferedReaderFactory;
@@ -24,10 +25,7 @@ import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.separator.DefaultRecordSeparatorPolicy;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
-import org.springframework.batch.item.redis.support.KeyValueItemComparator;
-import org.springframework.batch.item.redis.support.LiveKeyItemReader;
-import org.springframework.batch.item.redis.support.ReaderOptions;
-import org.springframework.batch.item.redis.support.RedisCommandItemWriters;
+import org.springframework.batch.item.redis.support.*;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -109,7 +107,7 @@ public class SpringBatchRedisTests extends BaseTest {
     @Test
     public void testValueReader() throws Exception {
         redisWriter("scan-reader-populate");
-        RedisKeyValueItemReader<String, String> reader = RedisKeyValueItemReader.builder().redisOptions(redisOptions).build();
+        RedisKeyValueItemReader<String> reader = RedisKeyValueItemReader.builder().redisOptions(redisOptions).build();
         ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
         JobExecution execution = run("scan-reader", reader, writer);
         Assert.assertTrue(execution.getAllFailureExceptions().isEmpty());
@@ -119,7 +117,7 @@ public class SpringBatchRedisTests extends BaseTest {
     @Test
     public void testReplication() throws Exception {
         DataPopulator.builder().connection(connection).start(0).end(1039).build().run();
-        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).build();
+        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).build();
         RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisOptions(targetRedisOptions).replace(true).build();
         run("replication", reader, writer);
         compare("replication-comparison");
@@ -128,7 +126,7 @@ public class SpringBatchRedisTests extends BaseTest {
     @Test
     public void testLiveReplication() throws Exception {
         DataPopulator.builder().connection(connection).start(0).end(1000).build().run();
-        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).readerOptions(ReaderOptions.builder().live(true).threadCount(2).build()).build();
+        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).readerOptions(ReaderOptions.builder().live(true).threadCount(2).build()).build();
         LiveKeyItemReader<String, String> keyReader = (LiveKeyItemReader<String, String>) reader.getKeyReader();
         RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisOptions(targetRedisOptions).replace(true).build();
         Job job = job("live-replication", reader, writer);
@@ -151,8 +149,8 @@ public class SpringBatchRedisTests extends BaseTest {
         RedisCommands<String, String> sourceCommands = connection.sync();
         RedisCommands<String, String> targetCommands = targetConnection.sync();
         Assert.assertEquals(sourceCommands.dbsize(), targetCommands.dbsize());
-        RedisKeyValueItemReader<String, String> reader = RedisKeyValueItemReader.builder().redisOptions(redisOptions).build();
-        KeyValueItemComparator<String, String> comparator = new KeyValueItemComparator<>(RedisKeyValueItemReader.builder().redisOptions(targetRedisOptions).build(), 1);
+        RedisKeyValueItemReader<String> reader = RedisKeyValueItemReader.builder().redisOptions(redisOptions).build();
+        KeyValueItemComparator<String, String> comparator = new KeyValueItemComparator<>(new KeyValueItemProcessor<>(targetRedisOptions.connectionPool(), targetRedisOptions.async(), targetRedisOptions.getTimeout()), 1);
         run(name, reader, comparator);
         Assert.assertEquals(Math.toIntExact(sourceCommands.dbsize()), comparator.getOk().size());
     }
@@ -184,7 +182,7 @@ public class SpringBatchRedisTests extends BaseTest {
     }
 
     private <T> JobExecution run(String name, ItemReader<T> reader, ItemWriter<T> writer) throws Exception {
-        return jobLauncher.run(job(name, reader ,writer), new JobParameters());
+        return jobLauncher.run(job(name, reader, writer), new JobParameters());
     }
 
     private <I, O> Job job(String name, ItemReader<? extends I> reader, ItemWriter<? super O> writer) {
@@ -193,6 +191,14 @@ public class SpringBatchRedisTests extends BaseTest {
 
     private <I, O> Step step(String name, ItemReader<? extends I> reader, ItemWriter<? super O> writer) {
         return stepBuilderFactory.get(name + "-step").<I, O>chunk(50).reader(reader).writer(writer).build();
+    }
+
+    public void usage() {
+        ReaderOptions options = ReaderOptions.builder().live(true).threadCount(2).build();
+        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).readerOptions(options).build();
+        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisOptions(targetRedisOptions).replace(true).build();
+        TaskletStep step = stepBuilderFactory.get("step").<KeyDump<String>, KeyDump<String>>chunk(50).reader(reader).writer(writer).build();
+        jobBuilderFactory.get("job").start(step).build();
     }
 
 
