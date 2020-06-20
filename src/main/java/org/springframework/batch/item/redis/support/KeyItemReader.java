@@ -23,14 +23,15 @@ public class KeyItemReader<K, V> extends AbstractItemCountingItemStreamItemReade
     private Iterator<K> keyIterator;
     private KeyScanCursor<K> cursor;
 
-    public KeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands, ScanArgs scanArgs) {
+    public KeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands, long scanCount, String scanMatch) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(connection, "A connection is required.");
         Assert.notNull(commands, "A commands supplier is required.");
-        Assert.notNull(scanArgs, "Scan args are required.");
+        Assert.isTrue(scanCount > 0, "Scan count must be greater than 0.");
+        Assert.notNull(scanMatch, "Scan match is required.");
         this.connection = connection;
         this.commands = commands;
-        this.scanArgs = scanArgs;
+        this.scanArgs = ScanArgs.Builder.limit(scanCount).match(scanMatch);
     }
 
     @Override

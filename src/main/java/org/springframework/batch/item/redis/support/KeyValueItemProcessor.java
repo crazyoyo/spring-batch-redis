@@ -32,7 +32,7 @@ public class KeyValueItemProcessor<K, V> extends AbstractKeyValueItemProcessor<K
         List<RedisFuture<?>> valueFutures = new ArrayList<>(keys.size());
         for (int index = 0; index < keys.size(); index++) {
             K key = keys.get(index);
-            String typeName = null;
+            String typeName;
             try {
                 typeName = get(typeFutures.get(index));
             } catch (Exception e) {

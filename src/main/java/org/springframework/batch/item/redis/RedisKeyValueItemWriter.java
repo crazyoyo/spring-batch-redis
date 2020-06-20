@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis;
 
-import com.redislabs.lettuce.helper.RedisOptions;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -12,7 +11,7 @@ import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractKeyValueItemWriter;
 import org.springframework.batch.item.redis.support.KeyValue;
-import org.springframework.util.Assert;
+import org.springframework.batch.item.redis.support.RedisConnectionBuilder;
 
 import java.time.Duration;
 import java.util.List;
@@ -67,13 +66,10 @@ public class RedisKeyValueItemWriter<K, V> extends AbstractKeyValueItemWriter<K,
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisKeyValueItemWriterBuilder {
-
-        private RedisOptions redisOptions;
+    public static class RedisKeyValueItemWriterBuilder extends RedisConnectionBuilder<RedisKeyValueItemWriterBuilder> {
 
         public RedisKeyValueItemWriter<String, String> build() {
-            Assert.notNull(redisOptions, "Redis options are required.");
-            return new RedisKeyValueItemWriter<>(redisOptions.connectionPool(), redisOptions.async(), redisOptions.getTimeout());
+            return new RedisKeyValueItemWriter<>(pool(), async(), getTimeout());
         }
 
     }

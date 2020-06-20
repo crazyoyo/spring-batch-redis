@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 @SuppressWarnings("unchecked")
-public class RedisCommandItemWriters {
+public class CommandItemWriters {
 
     public static class Eval<K, V, T> extends AbstractCommandItemWriter<K, V, T> {
 

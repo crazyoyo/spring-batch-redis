@@ -38,7 +38,7 @@ public abstract class AbstractKeyValueItemProcessor<K, V, T> implements ItemProc
         }
     }
 
-    protected abstract List<T> values(List<? extends K> items, BaseRedisAsyncCommands<K,V> commands) throws InterruptedException, ExecutionException, TimeoutException;
+    protected abstract List<T> values(List<? extends K> items, BaseRedisAsyncCommands<K,V> commands);
 
     protected <F> F get(RedisFuture<F> future) throws InterruptedException, ExecutionException, TimeoutException {
         if (future == null) {

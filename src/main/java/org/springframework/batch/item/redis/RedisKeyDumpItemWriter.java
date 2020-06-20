@@ -1,17 +1,14 @@
 package org.springframework.batch.item.redis;
 
-import com.redislabs.lettuce.helper.RedisOptions;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractKeyValueItemWriter;
 import org.springframework.batch.item.redis.support.KeyDump;
-import org.springframework.util.Assert;
+import org.springframework.batch.item.redis.support.RedisConnectionBuilder;
 
 import java.time.Duration;
 import java.util.List;
@@ -42,16 +39,17 @@ public class RedisKeyDumpItemWriter<K, V> extends AbstractKeyValueItemWriter<K, 
         return new RedisKeyDumpItemWriterBuilder();
     }
 
-    @Setter
-    @Accessors(fluent = true)
-    public static class RedisKeyDumpItemWriterBuilder {
+    public static class RedisKeyDumpItemWriterBuilder extends RedisConnectionBuilder<RedisKeyDumpItemWriterBuilder> {
 
-        private RedisOptions redisOptions;
         private boolean replace;
 
+        public RedisKeyDumpItemWriterBuilder replace() {
+            this.replace = true;
+            return this;
+        }
+
         public RedisKeyDumpItemWriter<String, String> build() {
-            Assert.notNull(redisOptions, "Redis options are required.");
-            return new RedisKeyDumpItemWriter<>(redisOptions.connectionPool(), redisOptions.async(), redisOptions.getTimeout(), replace);
+            return new RedisKeyDumpItemWriter<>(pool(), async(), getTimeout(), replace);
         }
 
     }

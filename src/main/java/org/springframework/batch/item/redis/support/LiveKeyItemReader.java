@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis.support;
 
-import io.lettuce.core.ScanArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
@@ -31,15 +30,14 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V> implements Redi
     @Getter
     private boolean running;
 
-    public LiveKeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands, ScanArgs scanArgs, StatefulRedisPubSubConnection<K, V> pubSubConnection, QueueOptions queueOptions, K pubSubPattern, Converter<K, K> keyExtractor) {
-        super(connection, commands, scanArgs);
+    public LiveKeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands, long scanCount, String scanMatch, StatefulRedisPubSubConnection<K, V> pubSubConnection, int queueCapacity, long queuePollingTimeout, K pubSubPattern, Converter<K, K> keyExtractor) {
+        super(connection, commands, scanCount, scanMatch);
         Assert.notNull(pubSubConnection, "A PubSub connection is required.");
-        Assert.notNull(queueOptions, "Queue options are required.");
         Assert.notNull(pubSubPattern, "A PubSub channel pattern is required.");
         Assert.notNull(keyExtractor, "A key extractor is required.");
         this.pubSubConnection = pubSubConnection;
-        this.queue = new LinkedBlockingDeque<>(queueOptions.getCapacity());
-        this.queuePollingTimeout = queueOptions.getPollingTimeout();
+        this.queue = new LinkedBlockingDeque<>(queueCapacity);
+        this.queuePollingTimeout = queuePollingTimeout;
         this.pubSubPattern = pubSubPattern;
         this.keyExtractor = keyExtractor;
     }

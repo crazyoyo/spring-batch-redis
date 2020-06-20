@@ -1,6 +1,7 @@
 package org.springframework.batch.item.redis.support;
 
 import lombok.Getter;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.ClassUtils;
 
@@ -8,9 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public abstract class AbstractRedisItemComparator<K, V, TV, T extends AbstractKeyValue<K, TV>> extends AbstractItemStreamItemWriter<T> {
+public abstract class AbstractRedisItemComparator<K, TV, T extends AbstractKeyValue<K, TV>> extends AbstractItemStreamItemWriter<T> {
 
-    private final AbstractKeyValueItemProcessor<K, V, T> targetProcessor;
+    private final ItemProcessor<List<? extends K>, List<T>> targetProcessor;
     private final long ttlTolerance;
     @Getter
     private final List<K> ok = new ArrayList<>();
@@ -23,7 +24,7 @@ public abstract class AbstractRedisItemComparator<K, V, TV, T extends AbstractKe
     @Getter
     private final List<K> badTtls = new ArrayList<>();
 
-    protected AbstractRedisItemComparator(AbstractKeyValueItemProcessor<K, V, T> targetProcessor, long ttlTolerance) {
+    protected AbstractRedisItemComparator(ItemProcessor<List<? extends K>, List<T>> targetProcessor, long ttlTolerance) {
         setName(ClassUtils.getShortName(getClass()));
         this.targetProcessor = targetProcessor;
         this.ttlTolerance = ttlTolerance;
@@ -33,9 +34,13 @@ public abstract class AbstractRedisItemComparator<K, V, TV, T extends AbstractKe
     public void write(List<? extends T> sources) throws Exception {
         List<K> keys = sources.stream().map(AbstractKeyValue::getKey).collect(Collectors.toList());
         List<T> targets = targetProcessor.process(keys);
+        if (targets == null) {
+            return;
+        }
         for (int index = 0; index < sources.size(); index++) {
             T source = sources.get(index);
-            compare(source, targets.get(index)).add(source.getKey());
+            T target = targets.get(index);
+            compare(source, target).add(source.getKey());
         }
     }
 

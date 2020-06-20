@@ -1,8 +1,12 @@
 package org.springframework.batch.item.redis.support;
 
-public class KeyValueItemComparator<K, V> extends AbstractRedisItemComparator<K, V, Object, KeyValue<K>> {
+import org.springframework.batch.item.ItemProcessor;
 
-    public KeyValueItemComparator(KeyValueItemProcessor<K, V> targetProcessor, long ttlTolerance) {
+import java.util.List;
+
+public class KeyValueItemComparator<K> extends AbstractRedisItemComparator<K, Object, KeyValue<K>> {
+
+    public KeyValueItemComparator(ItemProcessor<List<? extends K>, List<KeyValue<K>>> targetProcessor, long ttlTolerance) {
         super(targetProcessor, ttlTolerance);
     }
 

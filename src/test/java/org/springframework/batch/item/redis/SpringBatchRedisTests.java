@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis;
 
-import com.redislabs.lettuce.helper.RedisOptions;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -54,9 +53,9 @@ public class SpringBatchRedisTests extends BaseTest {
     @Autowired
     private StepBuilderFactory stepBuilderFactory;
     @Autowired
-    private RedisOptions redisOptions;
+    private RedisURI redisURI;
     @Autowired
-    private RedisOptions targetRedisOptions;
+    private RedisURI targetRedisURI;
     @Autowired
     private StatefulRedisConnection<String, String> connection;
     @Autowired
@@ -68,7 +67,7 @@ public class SpringBatchRedisTests extends BaseTest {
 
     private void redisWriter(String name) throws Exception {
         FlatFileItemReader<Map<String, String>> reader = fileReader(new ClassPathResource("beers.csv"));
-        RedisCommandItemWriters.Hmset<String, String, Map<String, String>> writer = new RedisCommandItemWriters.Hmset<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> m.get(Beers.FIELD_ID), m -> m);
+        CommandItemWriters.Hmset<String, String, Map<String, String>> writer = new CommandItemWriters.Hmset<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> m.get(Beers.FIELD_ID), m -> m);
         run(name, reader, writer);
     }
 
@@ -107,7 +106,7 @@ public class SpringBatchRedisTests extends BaseTest {
     @Test
     public void testValueReader() throws Exception {
         redisWriter("scan-reader-populate");
-        RedisKeyValueItemReader<String> reader = RedisKeyValueItemReader.builder().redisOptions(redisOptions).build();
+        RedisKeyValueItemReader<String> reader = RedisKeyValueItemReader.builder().redisURI(redisURI).build();
         ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
         JobExecution execution = run("scan-reader", reader, writer);
         Assert.assertTrue(execution.getAllFailureExceptions().isEmpty());
@@ -117,8 +116,8 @@ public class SpringBatchRedisTests extends BaseTest {
     @Test
     public void testReplication() throws Exception {
         DataPopulator.builder().connection(connection).start(0).end(1039).build().run();
-        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).build();
-        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisOptions(targetRedisOptions).replace(true).build();
+        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(redisURI).build();
+        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetRedisURI).replace().build();
         run("replication", reader, writer);
         compare("replication-comparison");
     }
@@ -126,9 +125,9 @@ public class SpringBatchRedisTests extends BaseTest {
     @Test
     public void testLiveReplication() throws Exception {
         DataPopulator.builder().connection(connection).start(0).end(1000).build().run();
-        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).readerOptions(ReaderOptions.builder().live(true).threadCount(2).build()).build();
+        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(redisURI).live().threads(2).build();
         LiveKeyItemReader<String, String> keyReader = (LiveKeyItemReader<String, String>) reader.getKeyReader();
-        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisOptions(targetRedisOptions).replace(true).build();
+        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetRedisURI).replace().build();
         Job job = job("live-replication", reader, writer);
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         while (!keyReader.isRunning()) {
@@ -149,15 +148,15 @@ public class SpringBatchRedisTests extends BaseTest {
         RedisCommands<String, String> sourceCommands = connection.sync();
         RedisCommands<String, String> targetCommands = targetConnection.sync();
         Assert.assertEquals(sourceCommands.dbsize(), targetCommands.dbsize());
-        RedisKeyValueItemReader<String> reader = RedisKeyValueItemReader.builder().redisOptions(redisOptions).build();
-        KeyValueItemComparator<String, String> comparator = new KeyValueItemComparator<>(new KeyValueItemProcessor<>(targetRedisOptions.connectionPool(), targetRedisOptions.async(), targetRedisOptions.getTimeout()), 1);
+        RedisKeyValueItemReader<String> reader = RedisKeyValueItemReader.builder().redisURI(redisURI).build();
+        KeyValueItemComparator<String> comparator = new KeyValueItemComparator<>(reader.getKeyValueProcessor(), 1);
         run(name, reader, comparator);
         Assert.assertEquals(Math.toIntExact(sourceCommands.dbsize()), comparator.getOk().size());
     }
 
     @Test
     public void testStringItemWriter() throws Exception {
-        RedisCommandItemWriters.Set<String, String, Map<String, String>> writer = new RedisCommandItemWriters.Set<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> m.get(Beers.FIELD_ID), m -> m.get(Beers.FIELD_NAME));
+        CommandItemWriters.Set<String, String, Map<String, String>> writer = new CommandItemWriters.Set<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> m.get(Beers.FIELD_ID), m -> m.get(Beers.FIELD_NAME));
         run("string-item-writer", beerReader(), writer);
         assertSize(connection);
         Assert.assertEquals("Redband Stout", connection.sync().get("371"));
@@ -165,14 +164,14 @@ public class SpringBatchRedisTests extends BaseTest {
 
     @Test
     public void testSetItemWriter() throws Exception {
-        RedisCommandItemWriters.Sadd<String, String, Map<String, String>> writer = new RedisCommandItemWriters.Sadd<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> "beers", m -> m.get(Beers.FIELD_ID));
+        CommandItemWriters.Sadd<String, String, Map<String, String>> writer = new CommandItemWriters.Sadd<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> "beers", m -> m.get(Beers.FIELD_ID));
         run("set-item-writer", beerReader(), writer);
         Assert.assertEquals(Beers.SIZE, (long) connection.sync().scard("beers"));
     }
 
     @Test
     public void testStreamItemWriter() throws Exception {
-        RedisCommandItemWriters.Xadd<String, String, Map<String, String>> writer = new RedisCommandItemWriters.Xadd<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> "beers", m -> m, null, null, false);
+        CommandItemWriters.Xadd<String, String, Map<String, String>> writer = new CommandItemWriters.Xadd<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> "beers", m -> m, null, null, false);
         run("stream-item-writer", beerReader(), writer);
         Assert.assertEquals(Beers.SIZE, (long) connection.sync().xlen("beers"));
     }
@@ -194,9 +193,10 @@ public class SpringBatchRedisTests extends BaseTest {
     }
 
     public void usage() {
-        ReaderOptions options = ReaderOptions.builder().live(true).threadCount(2).build();
-        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).readerOptions(options).build();
-        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisOptions(targetRedisOptions).replace(true).build();
+        RedisURI sourceURI = RedisURI.create("redis://source:6379");
+        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(sourceURI).live().threads(2).build();
+        RedisURI targetURI = RedisURI.create("rediss://target:6379");
+        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetURI).replace().build();
         TaskletStep step = stepBuilderFactory.get("step").<KeyDump<String>, KeyDump<String>>chunk(50).reader(reader).writer(writer).build();
         jobBuilderFactory.get("job").start(step).build();
     }

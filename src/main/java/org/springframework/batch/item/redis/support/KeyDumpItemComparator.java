@@ -1,10 +1,13 @@
 package org.springframework.batch.item.redis.support;
 
+import org.springframework.batch.item.ItemProcessor;
+
 import java.util.Arrays;
+import java.util.List;
 
-public class KeyDumpItemComparator<K, V> extends AbstractRedisItemComparator<K, V, byte[], KeyDump<K>> {
+public class KeyDumpItemComparator<K> extends AbstractRedisItemComparator<K, byte[], KeyDump<K>> {
 
-    public KeyDumpItemComparator(KeyDumpItemProcessor<K, V> targetProcessor, long ttlTolerance) {
+    public KeyDumpItemComparator(ItemProcessor<List<? extends K>, List<KeyDump<K>>> targetProcessor, long ttlTolerance) {
         super(targetProcessor, ttlTolerance);
     }
 
