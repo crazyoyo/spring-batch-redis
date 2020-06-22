@@ -74,9 +74,10 @@ If TTL >= 0 then an additional call is made to `EXPIRE` command.
 
 [source,java]
 ----
-ReaderOptions options = ReaderOptions.builder().live(true).threadCount(2).build();
-RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisOptions(redisOptions).readerOptions(options).build();
-RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisOptions(targetRedisOptions).replace(true).build();
+RedisURI sourceURI = RedisURI.create("redis://source:6379");
+RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(sourceURI).live().threads(2).build();
+RedisURI targetURI = RedisURI.create("rediss://target:6379");
+RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetURI).replace().build();
 TaskletStep step = stepBuilderFactory.get("step").<KeyDump<String>, KeyDump<String>>chunk(50).reader(reader).writer(writer).build();
 jobBuilderFactory.get("job").start(step).build();
 ----
