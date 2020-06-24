@@ -48,14 +48,14 @@ public class RedisItemReaderBuilder<B extends RedisItemReaderBuilder<B, T>, T> e
         return (B) this;
     }
 
-    public B live() {
-        this.live = true;
+    public B live(boolean live) {
+        this.live = live;
         return (B) this;
     }
 
     protected KeyItemReader<String, String> keyReader() {
         if (live) {
-            String pubSubPattern = "__keyspace@" + getRedisURI().getDatabase() + "__:" + scanMatch;
+            String pubSubPattern = "__keyspace@" + redisURI().getDatabase() + "__:" + scanMatch;
             return new LiveKeyItemReader<>(connection(), sync(), scanCount, scanMatch, pubSubConnection(), queueCapacity, queuePollingTimeout, pubSubPattern, new StringChannelConverter());
         }
         return new KeyItemReader<>(connection(), sync(), scanCount, scanMatch);

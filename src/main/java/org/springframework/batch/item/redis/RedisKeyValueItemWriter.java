@@ -69,7 +69,7 @@ public class RedisKeyValueItemWriter<K, V> extends AbstractKeyValueItemWriter<K,
     public static class RedisKeyValueItemWriterBuilder extends RedisConnectionBuilder<RedisKeyValueItemWriterBuilder> {
 
         public RedisKeyValueItemWriter<String, String> build() {
-            return new RedisKeyValueItemWriter<>(pool(), async(), getTimeout());
+            return new RedisKeyValueItemWriter<>(pool(), async(), timeout());
         }
 
     }

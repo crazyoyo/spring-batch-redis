@@ -43,13 +43,13 @@ public class RedisKeyDumpItemWriter<K, V> extends AbstractKeyValueItemWriter<K, 
 
         private boolean replace;
 
-        public RedisKeyDumpItemWriterBuilder replace() {
-            this.replace = true;
+        public RedisKeyDumpItemWriterBuilder replace(boolean replace) {
+            this.replace = replace;
             return this;
         }
 
         public RedisKeyDumpItemWriter<String, String> build() {
-            return new RedisKeyDumpItemWriter<>(pool(), async(), getTimeout(), replace);
+            return new RedisKeyDumpItemWriter<>(pool(), async(), timeout(), replace);
         }
 
     }

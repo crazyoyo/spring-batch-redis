@@ -18,12 +18,8 @@ public class RedisKeyValueItemReader<K> extends RedisItemReader<K, KeyValue<K>> 
 
     public static class RedisKeyValueItemReaderBuilder extends RedisItemReaderBuilder<RedisKeyValueItemReaderBuilder, KeyValue<String>> {
 
-        public KeyValueItemProcessor<String, String> keyValueProcessor() {
-            return new KeyValueItemProcessor<>(pool(), async(), getTimeout());
-        }
-
         public RedisKeyValueItemReader<String> build() {
-            return new RedisKeyValueItemReader<>(keyReader(), keyValueProcessor(), threadCount, batchSize, queueCapacity, queuePollingTimeout);
+            return new RedisKeyValueItemReader<>(keyReader(), new KeyValueItemProcessor<>(pool(), async(), timeout()), threadCount, batchSize, queueCapacity, queuePollingTimeout);
         }
 
     }

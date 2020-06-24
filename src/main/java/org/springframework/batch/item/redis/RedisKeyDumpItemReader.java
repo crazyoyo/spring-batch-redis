@@ -18,12 +18,8 @@ public class RedisKeyDumpItemReader<K> extends RedisItemReader<K, KeyDump<K>> {
 
     public static class RedisKeyDumpItemReaderBuilder extends RedisItemReaderBuilder<RedisKeyDumpItemReaderBuilder, KeyDump<String>> {
 
-        public KeyDumpItemProcessor<String, String> keyDumpProcessor() {
-            return new KeyDumpItemProcessor<>(pool(), async(), getTimeout());
-        }
-
         public RedisKeyDumpItemReader<String> build() {
-            return new RedisKeyDumpItemReader<>(keyReader(), keyDumpProcessor(), threadCount, batchSize, queueCapacity, queuePollingTimeout);
+            return new RedisKeyDumpItemReader<>(keyReader(), new KeyDumpItemProcessor<>(pool(), async(), timeout()), threadCount, batchSize, queueCapacity, queuePollingTimeout);
         }
     }
 }

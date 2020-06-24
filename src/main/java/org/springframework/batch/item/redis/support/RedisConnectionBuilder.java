@@ -27,11 +27,11 @@ public class RedisConnectionBuilder<B extends RedisConnectionBuilder<B>> {
     private ConnectionPoolConfig poolConfig = ConnectionPoolConfig.builder().build();
     private boolean cluster;
 
-    public RedisURI getRedisURI() {
+    public RedisURI redisURI() {
         return redisURI;
     }
 
-    public Duration getTimeout() {
+    public Duration timeout() {
         return redisURI.getTimeout();
     }
 
@@ -55,8 +55,8 @@ public class RedisConnectionBuilder<B extends RedisConnectionBuilder<B>> {
         return (B) this;
     }
 
-    public B cluster() {
-        this.cluster = true;
+    public B cluster(boolean cluster) {
+        this.cluster = cluster;
         return (B) this;
     }
 
@@ -81,7 +81,7 @@ public class RedisConnectionBuilder<B extends RedisConnectionBuilder<B>> {
         return redisClient().connectPubSub();
     }
 
-    private RedisClient redisClient() {
+    public RedisClient redisClient() {
         RedisClient client = createRedisClient(redisURI, clientResources);
         if (clientOptions != null) {
             client.setOptions(clientOptions);
@@ -89,7 +89,7 @@ public class RedisConnectionBuilder<B extends RedisConnectionBuilder<B>> {
         return client;
     }
 
-    private RedisClusterClient redisClusterClient() {
+    public RedisClusterClient redisClusterClient() {
         RedisClusterClient client = createRedisClusterClient(redisURI, clientResources);
         if (clientOptions != null) {
             client.setOptions(clientOptions);

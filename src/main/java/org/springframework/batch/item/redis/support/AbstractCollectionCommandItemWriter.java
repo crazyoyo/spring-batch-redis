@@ -5,16 +5,18 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.util.Assert;
 
 import java.time.Duration;
 import java.util.function.Function;
 
-public abstract class AbstractCollectionItemWriter<K, V, T> extends AbstractKeyItemWriter<K, V, T> {
+public abstract class AbstractCollectionCommandItemWriter<K, V, T> extends AbstractKeyCommandItemWriter<K, V, T> {
 
     private final Converter<T, V> memberIdConverter;
 
-    public AbstractCollectionItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter) {
+    public AbstractCollectionCommandItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, Converter<T, K> keyConverter, Converter<T, V> memberIdConverter) {
         super(pool, commands, commandTimeout, keyConverter);
+        Assert.notNull(memberIdConverter, "A member id converter is required.");
         this.memberIdConverter = memberIdConverter;
     }
 

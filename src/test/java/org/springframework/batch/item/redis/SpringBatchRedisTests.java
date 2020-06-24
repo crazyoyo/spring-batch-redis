@@ -117,7 +117,7 @@ public class SpringBatchRedisTests extends BaseTest {
     public void testReplication() throws Exception {
         DataPopulator.builder().connection(connection).start(0).end(1039).build().run();
         RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(redisURI).build();
-        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetRedisURI).replace().build();
+        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetRedisURI).replace(true).build();
         run("replication", reader, writer);
         compare("replication-comparison");
     }
@@ -125,9 +125,9 @@ public class SpringBatchRedisTests extends BaseTest {
     @Test
     public void testLiveReplication() throws Exception {
         DataPopulator.builder().connection(connection).start(0).end(1000).build().run();
-        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(redisURI).live().threads(2).build();
+        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(redisURI).live(true).threads(2).build();
         LiveKeyItemReader<String, String> keyReader = (LiveKeyItemReader<String, String>) reader.getKeyReader();
-        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetRedisURI).replace().build();
+        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetRedisURI).replace(true).build();
         Job job = job("live-replication", reader, writer);
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         while (!keyReader.isRunning()) {
@@ -156,16 +156,14 @@ public class SpringBatchRedisTests extends BaseTest {
 
     @Test
     public void testStringItemWriter() throws Exception {
-        CommandItemWriters.Set<String, String, Map<String, String>> writer = new CommandItemWriters.Set<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> m.get(Beers.FIELD_ID), m -> m.get(Beers.FIELD_NAME));
-        run("string-item-writer", beerReader(), writer);
+        run("string-item-writer", beerReader(), CommandItemWriters.Set.<Map<String, String>>builder().redisURI(redisURI).keyConverter(m -> m.get(Beers.FIELD_ID)).valueConverter(m -> m.get(Beers.FIELD_NAME)).build());
         assertSize(connection);
         Assert.assertEquals("Redband Stout", connection.sync().get("371"));
     }
 
     @Test
     public void testSetItemWriter() throws Exception {
-        CommandItemWriters.Sadd<String, String, Map<String, String>> writer = new CommandItemWriters.Sadd<>(pool, async(), RedisURI.DEFAULT_TIMEOUT_DURATION, m -> "beers", m -> m.get(Beers.FIELD_ID));
-        run("set-item-writer", beerReader(), writer);
+        run("set-item-writer", beerReader(), CommandItemWriters.Sadd.<Map<String,String>>builder().redisURI(redisURI).keyConverter(m -> "beers").memberIdConverter(m -> m.get(Beers.FIELD_ID)).build());
         Assert.assertEquals(Beers.SIZE, (long) connection.sync().scard("beers"));
     }
 
@@ -194,9 +192,9 @@ public class SpringBatchRedisTests extends BaseTest {
 
     public void usage() {
         RedisURI sourceURI = RedisURI.create("redis://source:6379");
-        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(sourceURI).live().threads(2).build();
+        RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(sourceURI).live(true).threads(2).build();
         RedisURI targetURI = RedisURI.create("rediss://target:6379");
-        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetURI).replace().build();
+        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetURI).replace(true).build();
         TaskletStep step = stepBuilderFactory.get("step").<KeyDump<String>, KeyDump<String>>chunk(50).reader(reader).writer(writer).build();
         jobBuilderFactory.get("job").start(step).build();
     }
