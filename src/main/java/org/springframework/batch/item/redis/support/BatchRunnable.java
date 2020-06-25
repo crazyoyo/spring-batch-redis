@@ -15,6 +15,7 @@ public class BatchRunnable<I> implements Runnable {
     private final List<I> items;
     private final int batchSize;
     private final ItemWriter<I> writer;
+    private final List<Listener> listeners = new ArrayList<>();
 
     @Getter
     private long writeCount;
@@ -24,6 +25,10 @@ public class BatchRunnable<I> implements Runnable {
         this.writer = writer;
         this.batchSize = batchSize;
         this.items = new ArrayList<>(batchSize);
+    }
+
+    public void addListener(Listener listener) {
+        listeners.add(listener);
     }
 
     @Override
@@ -50,10 +55,16 @@ public class BatchRunnable<I> implements Runnable {
             write(items);
             writeCount += items.size();
             items.clear();
+            listeners.forEach(l -> l.onWrite(writeCount));
         }
     }
 
     protected void write(List<I> items) throws Exception {
         writer.write(items);
+    }
+
+    public interface Listener {
+
+        void onWrite(long writeCount);
     }
 }
