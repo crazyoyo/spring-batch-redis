@@ -19,6 +19,7 @@ public class BatchRunnable<I> implements Runnable {
 
     @Getter
     private long writeCount;
+    private boolean stopped;
 
     public BatchRunnable(ItemReader<I> reader, ItemWriter<I> writer, int batchSize) {
         this.reader = reader;
@@ -31,18 +32,25 @@ public class BatchRunnable<I> implements Runnable {
         listeners.add(listener);
     }
 
+    public void stop() {
+        this.stopped = true;
+    }
+
     @Override
     public void run() {
         this.writeCount = 0;
         try {
             I item;
-            while ((item = reader.read()) != null) {
+            while ((item = reader.read()) != null && !stopped) {
                 synchronized (items) {
                     items.add(item);
                 }
                 if (items.size() >= batchSize) {
                     flush();
                 }
+            }
+            if (stopped) {
+                return;
             }
             flush();
         } catch (Exception e) {
