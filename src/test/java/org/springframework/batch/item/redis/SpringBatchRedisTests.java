@@ -1,11 +1,9 @@
 package org.springframework.batch.item.redis;
 
-import io.lettuce.core.RedisClient;
-import io.lettuce.core.RedisURI;
-import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.sync.RedisCommands;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.util.Map;
+
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -27,7 +25,11 @@ import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.separator.DefaultRecordSeparatorPolicy;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
-import org.springframework.batch.item.redis.support.*;
+import org.springframework.batch.item.redis.support.CommandItemWriters;
+import org.springframework.batch.item.redis.support.KeyDump;
+import org.springframework.batch.item.redis.support.KeyValue;
+import org.springframework.batch.item.redis.support.KeyValueItemComparator;
+import org.springframework.batch.item.redis.support.LiveKeyItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,19 +39,20 @@ import org.springframework.core.io.Resource;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.testcontainers.containers.GenericContainer;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.util.Map;
-import java.util.function.Function;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.RedisURI;
+import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.sync.RedisCommands;
 
 
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
+@SuppressWarnings("rawtypes")
 public class SpringBatchRedisTests {
 
     private static final String DOCKER_IMAGE_NAME = "redis:5.0.3-alpine";
 
-    private static GenericContainer sourceRedis;
+	private static GenericContainer sourceRedis;
     private static GenericContainer targetRedis;
     private static RedisURI sourceRedisURI;
     private static RedisURI targetRedisURI;
@@ -74,7 +77,8 @@ public class SpringBatchRedisTests {
         sourceRedis.stop();
     }
 
-    private static GenericContainer container(int port) {
+    @SuppressWarnings("resource")
+	private static GenericContainer container(int port) {
         GenericContainer container = new GenericContainer<>(DOCKER_IMAGE_NAME).withExposedPorts(6379);
         container.start();
         return container;
@@ -104,10 +108,6 @@ public class SpringBatchRedisTests {
         FlatFileItemReader<Map<String, String>> reader = fileReader(new ClassPathResource("beers.csv"));
         CommandItemWriters.Hmset<String, String, Map<String, String>> writer = CommandItemWriters.Hmset.<Map<String, String>>builder().redisURI(sourceRedisURI).keyConverter(m -> m.get(Beers.FIELD_ID)).mapConverter(m -> m).build();
         run(name, reader, writer);
-    }
-
-    private Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async() {
-        return c -> ((StatefulRedisConnection<String, String>) c).async();
     }
 
     @Test
@@ -162,7 +162,8 @@ public class SpringBatchRedisTests {
         compare("replication-comparison");
     }
 
-    @Test
+    @SuppressWarnings("unchecked")
+	@Test
     public void testLiveReplication() throws Exception {
         DataPopulator.builder().client(sourceRedisClient).start(0).end(1000).build().run();
         RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(sourceRedisURI).live(true).threads(2).build();

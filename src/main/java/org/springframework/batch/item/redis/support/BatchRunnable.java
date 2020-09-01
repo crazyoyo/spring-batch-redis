@@ -9,19 +9,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-public class BatchRunnable<I> implements Runnable {
+public class BatchRunnable<T> implements Runnable {
 
-    private final ItemReader<I> reader;
-    private final List<I> items;
+    private final ItemReader<T> reader;
+    private final List<T> items;
     private final int batchSize;
-    private final ItemWriter<I> writer;
+    private final ItemWriter<T> writer;
     private final List<Listener> listeners = new ArrayList<>();
 
     @Getter
     private long writeCount;
     private boolean stopped;
 
-    public BatchRunnable(ItemReader<I> reader, ItemWriter<I> writer, int batchSize) {
+    public BatchRunnable(ItemReader<T> reader, ItemWriter<T> writer, int batchSize) {
         this.reader = reader;
         this.writer = writer;
         this.batchSize = batchSize;
@@ -40,7 +40,7 @@ public class BatchRunnable<I> implements Runnable {
     public void run() {
         this.writeCount = 0;
         try {
-            I item;
+            T item;
             while ((item = reader.read()) != null && !stopped) {
                 synchronized (items) {
                     items.add(item);
@@ -67,7 +67,7 @@ public class BatchRunnable<I> implements Runnable {
         }
     }
 
-    protected void write(List<I> items) throws Exception {
+    protected void write(List<T> items) throws Exception {
         writer.write(items);
     }
 

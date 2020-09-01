@@ -1,19 +1,18 @@
 package org.springframework.batch.item.redis.support;
 
+import java.util.Iterator;
+import java.util.function.Function;
+
+import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
+
 import io.lettuce.core.KeyScanCursor;
 import io.lettuce.core.ScanArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisKeyCommands;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
-import org.springframework.util.Assert;
-import org.springframework.util.ClassUtils;
 
-import java.util.Iterator;
-import java.util.function.Function;
-
-@Slf4j
 public class KeyItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<K> {
 
     private final StatefulConnection<K, V> connection;
