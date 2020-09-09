@@ -2,6 +2,7 @@ package org.springframework.batch.item.redis;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -30,13 +31,14 @@ public class DataPopulator implements Runnable {
 
 	@Override
 	public void run() {
+		Random random = new Random();
 		StatefulRedisConnection<String, String> connection = client.connect();
 		try {
 			RedisCommands<String, String> commands = connection.sync();
 			for (int index = start; index < end; index++) {
 				String stringKey = "string:" + index;
 				commands.set(stringKey, "value:" + index);
-				// commands.expireat(stringKey, EXPIRE_TIME);
+				commands.expireat(stringKey, System.currentTimeMillis() + random.nextInt(100000));
 				Map<String, String> hash = new HashMap<>();
 				hash.put("field1", "value" + index);
 				hash.put("field2", "value" + index);

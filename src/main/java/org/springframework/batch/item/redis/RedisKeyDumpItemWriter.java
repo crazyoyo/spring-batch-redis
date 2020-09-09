@@ -16,41 +16,47 @@ import java.util.function.Function;
 
 public class RedisKeyDumpItemWriter<K, V> extends AbstractKeyValueItemWriter<K, V, KeyDump<K>> {
 
-    private final boolean replace;
+	private final boolean replace;
 
-    public RedisKeyDumpItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, boolean replace) {
-        super(pool, commands, commandTimeout);
-        this.replace = replace;
-    }
+	public RedisKeyDumpItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
+			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
+			boolean replace) {
+		super(pool, commands, commandTimeout);
+		this.replace = replace;
+	}
 
-    @Override
-    @SuppressWarnings("unchecked")
-    protected void doWrite(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, KeyDump<K> item) {
-        futures.add(((RedisKeyAsyncCommands<K, V>) commands).restore(item.getKey(), item.getValue(), new RestoreArgs().replace(replace)));
-    }
+	@Override
+	@SuppressWarnings("unchecked")
+	protected void doWrite(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, KeyDump<K> item) {
+		futures.add(((RedisKeyAsyncCommands<K, V>) commands).restore(item.getKey(), item.getValue(),
+				new RestoreArgs().replace(replace)));
+	}
 
-    @Override
-    @SuppressWarnings("unchecked")
-    protected void doWrite(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, KeyDump<K> item, long ttl) {
-        futures.add(((RedisKeyAsyncCommands<K, V>) commands).restore(item.getKey(), item.getValue(), new RestoreArgs().ttl(ttl).replace(replace)));
-    }
+	@Override
+	@SuppressWarnings("unchecked")
+	protected void doWrite(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, KeyDump<K> item,
+			long ttl) {
+		long ttlInMillis = ttl * 1000;
+		futures.add(((RedisKeyAsyncCommands<K, V>) commands).restore(item.getKey(), item.getValue(),
+				new RestoreArgs().ttl(ttlInMillis).replace(replace)));
+	}
 
-    public static RedisKeyDumpItemWriterBuilder builder() {
-        return new RedisKeyDumpItemWriterBuilder();
-    }
+	public static RedisKeyDumpItemWriterBuilder builder() {
+		return new RedisKeyDumpItemWriterBuilder();
+	}
 
-    public static class RedisKeyDumpItemWriterBuilder extends RedisConnectionBuilder<RedisKeyDumpItemWriterBuilder> {
+	public static class RedisKeyDumpItemWriterBuilder extends RedisConnectionBuilder<RedisKeyDumpItemWriterBuilder> {
 
-        private boolean replace;
+		private boolean replace;
 
-        public RedisKeyDumpItemWriterBuilder replace(boolean replace) {
-            this.replace = replace;
-            return this;
-        }
+		public RedisKeyDumpItemWriterBuilder replace(boolean replace) {
+			this.replace = replace;
+			return this;
+		}
 
-        public RedisKeyDumpItemWriter<String, String> build() {
-            return new RedisKeyDumpItemWriter<>(pool(), async(), timeout(), replace);
-        }
+		public RedisKeyDumpItemWriter<String, String> build() {
+			return new RedisKeyDumpItemWriter<>(pool(), async(), timeout(), replace);
+		}
 
-    }
+	}
 }

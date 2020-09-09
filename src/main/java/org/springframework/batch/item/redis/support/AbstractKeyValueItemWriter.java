@@ -32,6 +32,13 @@ public abstract class AbstractKeyValueItemWriter<K, V, T extends AbstractKeyValu
 
     protected abstract void doWrite(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item);
 
+    /**
+     * 
+     * @param commands
+     * @param futures
+     * @param item
+     * @param ttl time-to-live in seconds
+     */
     protected abstract void doWrite(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, long ttl);
 
 }
