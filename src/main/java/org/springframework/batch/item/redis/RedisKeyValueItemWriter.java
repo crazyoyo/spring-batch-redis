@@ -1,9 +1,9 @@
 package org.springframework.batch.item.redis;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -43,21 +43,22 @@ public class RedisKeyValueItemWriter<K, V> extends AbstractKeyValueItemWriter<K,
 			break;
 		case LIST:
 			futures.add(((RedisListAsyncCommands<K, V>) commands).lpush(item.getKey(),
-					(V[]) ((List<V>) item.getValue()).toArray()));
+					(V[]) ((Collection<V>) item.getValue()).toArray()));
 			break;
 		case SET:
 			futures.add(((RedisSetAsyncCommands<K, V>) commands).sadd(item.getKey(),
-					(V[]) ((Set<V>) item.getValue()).toArray()));
+					(V[]) ((Collection<V>) item.getValue()).toArray()));
 			break;
 		case ZSET:
-			futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(item.getKey(),
-					(ScoredValue<V>[]) (((List<ScoredValue<V>>) item.getValue()).toArray())));
+			Collection<ScoredValue<V>> scoredValues = (Collection<ScoredValue<V>>) item.getValue();
+			ScoredValue<V>[] scoredValuesArray = (ScoredValue<V>[]) scoredValues.toArray(new ScoredValue[scoredValues.size()]);
+			futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(item.getKey(), scoredValuesArray));
 			break;
 		case HASH:
 			futures.add(((RedisHashAsyncCommands<K, V>) commands).hmset(item.getKey(), (Map<K, V>) item.getValue()));
 			break;
 		case STREAM:
-			List<StreamMessage<K, V>> messages = (List<StreamMessage<K, V>>) item.getValue();
+			Collection<StreamMessage<K, V>> messages = (Collection<StreamMessage<K, V>>) item.getValue();
 			for (StreamMessage<K, V> message : messages) {
 				futures.add(((RedisStreamAsyncCommands<K, V>) commands).xadd(item.getKey(),
 						new XAddArgs().id(message.getId()), message.getBody()));
