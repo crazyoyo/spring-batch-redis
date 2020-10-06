@@ -131,4 +131,10 @@ public class RedisConnectionBuilder<B extends RedisConnectionBuilder<B>> {
 		return ConnectionPoolSupport.createGenericObjectPool(connectionSupplier(), poolConfig);
 	}
 
+	public void configure(AbstractRedisItemWriter<String, String, ?> writer) {
+		writer.setPool(pool());
+		writer.setCommands(async());
+		writer.setCommandTimeout(timeout());
+	}
+
 }

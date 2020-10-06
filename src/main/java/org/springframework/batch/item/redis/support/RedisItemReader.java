@@ -20,7 +20,7 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
     private final ItemProcessor<List<? extends K>, List<T>> keyValueProcessor;
     private final BlockingQueue<T> itemQueue;
     private final ExecutorService executor;
-    private final List<BatchRunnable<K>> enqueuers;
+    private final List<BatchTransfer<K>> enqueuers;
     private final long queuePollingTimeout;
 
     public RedisItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueProcessor, int threadCount, int batchSize, int queueCapacity, long queuePollingTimeout) {
@@ -34,7 +34,7 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
         this.executor = Executors.newFixedThreadPool(threadCount);
         this.enqueuers = new ArrayList<>(threadCount);
         for (int index = 0; index < threadCount; index++) {
-            enqueuers.add(new BatchRunnable<K>(keyReader, this::write, batchSize));
+            enqueuers.add(new BatchTransfer<K>(keyReader, this::write, batchSize));
         }
     }
 
@@ -84,7 +84,7 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
     }
 
     public void flush() {
-        for (BatchRunnable<K> enqueuer : enqueuers) {
+        for (BatchTransfer<K> enqueuer : enqueuers) {
             try {
                 enqueuer.flush();
             } catch (Exception e) {

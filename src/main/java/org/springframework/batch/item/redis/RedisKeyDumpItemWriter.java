@@ -1,29 +1,21 @@
 package org.springframework.batch.item.redis;
 
-import io.lettuce.core.RedisFuture;
-import io.lettuce.core.RestoreArgs;
-import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import org.apache.commons.pool2.impl.GenericObjectPool;
+import java.util.List;
+
 import org.springframework.batch.item.redis.support.AbstractKeyValueItemWriter;
 import org.springframework.batch.item.redis.support.KeyDump;
 import org.springframework.batch.item.redis.support.RedisConnectionBuilder;
 
-import java.time.Duration;
-import java.util.List;
-import java.util.function.Function;
+import io.lettuce.core.RedisFuture;
+import io.lettuce.core.RestoreArgs;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import lombok.Setter;
 
 public class RedisKeyDumpItemWriter<K, V> extends AbstractKeyValueItemWriter<K, V, KeyDump<K>> {
 
-	private final boolean replace;
-
-	public RedisKeyDumpItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
-			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
-			boolean replace) {
-		super(pool, commands, commandTimeout);
-		this.replace = replace;
-	}
+	@Setter
+	private boolean replace;
 
 	@Override
 	@SuppressWarnings("unchecked")
@@ -55,7 +47,12 @@ public class RedisKeyDumpItemWriter<K, V> extends AbstractKeyValueItemWriter<K, 
 		}
 
 		public RedisKeyDumpItemWriter<String, String> build() {
-			return new RedisKeyDumpItemWriter<>(pool(), async(), timeout(), replace);
+			RedisKeyDumpItemWriter<String, String> writer = new RedisKeyDumpItemWriter<>();
+			writer.setPool(pool());
+			writer.setCommands(async());
+			writer.setCommandTimeout(timeout());
+			writer.setReplace(replace);
+			return writer;
 		}
 
 	}

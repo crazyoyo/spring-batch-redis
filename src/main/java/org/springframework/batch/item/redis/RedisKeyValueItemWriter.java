@@ -1,12 +1,9 @@
 package org.springframework.batch.item.redis;
 
-import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractKeyValueItemWriter;
 import org.springframework.batch.item.redis.support.KeyValue;
 import org.springframework.batch.item.redis.support.RedisConnectionBuilder;
@@ -15,7 +12,6 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
-import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisHashAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
@@ -28,11 +24,6 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 
 public class RedisKeyValueItemWriter<K, V> extends AbstractKeyValueItemWriter<K, V, KeyValue<K>> {
-
-	public RedisKeyValueItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
-			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
-		super(pool, commands, commandTimeout);
-	}
 
 	@Override
 	@SuppressWarnings("unchecked")
@@ -51,7 +42,8 @@ public class RedisKeyValueItemWriter<K, V> extends AbstractKeyValueItemWriter<K,
 			break;
 		case ZSET:
 			Collection<ScoredValue<V>> scoredValues = (Collection<ScoredValue<V>>) item.getValue();
-			ScoredValue<V>[] scoredValuesArray = (ScoredValue<V>[]) scoredValues.toArray(new ScoredValue[scoredValues.size()]);
+			ScoredValue<V>[] scoredValuesArray = (ScoredValue<V>[]) scoredValues
+					.toArray(new ScoredValue[scoredValues.size()]);
 			futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(item.getKey(), scoredValuesArray));
 			break;
 		case HASH:
@@ -86,7 +78,11 @@ public class RedisKeyValueItemWriter<K, V> extends AbstractKeyValueItemWriter<K,
 	public static class RedisKeyValueItemWriterBuilder extends RedisConnectionBuilder<RedisKeyValueItemWriterBuilder> {
 
 		public RedisKeyValueItemWriter<String, String> build() {
-			return new RedisKeyValueItemWriter<>(pool(), async(), timeout());
+			RedisKeyValueItemWriter<String, String> writer = new RedisKeyValueItemWriter<>();
+			writer.setPool(pool());
+			writer.setCommands(async());
+			writer.setCommandTimeout(timeout());
+			return writer;
 		}
 
 	}
