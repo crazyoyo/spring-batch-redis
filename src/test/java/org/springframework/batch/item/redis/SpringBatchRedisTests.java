@@ -37,6 +37,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
@@ -48,7 +49,7 @@ import io.lettuce.core.api.sync.RedisCommands;
 @SuppressWarnings("rawtypes")
 public class SpringBatchRedisTests {
 
-	private static final String DOCKER_IMAGE_NAME = "redis:5.0.3-alpine";
+	private static final DockerImageName DOCKER_IMAGE_NAME = DockerImageName.parse("redis:5.0.3-alpine");
 
 	private static GenericContainer sourceRedis;
 	private static GenericContainer targetRedis;

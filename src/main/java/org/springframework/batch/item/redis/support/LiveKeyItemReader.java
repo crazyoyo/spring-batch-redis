@@ -102,7 +102,7 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V> implements Redi
             StatefulRedisClusterPubSubConnection<K, V> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<K, V>) pubSubConnection;
             clusterPubSubConnection.addListener((RedisClusterPubSubListener<K, V>) this);
             clusterPubSubConnection.setNodeMessagePropagation(true);
-            clusterPubSubConnection.sync().masters().commands().psubscribe(pubSubPattern);
+            clusterPubSubConnection.sync().upstream().commands().psubscribe(pubSubPattern);
         } else {
             pubSubConnection.addListener(this);
             pubSubConnection.sync().psubscribe(pubSubPattern);
@@ -115,7 +115,7 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V> implements Redi
     protected synchronized void doClose() {
         if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
             StatefulRedisClusterPubSubConnection<K, V> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<K, V>) pubSubConnection;
-            clusterPubSubConnection.sync().masters().commands().punsubscribe(pubSubPattern);
+            clusterPubSubConnection.sync().upstream().commands().punsubscribe(pubSubPattern);
             clusterPubSubConnection.removeListener((RedisClusterPubSubListener<K, V>) this);
         } else {
             pubSubConnection.sync().punsubscribe(pubSubPattern);
