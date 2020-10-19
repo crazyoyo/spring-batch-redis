@@ -19,8 +19,8 @@ repositories {
 }
 
 dependencies {
-	compileOnly 'org.projectlombok:lombok:1.18.14'
-	annotationProcessor 'org.projectlombok:lombok:1.18.14'
+	compileOnly 'org.projectlombok:lombok:1.18.16'
+	annotationProcessor 'org.projectlombok:lombok:1.18.16'
 	api 'io.lettuce:lettuce-core:6.0.0.RELEASE'
 	api 'org.apache.commons:commons-pool2:2.9.0'
 	implementation ('org.springframework.boot:spring-boot-starter-batch:2.3.4.RELEASE') {
@@ -37,8 +37,8 @@ dependencies {
 	testImplementation 'org.testcontainers:testcontainers:1.15.0-rc2'
 	testImplementation 'org.testcontainers:junit-jupiter:1.15.0-rc2'
 	testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv:2.11.3'
-	testImplementation 'org.projectlombok:lombok:1.18.14'
-	testAnnotationProcessor 'org.projectlombok:lombok:1.18.14'
+	testImplementation 'org.projectlombok:lombok:1.18.16'
+	testAnnotationProcessor 'org.projectlombok:lombok:1.18.16'
 }
 
 test {

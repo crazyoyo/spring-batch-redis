@@ -15,20 +15,25 @@ import org.springframework.util.ClassUtils;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 
-	@Setter
 	private GenericObjectPool<? extends StatefulConnection<K, V>> pool;
-	@Setter
 	private Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands;
 	private long commandTimeout;
 
 	protected AbstractRedisItemWriter() {
 		setName(ClassUtils.getShortName(getClass()));
+	}
+	
+	public void setPool(GenericObjectPool<? extends StatefulConnection<K, V>> pool) {
+		this.pool = pool;
+	}
+	
+	public void setCommands(Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands) {
+		this.commands = commands;
 	}
 
 	public void setCommandTimeout(Duration commandTimeout) {
@@ -40,10 +45,7 @@ public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractItemStrea
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
 			BaseRedisAsyncCommands<K, V> commands = this.commands.apply(connection);
 			commands.setAutoFlushCommands(false);
-			List<RedisFuture<?>> futures = new ArrayList<>();
-			for (T item : items) {
-				write(commands, futures, item);
-			}
+			List<RedisFuture<?>> futures = write(commands, items);
 			commands.flushCommands();
 			for (RedisFuture<?> future : futures) {
 				try {
@@ -58,6 +60,14 @@ public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractItemStrea
 		}
 	}
 
-	protected abstract void write(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item);
+	protected List<RedisFuture<?>> write(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
+		List<RedisFuture<?>> futures = new ArrayList<>();
+		for (T item : items) {
+			futures.add(write(commands, item));
+		}
+		return futures;
+	}
+
+	protected abstract RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, T item);
 
 }

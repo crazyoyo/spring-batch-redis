@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis.support;
 
-import java.time.Duration;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -16,29 +15,31 @@ import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.cluster.ClusterClientOptions;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
+import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
 @SuppressWarnings("unchecked")
-public class RedisConnectionBuilder<B extends RedisConnectionBuilder<B>> {
+public class RedisConnectionBuilder<K, V, B extends RedisConnectionBuilder<K, V, B>> {
 
-	private RedisURI redisURI;
+	private final RedisCodec<K, V> codec;
+	private RedisURI uri;
 	private ClientResources clientResources;
 	private ClusterClientOptions clientOptions;
-	private GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig = new GenericObjectPoolConfig<>();
+	private GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig = new GenericObjectPoolConfig<>();
 	private boolean cluster;
 
-	public RedisURI redisURI() {
-		return redisURI;
+	public RedisConnectionBuilder(RedisCodec<K, V> codec) {
+		this.codec = codec;
 	}
 
-	public Duration timeout() {
-		return redisURI.getTimeout();
+	public RedisURI uri() {
+		return uri;
 	}
 
-	public B redisURI(RedisURI redisURI) {
-		this.redisURI = redisURI;
+	public B uri(RedisURI uri) {
+		this.uri = uri;
 		return (B) this;
 	}
 
@@ -47,7 +48,7 @@ public class RedisConnectionBuilder<B extends RedisConnectionBuilder<B>> {
 		return (B) this;
 	}
 
-	public B poolConfig(GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig) {
+	public B poolConfig(GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig) {
 		this.poolConfig = poolConfig;
 		return (B) this;
 	}
@@ -62,79 +63,75 @@ public class RedisConnectionBuilder<B extends RedisConnectionBuilder<B>> {
 		return (B) this;
 	}
 
-	public Supplier<StatefulConnection<String, String>> connectionSupplier() {
+	public Supplier<StatefulConnection<K, V>> connectionSupplier() {
 		if (cluster) {
-			return redisClusterClient()::connect;
+			RedisClusterClient client = clusterClient();
+			return () -> client.connect(codec);
 		}
-		return redisClient()::connect;
+		RedisClient client = client();
+		return () -> client.connect(codec);
 	}
 
-	public StatefulConnection<String, String> connection() {
+	public StatefulConnection<K, V> connection() {
 		if (cluster) {
-			return redisClusterClient().connect();
+			return clusterClient().connect(codec);
 		}
-		return redisClient().connect();
+		return client().connect(codec);
 	}
 
-	public StatefulRedisPubSubConnection<String, String> pubSubConnection() {
+	public StatefulRedisPubSubConnection<K, V> pubSubConnection() {
 		if (cluster) {
-			return redisClusterClient().connectPubSub();
+			return clusterClient().connectPubSub(codec);
 		}
-		return redisClient().connectPubSub();
+		return client().connectPubSub(codec);
 	}
 
-	public RedisClient redisClient() {
-		RedisClient client = createRedisClient(redisURI, clientResources);
+	public RedisClient client() {
+		RedisClient client = client(uri, clientResources);
 		if (clientOptions != null) {
 			client.setOptions(clientOptions);
 		}
 		return client;
 	}
 
-	public RedisClusterClient redisClusterClient() {
-		RedisClusterClient client = createRedisClusterClient(redisURI, clientResources);
+	public RedisClusterClient clusterClient() {
+		RedisClusterClient client = clusterClient(uri, clientResources);
 		if (clientOptions != null) {
 			client.setOptions(clientOptions);
 		}
 		return client;
 	}
 
-	private RedisClient createRedisClient(RedisURI redisURI, ClientResources clientResources) {
+	private RedisClient client(RedisURI redisURI, ClientResources clientResources) {
 		if (clientResources == null) {
 			return RedisClient.create(redisURI);
 		}
 		return RedisClient.create(clientResources, redisURI);
 	}
 
-	private RedisClusterClient createRedisClusterClient(RedisURI redisURI, ClientResources clientResources) {
+	private RedisClusterClient clusterClient(RedisURI redisURI, ClientResources clientResources) {
 		if (clientResources == null) {
 			return RedisClusterClient.create(redisURI);
 		}
 		return RedisClusterClient.create(clientResources, redisURI);
 	}
 
-	public Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> sync() {
+	public Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync() {
 		if (cluster) {
-			return c -> ((StatefulRedisClusterConnection<String, String>) c).sync();
+			return c -> ((StatefulRedisClusterConnection<K, V>) c).sync();
 		}
-		return c -> ((StatefulRedisConnection<String, String>) c).sync();
+		return c -> ((StatefulRedisConnection<K, V>) c).sync();
 	}
 
-	public Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async() {
+	public Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async() {
 		if (cluster) {
-			return c -> ((StatefulRedisClusterConnection<String, String>) c).async();
+			return c -> ((StatefulRedisClusterConnection<K, V>) c).async();
 		}
-		return c -> ((StatefulRedisConnection<String, String>) c).async();
+		return c -> ((StatefulRedisConnection<K, V>) c).async();
 	}
 
-	public GenericObjectPool<StatefulConnection<String, String>> pool() {
+	public GenericObjectPool<StatefulConnection<K, V>> pool() {
 		return ConnectionPoolSupport.createGenericObjectPool(connectionSupplier(), poolConfig);
-	}
-
-	public void configure(AbstractRedisItemWriter<String, String, ?> writer) {
-		writer.setPool(pool());
-		writer.setCommands(async());
-		writer.setCommandTimeout(timeout());
 	}
 
 }

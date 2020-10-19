@@ -1,25 +1,50 @@
 package org.springframework.batch.item.redis;
 
+import java.util.List;
+import java.util.function.Function;
+
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.redis.support.*;
+import org.springframework.batch.item.redis.support.KeyDump;
+import org.springframework.batch.item.redis.support.KeyDumpItemProcessor;
+import org.springframework.batch.item.redis.support.RedisItemReader;
+import org.springframework.batch.item.redis.support.RedisItemReaderBuilder;
+import org.springframework.batch.item.redis.support.StringChannelConverter;
+import org.springframework.core.convert.converter.Converter;
 
-import java.util.List;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 
 public class RedisKeyDumpItemReader<K> extends RedisItemReader<K, KeyDump<K>> {
 
-    public RedisKeyDumpItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<KeyDump<K>>> valueProcessor, int threadCount, int batchSize, int queueCapacity, long queuePollingTimeout) {
-        super(keyReader, valueProcessor, threadCount, batchSize, queueCapacity, queuePollingTimeout);
-    }
+	public RedisKeyDumpItemReader(ItemReader<K> keyReader,
+			ItemProcessor<List<? extends K>, List<KeyDump<K>>> valueProcessor, int threadCount, int batchSize,
+			int queueCapacity, long queuePollingTimeout) {
+		super(keyReader, valueProcessor, threadCount, batchSize, queueCapacity, queuePollingTimeout);
+	}
 
-    public static RedisKeyDumpItemReaderBuilder builder() {
-        return new RedisKeyDumpItemReaderBuilder();
-    }
+	public static RedisKeyDumpItemReaderBuilder<String, String> builder() {
+		return new RedisKeyDumpItemReaderBuilder<>(StringCodec.UTF8,
+				RedisItemReaderBuilder.stringPubSubPatternProvider(), new StringChannelConverter());
+	}
 
-    public static class RedisKeyDumpItemReaderBuilder extends RedisItemReaderBuilder<RedisKeyDumpItemReaderBuilder, KeyDump<String>> {
+	public static class RedisKeyDumpItemReaderBuilder<K, V>
+			extends RedisItemReaderBuilder<K, V, RedisKeyDumpItemReaderBuilder<K, V>, KeyDump<String>> {
 
-        public RedisKeyDumpItemReader<String> build() {
-            return new RedisKeyDumpItemReader<>(keyReader(), new KeyDumpItemProcessor<>(pool(), async(), timeout()), threadCount, batchSize, queueCapacity, queuePollingTimeout);
-        }
-    }
+		private Function<RedisKeyDumpItemReaderBuilder<K, V>, K> pubSubPatternProvider;
+		private Converter<K, K> keyExtractor;
+
+		public RedisKeyDumpItemReaderBuilder(RedisCodec<K, V> codec,
+				Function<RedisKeyDumpItemReaderBuilder<K, V>, K> pubSubPatternProvider, Converter<K, K> keyExtractor) {
+			super(codec);
+			this.pubSubPatternProvider = pubSubPatternProvider;
+			this.keyExtractor = keyExtractor;
+		}
+
+		public RedisKeyDumpItemReader<K> build() {
+			return new RedisKeyDumpItemReader<>(keyReader(pubSubPatternProvider, keyExtractor),
+					new KeyDumpItemProcessor<>(pool(), async(), uri().getTimeout()), threadCount, batchSize,
+					queueCapacity, queuePollingTimeout);
+		}
+	}
 }
