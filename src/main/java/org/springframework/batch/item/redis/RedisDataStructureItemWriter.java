@@ -90,14 +90,14 @@ public class RedisDataStructureItemWriter<K, V> extends AbstractRedisItemWriter<
 		return null;
 	}
 
-	public static RedisKeyValueItemWriterBuilder<String, String> builder() {
-		return new RedisKeyValueItemWriterBuilder<>(StringCodec.UTF8);
+	public static RedisDataStructureItemWriterBuilder<String, String> builder() {
+		return new RedisDataStructureItemWriterBuilder<>(StringCodec.UTF8);
 	}
 
-	public static class RedisKeyValueItemWriterBuilder<K, V>
-			extends RedisConnectionBuilder<K, V, RedisKeyValueItemWriterBuilder<K, V>> {
+	public static class RedisDataStructureItemWriterBuilder<K, V>
+			extends RedisConnectionBuilder<K, V, RedisDataStructureItemWriterBuilder<K, V>> {
 
-		public RedisKeyValueItemWriterBuilder(RedisCodec<K, V> codec) {
+		public RedisDataStructureItemWriterBuilder(RedisCodec<K, V> codec) {
 			super(codec);
 		}
 

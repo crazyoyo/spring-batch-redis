@@ -11,6 +11,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DataStructure<K> extends KeyValue<K, Object> {
 
-    private DataType type;
+	private DataType type;
 
 }

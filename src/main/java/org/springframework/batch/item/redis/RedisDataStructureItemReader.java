@@ -6,7 +6,7 @@ import java.util.function.Function;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.DataStructure;
-import org.springframework.batch.item.redis.support.KeyValueItemProcessor;
+import org.springframework.batch.item.redis.support.DataStructureItemProcessor;
 import org.springframework.batch.item.redis.support.RedisItemReader;
 import org.springframework.batch.item.redis.support.RedisItemReaderBuilder;
 import org.springframework.batch.item.redis.support.StringChannelConverter;
@@ -23,19 +23,19 @@ public class RedisDataStructureItemReader<K> extends RedisItemReader<K, DataStru
 		super(keyReader, valueProcessor, threadCount, batchSize, queueCapacity, queuePollingTimeout);
 	}
 
-	public static RedisKeyValueItemReaderBuilder<String, String> builder() {
-		return new RedisKeyValueItemReaderBuilder<>(StringCodec.UTF8,
+	public static RedisDataStructureItemReaderBuilder<String, String> builder() {
+		return new RedisDataStructureItemReaderBuilder<>(StringCodec.UTF8,
 				RedisItemReaderBuilder.stringPubSubPatternProvider(), new StringChannelConverter());
 	}
 
-	public static class RedisKeyValueItemReaderBuilder<K, V>
-			extends RedisItemReaderBuilder<K, V, RedisKeyValueItemReaderBuilder<K, V>, DataStructure<K>> {
+	public static class RedisDataStructureItemReaderBuilder<K, V>
+			extends RedisItemReaderBuilder<K, V, RedisDataStructureItemReaderBuilder<K, V>, DataStructure<K>> {
 
-		private Function<RedisKeyValueItemReaderBuilder<K, V>, K> pubSubPatternProvider;
+		private Function<RedisDataStructureItemReaderBuilder<K, V>, K> pubSubPatternProvider;
 		private Converter<K, K> keyExtractor;
 
-		public RedisKeyValueItemReaderBuilder(RedisCodec<K, V> codec,
-				Function<RedisKeyValueItemReaderBuilder<K, V>, K> pubSubPatternProvider, Converter<K, K> keyExtractor) {
+		public RedisDataStructureItemReaderBuilder(RedisCodec<K, V> codec,
+				Function<RedisDataStructureItemReaderBuilder<K, V>, K> pubSubPatternProvider, Converter<K, K> keyExtractor) {
 			super(codec);
 			this.pubSubPatternProvider = pubSubPatternProvider;
 			this.keyExtractor = keyExtractor;
@@ -43,7 +43,7 @@ public class RedisDataStructureItemReader<K> extends RedisItemReader<K, DataStru
 
 		public RedisDataStructureItemReader<K> build() {
 			return new RedisDataStructureItemReader<>(keyReader(pubSubPatternProvider, keyExtractor),
-					new KeyValueItemProcessor<>(pool(), async(), uri().getTimeout()), threadCount, batchSize,
+					new DataStructureItemProcessor<>(pool(), async(), uri().getTimeout()), threadCount, batchSize,
 					queueCapacity, queuePollingTimeout);
 		}
 

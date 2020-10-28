@@ -31,7 +31,7 @@ import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.batch.item.redis.support.DataStructure;
 import org.springframework.batch.item.redis.support.DataType;
 import org.springframework.batch.item.redis.support.KeyMaker;
-import org.springframework.batch.item.redis.support.KeyValueItemComparator;
+import org.springframework.batch.item.redis.support.DataStructureItemComparator;
 import org.springframework.batch.item.redis.support.LiveKeyItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
@@ -128,7 +128,7 @@ public class SpringBatchRedisTests {
 	}
 
 	@Test
-	public void testGenericReader() throws Exception {
+	public void testDataStructureReader() throws Exception {
 		FlatFileItemReader<Map<String, String>> fileReader = fileReader(new ClassPathResource("beers.csv"));
 		StatefulRedisConnection<String, String> sourceConnection = sourceRedisClient.connect();
 		ItemWriter<Map<String, String>> hmsetWriter = new ItemWriter<Map<String, String>>() {
@@ -213,7 +213,7 @@ public class SpringBatchRedisTests {
 	}
 
 	@Test
-	public void testValueWriter() throws Exception {
+	public void testDataStructureWriter() throws Exception {
 		List<DataStructure<String>> list = new ArrayList<>();
 		long count = 100;
 		for (int index = 0; index < count; index++) {
@@ -273,7 +273,7 @@ public class SpringBatchRedisTests {
 		RedisCommands<String, String> targetCommands = targetConnection.sync();
 		Assert.assertEquals(sourceCommands.dbsize(), targetCommands.dbsize());
 		RedisDataStructureItemReader<String> reader = RedisDataStructureItemReader.builder().uri(sourceRedisURI).build();
-		KeyValueItemComparator<String> comparator = new KeyValueItemComparator<>(reader.getKeyValueProcessor(), 1);
+		DataStructureItemComparator<String> comparator = new DataStructureItemComparator<>(reader.getKeyValueProcessor(), 1);
 		run(name, reader, comparator);
 		Assert.assertEquals(Math.toIntExact(sourceCommands.dbsize()), comparator.getOk().size());
 		targetConnection.close();

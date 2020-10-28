@@ -1,10 +1,8 @@
 package org.springframework.batch.item.redis.support;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
-@Getter
-@Setter
+@Data
 public class KeyValue<K, V> {
 
 	/**
