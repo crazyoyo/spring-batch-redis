@@ -10,6 +10,7 @@ import java.util.function.Function;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
+import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import io.lettuce.core.RedisFuture;
@@ -20,23 +21,18 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 
-	private GenericObjectPool<? extends StatefulConnection<K, V>> pool;
-	private Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands;
-	private long commandTimeout;
+	private final GenericObjectPool<? extends StatefulConnection<K, V>> pool;
+	private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands;
+	private final long commandTimeout;
 
-	protected AbstractRedisItemWriter() {
+	protected AbstractRedisItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
+			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
 		setName(ClassUtils.getShortName(getClass()));
-	}
-	
-	public void setPool(GenericObjectPool<? extends StatefulConnection<K, V>> pool) {
+		Assert.notNull(pool, "A connection pool is required.");
+		Assert.notNull(commands, "A commands supplier is required.");
+		Assert.notNull(commandTimeout, "Timeout duration is required.");
 		this.pool = pool;
-	}
-	
-	public void setCommands(Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands) {
 		this.commands = commands;
-	}
-
-	public void setCommandTimeout(Duration commandTimeout) {
 		this.commandTimeout = commandTimeout.getSeconds();
 	}
 

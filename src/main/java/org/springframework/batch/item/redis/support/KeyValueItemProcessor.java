@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.function.Function;
 
 @Slf4j
-public class KeyValueItemProcessor<K, V> extends AbstractKeyValueItemProcessor<K, V, KeyValue<K>> {
+public class KeyValueItemProcessor<K, V> extends AbstractKeyValueItemProcessor<K, V, DataStructure<K>> {
 
     public KeyValueItemProcessor(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
         super(pool, commands, commandTimeout);
@@ -21,13 +21,13 @@ public class KeyValueItemProcessor<K, V> extends AbstractKeyValueItemProcessor<K
 
     @Override
     @SuppressWarnings("unchecked")
-    protected List<KeyValue<K>> values(List<? extends K> keys, BaseRedisAsyncCommands<K, V> commands) {
+    protected List<DataStructure<K>> values(List<? extends K> keys, BaseRedisAsyncCommands<K, V> commands) {
         List<RedisFuture<String>> typeFutures = new ArrayList<>(keys.size());
         for (K key : keys) {
             typeFutures.add(((RedisKeyAsyncCommands<K, V>) commands).type(key));
         }
         commands.flushCommands();
-        List<KeyValue<K>> values = new ArrayList<>(keys.size());
+        List<DataStructure<K>> values = new ArrayList<>(keys.size());
         List<RedisFuture<Long>> ttlFutures = new ArrayList<>(keys.size());
         List<RedisFuture<?>> valueFutures = new ArrayList<>(keys.size());
         for (int index = 0; index < keys.size(); index++) {
@@ -42,14 +42,14 @@ public class KeyValueItemProcessor<K, V> extends AbstractKeyValueItemProcessor<K
             DataType type = DataType.fromCode(typeName);
             valueFutures.add(getValue(commands, key, type));
             ttlFutures.add(((RedisKeyAsyncCommands<K, V>) commands).ttl(key));
-            KeyValue<K> keyValue = new KeyValue<>();
+            DataStructure<K> keyValue = new DataStructure<>();
             keyValue.setKey(key);
             keyValue.setType(type);
             values.add(keyValue);
         }
         commands.flushCommands();
         for (int index = 0; index < values.size(); index++) {
-            KeyValue<K> keyValue = values.get(index);
+            DataStructure<K> keyValue = values.get(index);
             try {
                 keyValue.setValue(get(valueFutures.get(index)));
             } catch (Exception e) {

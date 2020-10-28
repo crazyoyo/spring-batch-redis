@@ -5,5 +5,5 @@ import lombok.EqualsAndHashCode;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class KeyDump<K> extends AbstractKeyValue<K, byte[]> {
+public class KeyDump<K> extends KeyValue<K, byte[]> {
 }

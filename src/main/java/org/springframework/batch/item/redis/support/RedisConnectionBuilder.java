@@ -1,5 +1,6 @@
 package org.springframework.batch.item.redis.support;
 
+import java.time.Duration;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -132,6 +133,10 @@ public class RedisConnectionBuilder<K, V, B extends RedisConnectionBuilder<K, V,
 
 	public GenericObjectPool<StatefulConnection<K, V>> pool() {
 		return ConnectionPoolSupport.createGenericObjectPool(connectionSupplier(), poolConfig);
+	}
+	
+	protected Duration timeout() {
+		return uri().getTimeout();
 	}
 
 }

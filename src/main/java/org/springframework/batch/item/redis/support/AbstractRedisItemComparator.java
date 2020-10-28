@@ -10,7 +10,7 @@ import org.springframework.util.ClassUtils;
 
 import lombok.Getter;
 
-public abstract class AbstractRedisItemComparator<K, TV, T extends AbstractKeyValue<K, TV>>
+public abstract class AbstractRedisItemComparator<K, TV, T extends KeyValue<K, TV>>
 		extends AbstractItemStreamItemWriter<T> {
 
 	private final ItemProcessor<List<? extends K>, List<T>> targetProcessor;
@@ -35,7 +35,7 @@ public abstract class AbstractRedisItemComparator<K, TV, T extends AbstractKeyVa
 
 	@Override
 	public void write(List<? extends T> sources) throws Exception {
-		List<K> keys = sources.stream().map(AbstractKeyValue::getKey).collect(Collectors.toList());
+		List<K> keys = sources.stream().map(KeyValue::getKey).collect(Collectors.toList());
 		List<T> targets = targetProcessor.process(keys);
 		if (targets == null) {
 			return;

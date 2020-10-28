@@ -1,19 +1,22 @@
 package org.springframework.batch.item.redis;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
-import org.springframework.batch.item.redis.support.AbstractKeyValue;
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractRedisItemWriter;
-import org.springframework.batch.item.redis.support.KeyValue;
-import org.springframework.batch.item.redis.support.RedisItemWriterBuilder;
+import org.springframework.batch.item.redis.support.DataStructure;
+import org.springframework.batch.item.redis.support.RedisConnectionBuilder;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
+import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisHashAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
@@ -25,14 +28,20 @@ import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisKeyValueItemWriter<K, V> extends AbstractRedisItemWriter<K, V, KeyValue<K>> {
+public class RedisGenericItemWriter<K, V> extends AbstractRedisItemWriter<K, V, DataStructure<K>> {
+
+	public RedisGenericItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
+			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
+		super(pool, commands, commandTimeout);
+	}
 
 	@SuppressWarnings({ "unchecked", "incomplete-switch" })
 	@Override
-	protected List<RedisFuture<?>> write(BaseRedisAsyncCommands<K, V> commands, List<? extends KeyValue<K>> items) {
+	protected List<RedisFuture<?>> write(BaseRedisAsyncCommands<K, V> commands,
+			List<? extends DataStructure<K>> items) {
 		List<RedisFuture<?>> futures = new ArrayList<>();
-		for (KeyValue<K> item : items) {
-			if (item.getValue() == null || item.getTtl() == AbstractKeyValue.TTL_NOT_EXISTS) {
+		for (DataStructure<K> item : items) {
+			if (item.getValue() == null || item.isTtlNoKey()) {
 				futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(item.getKey()));
 				continue;
 			}
@@ -68,7 +77,7 @@ public class RedisKeyValueItemWriter<K, V> extends AbstractRedisItemWriter<K, V,
 					break;
 				}
 			}
-			if (item.getTtl() > 0) {
+			if (item.hasTtl()) {
 				futures.add(((RedisKeyAsyncCommands<K, V>) commands).expire(item.getKey(), item.getTtl()));
 			}
 		}
@@ -76,7 +85,7 @@ public class RedisKeyValueItemWriter<K, V> extends AbstractRedisItemWriter<K, V,
 	}
 
 	@Override
-	protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, KeyValue<K> item) {
+	protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> item) {
 		// not used
 		return null;
 	}
@@ -86,14 +95,14 @@ public class RedisKeyValueItemWriter<K, V> extends AbstractRedisItemWriter<K, V,
 	}
 
 	public static class RedisKeyValueItemWriterBuilder<K, V>
-			extends RedisItemWriterBuilder<K, V, RedisKeyValueItemWriterBuilder<K, V>> {
+			extends RedisConnectionBuilder<K, V, RedisKeyValueItemWriterBuilder<K, V>> {
 
 		public RedisKeyValueItemWriterBuilder(RedisCodec<K, V> codec) {
 			super(codec);
 		}
 
-		public RedisKeyValueItemWriter<K, V> build() {
-			return configure(new RedisKeyValueItemWriter<>());
+		public RedisGenericItemWriter<K, V> build() {
+			return new RedisGenericItemWriter<>(pool(), async(), timeout());
 		}
 
 	}

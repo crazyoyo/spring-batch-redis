@@ -15,9 +15,9 @@ import org.springframework.core.convert.converter.Converter;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisKeyDumpItemReader<K> extends RedisItemReader<K, KeyDump<K>> {
+public class RedisDumpItemReader<K> extends RedisItemReader<K, KeyDump<K>> {
 
-	public RedisKeyDumpItemReader(ItemReader<K> keyReader,
+	public RedisDumpItemReader(ItemReader<K> keyReader,
 			ItemProcessor<List<? extends K>, List<KeyDump<K>>> valueProcessor, int threadCount, int batchSize,
 			int queueCapacity, long queuePollingTimeout) {
 		super(keyReader, valueProcessor, threadCount, batchSize, queueCapacity, queuePollingTimeout);
@@ -41,8 +41,8 @@ public class RedisKeyDumpItemReader<K> extends RedisItemReader<K, KeyDump<K>> {
 			this.keyExtractor = keyExtractor;
 		}
 
-		public RedisKeyDumpItemReader<K> build() {
-			return new RedisKeyDumpItemReader<>(keyReader(pubSubPatternProvider, keyExtractor),
+		public RedisDumpItemReader<K> build() {
+			return new RedisDumpItemReader<>(keyReader(pubSubPatternProvider, keyExtractor),
 					new KeyDumpItemProcessor<>(pool(), async(), uri().getTimeout()), threadCount, batchSize,
 					queueCapacity, queuePollingTimeout);
 		}
