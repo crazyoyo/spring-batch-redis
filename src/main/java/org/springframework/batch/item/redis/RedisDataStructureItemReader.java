@@ -15,9 +15,9 @@ import org.springframework.core.convert.converter.Converter;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisGenericItemReader<K> extends RedisItemReader<K, DataStructure<K>> {
+public class RedisDataStructureItemReader<K> extends RedisItemReader<K, DataStructure<K>> {
 
-	public RedisGenericItemReader(ItemReader<K> keyReader,
+	public RedisDataStructureItemReader(ItemReader<K> keyReader,
 			ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueProcessor, int threadCount, int batchSize,
 			int queueCapacity, long queuePollingTimeout) {
 		super(keyReader, valueProcessor, threadCount, batchSize, queueCapacity, queuePollingTimeout);
@@ -41,8 +41,8 @@ public class RedisGenericItemReader<K> extends RedisItemReader<K, DataStructure<
 			this.keyExtractor = keyExtractor;
 		}
 
-		public RedisGenericItemReader<K> build() {
-			return new RedisGenericItemReader<>(keyReader(pubSubPatternProvider, keyExtractor),
+		public RedisDataStructureItemReader<K> build() {
+			return new RedisDataStructureItemReader<>(keyReader(pubSubPatternProvider, keyExtractor),
 					new KeyValueItemProcessor<>(pool(), async(), uri().getTimeout()), threadCount, batchSize,
 					queueCapacity, queuePollingTimeout);
 		}

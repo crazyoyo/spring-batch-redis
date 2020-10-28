@@ -28,9 +28,9 @@ import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisGenericItemWriter<K, V> extends AbstractRedisItemWriter<K, V, DataStructure<K>> {
+public class RedisDataStructureItemWriter<K, V> extends AbstractRedisItemWriter<K, V, DataStructure<K>> {
 
-	public RedisGenericItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
+	public RedisDataStructureItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
 			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
 		super(pool, commands, commandTimeout);
 	}
@@ -101,8 +101,8 @@ public class RedisGenericItemWriter<K, V> extends AbstractRedisItemWriter<K, V, 
 			super(codec);
 		}
 
-		public RedisGenericItemWriter<K, V> build() {
-			return new RedisGenericItemWriter<>(pool(), async(), timeout());
+		public RedisDataStructureItemWriter<K, V> build() {
+			return new RedisDataStructureItemWriter<>(pool(), async(), timeout());
 		}
 
 	}
