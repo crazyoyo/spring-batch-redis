@@ -30,7 +30,7 @@ public class RedisConnectionBuilder<K, V, B extends RedisConnectionBuilder<K, V,
 	private ClusterClientOptions clientOptions;
 	private GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig = new GenericObjectPoolConfig<>();
 	private boolean cluster;
-
+	
 	public RedisConnectionBuilder(RedisCodec<K, V> codec) {
 		this.codec = codec;
 	}

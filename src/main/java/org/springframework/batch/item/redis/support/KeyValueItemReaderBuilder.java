@@ -7,10 +7,10 @@ import org.springframework.core.convert.converter.Converter;
 import io.lettuce.core.codec.RedisCodec;
 
 @SuppressWarnings("unchecked")
-public class RedisItemReaderBuilder<K, V, B extends RedisItemReaderBuilder<K, V, B, T>, T>
+public class KeyValueItemReaderBuilder<K, V, B extends KeyValueItemReaderBuilder<K, V, B, T>, T>
 		extends RedisConnectionBuilder<K, V, B> {
 
-	public RedisItemReaderBuilder(RedisCodec<K, V> codec) {
+	public KeyValueItemReaderBuilder(RedisCodec<K, V> codec) {
 		super(codec);
 	}
 
@@ -72,7 +72,7 @@ public class RedisItemReaderBuilder<K, V, B extends RedisItemReaderBuilder<K, V,
 		return new KeyItemReader<>(connection(), sync(), scanCount, scanMatch);
 	}
 
-	public static <B extends RedisItemReaderBuilder<String, String, B, ?>> Function<B, String> stringPubSubPatternProvider() {
+	public static <B extends KeyValueItemReaderBuilder<String, String, B, ?>> Function<B, String> stringPubSubPatternProvider() {
 		return b -> "__keyspace@" + b.uri().getDatabase() + "__:" + b.scanMatch;
 	}
 

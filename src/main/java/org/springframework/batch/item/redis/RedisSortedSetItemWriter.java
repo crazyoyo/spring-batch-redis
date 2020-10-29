@@ -7,6 +7,7 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractCollectionCommandItemWriter;
 import org.springframework.batch.item.redis.support.AbstractCollectionCommandItemWriterBuilder;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.util.Assert;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
@@ -25,6 +26,7 @@ public class RedisSortedSetItemWriter<K, V, T> extends AbstractCollectionCommand
 			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
 			Converter<T, K> keyConverter, Converter<T, V> memberIdConverter, Converter<T, Double> scoreConverter) {
 		super(pool, commands, commandTimeout, keyConverter, memberIdConverter);
+		Assert.notNull(scoreConverter, "A score converter is required.");
 		this.scoreConverter = scoreConverter;
 	}
 

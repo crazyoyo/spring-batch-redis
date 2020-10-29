@@ -41,7 +41,7 @@ public class RedisDataStructureItemWriter<K, V> extends AbstractRedisItemWriter<
 			List<? extends DataStructure<K>> items) {
 		List<RedisFuture<?>> futures = new ArrayList<>();
 		for (DataStructure<K> item : items) {
-			if (item.getValue() == null || item.isTtlNoKey()) {
+			if (item.getValue() == null || item.noKeyTtl()) {
 				futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(item.getKey()));
 				continue;
 			}

@@ -15,6 +15,8 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 
 public class RedisDumpItemWriter<K, V> extends AbstractRedisItemWriter<K, V, KeyDump<K>> {
 
@@ -31,7 +33,7 @@ public class RedisDumpItemWriter<K, V> extends AbstractRedisItemWriter<K, V, Key
 	@SuppressWarnings("unchecked")
 	protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, KeyDump<K> item) {
 		RedisKeyAsyncCommands<K, V> keyCommands = (RedisKeyAsyncCommands<K, V>) commands;
-		if (item.getValue() == null || item.isTtlNoKey()) {
+		if (item.getValue() == null || item.noKeyTtl()) {
 			return keyCommands.del(item.getKey());
 		}
 		if (item.hasTtl()) {
@@ -41,20 +43,22 @@ public class RedisDumpItemWriter<K, V> extends AbstractRedisItemWriter<K, V, Key
 		return keyCommands.restore(item.getKey(), item.getValue(), new RestoreArgs().replace(replace));
 	}
 
-	public static RedisKeyDumpItemWriterBuilder<String, String> builder() {
-		return new RedisKeyDumpItemWriterBuilder<>(StringCodec.UTF8);
+	public static RedisDumpItemWriterBuilder<String, String> builder() {
+		return new RedisDumpItemWriterBuilder<>(StringCodec.UTF8);
 	}
 
-	public static class RedisKeyDumpItemWriterBuilder<K, V>
-			extends RedisConnectionBuilder<K, V, RedisKeyDumpItemWriterBuilder<K, V>> {
+	@Setter
+	@Accessors(fluent = true)
+	public static class RedisDumpItemWriterBuilder<K, V>
+			extends RedisConnectionBuilder<K, V, RedisDumpItemWriterBuilder<K, V>> {
 
-		public RedisKeyDumpItemWriterBuilder(RedisCodec<K, V> codec) {
+		public RedisDumpItemWriterBuilder(RedisCodec<K, V> codec) {
 			super(codec);
 		}
 
 		private boolean replace;
 
-		public RedisKeyDumpItemWriterBuilder<K, V> replace(boolean replace) {
+		public RedisDumpItemWriterBuilder<K, V> replace(boolean replace) {
 			this.replace = replace;
 			return this;
 		}

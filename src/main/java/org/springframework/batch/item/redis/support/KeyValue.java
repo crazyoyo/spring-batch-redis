@@ -29,7 +29,7 @@ public class KeyValue<K, V> {
 	 */
 	private V value;
 
-	public boolean isTtlNoKey() {
+	public boolean noKeyTtl() {
 		return ttl != null && ttl == -2;
 	}
 

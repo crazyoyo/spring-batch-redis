@@ -25,8 +25,8 @@ public class RedisGeoItemWriter<K, V, T> extends AbstractCollectionCommandItemWr
 
 	public RedisGeoItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
 			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
-			Converter<T, K> keyConverter, Converter<T, V> memberIdConverter, Converter<T, Double> latitudeConverter,
-			Converter<T, Double> longitudeConverter) {
+			Converter<T, K> keyConverter, Converter<T, V> memberIdConverter, Converter<T, Double> longitudeConverter,
+			Converter<T, Double> latitudeConverter) {
 		super(pool, commands, commandTimeout, keyConverter, memberIdConverter);
 		Assert.notNull(longitudeConverter, "A longitude converter is required.");
 		Assert.notNull(latitudeConverter, "A latitude converter is required.");

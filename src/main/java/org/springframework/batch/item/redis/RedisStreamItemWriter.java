@@ -7,6 +7,7 @@ import java.util.function.Function;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractKeyCommandItemWriter;
 import org.springframework.batch.item.redis.support.AbstractKeyCommandItemWriterBuilder;
+import org.springframework.batch.item.redis.support.ConstantConverter;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
@@ -29,7 +30,8 @@ public class RedisStreamItemWriter<K, V, T> extends AbstractKeyCommandItemWriter
 			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
 			Converter<T, K> keyConverter, Converter<T, Map<K, V>> bodyConverter, Converter<T, XAddArgs> argsConverter) {
 		super(pool, commands, commandTimeout, keyConverter);
-		Assert.notNull(bodyConverter, "A body converter is required.");
+		Assert.notNull(bodyConverter, "Body converter is required.");
+		Assert.notNull(argsConverter, "Args converter is required.");
 		this.bodyConverter = bodyConverter;
 		this.argsConverter = argsConverter;
 	}
@@ -38,11 +40,9 @@ public class RedisStreamItemWriter<K, V, T> extends AbstractKeyCommandItemWriter
 	@Override
 	protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, K key, T item) {
 		RedisStreamAsyncCommands<K, V> streamCommands = (RedisStreamAsyncCommands<K, V>) commands;
+		XAddArgs args = argsConverter.convert(item);
 		Map<K, V> body = bodyConverter.convert(item);
-		if (argsConverter == null) {
-			return streamCommands.xadd(key, body);
-		}
-		return streamCommands.xadd(key, argsConverter.convert(item), body);
+		return streamCommands.xadd(key, args, body);
 	}
 
 	public static <T> RedisStreamItemWriterBuilder<String, String, T> builder() {
@@ -55,7 +55,7 @@ public class RedisStreamItemWriter<K, V, T> extends AbstractKeyCommandItemWriter
 			extends AbstractKeyCommandItemWriterBuilder<K, V, T, RedisStreamItemWriterBuilder<K, V, T>> {
 
 		private Converter<T, Map<K, V>> bodyConverter;
-		private Converter<T, XAddArgs> argsConverter;
+		private Converter<T, XAddArgs> argsConverter = new ConstantConverter<>(null);
 
 		public RedisStreamItemWriterBuilder(RedisCodec<K, V> codec) {
 			super(codec);

@@ -7,15 +7,15 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.KeyDump;
 import org.springframework.batch.item.redis.support.KeyDumpItemProcessor;
-import org.springframework.batch.item.redis.support.RedisItemReader;
-import org.springframework.batch.item.redis.support.RedisItemReaderBuilder;
+import org.springframework.batch.item.redis.support.KeyValueItemReader;
+import org.springframework.batch.item.redis.support.KeyValueItemReaderBuilder;
 import org.springframework.batch.item.redis.support.StringChannelConverter;
 import org.springframework.core.convert.converter.Converter;
 
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisDumpItemReader<K> extends RedisItemReader<K, KeyDump<K>> {
+public class RedisDumpItemReader<K> extends KeyValueItemReader<K, KeyDump<K>> {
 
 	public RedisDumpItemReader(ItemReader<K> keyReader,
 			ItemProcessor<List<? extends K>, List<KeyDump<K>>> valueProcessor, int threadCount, int batchSize,
@@ -25,11 +25,11 @@ public class RedisDumpItemReader<K> extends RedisItemReader<K, KeyDump<K>> {
 
 	public static RedisKeyDumpItemReaderBuilder<String, String> builder() {
 		return new RedisKeyDumpItemReaderBuilder<>(StringCodec.UTF8,
-				RedisItemReaderBuilder.stringPubSubPatternProvider(), new StringChannelConverter());
+				KeyValueItemReaderBuilder.stringPubSubPatternProvider(), new StringChannelConverter());
 	}
 
 	public static class RedisKeyDumpItemReaderBuilder<K, V>
-			extends RedisItemReaderBuilder<K, V, RedisKeyDumpItemReaderBuilder<K, V>, KeyDump<String>> {
+			extends KeyValueItemReaderBuilder<K, V, RedisKeyDumpItemReaderBuilder<K, V>, KeyDump<String>> {
 
 		private Function<RedisKeyDumpItemReaderBuilder<K, V>, K> pubSubPatternProvider;
 		private Converter<K, K> keyExtractor;
