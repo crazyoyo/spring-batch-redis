@@ -14,9 +14,9 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class KeyDumpItemProcessor<K, V> extends AbstractKeyValueItemProcessor<K, V, KeyValue<K, byte[]>> {
+public class DumpItemProcessor<K, V> extends AbstractKeyValueItemProcessor<K, V, KeyValue<K, byte[]>> {
 
-    public KeyDumpItemProcessor(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
+    public DumpItemProcessor(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
 	    Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
 	super(pool, commands, commandTimeout);
     }

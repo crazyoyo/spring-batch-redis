@@ -27,7 +27,7 @@ public class KeyValueItemReader<K, T> extends AbstractItemCountingItemStreamItem
     private final ItemReader<K> keyReader;
 
     @Getter
-    private final ItemProcessor<List<? extends K>, List<T>> keyValueProcessor;
+    private final ItemProcessor<List<? extends K>, List<T>> valueReader;
 
     private final BlockingQueue<T> itemQueue;
 
@@ -37,13 +37,13 @@ public class KeyValueItemReader<K, T> extends AbstractItemCountingItemStreamItem
 
     private final long queuePollingTimeout;
 
-    public KeyValueItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueProcessor,
+    public KeyValueItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader,
 	    int threadCount, int batchSize, int queueCapacity, long queuePollingTimeout) {
 	setName(ClassUtils.getShortName(getClass()));
 	Assert.notNull(keyReader, "A key reader is required.");
-	Assert.notNull(valueProcessor, "A key/value processor is required.");
+	Assert.notNull(valueReader, "A value reader is required.");
 	this.keyReader = keyReader;
-	this.keyValueProcessor = valueProcessor;
+	this.valueReader = valueReader;
 	this.itemQueue = new LinkedBlockingDeque<>(queueCapacity);
 	this.queuePollingTimeout = queuePollingTimeout;
 	this.executor = Executors.newFixedThreadPool(threadCount);
@@ -83,7 +83,7 @@ public class KeyValueItemReader<K, T> extends AbstractItemCountingItemStreamItem
     }
 
     private void write(List<? extends K> keys) throws Exception {
-	List<T> values = keyValueProcessor.process(keys);
+	List<T> values = valueReader.process(keys);
 	if (values == null) {
 	    return;
 	}

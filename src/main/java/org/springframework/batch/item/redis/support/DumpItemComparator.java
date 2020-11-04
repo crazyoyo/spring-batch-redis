@@ -5,9 +5,9 @@ import java.util.List;
 
 import org.springframework.batch.item.ItemProcessor;
 
-public class KeyDumpItemComparator<K> extends AbstractRedisItemComparator<K, byte[], KeyValue<K, byte[]>> {
+public class DumpItemComparator<K> extends AbstractRedisItemComparator<K, byte[], KeyValue<K, byte[]>> {
 
-    public KeyDumpItemComparator(ItemProcessor<List<? extends K>, List<KeyValue<K, byte[]>>> targetProcessor,
+    public DumpItemComparator(ItemProcessor<List<? extends K>, List<KeyValue<K, byte[]>>> targetProcessor,
 	    long ttlTolerance) {
 	super(targetProcessor, ttlTolerance);
     }

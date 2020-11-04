@@ -18,9 +18,9 @@ import io.lettuce.core.codec.StringCodec;
 public class RedisDataStructureItemReader<K> extends KeyValueItemReader<K, DataStructure<K>> {
 
     public RedisDataStructureItemReader(ItemReader<K> keyReader,
-	    ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueProcessor, int threadCount, int batchSize,
-	    int queueCapacity, long queuePollingTimeout) {
-	super(keyReader, valueProcessor, threadCount, batchSize, queueCapacity, queuePollingTimeout);
+	    ItemProcessor<List<? extends K>, List<DataStructure<K>>> dataStructureReader, int threadCount,
+	    int batchSize, int queueCapacity, long queuePollingTimeout) {
+	super(keyReader, dataStructureReader, threadCount, batchSize, queueCapacity, queuePollingTimeout);
     }
 
     public static RedisDataStructureItemReaderBuilder<String, String> builder() {

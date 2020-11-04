@@ -5,7 +5,7 @@ import java.util.function.Function;
 
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.redis.support.KeyDumpItemProcessor;
+import org.springframework.batch.item.redis.support.DumpItemProcessor;
 import org.springframework.batch.item.redis.support.KeyValue;
 import org.springframework.batch.item.redis.support.KeyValueItemReader;
 import org.springframework.batch.item.redis.support.KeyValueItemReaderBuilder;
@@ -18,9 +18,9 @@ import io.lettuce.core.codec.StringCodec;
 public class RedisDumpItemReader<K> extends KeyValueItemReader<K, KeyValue<K, byte[]>> {
 
     public RedisDumpItemReader(ItemReader<K> keyReader,
-	    ItemProcessor<List<? extends K>, List<KeyValue<K, byte[]>>> valueProcessor, int threadCount, int batchSize,
+	    ItemProcessor<List<? extends K>, List<KeyValue<K, byte[]>>> valueReader, int threadCount, int batchSize,
 	    int queueCapacity, long queuePollingTimeout) {
-	super(keyReader, valueProcessor, threadCount, batchSize, queueCapacity, queuePollingTimeout);
+	super(keyReader, valueReader, threadCount, batchSize, queueCapacity, queuePollingTimeout);
     }
 
     public static RedisKeyDumpItemReaderBuilder<String, String> builder() {
@@ -44,8 +44,8 @@ public class RedisDumpItemReader<K> extends KeyValueItemReader<K, KeyValue<K, by
 
 	public RedisDumpItemReader<K> build() {
 	    return new RedisDumpItemReader<>(keyReader(pubSubPatternProvider, keyExtractor),
-		    new KeyDumpItemProcessor<>(pool(), async(), uri().getTimeout()), threadCount, batchSize,
-		    queueCapacity, queuePollingTimeout);
+		    new DumpItemProcessor<>(pool(), async(), uri().getTimeout()), threadCount, batchSize, queueCapacity,
+		    queuePollingTimeout);
 	}
 
     }

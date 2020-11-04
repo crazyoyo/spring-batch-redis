@@ -287,7 +287,7 @@ public class SpringBatchRedisTests {
 	RedisDataStructureItemReader<String> reader = RedisDataStructureItemReader.builder().uri(sourceRedisURI)
 		.build();
 	DataStructureItemComparator<String> comparator = new DataStructureItemComparator<>(
-		reader.getKeyValueProcessor(), 1);
+		reader.getValueReader(), 1);
 	run(name, reader, comparator);
 	Assert.assertEquals(Math.toIntExact(sourceCommands.dbsize()), comparator.getOk().size());
 	targetConnection.close();
