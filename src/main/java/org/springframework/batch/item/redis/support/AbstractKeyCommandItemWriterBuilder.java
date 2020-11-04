@@ -5,18 +5,18 @@ import org.springframework.core.convert.converter.Converter;
 import io.lettuce.core.codec.RedisCodec;
 
 public abstract class AbstractKeyCommandItemWriterBuilder<K, V, T, B extends AbstractKeyCommandItemWriterBuilder<K, V, T, B>>
-		extends RedisConnectionBuilder<K, V, B> {
+	extends RedisConnectionBuilder<K, V, B> {
 
-	protected Converter<T, K> keyConverter;
+    protected Converter<T, K> keyConverter;
 
-	@SuppressWarnings("unchecked")
-	public B keyConverter(Converter<T, K> keyConverter) {
-		this.keyConverter = keyConverter;
-		return (B) this;
-	}
+    @SuppressWarnings("unchecked")
+    public B keyConverter(Converter<T, K> keyConverter) {
+	this.keyConverter = keyConverter;
+	return (B) this;
+    }
 
-	protected AbstractKeyCommandItemWriterBuilder(RedisCodec<K, V> codec) {
-		super(codec);
-	}
+    protected AbstractKeyCommandItemWriterBuilder(RedisCodec<K, V> codec) {
+	super(codec);
+    }
 
 }

@@ -6,13 +6,14 @@ import java.util.List;
 
 public class DataStructureItemComparator<K> extends AbstractRedisItemComparator<K, Object, DataStructure<K>> {
 
-	public DataStructureItemComparator(ItemProcessor<List<? extends K>, List<DataStructure<K>>> targetProcessor,
-			long ttlTolerance) {
-		super(targetProcessor, ttlTolerance);
-	}
+    public DataStructureItemComparator(ItemProcessor<List<? extends K>, List<DataStructure<K>>> targetProcessor,
+	    long ttlTolerance) {
+	super(targetProcessor, ttlTolerance);
+    }
 
-	@Override
-	protected boolean equals(Object source, Object target) {
-		return source.equals(target);
-	}
+    @Override
+    protected boolean equals(Object source, Object target) {
+	return source.equals(target);
+    }
+
 }

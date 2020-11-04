@@ -11,71 +11,77 @@ import lombok.Getter;
 
 public class BatchTransfer<T> implements Runnable {
 
-	private final ItemReader<T> reader;
-	private final List<T> items;
-	private final int batchSize;
-	private final ItemWriter<T> writer;
-	private final List<BatchTransferListener> listeners = new ArrayList<>();
+    private final ItemReader<T> reader;
 
-	@Getter
-	private long count;
-	@Getter
-	private boolean stopped;
+    private final List<T> items;
 
-	@Builder
-	public BatchTransfer(ItemReader<T> reader, ItemWriter<T> writer, int batchSize) {
-		this.reader = reader;
-		this.writer = writer;
-		this.batchSize = batchSize;
-		this.items = new ArrayList<>(batchSize);
-	}
+    private final int batchSize;
 
-	public void addListener(BatchTransferListener listener) {
-		listeners.add(listener);
-	}
+    private final ItemWriter<T> writer;
 
-	public void stop() {
-		this.stopped = true;
-	}
+    private final List<BatchTransferListener> listeners = new ArrayList<>();
 
-	@Override
-	public void run() {
-		this.count = 0;
-		try {
-			T item;
-			while ((item = reader.read()) != null && !stopped) {
-				synchronized (items) {
-					items.add(item);
-				}
-				if (items.size() >= batchSize) {
-					flush();
-				}
-			}
-			if (stopped) {
-				return;
-			}
-			flush();
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
-	}
+    @Getter
+    private long count;
 
-	public void flush() throws Exception {
+    @Getter
+    private boolean stopped;
+
+    @Builder
+    public BatchTransfer(ItemReader<T> reader, ItemWriter<T> writer, int batchSize) {
+	this.reader = reader;
+	this.writer = writer;
+	this.batchSize = batchSize;
+	this.items = new ArrayList<>(batchSize);
+    }
+
+    public void addListener(BatchTransferListener listener) {
+	listeners.add(listener);
+    }
+
+    public void stop() {
+	this.stopped = true;
+    }
+
+    @Override
+    public void run() {
+	this.count = 0;
+	try {
+	    T item;
+	    while ((item = reader.read()) != null && !stopped) {
 		synchronized (items) {
-			write(items);
-			count += items.size();
-			items.clear();
-			listeners.forEach(l -> l.onProgress(count));
+		    items.add(item);
 		}
+		if (items.size() >= batchSize) {
+		    flush();
+		}
+	    }
+	    if (stopped) {
+		return;
+	    }
+	    flush();
+	} catch (Exception e) {
+	    throw new RuntimeException(e);
 	}
+    }
 
-	protected void write(List<T> items) throws Exception {
-		writer.write(items);
+    public void flush() throws Exception {
+	synchronized (items) {
+	    write(items);
+	    count += items.size();
+	    items.clear();
+	    listeners.forEach(l -> l.onProgress(count));
 	}
+    }
 
-	public interface BatchTransferListener {
+    protected void write(List<T> items) throws Exception {
+	writer.write(items);
+    }
 
-		void onProgress(long count);
+    public interface BatchTransferListener {
 
-	}
+	void onProgress(long count);
+
+    }
+
 }
