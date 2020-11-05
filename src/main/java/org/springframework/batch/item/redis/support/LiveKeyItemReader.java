@@ -1,7 +1,10 @@
 package org.springframework.batch.item.redis.support;
 
+import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import org.springframework.core.convert.converter.Converter;
@@ -10,7 +13,7 @@ import org.springframework.util.Assert;
 import com.hybhub.util.concurrent.ConcurrentSetBlockingQueue;
 
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.sync.BaseRedisCommands;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
@@ -39,10 +42,11 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V>
     private boolean running;
 
     public LiveKeyItemReader(StatefulConnection<K, V> connection,
-	    Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands, long scanCount, String scanMatch,
+	    Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
+	    long scanCount, String scanMatch, int keySampleSize, Filter<K> keyFilter,
 	    StatefulRedisPubSubConnection<K, V> pubSubConnection, int queueCapacity, long queuePollingTimeout,
 	    K pubSubPattern, Converter<K, K> keyExtractor) {
-	super(connection, commands, scanCount, scanMatch);
+	super(connection, commands, commandTimeout, scanCount, scanMatch, keySampleSize, keyFilter);
 	Assert.notNull(pubSubConnection, "A PubSub connection is required.");
 	Assert.notNull(pubSubPattern, "A PubSub channel pattern is required.");
 	Assert.notNull(keyExtractor, "A key extractor is required.");
@@ -107,7 +111,7 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V>
 
     @Override
     @SuppressWarnings("unchecked")
-    protected synchronized void doOpen() {
+    protected synchronized void doOpen() throws InterruptedException, ExecutionException, TimeoutException {
 	super.doOpen();
 	if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
 	    StatefulRedisClusterPubSubConnection<K, V> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<K, V>) pubSubConnection;

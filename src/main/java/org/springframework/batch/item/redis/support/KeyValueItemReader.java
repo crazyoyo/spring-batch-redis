@@ -10,8 +10,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.Assert;
@@ -21,23 +19,19 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class KeyValueItemReader<K, T> extends AbstractItemCountingItemStreamItemReader<T> {
+public class KeyValueItemReader<K, V, T> extends AbstractItemCountingItemStreamItemReader<T>
+	implements ProgressReporter {
 
     @Getter
-    private final ItemReader<K> keyReader;
-
+    private final KeyItemReader<K, V> keyReader;
     @Getter
     private final ItemProcessor<List<? extends K>, List<T>> valueReader;
-
     private final BlockingQueue<T> itemQueue;
-
     private final ExecutorService executor;
-
     private final List<BatchTransfer<K>> enqueuers;
-
     private final long queuePollingTimeout;
 
-    public KeyValueItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader,
+    public KeyValueItemReader(KeyItemReader<K, V> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader,
 	    int threadCount, int batchSize, int queueCapacity, long queuePollingTimeout) {
 	setName(ClassUtils.getShortName(getClass()));
 	Assert.notNull(keyReader, "A key reader is required.");
@@ -55,25 +49,19 @@ public class KeyValueItemReader<K, T> extends AbstractItemCountingItemStreamItem
 
     @Override
     public void open(ExecutionContext executionContext) throws ItemStreamException {
-	if (keyReader instanceof ItemStream) {
-	    ((ItemStream) keyReader).open(executionContext);
-	}
+	keyReader.open(executionContext);
 	super.open(executionContext);
     }
 
     @Override
     public void close() throws ItemStreamException {
 	super.close();
-	if (keyReader instanceof ItemStream) {
-	    ((ItemStream) keyReader).close();
-	}
+	keyReader.close();
     }
 
     @Override
     public void update(ExecutionContext executionContext) throws ItemStreamException {
-	if (keyReader instanceof ItemStream) {
-	    ((ItemStream) keyReader).update(executionContext);
-	}
+	keyReader.update(executionContext);
     }
 
     @Override
@@ -115,6 +103,16 @@ public class KeyValueItemReader<K, T> extends AbstractItemCountingItemStreamItem
 	    item = itemQueue.poll(queuePollingTimeout, TimeUnit.MILLISECONDS);
 	} while (item == null && !executor.isTerminated());
 	return item;
+    }
+
+    @Override
+    public Long getTotal() {
+	return keyReader.getTotal();
+    }
+
+    @Override
+    public long getDone() {
+	return getCurrentItemCount();
     }
 
 }
