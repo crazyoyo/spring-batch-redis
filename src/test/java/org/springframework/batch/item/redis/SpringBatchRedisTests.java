@@ -32,6 +32,7 @@ import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.batch.item.redis.support.DataStructure;
 import org.springframework.batch.item.redis.support.DataStructureItemComparator;
 import org.springframework.batch.item.redis.support.DataType;
+import org.springframework.batch.item.redis.support.KeyItemReader;
 import org.springframework.batch.item.redis.support.KeyMaker;
 import org.springframework.batch.item.redis.support.LiveKeyItemReader;
 import org.springframework.batch.item.support.ListItemReader;
@@ -138,9 +139,9 @@ public class SpringBatchRedisTests {
 
     @Test
     public void testKeyValueItemReaderProgress() {
-	DataPopulator.builder().client(sourceRedisClient).start(0).end(100).build().run();
+	DataGenerator.builder().client(sourceRedisClient).start(0).end(100).build().run();
 	RedisDataStructureItemReader<String, String> reader = RedisDataStructureItemReader.builder().uri(sourceRedisURI)
-		.build();
+		.keyReader(KeyItemReader.builder().uri(sourceRedisURI).build()).build();
 	reader.open(new ExecutionContext());
 	long total = reader.getTotal();
 	Assertions.assertEquals(sourceRedisClient.connect().sync().dbsize(), total, 10);
@@ -162,7 +163,7 @@ public class SpringBatchRedisTests {
 	};
 	run("scan-reader-populate", fileReader, hmsetWriter);
 	RedisDataStructureItemReader<String, String> reader = RedisDataStructureItemReader.builder().uri(sourceRedisURI)
-		.build();
+		.keyReader(KeyItemReader.builder().uri(sourceRedisURI).build()).build();
 	ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
 	JobExecution execution = run("scan-reader", reader, writer);
 	Assert.assertTrue(execution.getAllFailureExceptions().isEmpty());
@@ -171,7 +172,7 @@ public class SpringBatchRedisTests {
 
     @Test
     public void testStreamReader() throws Exception {
-	DataPopulator.builder().client(sourceRedisClient).start(0).end(100).build().run();
+	DataGenerator.builder().client(sourceRedisClient).start(0).end(100).build().run();
 	RedisStreamItemReader<String, String> reader = RedisStreamItemReader.builder().uri(sourceRedisURI)
 		.offset(StreamOffset.from("stream:0", "0-0")).build();
 	reader.setMaxItemCount(10);
@@ -257,8 +258,10 @@ public class SpringBatchRedisTests {
 
     @Test
     public void testReplication() throws Exception {
-	DataPopulator.builder().client(sourceRedisClient).start(0).end(1039).build().run();
-	RedisDumpItemReader<String, String> reader = RedisDumpItemReader.builder().uri(sourceRedisURI).build();
+	DataGenerator.builder().client(sourceRedisClient).start(0).end(10000).build().run();
+	KeyItemReader<String, String> keyReader = KeyItemReader.builder().uri(sourceRedisURI).build();
+	RedisDumpItemReader<String, String> reader = RedisDumpItemReader.builder().uri(sourceRedisURI)
+		.keyReader(keyReader).build();
 	RedisDumpItemWriter<String, String> writer = RedisDumpItemWriter.builder().uri(targetRedisURI).replace(true)
 		.build();
 	run("replication", reader, writer);
@@ -267,10 +270,9 @@ public class SpringBatchRedisTests {
 
     @Test
     public void testLiveReplication() throws Exception {
-	DataPopulator.builder().client(sourceRedisClient).start(0).end(1000).build().run();
-	RedisDumpItemReader<String, String> reader = RedisDumpItemReader.builder().uri(sourceRedisURI).live(true)
-		.threads(2).build();
-	LiveKeyItemReader<String, String> keyReader = (LiveKeyItemReader<String, String>) reader.getKeyReader();
+	LiveKeyItemReader<String, String> keyReader = LiveKeyItemReader.builder().uri(sourceRedisURI).build();
+	RedisDumpItemReader<String, String> reader = RedisDumpItemReader.builder().uri(sourceRedisURI)
+		.keyReader(keyReader).threads(2).build();
 	RedisDumpItemWriter<String, String> writer = RedisDumpItemWriter.builder().uri(targetRedisURI).replace(true)
 		.build();
 	Job job = job("live-replication", reader, writer);
@@ -278,7 +280,7 @@ public class SpringBatchRedisTests {
 	while (!keyReader.isRunning()) {
 	    Thread.sleep(1);
 	}
-	DataPopulator.builder().client(sourceRedisClient).start(1000).end(2000).sleep(1L).build().run();
+	DataGenerator.builder().client(sourceRedisClient).start(1000).end(2000).sleep(1L).build().run();
 	Thread.sleep(100);
 	reader.flush();
 	Thread.sleep(100);
@@ -287,6 +289,7 @@ public class SpringBatchRedisTests {
 	    Thread.sleep(10);
 	}
 	compare("live-replication-comparison");
+	reader.close();
     }
 
     private void compare(String name) throws Exception {
@@ -295,8 +298,9 @@ public class SpringBatchRedisTests {
 	StatefulRedisConnection<String, String> targetConnection = targetRedisClient.connect();
 	RedisCommands<String, String> targetCommands = targetConnection.sync();
 	Assert.assertEquals(sourceCommands.dbsize(), targetCommands.dbsize());
+	KeyItemReader<String, String> keyReader = KeyItemReader.builder().uri(sourceRedisURI).build();
 	RedisDataStructureItemReader<String, String> reader = RedisDataStructureItemReader.builder().uri(sourceRedisURI)
-		.build();
+		.keyReader(keyReader).build();
 	DataStructureItemComparator<String> comparator = new DataStructureItemComparator<>(reader.getValueReader(), 1);
 	run(name, reader, comparator);
 	Assert.assertEquals(Math.toIntExact(sourceCommands.dbsize()), comparator.getOk().size());

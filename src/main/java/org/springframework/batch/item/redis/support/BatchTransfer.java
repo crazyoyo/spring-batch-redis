@@ -5,25 +5,20 @@ import java.util.List;
 
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.util.ClassUtils;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
-public class BatchTransfer<T> implements Runnable {
+@Slf4j
+public class BatchTransfer<T> implements Runnable, ProgressReporter {
 
     private final ItemReader<T> reader;
-
     private final List<T> items;
-
     private final int batchSize;
-
     private final ItemWriter<T> writer;
-
-    private final List<BatchTransferListener> listeners = new ArrayList<>();
-
-    @Getter
     private long count;
-
     @Getter
     private boolean stopped;
 
@@ -35,8 +30,17 @@ public class BatchTransfer<T> implements Runnable {
 	this.items = new ArrayList<>(batchSize);
     }
 
-    public void addListener(BatchTransferListener listener) {
-	listeners.add(listener);
+    @Override
+    public long getDone() {
+	return count;
+    }
+
+    @Override
+    public Long getTotal() {
+	if (reader instanceof ProgressReporter) {
+	    return ((ProgressReporter) reader).getTotal();
+	}
+	return null;
     }
 
     public void stop() {
@@ -45,7 +49,7 @@ public class BatchTransfer<T> implements Runnable {
 
     @Override
     public void run() {
-	this.count = 0;
+	count = 0;
 	try {
 	    T item;
 	    while ((item = reader.read()) != null && !stopped) {
@@ -53,35 +57,28 @@ public class BatchTransfer<T> implements Runnable {
 		    items.add(item);
 		}
 		if (items.size() >= batchSize) {
-		    flush();
+		    count += flush();
 		}
 	    }
 	    if (stopped) {
+		log.info("BatchTransfer stopped");
 		return;
 	    }
-	    flush();
+	    count += flush();
+	    log.info("{} complete - {} items transferred", ClassUtils.getShortName(getClass()), count);
 	} catch (Exception e) {
+	    log.error("Could not transfer items", e);
 	    throw new RuntimeException(e);
 	}
     }
 
-    public void flush() throws Exception {
+    public int flush() throws Exception {
 	synchronized (items) {
-	    write(items);
-	    count += items.size();
+	    writer.write(items);
+	    int count = items.size();
 	    items.clear();
-	    listeners.forEach(l -> l.onProgress(count));
+	    return count;
 	}
-    }
-
-    protected void write(List<T> items) throws Exception {
-	writer.write(items);
-    }
-
-    public interface BatchTransferListener {
-
-	void onProgress(long count);
-
     }
 
 }

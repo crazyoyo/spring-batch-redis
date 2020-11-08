@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.function.Function;
 
 @Slf4j
-public class DataStructureItemProcessor<K, V> extends AbstractKeyValueItemProcessor<K, V, DataStructure<K>> {
+public class DataStructureReader<K, V> extends AbstractKeyValueItemProcessor<K, V, DataStructure<K>> {
 
-    public DataStructureItemProcessor(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
+    public DataStructureReader(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
 	    Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
 	super(pool, commands, commandTimeout);
     }

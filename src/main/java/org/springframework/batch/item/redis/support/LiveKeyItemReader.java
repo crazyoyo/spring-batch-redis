@@ -1,59 +1,53 @@
 package org.springframework.batch.item.redis.support;
 
-import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
+import org.springframework.batch.item.redis.support.KeyItemReader.KeyItemReaderBuilder;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 
 import com.hybhub.util.concurrent.ConcurrentSetBlockingQueue;
 
-import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import lombok.Getter;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V>
+public class LiveKeyItemReader<K, V> extends AbstractProgressReportingItemReader<K>
 	implements RedisPubSubListener<K, V>, RedisClusterPubSubListener<K, V> {
 
     private final StatefulRedisPubSubConnection<K, V> pubSubConnection;
-
     private final long queuePollingTimeout;
-
     private final BlockingQueue<K> queue;
-
     private final K pubSubPattern;
-
     private final Converter<K, K> keyExtractor;
-
     private boolean stopped;
-
     @Getter
     private boolean running;
 
-    public LiveKeyItemReader(StatefulConnection<K, V> connection,
-	    Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
-	    long scanCount, String scanMatch, int keySampleSize, Filter<K> keyFilter,
-	    StatefulRedisPubSubConnection<K, V> pubSubConnection, int queueCapacity, long queuePollingTimeout,
-	    K pubSubPattern, Converter<K, K> keyExtractor) {
-	super(connection, commands, commandTimeout, scanCount, scanMatch, keySampleSize, keyFilter);
-	Assert.notNull(pubSubConnection, "A PubSub connection is required.");
-	Assert.notNull(pubSubPattern, "A PubSub channel pattern is required.");
+    public LiveKeyItemReader(StatefulRedisPubSubConnection<K, V> connection, K pattern, Converter<K, K> keyExtractor,
+	    int queueCapacity, long queuePollingTimeout) {
+	setName(ClassUtils.getShortName(getClass()));
+	Assert.notNull(connection, "A PubSub connection is required.");
+	Assert.notNull(pattern, "A PubSub channel pattern is required.");
 	Assert.notNull(keyExtractor, "A key extractor is required.");
-	this.pubSubConnection = pubSubConnection;
+	this.pubSubConnection = connection;
 	this.queue = new ConcurrentSetBlockingQueue<>(queueCapacity);
 	this.queuePollingTimeout = queuePollingTimeout;
-	this.pubSubPattern = pubSubPattern;
+	this.pubSubPattern = pattern;
 	this.keyExtractor = keyExtractor;
     }
 
@@ -112,7 +106,6 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V>
     @Override
     @SuppressWarnings("unchecked")
     protected synchronized void doOpen() throws InterruptedException, ExecutionException, TimeoutException {
-	super.doOpen();
 	if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
 	    StatefulRedisClusterPubSubConnection<K, V> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<K, V>) pubSubConnection;
 	    clusterPubSubConnection.addListener((RedisClusterPubSubListener<K, V>) this);
@@ -136,7 +129,6 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V>
 	    pubSubConnection.sync().punsubscribe(pubSubPattern);
 	    pubSubConnection.removeListener(this);
 	}
-	super.doClose();
     }
 
     public void stop() {
@@ -145,12 +137,6 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V>
 
     @Override
     protected synchronized K doRead() throws Exception {
-	if (queue.isEmpty()) {
-	    K key = super.doRead();
-	    if (key != null) {
-		return key;
-	    }
-	}
 	K key;
 	do {
 	    key = queue.poll(queuePollingTimeout, TimeUnit.MILLISECONDS);
@@ -168,6 +154,44 @@ public class LiveKeyItemReader<K, V> extends KeyItemReader<K, V>
 	} catch (InterruptedException e) {
 	    log.debug("Interrupted while trying to enqueue key", e);
 	}
+    }
+
+    @Override
+    public Long getTotal() {
+	return null;
+    }
+
+    public static LiveKeyItemReaderBuilder<String, String> builder() {
+	return new LiveKeyItemReaderBuilder<>(StringCodec.UTF8,
+		b -> "__keyspace@" + b.uri().getDatabase() + "__:" + b.scanMatch, new StringChannelConverter());
+    }
+
+    @Setter
+    @Accessors(fluent = true)
+    public static class LiveKeyItemReaderBuilder<K, V>
+	    extends RedisConnectionBuilder<K, V, LiveKeyItemReaderBuilder<K, V>> {
+
+	public static final int DEFAULT_QUEUE_CAPACITY = 1000;
+	public static final long DEFAULT_QUEUE_POLLING_TIMEOUT = 100;
+
+	private final Converter<K, K> keyExtractor;
+	private final Function<LiveKeyItemReaderBuilder<K, V>, K> pubSubPatternProvider;
+	private String scanMatch = KeyItemReaderBuilder.DEFAULT_SCAN_MATCH;
+	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+	private long queuePollingTimeout = DEFAULT_QUEUE_POLLING_TIMEOUT;
+
+	public LiveKeyItemReaderBuilder(RedisCodec<K, V> codec,
+		Function<LiveKeyItemReaderBuilder<K, V>, K> pubSubPatternProvider, Converter<K, K> keyExtractor) {
+	    super(codec);
+	    this.pubSubPatternProvider = pubSubPatternProvider;
+	    this.keyExtractor = keyExtractor;
+	}
+
+	public LiveKeyItemReader<K, V> build() {
+	    return new LiveKeyItemReader<>(pubSubConnection(), pubSubPatternProvider.apply(this), keyExtractor,
+		    queueCapacity, queuePollingTimeout);
+	}
+
     }
 
 }

@@ -10,8 +10,9 @@ import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
@@ -19,26 +20,25 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class KeyValueItemReader<K, V, T> extends AbstractItemCountingItemStreamItemReader<T>
-	implements ProgressReporter {
+public class KeyValueItemReader<K, V, T> extends AbstractProgressReportingItemReader<T> {
 
     @Getter
-    private final KeyItemReader<K, V> keyReader;
+    private final ItemReader<K> keyReader;
     @Getter
     private final ItemProcessor<List<? extends K>, List<T>> valueReader;
-    private final BlockingQueue<T> itemQueue;
+    private final BlockingQueue<T> queue;
     private final ExecutorService executor;
     private final List<BatchTransfer<K>> enqueuers;
     private final long queuePollingTimeout;
 
-    public KeyValueItemReader(KeyItemReader<K, V> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader,
+    public KeyValueItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader,
 	    int threadCount, int batchSize, int queueCapacity, long queuePollingTimeout) {
 	setName(ClassUtils.getShortName(getClass()));
 	Assert.notNull(keyReader, "A key reader is required.");
 	Assert.notNull(valueReader, "A value reader is required.");
 	this.keyReader = keyReader;
 	this.valueReader = valueReader;
-	this.itemQueue = new LinkedBlockingDeque<>(queueCapacity);
+	this.queue = new LinkedBlockingDeque<>(queueCapacity);
 	this.queuePollingTimeout = queuePollingTimeout;
 	this.executor = Executors.newFixedThreadPool(threadCount);
 	this.enqueuers = new ArrayList<>(threadCount);
@@ -49,19 +49,10 @@ public class KeyValueItemReader<K, V, T> extends AbstractItemCountingItemStreamI
 
     @Override
     public void open(ExecutionContext executionContext) throws ItemStreamException {
-	keyReader.open(executionContext);
+	if (keyReader instanceof ItemStream) {
+	    ((ItemStream) keyReader).open(executionContext);
+	}
 	super.open(executionContext);
-    }
-
-    @Override
-    public void close() throws ItemStreamException {
-	super.close();
-	keyReader.close();
-    }
-
-    @Override
-    public void update(ExecutionContext executionContext) throws ItemStreamException {
-	keyReader.update(executionContext);
     }
 
     @Override
@@ -70,20 +61,25 @@ public class KeyValueItemReader<K, V, T> extends AbstractItemCountingItemStreamI
 	executor.shutdown();
     }
 
-    private void write(List<? extends K> keys) throws Exception {
-	List<T> values = valueReader.process(keys);
-	if (values == null) {
-	    return;
+    @Override
+    public void update(ExecutionContext executionContext) throws ItemStreamException {
+	if (keyReader instanceof ItemStream) {
+	    ((ItemStream) keyReader).update(executionContext);
 	}
-	itemQueue.addAll(values);
+	super.update(executionContext);
     }
 
     @Override
-    protected void doClose() throws ItemStreamException {
-	if (executor.isTerminated()) {
-	    return;
+    protected T doRead() throws Exception {
+	T item;
+	do {
+	    item = queue.poll(queuePollingTimeout, TimeUnit.MILLISECONDS);
+	} while (item == null && !executor.isTerminated());
+	if (item == null) {
+	    log.info("Read null value - {} items in queue, executor terminated: {}", queue.size(),
+		    executor.isTerminated());
 	}
-	executor.shutdownNow();
+	return item;
     }
 
     public void flush() {
@@ -96,23 +92,41 @@ public class KeyValueItemReader<K, V, T> extends AbstractItemCountingItemStreamI
 	}
     }
 
+    private void write(List<? extends K> keys) throws Exception {
+	List<T> values = valueReader.process(keys);
+	if (values == null) {
+	    return;
+	}
+	for (T value : values) {
+	    queue.put(value);
+	}
+    }
+
     @Override
-    protected T doRead() throws Exception {
-	T item;
-	do {
-	    item = itemQueue.poll(queuePollingTimeout, TimeUnit.MILLISECONDS);
-	} while (item == null && !executor.isTerminated());
-	return item;
+    public void close() throws ItemStreamException {
+	if (!queue.isEmpty()) {
+	    log.warn("Closing {} - {} items still in queue", ClassUtils.getShortName(getClass()), queue.size());
+	}
+	super.close();
+	if (keyReader instanceof ItemStream) {
+	    ((ItemStream) keyReader).close();
+	}
+    }
+
+    @Override
+    protected void doClose() throws ItemStreamException {
+	if (executor.isTerminated()) {
+	    return;
+	}
+	executor.shutdownNow();
     }
 
     @Override
     public Long getTotal() {
-	return keyReader.getTotal();
-    }
-
-    @Override
-    public long getDone() {
-	return getCurrentItemCount();
+	if (keyReader instanceof ProgressReporter) {
+	    return ((ProgressReporter) keyReader).getTotal();
+	}
+	return null;
     }
 
 }

@@ -2,12 +2,15 @@ package org.springframework.batch.item.redis.support;
 
 import java.util.regex.Pattern;
 
+import lombok.Builder;
+
 public class KeyFilter implements Filter<String> {
 
     private final Pattern pattern;
 
-    public KeyFilter(Pattern pattern) {
-	this.pattern = pattern;
+    @Builder
+    public KeyFilter(String pattern) {
+	this.pattern = Pattern.compile(GlobToRegexConverter.convert(pattern));
     }
 
     @Override
