@@ -10,9 +10,22 @@ import lombok.extern.slf4j.Slf4j;
 public abstract class AbstractProgressReportingItemReader<T> extends AbstractItemCountingItemStreamItemReader<T>
 	implements ProgressReporter {
 
+    private Long maxItemCount;
+
     @Override
     public long getDone() {
 	return getCurrentItemCount();
+    }
+
+    @Override
+    public void setMaxItemCount(int count) {
+	this.maxItemCount = (long) count;
+	super.setMaxItemCount(count);
+    }
+
+    @Override
+    public Long getTotal() {
+	return maxItemCount;
     }
 
     @Override

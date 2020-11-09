@@ -32,6 +32,7 @@ public class LiveKeyItemReader<K, V> extends AbstractProgressReportingItemReader
     private final StatefulRedisPubSubConnection<K, V> pubSubConnection;
     private final long queuePollingTimeout;
     private final BlockingQueue<K> queue;
+    @Getter
     private final K pubSubPattern;
     private final Converter<K, K> keyExtractor;
     private boolean stopped;
@@ -106,6 +107,7 @@ public class LiveKeyItemReader<K, V> extends AbstractProgressReportingItemReader
     @Override
     @SuppressWarnings("unchecked")
     protected synchronized void doOpen() throws InterruptedException, ExecutionException, TimeoutException {
+	log.debug("Subscribing to pub/sub pattern {}", pubSubPattern);
 	if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
 	    StatefulRedisClusterPubSubConnection<K, V> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<K, V>) pubSubConnection;
 	    clusterPubSubConnection.addListener((RedisClusterPubSubListener<K, V>) this);
@@ -121,6 +123,7 @@ public class LiveKeyItemReader<K, V> extends AbstractProgressReportingItemReader
     @Override
     @SuppressWarnings("unchecked")
     protected synchronized void doClose() {
+	log.debug("Unsubscribing from pub/sub pattern {}", pubSubPattern);
 	if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
 	    StatefulRedisClusterPubSubConnection<K, V> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<K, V>) pubSubConnection;
 	    clusterPubSubConnection.sync().upstream().commands().punsubscribe(pubSubPattern);
@@ -154,11 +157,6 @@ public class LiveKeyItemReader<K, V> extends AbstractProgressReportingItemReader
 	} catch (InterruptedException e) {
 	    log.debug("Interrupted while trying to enqueue key", e);
 	}
-    }
-
-    @Override
-    public Long getTotal() {
-	return null;
     }
 
     public static LiveKeyItemReaderBuilder<String, String> builder() {

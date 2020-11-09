@@ -16,9 +16,7 @@ import java.util.function.Function;
 public abstract class AbstractKeyValueItemProcessor<K, V, T> implements ItemProcessor<List<? extends K>, List<T>> {
 
     private final GenericObjectPool<? extends StatefulConnection<K, V>> pool;
-
     private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands;
-
     private final long commandTimeout;
 
     protected AbstractKeyValueItemProcessor(GenericObjectPool<? extends StatefulConnection<K, V>> pool,

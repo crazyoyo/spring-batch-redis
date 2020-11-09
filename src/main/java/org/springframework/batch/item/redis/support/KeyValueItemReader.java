@@ -126,7 +126,7 @@ public class KeyValueItemReader<K, V, T> extends AbstractProgressReportingItemRe
 	if (keyReader instanceof ProgressReporter) {
 	    return ((ProgressReporter) keyReader).getTotal();
 	}
-	return null;
+	return super.getTotal();
     }
 
 }
