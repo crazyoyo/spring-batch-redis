@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class DataStructure<K> extends KeyValue<K, Object> {
+public class DataStructure extends KeyValue<Object> {
 
     private DataType type;
 

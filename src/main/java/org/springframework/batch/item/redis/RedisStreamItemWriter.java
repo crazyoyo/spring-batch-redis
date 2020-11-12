@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis;
 
-import java.time.Duration;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -16,20 +15,19 @@ import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisStreamItemWriter<K, V, T> extends AbstractKeyCommandItemWriter<K, V, T> {
+public class RedisStreamItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 
-    private final Converter<T, Map<K, V>> bodyConverter;
+    private final Converter<T, Map<String, String>> bodyConverter;
 
     private final Converter<T, XAddArgs> argsConverter;
 
-    public RedisStreamItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
-	    Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
-	    Converter<T, K> keyConverter, Converter<T, Map<K, V>> bodyConverter, Converter<T, XAddArgs> argsConverter) {
+    public RedisStreamItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
+	    Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
+	    long commandTimeout, Converter<T, String> keyConverter, Converter<T, Map<String, String>> bodyConverter,
+	    Converter<T, XAddArgs> argsConverter) {
 	super(pool, commands, commandTimeout, keyConverter);
 	Assert.notNull(bodyConverter, "Body converter is required.");
 	Assert.notNull(argsConverter, "Args converter is required.");
@@ -39,31 +37,27 @@ public class RedisStreamItemWriter<K, V, T> extends AbstractKeyCommandItemWriter
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, K key, T item) {
-	RedisStreamAsyncCommands<K, V> streamCommands = (RedisStreamAsyncCommands<K, V>) commands;
+    protected RedisFuture<?> write(BaseRedisAsyncCommands<String, String> commands, String key, T item) {
+	RedisStreamAsyncCommands<String, String> streamCommands = (RedisStreamAsyncCommands<String, String>) commands;
 	XAddArgs args = argsConverter.convert(item);
-	Map<K, V> body = bodyConverter.convert(item);
+	Map<String, String> body = bodyConverter.convert(item);
 	return streamCommands.xadd(key, args, body);
     }
 
-    public static <T> RedisStreamItemWriterBuilder<String, String, T> builder() {
-	return new RedisStreamItemWriterBuilder<>(StringCodec.UTF8);
+    public static <T> RedisStreamItemWriterBuilder<T> builder() {
+	return new RedisStreamItemWriterBuilder<>();
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisStreamItemWriterBuilder<K, V, T>
-	    extends AbstractKeyCommandItemWriterBuilder<K, V, T, RedisStreamItemWriterBuilder<K, V, T>> {
+    public static class RedisStreamItemWriterBuilder<T>
+	    extends AbstractKeyCommandItemWriterBuilder<T, RedisStreamItemWriterBuilder<T>> {
 
-	private Converter<T, Map<K, V>> bodyConverter;
+	private Converter<T, Map<String, String>> bodyConverter;
 
 	private Converter<T, XAddArgs> argsConverter = new ConstantConverter<>(null);
 
-	public RedisStreamItemWriterBuilder(RedisCodec<K, V> codec) {
-	    super(codec);
-	}
-
-	public RedisStreamItemWriter<K, V, T> build() {
+	public RedisStreamItemWriter<T> build() {
 	    return new RedisStreamItemWriter<>(pool(), async(), timeout(), keyConverter, bodyConverter, argsConverter);
 	}
 

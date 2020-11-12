@@ -2,21 +2,15 @@ package org.springframework.batch.item.redis.support;
 
 import org.springframework.core.convert.converter.Converter;
 
-import io.lettuce.core.codec.RedisCodec;
+public abstract class AbstractKeyCommandItemWriterBuilder<T, B extends AbstractKeyCommandItemWriterBuilder<T, B>>
+	extends RedisConnectionBuilder<B> {
 
-public abstract class AbstractKeyCommandItemWriterBuilder<K, V, T, B extends AbstractKeyCommandItemWriterBuilder<K, V, T, B>>
-	extends RedisConnectionBuilder<K, V, B> {
-
-    protected Converter<T, K> keyConverter;
+    protected Converter<T, String> keyConverter;
 
     @SuppressWarnings("unchecked")
-    public B keyConverter(Converter<T, K> keyConverter) {
+    public B keyConverter(Converter<T, String> keyConverter) {
 	this.keyConverter = keyConverter;
 	return (B) this;
-    }
-
-    protected AbstractKeyCommandItemWriterBuilder(RedisCodec<K, V> codec) {
-	super(codec);
     }
 
 }

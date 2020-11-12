@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis;
 
-import java.time.Duration;
 import java.util.function.Function;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -13,18 +12,16 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisStringItemWriter<K, V, T> extends AbstractKeyCommandItemWriter<K, V, T> {
+public class RedisStringItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 
-    private final Converter<T, V> valueConverter;
+    private final Converter<T, String> valueConverter;
 
-    public RedisStringItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
-	    Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
-	    Converter<T, K> keyConverter, Converter<T, V> valueConverter) {
+    public RedisStringItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
+	    Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
+	    long commandTimeout, Converter<T, String> keyConverter, Converter<T, String> valueConverter) {
 	super(pool, commands, commandTimeout, keyConverter);
 	Assert.notNull(valueConverter, "A value converter is required.");
 	this.valueConverter = valueConverter;
@@ -32,26 +29,22 @@ public class RedisStringItemWriter<K, V, T> extends AbstractKeyCommandItemWriter
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, K key, T item) {
-	return ((RedisStringAsyncCommands<K, V>) commands).set(key, valueConverter.convert(item));
+    protected RedisFuture<?> write(BaseRedisAsyncCommands<String, String> commands, String key, T item) {
+	return ((RedisStringAsyncCommands<String, String>) commands).set(key, valueConverter.convert(item));
     }
 
-    public static <T> RedisStringItemWriterBuilder<String, String, T> builder() {
-	return new RedisStringItemWriterBuilder<>(StringCodec.UTF8);
+    public static <T> RedisStringItemWriterBuilder<T> builder() {
+	return new RedisStringItemWriterBuilder<>();
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisStringItemWriterBuilder<K, V, T>
-	    extends AbstractKeyCommandItemWriterBuilder<K, V, T, RedisStringItemWriterBuilder<K, V, T>> {
+    public static class RedisStringItemWriterBuilder<T>
+	    extends AbstractKeyCommandItemWriterBuilder<T, RedisStringItemWriterBuilder<T>> {
 
-	private Converter<T, V> valueConverter;
+	private Converter<T, String> valueConverter;
 
-	public RedisStringItemWriterBuilder(RedisCodec<K, V> codec) {
-	    super(codec);
-	}
-
-	public RedisStringItemWriter<K, V, T> build() {
+	public RedisStringItemWriter<T> build() {
 	    return new RedisStringItemWriter<>(pool(), async(), timeout(), keyConverter, valueConverter);
 	}
 

@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis;
 
-import java.time.Duration;
 import java.util.function.Function;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -13,18 +12,16 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisExpireItemWriter<K, V, T> extends AbstractKeyCommandItemWriter<K, V, T> {
+public class RedisExpireItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 
     private final Converter<T, Long> timeoutConverter;
 
-    protected RedisExpireItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
-	    Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
-	    Converter<T, K> keyConverter, Converter<T, Long> timeoutConverter) {
+    protected RedisExpireItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
+	    Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
+	    long commandTimeout, Converter<T, String> keyConverter, Converter<T, Long> timeoutConverter) {
 	super(pool, commands, commandTimeout, keyConverter);
 	Assert.notNull(timeoutConverter, "A timeout converter is required.");
 	this.timeoutConverter = timeoutConverter;
@@ -32,30 +29,26 @@ public class RedisExpireItemWriter<K, V, T> extends AbstractKeyCommandItemWriter
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, K key, T item) {
+    protected RedisFuture<?> write(BaseRedisAsyncCommands<String, String> commands, String key, T item) {
 	Long millis = timeoutConverter.convert(item);
 	if (millis == null) {
 	    return null;
 	}
-	return ((RedisKeyAsyncCommands<K, V>) commands).pexpire(key, millis);
+	return ((RedisKeyAsyncCommands<String, String>) commands).pexpire(key, millis);
     }
 
-    public static <T> RedisExpireItemWriterBuilder<String, String, T> builder() {
-	return new RedisExpireItemWriterBuilder<>(StringCodec.UTF8);
+    public static <T> RedisExpireItemWriterBuilder<T> builder() {
+	return new RedisExpireItemWriterBuilder<>();
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisExpireItemWriterBuilder<K, V, T>
-	    extends AbstractKeyCommandItemWriterBuilder<K, V, T, RedisExpireItemWriterBuilder<K, V, T>> {
+    public static class RedisExpireItemWriterBuilder<T>
+	    extends AbstractKeyCommandItemWriterBuilder<T, RedisExpireItemWriterBuilder<T>> {
 
 	private Converter<T, Long> timeoutConverter;
 
-	public RedisExpireItemWriterBuilder(RedisCodec<K, V> codec) {
-	    super(codec);
-	}
-
-	public RedisExpireItemWriter<K, V, T> build() {
+	public RedisExpireItemWriter<T> build() {
 	    return new RedisExpireItemWriter<>(pool(), async(), timeout(), keyConverter, timeoutConverter);
 	}
 

@@ -15,26 +15,20 @@ import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisStreamItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<StreamMessage<K, V>> {
+public class RedisStreamItemReader extends AbstractItemCountingItemStreamItemReader<StreamMessage<String, String>> {
 
-    private final StatefulConnection<K, V> connection;
-
-    private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands;
-
+    private final StatefulConnection<String, String> connection;
+    private final Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> commands;
     private final XReadArgs args;
+    private StreamOffset<String> offset;
+    private Iterator<StreamMessage<String, String>> messages = Collections.emptyIterator();
 
-    private StreamOffset<K> offset;
-
-    private Iterator<StreamMessage<K, V>> messages = Collections.emptyIterator();
-
-    public RedisStreamItemReader(StatefulConnection<K, V> connection,
-	    Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> commands, XReadArgs args,
-	    StreamOffset<K> offset) {
+    public RedisStreamItemReader(StatefulConnection<String, String> connection,
+	    Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> commands, XReadArgs args,
+	    StreamOffset<String> offset) {
 	setName(ClassUtils.getShortName(getClass()));
 	Assert.notNull(connection, "A connection is required.");
 	Assert.notNull(commands, "A commands supplier is required.");
@@ -53,11 +47,12 @@ public class RedisStreamItemReader<K, V> extends AbstractItemCountingItemStreamI
 
     @SuppressWarnings("unchecked")
     @Override
-    protected StreamMessage<K, V> doRead() throws Exception {
+    protected StreamMessage<String, String> doRead() throws Exception {
 	while (!messages.hasNext()) {
-	    messages = ((RedisStreamCommands<K, V>) commands.apply(connection)).xread(args, offset).iterator();
+	    messages = ((RedisStreamCommands<String, String>) commands.apply(connection)).xread(args, offset)
+		    .iterator();
 	}
-	StreamMessage<K, V> message = messages.next();
+	StreamMessage<String, String> message = messages.next();
 	this.offset = StreamOffset.from(message.getStream(), message.getId());
 	return message;
     }
@@ -67,25 +62,19 @@ public class RedisStreamItemReader<K, V> extends AbstractItemCountingItemStreamI
 	// do nothing
     }
 
-    public static RedisStreamItemReaderBuilder<String, String> builder() {
-	return new RedisStreamItemReaderBuilder<>(StringCodec.UTF8);
+    public static RedisStreamItemReaderBuilder builder() {
+	return new RedisStreamItemReaderBuilder();
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisStreamItemReaderBuilder<K, V>
-	    extends RedisConnectionBuilder<K, V, RedisStreamItemReaderBuilder<K, V>> {
+    public static class RedisStreamItemReaderBuilder extends RedisConnectionBuilder<RedisStreamItemReaderBuilder> {
 
 	private XReadArgs args = new XReadArgs();
+	private StreamOffset<String> offset;
 
-	private StreamOffset<K> offset;
-
-	public RedisStreamItemReaderBuilder(RedisCodec<K, V> codec) {
-	    super(codec);
-	}
-
-	public RedisStreamItemReader<K, V> build() {
-	    return new RedisStreamItemReader<>(connection(), sync(), args, offset);
+	public RedisStreamItemReader build() {
+	    return new RedisStreamItemReader(connection(), sync(), args, offset);
 	}
 
     }

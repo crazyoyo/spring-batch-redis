@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis.support;
 
-import java.time.Duration;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -16,24 +15,18 @@ import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.cluster.ClusterClientOptions;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
 @SuppressWarnings("unchecked")
-public class RedisConnectionBuilder<K, V, B extends RedisConnectionBuilder<K, V, B>> {
+public class RedisConnectionBuilder<B extends RedisConnectionBuilder<B>> {
 
-    private final RedisCodec<K, V> codec;
     private RedisURI uri;
     private ClientResources clientResources;
     private ClusterClientOptions clientOptions;
-    private GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig = new GenericObjectPoolConfig<>();
+    private GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig = new GenericObjectPoolConfig<>();
     private boolean cluster;
-
-    public RedisConnectionBuilder(RedisCodec<K, V> codec) {
-	this.codec = codec;
-    }
 
     public RedisURI uri() {
 	return uri;
@@ -49,7 +42,7 @@ public class RedisConnectionBuilder<K, V, B extends RedisConnectionBuilder<K, V,
 	return (B) this;
     }
 
-    public B poolConfig(GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig) {
+    public B poolConfig(GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig) {
 	this.poolConfig = poolConfig;
 	return (B) this;
     }
@@ -64,27 +57,27 @@ public class RedisConnectionBuilder<K, V, B extends RedisConnectionBuilder<K, V,
 	return (B) this;
     }
 
-    public Supplier<StatefulConnection<K, V>> connectionSupplier() {
+    public Supplier<StatefulConnection<String, String>> connectionSupplier() {
 	if (cluster) {
 	    RedisClusterClient client = clusterClient();
-	    return () -> client.connect(codec);
+	    return () -> client.connect();
 	}
 	RedisClient client = client();
-	return () -> client.connect(codec);
+	return () -> client.connect();
     }
 
-    public StatefulConnection<K, V> connection() {
+    public StatefulConnection<String, String> connection() {
 	if (cluster) {
-	    return clusterClient().connect(codec);
+	    return clusterClient().connect();
 	}
-	return client().connect(codec);
+	return client().connect();
     }
 
-    public StatefulRedisPubSubConnection<K, V> pubSubConnection() {
+    public StatefulRedisPubSubConnection<String, String> pubSubConnection() {
 	if (cluster) {
-	    return clusterClient().connectPubSub(codec);
+	    return clusterClient().connectPubSub();
 	}
-	return client().connectPubSub(codec);
+	return client().connectPubSub();
     }
 
     public RedisClient client() {
@@ -117,26 +110,26 @@ public class RedisConnectionBuilder<K, V, B extends RedisConnectionBuilder<K, V,
 	return RedisClusterClient.create(clientResources, redisURI);
     }
 
-    public Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync() {
+    public Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> sync() {
 	if (cluster) {
-	    return c -> ((StatefulRedisClusterConnection<K, V>) c).sync();
+	    return c -> ((StatefulRedisClusterConnection<String, String>) c).sync();
 	}
-	return c -> ((StatefulRedisConnection<K, V>) c).sync();
+	return c -> ((StatefulRedisConnection<String, String>) c).sync();
     }
 
-    public Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async() {
+    public Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async() {
 	if (cluster) {
-	    return c -> ((StatefulRedisClusterConnection<K, V>) c).async();
+	    return c -> ((StatefulRedisClusterConnection<String, String>) c).async();
 	}
-	return c -> ((StatefulRedisConnection<K, V>) c).async();
+	return c -> ((StatefulRedisConnection<String, String>) c).async();
     }
 
-    public GenericObjectPool<StatefulConnection<K, V>> pool() {
+    public GenericObjectPool<StatefulConnection<String, String>> pool() {
 	return ConnectionPoolSupport.createGenericObjectPool(connectionSupplier(), poolConfig);
     }
 
-    protected Duration timeout() {
-	return uri().getTimeout();
+    protected long timeout() {
+	return uri().getTimeout().getSeconds();
     }
 
 }

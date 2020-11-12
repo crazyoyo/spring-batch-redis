@@ -3,7 +3,7 @@ package org.springframework.batch.item.redis.support;
 import lombok.Data;
 
 @Data
-public class KeyValue<K, V> {
+public class KeyValue<T> {
 
     /**
      * Redis key.
@@ -11,7 +11,7 @@ public class KeyValue<K, V> {
      * @param key New key.
      * @return The current key.
      */
-    private K key;
+    private String key;
 
     /**
      * Time-to-live in seconds for this key.
@@ -27,7 +27,25 @@ public class KeyValue<K, V> {
      * @param value New value.
      * @return The current va.
      */
-    private V value;
+    private T value;
+
+    public KeyValue() {
+    }
+
+    public KeyValue(String key) {
+	this.key = key;
+    }
+
+    public KeyValue(String key, long ttl) {
+	this.key = key;
+	this.ttl = ttl;
+    }
+
+    public KeyValue(String key, long ttl, T value) {
+	this.key = key;
+	this.ttl = ttl;
+	this.value = value;
+    }
 
     public boolean noKeyTtl() {
 	return ttl != null && ttl == -2;

@@ -12,35 +12,28 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class BatchTransfer<T> implements Runnable, ProgressReporter {
+public class TransferTask<T> implements Runnable {
 
     private final ItemReader<T> reader;
     private final List<T> items;
-    private final int batchSize;
+    private final int batch;
     private final ItemWriter<T> writer;
+    private final List<TransferTaskListener> listeners = new ArrayList<>();
+    @Getter
     private long count;
     @Getter
     private boolean stopped;
 
     @Builder
-    public BatchTransfer(ItemReader<T> reader, ItemWriter<T> writer, int batchSize) {
+    public TransferTask(ItemReader<T> reader, ItemWriter<T> writer, int batch) {
 	this.reader = reader;
 	this.writer = writer;
-	this.batchSize = batchSize;
-	this.items = new ArrayList<>(batchSize);
+	this.batch = batch;
+	this.items = new ArrayList<>(batch);
     }
 
-    @Override
-    public long getDone() {
-	return count;
-    }
-
-    @Override
-    public Long getTotal() {
-	if (reader instanceof ProgressReporter) {
-	    return ((ProgressReporter) reader).getTotal();
-	}
-	return null;
+    public void addListener(TransferTaskListener listener) {
+	listeners.add(listener);
     }
 
     public void stop() {
@@ -56,15 +49,15 @@ public class BatchTransfer<T> implements Runnable, ProgressReporter {
 		synchronized (items) {
 		    items.add(item);
 		}
-		if (items.size() >= batchSize) {
-		    count += flush();
+		if (items.size() >= batch) {
+		    flush();
 		}
 	    }
 	    if (stopped) {
 		log.info("BatchTransfer stopped");
 		return;
 	    }
-	    count += flush();
+	    flush();
 	    log.info("{} complete - {} items transferred", ClassUtils.getShortName(getClass()), count);
 	} catch (Exception e) {
 	    log.error("Could not transfer items", e);
@@ -72,12 +65,12 @@ public class BatchTransfer<T> implements Runnable, ProgressReporter {
 	}
     }
 
-    public int flush() throws Exception {
+    public void flush() throws Exception {
 	synchronized (items) {
 	    writer.write(items);
-	    int count = items.size();
+	    count += items.size();
+	    listeners.forEach(l -> l.onUpdate(count));
 	    items.clear();
-	    return count;
 	}
     }
 

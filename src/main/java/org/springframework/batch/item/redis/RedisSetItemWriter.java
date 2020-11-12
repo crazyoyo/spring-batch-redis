@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis;
 
-import java.time.Duration;
 import java.util.function.Function;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -12,39 +11,34 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisSetAsyncCommands;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisSetItemWriter<K, V, T> extends AbstractCollectionCommandItemWriter<K, V, T> {
+public class RedisSetItemWriter<T> extends AbstractCollectionCommandItemWriter<T> {
 
-    public RedisSetItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
-	    Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
-	    Converter<T, K> keyConverter, Converter<T, V> memberIdConverter) {
+    public RedisSetItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
+	    Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
+	    long commandTimeout, Converter<T, String> keyConverter, Converter<T, String> memberIdConverter) {
 	super(pool, commands, commandTimeout, keyConverter, memberIdConverter);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, K key, V memberId, T item) {
-	return ((RedisSetAsyncCommands<K, V>) commands).sadd(key, memberId);
+    protected RedisFuture<?> write(BaseRedisAsyncCommands<String, String> commands, String key, String memberId,
+	    T item) {
+	return ((RedisSetAsyncCommands<String, String>) commands).sadd(key, memberId);
     }
 
-    public static <T> RedisSetItemWriterBuilder<String, String, T> builder() {
-	return new RedisSetItemWriterBuilder<>(StringCodec.UTF8);
+    public static <T> RedisSetItemWriterBuilder<T> builder() {
+	return new RedisSetItemWriterBuilder<>();
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisSetItemWriterBuilder<K, V, T>
-	    extends AbstractCollectionCommandItemWriterBuilder<K, V, T, RedisSetItemWriterBuilder<K, V, T>> {
+    public static class RedisSetItemWriterBuilder<T>
+	    extends AbstractCollectionCommandItemWriterBuilder<T, RedisSetItemWriterBuilder<T>> {
 
-	public RedisSetItemWriterBuilder(RedisCodec<K, V> codec) {
-	    super(codec);
-	}
-
-	public RedisSetItemWriter<K, V, T> build() {
+	public RedisSetItemWriter<T> build() {
 	    return new RedisSetItemWriter<>(pool(), async(), timeout(), keyConverter, memberIdConverter);
 	}
 

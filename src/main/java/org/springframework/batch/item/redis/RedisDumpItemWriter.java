@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis;
 
-import java.time.Duration;
 import java.util.function.Function;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -13,26 +12,24 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisDumpItemWriter<K, V> extends AbstractRedisItemWriter<K, V, KeyValue<K, byte[]>> {
+public class RedisDumpItemWriter extends AbstractRedisItemWriter<KeyValue<byte[]>> {
 
     private final boolean replace;
 
-    public RedisDumpItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
-	    Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
-	    boolean replace) {
+    public RedisDumpItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
+	    Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
+	    long commandTimeout, boolean replace) {
 	super(pool, commands, commandTimeout);
 	this.replace = replace;
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, KeyValue<K, byte[]> item) {
-	RedisKeyAsyncCommands<K, V> keyCommands = (RedisKeyAsyncCommands<K, V>) commands;
+    protected RedisFuture<?> write(BaseRedisAsyncCommands<String, String> commands, KeyValue<byte[]> item) {
+	RedisKeyAsyncCommands<String, String> keyCommands = (RedisKeyAsyncCommands<String, String>) commands;
 	if (item.getValue() == null || item.noKeyTtl()) {
 	    return keyCommands.del(item.getKey());
 	}
@@ -43,28 +40,23 @@ public class RedisDumpItemWriter<K, V> extends AbstractRedisItemWriter<K, V, Key
 	return keyCommands.restore(item.getKey(), item.getValue(), new RestoreArgs().replace(replace));
     }
 
-    public static RedisDumpItemWriterBuilder<String, String> builder() {
-	return new RedisDumpItemWriterBuilder<>(StringCodec.UTF8);
+    public static RedisDumpItemWriterBuilder builder() {
+	return new RedisDumpItemWriterBuilder();
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisDumpItemWriterBuilder<K, V>
-	    extends RedisConnectionBuilder<K, V, RedisDumpItemWriterBuilder<K, V>> {
-
-	public RedisDumpItemWriterBuilder(RedisCodec<K, V> codec) {
-	    super(codec);
-	}
+    public static class RedisDumpItemWriterBuilder extends RedisConnectionBuilder<RedisDumpItemWriterBuilder> {
 
 	private boolean replace;
 
-	public RedisDumpItemWriterBuilder<K, V> replace(boolean replace) {
+	public RedisDumpItemWriterBuilder replace(boolean replace) {
 	    this.replace = replace;
 	    return this;
 	}
 
-	public RedisDumpItemWriter<K, V> build() {
-	    return new RedisDumpItemWriter<>(pool(), async(), timeout(), replace);
+	public RedisDumpItemWriter build() {
+	    return new RedisDumpItemWriter(pool(), async(), timeout(), replace);
 	}
 
     }

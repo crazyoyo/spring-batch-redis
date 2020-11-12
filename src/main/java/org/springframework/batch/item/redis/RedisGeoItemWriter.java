@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis;
 
-import java.time.Duration;
 import java.util.function.Function;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -13,21 +12,18 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisGeoAsyncCommands;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisGeoItemWriter<K, V, T> extends AbstractCollectionCommandItemWriter<K, V, T> {
+public class RedisGeoItemWriter<T> extends AbstractCollectionCommandItemWriter<T> {
 
     private final Converter<T, Double> longitudeConverter;
-
     private final Converter<T, Double> latitudeConverter;
 
-    public RedisGeoItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool,
-	    Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout,
-	    Converter<T, K> keyConverter, Converter<T, V> memberIdConverter, Converter<T, Double> longitudeConverter,
-	    Converter<T, Double> latitudeConverter) {
+    public RedisGeoItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
+	    Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
+	    long commandTimeout, Converter<T, String> keyConverter, Converter<T, String> memberIdConverter,
+	    Converter<T, Double> longitudeConverter, Converter<T, Double> latitudeConverter) {
 	super(pool, commands, commandTimeout, keyConverter, memberIdConverter);
 	Assert.notNull(longitudeConverter, "A longitude converter is required.");
 	Assert.notNull(latitudeConverter, "A latitude converter is required.");
@@ -37,7 +33,8 @@ public class RedisGeoItemWriter<K, V, T> extends AbstractCollectionCommandItemWr
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> write(BaseRedisAsyncCommands<K, V> commands, K key, V memberId, T item) {
+    protected RedisFuture<?> write(BaseRedisAsyncCommands<String, String> commands, String key, String memberId,
+	    T item) {
 	Double longitude = longitudeConverter.convert(item);
 	if (longitude == null) {
 	    return null;
@@ -46,27 +43,22 @@ public class RedisGeoItemWriter<K, V, T> extends AbstractCollectionCommandItemWr
 	if (latitude == null) {
 	    return null;
 	}
-	return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, longitude, latitude, memberId);
+	return ((RedisGeoAsyncCommands<String, String>) commands).geoadd(key, longitude, latitude, memberId);
     }
 
-    public static <T> RedisGeoItemWriterBuilder<String, String, T> builder() {
-	return new RedisGeoItemWriterBuilder<>(StringCodec.UTF8);
+    public static <T> RedisGeoItemWriterBuilder<T> builder() {
+	return new RedisGeoItemWriterBuilder<>();
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisGeoItemWriterBuilder<K, V, T>
-	    extends AbstractCollectionCommandItemWriterBuilder<K, V, T, RedisGeoItemWriterBuilder<K, V, T>> {
+    public static class RedisGeoItemWriterBuilder<T>
+	    extends AbstractCollectionCommandItemWriterBuilder<T, RedisGeoItemWriterBuilder<T>> {
 
 	private Converter<T, Double> longitudeConverter;
-
 	private Converter<T, Double> latitudeConverter;
 
-	public RedisGeoItemWriterBuilder(RedisCodec<K, V> codec) {
-	    super(codec);
-	}
-
-	public RedisGeoItemWriter<K, V, T> build() {
+	public RedisGeoItemWriter<T> build() {
 	    return new RedisGeoItemWriter<>(pool(), async(), timeout(), keyConverter, memberIdConverter,
 		    longitudeConverter, latitudeConverter);
 	}
