@@ -136,7 +136,6 @@ githubRelease {
     owner "Redislabs-Solution-Architects"
     repo "spring-batch-redis"
     releaseAssets distZip, distTar
-    draft true
     body changelog()
 }
 
