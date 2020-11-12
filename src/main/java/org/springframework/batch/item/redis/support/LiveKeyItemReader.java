@@ -30,6 +30,7 @@ public class LiveKeyItemReader extends AbstractProgressReportingItemReader<Strin
     private boolean stopped;
     @Getter
     private boolean running;
+    private long lastWarning;
 
     public LiveKeyItemReader(StatefulRedisPubSubConnection<String, String> connection, String pattern,
 	    int queueCapacity, long queuePollingTimeout) {
@@ -145,8 +146,9 @@ public class LiveKeyItemReader extends AbstractProgressReportingItemReader<Strin
 	    return;
 	}
 	queue.offer(key(notification));
-	if (queue.remainingCapacity() == 0) {
-
+	if (queue.remainingCapacity() == 0 && (System.currentTimeMillis() - lastWarning) > 30000) {
+	    log.warn("Notification queue full");
+	    lastWarning = System.currentTimeMillis();
 	}
     }
 
