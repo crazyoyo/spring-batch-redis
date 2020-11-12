@@ -145,6 +145,9 @@ public class LiveKeyItemReader extends AbstractProgressReportingItemReader<Strin
 	    return;
 	}
 	queue.offer(key(notification));
+	if (queue.remainingCapacity() == 0) {
+
+	}
     }
 
 }
