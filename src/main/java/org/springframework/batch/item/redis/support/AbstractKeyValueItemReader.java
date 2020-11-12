@@ -177,6 +177,7 @@ public abstract class AbstractKeyValueItemReader<T> extends AbstractItemCounting
 	public static final int DEFAULT_THREAD_COUNT = 1;
 	public static final int DEFAULT_BATCH_SIZE = 50;
 	public static final int DEFAULT_QUEUE_CAPACITY = 1000;
+	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = 10000;
 	public static final long DEFAULT_QUEUE_POLLING_TIMEOUT = 100;
 	public static final long DEFAULT_SCAN_COUNT = 1000;
 	public static final String DEFAULT_SCAN_MATCH = "*";
@@ -185,7 +186,7 @@ public abstract class AbstractKeyValueItemReader<T> extends AbstractItemCounting
 	protected int threadCount = DEFAULT_THREAD_COUNT;
 	protected int batchSize = DEFAULT_BATCH_SIZE;
 	protected int queueCapacity = DEFAULT_QUEUE_CAPACITY;
-	protected int notificationQueueCapacity = DEFAULT_QUEUE_CAPACITY;
+	protected int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
 	protected long queuePollingTimeout = DEFAULT_QUEUE_POLLING_TIMEOUT;
 	private boolean live;
 	private long scanCount = DEFAULT_SCAN_COUNT;
