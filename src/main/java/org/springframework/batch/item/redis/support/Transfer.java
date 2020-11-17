@@ -118,9 +118,10 @@ public class Transfer<I, O> implements TransferTaskListener {
 	return reader;
     }
 
+    @SuppressWarnings("rawtypes")
     private void flush() {
 	if (reader instanceof AbstractKeyValueItemReader) {
-	    ((AbstractKeyValueItemReader<I>) reader).flush();
+	    ((AbstractKeyValueItemReader) reader).flush();
 	}
 	for (TransferTask<I> task : tasks) {
 	    try {

@@ -26,8 +26,8 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public abstract class AbstractKeyValueItemReader<T> extends AbstractItemCountingItemStreamItemReader<T>
-	implements BoundedItemReader<T> {
+public abstract class AbstractKeyValueItemReader<T extends KeyValue<?>>
+	extends AbstractItemCountingItemStreamItemReader<T> implements BoundedItemReader<T> {
 
     @Getter
     private final ItemReader<String> keyReader;
@@ -83,6 +83,7 @@ public abstract class AbstractKeyValueItemReader<T> extends AbstractItemCounting
 
     private void write(List<? extends String> keys) throws Exception {
 	for (T value : read(keys)) {
+	    queue.removeIf(v -> v.getKey().equals(value.getKey()));
 	    queue.put(value);
 	}
     }
@@ -212,7 +213,7 @@ public abstract class AbstractKeyValueItemReader<T> extends AbstractItemCounting
 	    this.queueCapacity = queueCapacity;
 	    return (B) this;
 	}
-	
+
 	public B notificationQueueCapacity(int notificationQueueCapacity) {
 	    this.notificationQueueCapacity = notificationQueueCapacity;
 	    return (B) this;

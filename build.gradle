@@ -15,7 +15,6 @@ sourceCompatibility = '1.8'
 targetCompatibility = '1.8'
 
 java {
-    withJavadocJar()
     withSourcesJar()
 }
 
@@ -154,6 +153,5 @@ tasks.named("dependencyUpdates").configure {
 
 }
 
-tasks.distZip.shouldRunAfter tasks.javadocJar
 afterReleaseBuild.dependsOn ":githubRelease"
 afterReleaseBuild.dependsOn bintrayUpload
