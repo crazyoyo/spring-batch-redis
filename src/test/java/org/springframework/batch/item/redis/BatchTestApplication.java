@@ -13,17 +13,17 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 @EnableBatchProcessing
 public class BatchTestApplication {
 
-    public static void main(String[] args) {
-	SpringApplication.run(BatchTestApplication.class, args);
-    }
+	public static void main(String[] args) {
+		SpringApplication.run(BatchTestApplication.class, args);
+	}
 
-    @Bean
-    public JobLauncher asyncJobLauncher(JobRepository jobRepository) throws Exception {
-	SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
-	jobLauncher.setJobRepository(jobRepository);
-	jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-	jobLauncher.afterPropertiesSet();
-	return jobLauncher;
-    }
+	@Bean
+	public JobLauncher asyncJobLauncher(JobRepository jobRepository) throws Exception {
+		SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
+		jobLauncher.setJobRepository(jobRepository);
+		jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+		jobLauncher.afterPropertiesSet();
+		return jobLauncher;
+	}
 
 }

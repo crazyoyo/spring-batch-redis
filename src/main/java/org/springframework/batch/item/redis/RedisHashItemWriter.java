@@ -18,37 +18,37 @@ import lombok.experimental.Accessors;
 
 public class RedisHashItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 
-    private final Converter<T, Map<String, String>> mapConverter;
+	private final Converter<T, Map<String, String>> mapConverter;
 
-    public RedisHashItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
-	    Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
-	    long commandTimeout, Converter<T, String> keyConverter, Converter<T, Map<String, String>> mapConverter) {
-	super(pool, commands, commandTimeout, keyConverter);
-	Assert.notNull(mapConverter, "A map converter is required.");
-	this.mapConverter = mapConverter;
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    protected RedisFuture<?> write(BaseRedisAsyncCommands<String, String> commands, String key, T item) {
-	return ((RedisHashAsyncCommands<String, String>) commands).hmset(key, mapConverter.convert(item));
-    }
-
-    public static <T> RedisHashItemWriterBuilder<T> builder() {
-	return new RedisHashItemWriterBuilder<>();
-    }
-
-    @Setter
-    @Accessors(fluent = true)
-    public static class RedisHashItemWriterBuilder<T>
-	    extends AbstractKeyCommandItemWriterBuilder<T, RedisHashItemWriterBuilder<T>> {
-
-	private Converter<T, Map<String, String>> mapConverter;
-
-	public RedisHashItemWriter<T> build() {
-	    return new RedisHashItemWriter<>(pool(), async(), timeout(), keyConverter, mapConverter);
+	public RedisHashItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
+			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
+			long commandTimeout, Converter<T, String> keyConverter, Converter<T, Map<String, String>> mapConverter) {
+		super(pool, commands, commandTimeout, keyConverter);
+		Assert.notNull(mapConverter, "A map converter is required.");
+		this.mapConverter = mapConverter;
 	}
 
-    }
+	@SuppressWarnings("unchecked")
+	@Override
+	protected RedisFuture<?> write(BaseRedisAsyncCommands<String, String> commands, String key, T item) {
+		return ((RedisHashAsyncCommands<String, String>) commands).hmset(key, mapConverter.convert(item));
+	}
+
+	public static <T> RedisHashItemWriterBuilder<T> builder() {
+		return new RedisHashItemWriterBuilder<>();
+	}
+
+	@Setter
+	@Accessors(fluent = true)
+	public static class RedisHashItemWriterBuilder<T>
+			extends AbstractKeyCommandItemWriterBuilder<T, RedisHashItemWriterBuilder<T>> {
+
+		private Converter<T, Map<String, String>> mapConverter;
+
+		public RedisHashItemWriter<T> build() {
+			return new RedisHashItemWriter<>(pool(), async(), timeout(), keyConverter, mapConverter);
+		}
+
+	}
 
 }
