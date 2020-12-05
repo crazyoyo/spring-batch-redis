@@ -1,13 +1,11 @@
 package org.springframework.batch.item.redis;
 
-import java.util.function.Function;
-
-import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractKeyCommandItemWriter;
-import org.springframework.batch.item.redis.support.AbstractKeyCommandItemWriterBuilder;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -15,14 +13,14 @@ import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisStringItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
+public class StringItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 
 	private final Converter<T, String> valueConverter;
 
-	public RedisStringItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
-			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
-			long commandTimeout, Converter<T, String> keyConverter, Converter<T, String> valueConverter) {
-		super(pool, commands, commandTimeout, keyConverter);
+	public StringItemWriter(AbstractRedisClient client,
+			GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Converter<T, String> keyConverter,
+			Converter<T, String> valueConverter) {
+		super(client, poolConfig, keyConverter);
 		Assert.notNull(valueConverter, "A value converter is required.");
 		this.valueConverter = valueConverter;
 	}
@@ -33,19 +31,19 @@ public class RedisStringItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 		return ((RedisStringAsyncCommands<String, String>) commands).set(key, valueConverter.convert(item));
 	}
 
-	public static <T> RedisStringItemWriterBuilder<T> builder() {
-		return new RedisStringItemWriterBuilder<>();
+	public static <T> StringItemWriterBuilder<T> builder() {
+		return new StringItemWriterBuilder<>();
 	}
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class RedisStringItemWriterBuilder<T>
-			extends AbstractKeyCommandItemWriterBuilder<T, RedisStringItemWriterBuilder<T>> {
+	public static class StringItemWriterBuilder<T>
+			extends AbstractKeyCommandItemWriterBuilder<T, StringItemWriterBuilder<T>> {
 
 		private Converter<T, String> valueConverter;
 
-		public RedisStringItemWriter<T> build() {
-			return new RedisStringItemWriter<>(pool(), async(), timeout(), keyConverter, valueConverter);
+		public StringItemWriter<T> build() {
+			return new StringItemWriter<>(client, poolConfig, keyConverter, valueConverter);
 		}
 
 	}

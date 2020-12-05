@@ -10,36 +10,74 @@ import org.springframework.util.ClassUtils;
 
 import com.hybhub.util.concurrent.ConcurrentSetBlockingQueue;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
-import lombok.Getter;
+import io.micrometer.core.instrument.Tag;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class LiveKeyItemReader extends AbstractProgressReportingItemReader<String>
 		implements RedisPubSubListener<String, String>, RedisClusterPubSubListener<String, String> {
 
-	private final StatefulRedisPubSubConnection<String, String> pubSubConnection;
-	private final long queuePollingTimeout;
-	private final BlockingQueue<String> queue;
-	@Getter
-	private final String pubSubPattern;
-	private boolean stopped;
-	@Getter
-	private boolean running;
+	private static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 
-	public LiveKeyItemReader(StatefulRedisPubSubConnection<String, String> connection, String pattern,
-			int queueCapacity, long queuePollingTimeout) {
+	private final AbstractRedisClient client;
+	private final String pubSubPattern;
+	private final BlockingQueue<String> queue;
+	private final long queuePollingTimeout;
+	private StatefulRedisPubSubConnection<String, String> pubSubConnection;
+	private boolean stopped;
+	private Tag nameTag;
+
+	public LiveKeyItemReader(AbstractRedisClient client, LiveKeyReaderOptions options) {
 		setName(ClassUtils.getShortName(getClass()));
-		Assert.notNull(connection, "A PubSub connection is required.");
-		Assert.notNull(pattern, "A PubSub channel pattern is required.");
-		this.pubSubConnection = connection;
-		this.queue = new ConcurrentSetBlockingQueue<>(queueCapacity);
-		this.queuePollingTimeout = queuePollingTimeout;
-		this.pubSubPattern = pattern;
+		Assert.notNull(client, "A Redis client is required.");
+		Assert.notNull(options, "Options are required.");
+		this.client = client;
+		this.queue = new ConcurrentSetBlockingQueue<>(options.getQueueOptions().getCapacity());
+		this.queuePollingTimeout = options.getQueueOptions().getPollingTimeout().toMillis();
+		this.pubSubPattern = String.format(PUBSUB_PATTERN_FORMAT, options.getDatabase(), options.getKeyPattern());
+	}
+
+	@Override
+	public void setName(String name) {
+		this.nameTag = Tag.of("name", name);
+		super.setName(name);
+	}
+
+	@Override
+	protected synchronized void doOpen() throws InterruptedException, ExecutionException, TimeoutException {
+		pubSubConnection = ClientUtils.pubSubConnection(client);
+		MetricsUtils.createGaugeCollectionSize("livekeyreader.queue.size", queue, nameTag);
+		log.info("Subscribing to pub/sub pattern {}, queue capacity: {}", pubSubPattern, queue.remainingCapacity());
+		if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
+			StatefulRedisClusterPubSubConnection<String, String> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<String, String>) pubSubConnection;
+			clusterPubSubConnection.addListener((RedisClusterPubSubListener<String, String>) this);
+			clusterPubSubConnection.setNodeMessagePropagation(true);
+			clusterPubSubConnection.sync().upstream().commands().psubscribe(pubSubPattern);
+		} else {
+			pubSubConnection.addListener(this);
+			pubSubConnection.sync().psubscribe(pubSubPattern);
+		}
+	}
+
+	@Override
+	protected synchronized void doClose() {
+		log.info("Unsubscribing from pub/sub pattern {}", pubSubPattern);
+		if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
+			StatefulRedisClusterPubSubConnection<String, String> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<String, String>) pubSubConnection;
+			clusterPubSubConnection.sync().upstream().commands().punsubscribe(pubSubPattern);
+			clusterPubSubConnection.removeListener((RedisClusterPubSubListener<String, String>) this);
+		} else {
+			pubSubConnection.sync().punsubscribe(pubSubPattern);
+			pubSubConnection.removeListener(this);
+		}
+		pubSubConnection.close();
+		queue.clear();
 	}
 
 	@Override
@@ -92,34 +130,6 @@ public class LiveKeyItemReader extends AbstractProgressReportingItemReader<Strin
 
 	@Override
 	public void punsubscribed(RedisClusterNode node, String pattern, long count) {
-	}
-
-	@Override
-	protected synchronized void doOpen() throws InterruptedException, ExecutionException, TimeoutException {
-		log.info("Subscribing to pub/sub pattern {}, queue capacity: {}", pubSubPattern, queue.remainingCapacity());
-		if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
-			StatefulRedisClusterPubSubConnection<String, String> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<String, String>) pubSubConnection;
-			clusterPubSubConnection.addListener((RedisClusterPubSubListener<String, String>) this);
-			clusterPubSubConnection.setNodeMessagePropagation(true);
-			clusterPubSubConnection.sync().upstream().commands().psubscribe(pubSubPattern);
-		} else {
-			pubSubConnection.addListener(this);
-			pubSubConnection.sync().psubscribe(pubSubPattern);
-		}
-		this.running = true;
-	}
-
-	@Override
-	protected synchronized void doClose() {
-		log.info("Unsubscribing from pub/sub pattern {}", pubSubPattern);
-		if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
-			StatefulRedisClusterPubSubConnection<String, String> clusterPubSubConnection = (StatefulRedisClusterPubSubConnection<String, String>) pubSubConnection;
-			clusterPubSubConnection.sync().upstream().commands().punsubscribe(pubSubPattern);
-			clusterPubSubConnection.removeListener((RedisClusterPubSubListener<String, String>) this);
-		} else {
-			pubSubConnection.sync().punsubscribe(pubSubPattern);
-			pubSubConnection.removeListener(this);
-		}
 	}
 
 	public void stop() {

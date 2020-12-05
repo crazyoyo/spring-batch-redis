@@ -1,15 +1,11 @@
-package org.springframework.batch.item.redis;
+package org.springframework.batch.item.redis.support;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.redis.support.AbstractKeyValueItemReader;
-import org.springframework.batch.item.redis.support.DataStructure;
-import org.springframework.batch.item.redis.support.DataType;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
@@ -24,13 +20,11 @@ import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class RedisDataStructureItemReader extends AbstractKeyValueItemReader<DataStructure> {
+public class DataStructureReader extends AbstractValueReader<DataStructure> {
 
-	public RedisDataStructureItemReader(ItemReader<String> keyReader, int threadCount, int batchSize, int queueCapacity,
-			long queuePollingTimeout, GenericObjectPool<? extends StatefulConnection<String, String>> pool,
-			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
-			long commandTimeout) {
-		super(keyReader, threadCount, batchSize, queueCapacity, queuePollingTimeout, pool, commands, commandTimeout);
+	public DataStructureReader(AbstractRedisClient client,
+			GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig) {
+		super(client, poolConfig);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -102,18 +96,15 @@ public class RedisDataStructureItemReader extends AbstractKeyValueItemReader<Dat
 		}
 	}
 
-	public static RedisDataStructureItemReaderBuilder builder() {
-		return new RedisDataStructureItemReaderBuilder();
+	public static DataStructureReaderBuilder builder() {
+		return new DataStructureReaderBuilder();
 	}
 
-	public static class RedisDataStructureItemReaderBuilder
-			extends KeyValueItemReaderBuilder<RedisDataStructureItemReaderBuilder> {
+	public static class DataStructureReaderBuilder extends ClientBuilder<DataStructureReaderBuilder> {
 
-		public RedisDataStructureItemReader build() {
-			return new RedisDataStructureItemReader(keyReader(), threadCount, batchSize, queueCapacity,
-					queuePollingTimeout, pool(), async(), timeout());
+		public DataStructureReader build() {
+			return new DataStructureReader(client, poolConfig);
 		}
-
 	}
 
 }

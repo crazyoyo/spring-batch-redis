@@ -5,54 +5,36 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScanArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import io.lettuce.core.api.sync.BaseRedisCommands;
+import io.lettuce.core.api.async.RedisServerAsyncCommands;
 import io.lettuce.core.api.sync.RedisKeyCommands;
-import io.lettuce.core.api.sync.RedisServerCommands;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class KeyItemReader extends AbstractProgressReportingItemReader<String> {
 
-	private final StatefulConnection<String, String> connection;
-	private Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> commandsSupplier;
-	private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> asyncCommandsSupplier;
-	private final long commandTimeout;
-	private final long scanCount;
-	private final String scanMatch;
-	private final int keySampleSize;
-	private final Pattern pattern;
+	private final AbstractRedisClient client;
+	private final KeyReaderOptions options;
 	private ScanIterator<String> iterator;
+	private StatefulConnection<String, String> connection;
 
-	public KeyItemReader(StatefulConnection<String, String> connection,
-			Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> commandsSupplier,
-			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> asyncCommandsSupplier,
-			long commandTimeout, long scanCount, String scanMatch, int keySampleSize) {
+	public KeyItemReader(AbstractRedisClient client, KeyReaderOptions options) {
 		setName(ClassUtils.getShortName(getClass()));
-		Assert.notNull(connection, "A connection is required.");
-		Assert.notNull(asyncCommandsSupplier, "A commands supplier is required.");
-		Assert.notNull(commandTimeout, "Command timeout is required.");
-		Assert.isTrue(scanCount > 0, "Scan count must be greater than 0.");
-		Assert.notNull(scanMatch, "Scan match is required.");
-		this.connection = connection;
-		this.commandsSupplier = commandsSupplier;
-		this.asyncCommandsSupplier = asyncCommandsSupplier;
-		this.commandTimeout = commandTimeout;
-		this.scanMatch = scanMatch;
-		this.scanCount = scanCount;
-		this.keySampleSize = keySampleSize;
-		this.pattern = Pattern.compile(GlobToRegexConverter.convert(scanMatch));
+		Assert.notNull(client, "A Redis client is required.");
+		Assert.notNull(options, "Options are required.");
+		this.client = client;
+		this.options = options;
 	}
 
 	@Override
@@ -61,18 +43,21 @@ public class KeyItemReader extends AbstractProgressReportingItemReader<String> {
 		if (iterator != null) {
 			return;
 		}
-		long dbsize = ((RedisServerCommands<String, String>) commandsSupplier.apply(connection)).dbsize();
-		BaseRedisAsyncCommands<String, String> commands = this.asyncCommandsSupplier.apply(connection);
-		commands.setAutoFlushCommands(false);
-		List<RedisFuture<String>> futures = new ArrayList<>(keySampleSize);
+		this.connection = ClientUtils.connection(client);
+		BaseRedisAsyncCommands<String, String> async = ClientUtils.async(client).apply(connection);
+		async.setAutoFlushCommands(false);
+		RedisFuture<Long> dbsizeFuture = ((RedisServerAsyncCommands<String, String>) async).dbsize();
+		List<RedisFuture<String>> keyFutures = new ArrayList<>(options.getSampleSize());
 		// rough estimate of keys matching pattern
-		for (int index = 0; index < keySampleSize; index++) {
-			futures.add(((RedisKeyAsyncCommands<String, String>) commands).randomkey());
+		for (int index = 0; index < options.getSampleSize(); index++) {
+			keyFutures.add(((RedisKeyAsyncCommands<String, String>) async).randomkey());
 		}
-		commands.flushCommands();
-		commands.setAutoFlushCommands(true);
+		async.flushCommands();
+		async.setAutoFlushCommands(true);
+		long commandTimeout = client.getDefaultTimeout().getSeconds();
 		int matchCount = 0;
-		for (RedisFuture<String> future : futures) {
+		Pattern pattern = Pattern.compile(GlobToRegexConverter.convert(options.getScanMatch()));
+		for (RedisFuture<String> future : keyFutures) {
 			try {
 				String key = future.get(commandTimeout, TimeUnit.SECONDS);
 				if (key == null) {
@@ -87,15 +72,18 @@ public class KeyItemReader extends AbstractProgressReportingItemReader<String> {
 				log.error("Command timed out", e);
 			}
 		}
-		float rate = (float) matchCount / keySampleSize;
+		float rate = (float) matchCount / options.getSampleSize();
+		long dbsize = dbsizeFuture.get(commandTimeout, TimeUnit.SECONDS);
 		setSize(Math.round(dbsize * rate));
-		ScanArgs scanArgs = ScanArgs.Builder.limit(scanCount).match(scanMatch);
-		this.iterator = ScanIterator.scan((RedisKeyCommands<String, String>) commandsSupplier.apply(connection),
-				scanArgs);
+		ScanArgs scanArgs = ScanArgs.Builder.limit(options.getScanCount()).match(options.getScanMatch());
+		RedisKeyCommands<String, String> sync = (RedisKeyCommands<String, String>) ClientUtils.sync(client)
+				.apply(connection);
+		this.iterator = ScanIterator.scan(sync, scanArgs);
 	}
 
 	@Override
 	protected synchronized void doClose() {
+		connection.close();
 		iterator = null;
 	}
 
@@ -104,7 +92,6 @@ public class KeyItemReader extends AbstractProgressReportingItemReader<String> {
 		if (iterator.hasNext()) {
 			return iterator.next();
 		}
-		log.info("{} complete - {} keys read", ClassUtils.getShortName(getClass()), getCurrentItemCount());
 		return null;
 	}
 

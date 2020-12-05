@@ -1,14 +1,13 @@
 package org.springframework.batch.item.redis;
 
 import java.util.Map;
-import java.util.function.Function;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractKeyCommandItemWriter;
-import org.springframework.batch.item.redis.support.AbstractKeyCommandItemWriterBuilder;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -16,14 +15,14 @@ import io.lettuce.core.api.async.RedisHashAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisHashItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
+public class HashItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 
 	private final Converter<T, Map<String, String>> mapConverter;
 
-	public RedisHashItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
-			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
-			long commandTimeout, Converter<T, String> keyConverter, Converter<T, Map<String, String>> mapConverter) {
-		super(pool, commands, commandTimeout, keyConverter);
+	public HashItemWriter(AbstractRedisClient client,
+			GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Converter<T, String> keyConverter,
+			Converter<T, Map<String, String>> mapConverter) {
+		super(client, poolConfig, keyConverter);
 		Assert.notNull(mapConverter, "A map converter is required.");
 		this.mapConverter = mapConverter;
 	}
@@ -34,19 +33,19 @@ public class RedisHashItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 		return ((RedisHashAsyncCommands<String, String>) commands).hmset(key, mapConverter.convert(item));
 	}
 
-	public static <T> RedisHashItemWriterBuilder<T> builder() {
-		return new RedisHashItemWriterBuilder<>();
+	public static <T> HashItemWriterBuilder<T> builder() {
+		return new HashItemWriterBuilder<>();
 	}
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class RedisHashItemWriterBuilder<T>
-			extends AbstractKeyCommandItemWriterBuilder<T, RedisHashItemWriterBuilder<T>> {
+	public static class HashItemWriterBuilder<T>
+			extends AbstractKeyCommandItemWriterBuilder<T, HashItemWriterBuilder<T>> {
 
 		private Converter<T, Map<String, String>> mapConverter;
 
-		public RedisHashItemWriter<T> build() {
-			return new RedisHashItemWriter<>(pool(), async(), timeout(), keyConverter, mapConverter);
+		public HashItemWriter<T> build() {
+			return new HashItemWriter<>(client, poolConfig, keyConverter, mapConverter);
 		}
 
 	}

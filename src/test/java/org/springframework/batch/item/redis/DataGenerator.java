@@ -14,20 +14,18 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 public class DataGenerator implements Runnable {
 
 	private final RedisClient client;
 	private final int start;
 	private final int end;
-	private final Long sleep;
+	private final long sleep;
 	@Getter
 	private boolean finished;
 
 	@Builder
-	public DataGenerator(RedisClient client, int start, int end, Long sleep) {
+	public DataGenerator(RedisClient client, int start, int end, long sleep) {
 		this.client = client;
 		this.start = start;
 		this.end = end;
@@ -58,19 +56,16 @@ public class DataGenerator implements Runnable {
 					LettuceFutures.awaitAll(60, TimeUnit.SECONDS, futures.toArray(new RedisFuture[0]));
 					futures.clear();
 				}
-				if (sleep == null) {
-					continue;
-				}
-				try {
+				if (sleep > 0) {
 					Thread.sleep(sleep);
-				} catch (InterruptedException e) {
-					log.error("Interrupted", e);
 				}
 			}
 			commands.flushCommands();
 			LettuceFutures.awaitAll(60, TimeUnit.SECONDS, futures.toArray(new RedisFuture[0]));
 			futures.clear();
 			this.finished = true;
+		} catch (InterruptedException e) {
+			// ignore
 		} finally {
 			connection.close();
 		}

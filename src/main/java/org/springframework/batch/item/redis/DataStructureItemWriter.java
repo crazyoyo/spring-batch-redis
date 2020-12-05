@@ -4,13 +4,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractRedisItemWriter;
 import org.springframework.batch.item.redis.support.DataStructure;
-import org.springframework.batch.item.redis.support.RedisConnectionBuilder;
+import org.springframework.batch.item.redis.support.ClientBuilder;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -25,12 +25,11 @@ import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
-public class RedisDataStructureItemWriter extends AbstractRedisItemWriter<DataStructure> {
+public class DataStructureItemWriter extends AbstractRedisItemWriter<DataStructure> {
 
-	public RedisDataStructureItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
-			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
-			long commandTimeout) {
-		super(pool, commands, commandTimeout);
+	public DataStructureItemWriter(AbstractRedisClient client,
+			GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig) {
+		super(client, poolConfig);
 	}
 
 	@SuppressWarnings({ "unchecked", "incomplete-switch" })
@@ -90,15 +89,14 @@ public class RedisDataStructureItemWriter extends AbstractRedisItemWriter<DataSt
 		return null;
 	}
 
-	public static RedisDataStructureItemWriterBuilder builder() {
-		return new RedisDataStructureItemWriterBuilder();
+	public static DataStructureItemWriterBuilder builder() {
+		return new DataStructureItemWriterBuilder();
 	}
 
-	public static class RedisDataStructureItemWriterBuilder
-			extends RedisConnectionBuilder<RedisDataStructureItemWriterBuilder> {
+	public static class DataStructureItemWriterBuilder extends ClientBuilder<DataStructureItemWriterBuilder> {
 
-		public RedisDataStructureItemWriter build() {
-			return new RedisDataStructureItemWriter(pool(), async(), timeout());
+		public DataStructureItemWriter build() {
+			return new DataStructureItemWriter(client, poolConfig);
 		}
 
 	}

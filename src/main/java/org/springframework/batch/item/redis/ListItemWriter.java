@@ -1,12 +1,10 @@
 package org.springframework.batch.item.redis;
 
-import java.util.function.Function;
-
-import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractCollectionCommandItemWriter;
-import org.springframework.batch.item.redis.support.AbstractCollectionCommandItemWriterBuilder;
 import org.springframework.core.convert.converter.Converter;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -14,15 +12,14 @@ import io.lettuce.core.api.async.RedisListAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisListItemWriter<T> extends AbstractCollectionCommandItemWriter<T> {
+public class ListItemWriter<T> extends AbstractCollectionCommandItemWriter<T> {
 
 	private final boolean lpush;
 
-	public RedisListItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
-			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
-			long commandTimeout, Converter<T, String> keyConverter, Converter<T, String> memberIdConverter,
-			boolean lpush) {
-		super(pool, commands, commandTimeout, keyConverter, memberIdConverter);
+	public ListItemWriter(AbstractRedisClient client,
+			GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Converter<T, String> keyConverter,
+			Converter<T, String> memberIdConverter, boolean lpush) {
+		super(client, poolConfig, keyConverter, memberIdConverter);
 		this.lpush = lpush;
 	}
 
@@ -34,14 +31,14 @@ public class RedisListItemWriter<T> extends AbstractCollectionCommandItemWriter<
 		return lpush ? listCommands.lpush(key, memberId) : listCommands.rpush(key, memberId);
 	}
 
-	public static <T> RedisListItemWriterBuilder<T> builder() {
-		return new RedisListItemWriterBuilder<>();
+	public static <T> ListItemWriterBuilder<T> builder() {
+		return new ListItemWriterBuilder<>();
 	}
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class RedisListItemWriterBuilder<T>
-			extends AbstractCollectionCommandItemWriterBuilder<T, RedisListItemWriterBuilder<T>> {
+	public static class ListItemWriterBuilder<T>
+			extends AbstractCollectionCommandItemWriterBuilder<T, ListItemWriterBuilder<T>> {
 
 		public enum PushDirection {
 			LEFT, RIGHT
@@ -49,8 +46,8 @@ public class RedisListItemWriter<T> extends AbstractCollectionCommandItemWriter<
 
 		private PushDirection direction = PushDirection.LEFT;
 
-		public RedisListItemWriter<T> build() {
-			return new RedisListItemWriter<>(pool(), async(), timeout(), keyConverter, memberIdConverter,
+		public ListItemWriter<T> build() {
+			return new ListItemWriter<>(client, poolConfig, keyConverter, memberIdConverter,
 					direction == PushDirection.LEFT);
 		}
 

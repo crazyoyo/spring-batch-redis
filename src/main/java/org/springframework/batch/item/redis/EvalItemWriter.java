@@ -1,13 +1,12 @@
 package org.springframework.batch.item.redis;
 
-import java.util.function.Function;
-
-import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractRedisItemWriter;
-import org.springframework.batch.item.redis.support.RedisConnectionBuilder;
+import org.springframework.batch.item.redis.support.ClientBuilder;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.StatefulConnection;
@@ -16,18 +15,17 @@ import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-public class RedisEvalItemWriter<T> extends AbstractRedisItemWriter<T> {
+public class EvalItemWriter<T> extends AbstractRedisItemWriter<T> {
 
 	private final String sha;
 	private final ScriptOutputType outputType;
 	private final Converter<T, String[]> keysConverter;
 	private final Converter<T, String[]> argsConverter;
 
-	public RedisEvalItemWriter(GenericObjectPool<? extends StatefulConnection<String, String>> pool,
-			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> commands,
-			long commandTimeout, String sha, ScriptOutputType outputType, Converter<T, String[]> keysConverter,
-			Converter<T, String[]> argsConverter) {
-		super(pool, commands, commandTimeout);
+	public EvalItemWriter(AbstractRedisClient client,
+			GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, String sha,
+			ScriptOutputType outputType, Converter<T, String[]> keysConverter, Converter<T, String[]> argsConverter) {
+		super(client, poolConfig);
 		Assert.notNull(sha, "A SHA is required.");
 		Assert.notNull(outputType, "Output type is required.");
 		Assert.notNull(keysConverter, "Keys converter is required.");
@@ -46,21 +44,21 @@ public class RedisEvalItemWriter<T> extends AbstractRedisItemWriter<T> {
 		return ((RedisScriptingAsyncCommands<String, String>) commands).evalsha(sha, outputType, keys, args);
 	}
 
-	public static <T> RedisEvalItemWriterBuilder<T> builder() {
-		return new RedisEvalItemWriterBuilder<>();
+	public static <T> EvalItemWriterBuilder<T> builder() {
+		return new EvalItemWriterBuilder<>();
 	}
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class RedisEvalItemWriterBuilder<T> extends RedisConnectionBuilder<RedisEvalItemWriterBuilder<T>> {
+	public static class EvalItemWriterBuilder<T> extends ClientBuilder<EvalItemWriterBuilder<T>> {
 
 		private String sha;
 		private ScriptOutputType outputType;
 		private Converter<T, String[]> keysConverter;
 		private Converter<T, String[]> argsConverter;
 
-		public RedisEvalItemWriter<T> build() {
-			return new RedisEvalItemWriter<>(pool(), async(), timeout(), sha, outputType, keysConverter, argsConverter);
+		public EvalItemWriter<T> build() {
+			return new EvalItemWriter<>(client, poolConfig, sha, outputType, keysConverter, argsConverter);
 		}
 
 	}
