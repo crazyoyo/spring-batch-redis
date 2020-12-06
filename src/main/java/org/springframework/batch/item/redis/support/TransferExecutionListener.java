@@ -6,6 +6,8 @@ public interface TransferExecutionListener {
 
 	void onComplete();
 
+	void onMessage(String message);
+
 	void onError(Throwable throwable);
 
 }

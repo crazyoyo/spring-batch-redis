@@ -32,7 +32,12 @@ public class MultiTransferExecution {
 
 				@Override
 				public void onUpdate(long count) {
-					listeners.forEach(l -> l.onStart(execution));
+					listeners.forEach(l -> l.onUpdate(execution, count));
+				}
+				
+				@Override
+				public void onMessage(String message) {
+					listeners.forEach(l -> l.onMessage(message));
 				}
 
 				@Override

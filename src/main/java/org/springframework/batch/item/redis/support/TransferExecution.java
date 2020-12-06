@@ -39,6 +39,7 @@ public class TransferExecution<I, O> {
 	}
 
 	public CompletableFuture<Void> start() {
+		listeners.forEach(l -> l.onMessage("Starting"));
 		this.stopped = false;
 		this.workers = new ArrayList<>(transfer.getOptions().getThreads());
 		for (int index = 0; index < transfer.getOptions().getThreads(); index++) {
@@ -46,10 +47,12 @@ public class TransferExecution<I, O> {
 		}
 		ExecutionContext executionContext = new ExecutionContext();
 		if (transfer.getReader() instanceof ItemStream) {
+			listeners.forEach(l -> l.onMessage("Opening reader"));
 			log.debug("{}: opening reader", transfer.getName());
 			((ItemStream) transfer.getReader()).open(executionContext);
 		}
 		if (transfer.getWriter() instanceof ItemStream) {
+			listeners.forEach(l -> l.onMessage("Opening writer"));
 			log.debug("{}: opening writer", transfer.getName());
 			((ItemStream) transfer.getWriter()).open(executionContext);
 		}
@@ -57,6 +60,7 @@ public class TransferExecution<I, O> {
 		for (TransferWorker worker : workers) {
 			futures.add(CompletableFuture.runAsync(worker));
 		}
+		listeners.forEach(l -> l.onMessage("Running"));
 		CompletableFuture<Void> future = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
 		future.whenComplete((v, t) -> {
 			if (t != null) {
@@ -64,10 +68,12 @@ public class TransferExecution<I, O> {
 			}
 			try {
 				if (transfer.getWriter() instanceof ItemStream) {
+					listeners.forEach(l -> l.onMessage("Closing writer"));
 					log.debug("{}: closing writer", transfer.getName());
 					((ItemStream) transfer.getWriter()).close();
 				}
 				if (transfer.getReader() instanceof ItemStream) {
+					listeners.forEach(l -> l.onMessage("Closing reader"));
 					log.debug("{}: closing reader", transfer.getName());
 					((ItemStream) transfer.getReader()).close();
 				}

@@ -95,6 +95,7 @@ public class SpringBatchRedisTests {
 				.create(RedisURI.create(sourceRedis.getHost(), sourceRedis.getFirstMappedPort()));
 		sourceConnection = sourceRedisClient.connect();
 		sourceSync = sourceConnection.sync();
+		sourceSync.configSet("notify-keyspace-events", "AK");
 		targetRedis = container();
 		targetRedisClient = RedisClient
 				.create(RedisURI.create(targetRedis.getHost(), targetRedis.getFirstMappedPort()));
@@ -122,7 +123,6 @@ public class SpringBatchRedisTests {
 	@BeforeEach
 	public void flush() {
 		sourceSync.flushall();
-		sourceSync.configSet("notify-keyspace-events", "AK");
 		targetSync.flushall();
 	}
 
@@ -304,7 +304,7 @@ public class SpringBatchRedisTests {
 		KeyDumpItemWriter writer = KeyDumpItemWriter.builder().client(targetRedisClient).replace(true).build();
 		Transfer<KeyValue<byte[]>, KeyValue<byte[]>> transfer = Transfer.<KeyValue<byte[]>, KeyValue<byte[]>>builder()
 				.name("live-replication").reader(reader).writer(writer)
-				.options(TransferOptions.builder().batch(100).build()).build();
+				.options(TransferOptions.builder().batch(100).flushInterval(Duration.ofMillis(50)).build()).build();
 		TransferExecution<KeyValue<byte[]>, KeyValue<byte[]>> execution = new TransferExecution<>(transfer);
 		CompletableFuture<Void> future = execution.start();
 		DataGenerator.builder().client(sourceRedisClient).end(3).build().run();
@@ -359,6 +359,10 @@ public class SpringBatchRedisTests {
 		AtomicBoolean complete = new AtomicBoolean();
 		TransferExecution<DataStructure, DataStructure> execution = new TransferExecution<>(transfer);
 		execution.addListener(new TransferExecutionListener() {
+
+			@Override
+			public void onMessage(String message) {
+			}
 
 			@Override
 			public void onUpdate(long count) {

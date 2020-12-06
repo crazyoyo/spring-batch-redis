@@ -7,6 +7,8 @@ public interface MultiTransferExecutionListener {
 	void onStart(TransferExecution<?, ?> execution);
 
 	void onUpdate(TransferExecution<?, ?> execution, long count);
+	
+	void onMessage(String name);
 
 	void onComplete(TransferExecution<?, ?> execution);
 

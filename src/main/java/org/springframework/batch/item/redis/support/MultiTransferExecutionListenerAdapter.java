@@ -19,6 +19,10 @@ public class MultiTransferExecutionListenerAdapter implements MultiTransferExecu
 	}
 
 	@Override
+	public void onMessage(String name) {
+	}
+
+	@Override
 	public void onComplete(TransferExecution<?, ?> execution) {
 	}
 
