@@ -27,7 +27,7 @@ Spring Batch Redis supports two data types: key dumps and key values.
 === `KeyDump`
 A `KeyDump` stores a key, its TTL in seconds, and its binary representation (byte array).
 
-=== `KeyValue`
+=== `DataStructure`
 A `KeyValue` stores a key, its TTL in seconds, the type of data structure (hash, list, ...), and its Java representation.
 
 * Hash: `HGETALL` -> `Map<String,String>`
@@ -41,10 +41,10 @@ NOTE: `StreamMessage` and `ScoredValue` are Lettuce core types (`io.lettuce.core
 
 == Item Readers
 
-Each data type has an item reader that can operate in 2 modes:
+Each data type has 2 corresponding item readers:
 
 * Snapshot: uses SCAN command to produce keys.
-* Live (AKA continuous): also relies on SCAN but in addition uses keyspace notifications to keep producing keys that have been updated.
+* Live (AKA continuous): uses keyspace notifications to produce keys that have been updated.
 
 == Item Writers
 
@@ -53,13 +53,13 @@ All item writers can perform both inserts or deletes depending on the value and 
 * If value is null or TTL is -2 then the `DEL` command is called
 * Otherwise a write is performed
 
-=== Key Dump Writers
+=== `KeyDumpItemWriter`
 
-Key dump writers accept `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
+`KeyDumpItemWriter` accepts `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
 
-=== Key Value Writers
+=== `DataStructureItemWriter`
 
-Key value writers accept `KeyValue` objects and call the write command specific to the data type:
+`DataStructureItemWriter` accepts `DataStructure` objects and calls the write command specific to the data type:
 
 * Hash -> HMSET
 * List -> LPUSH
@@ -74,10 +74,10 @@ If TTL >= 0 then an additional call is made to `EXPIRE` command.
 
 [source,java]
 ----
-RedisURI sourceURI = RedisURI.create("redis://source:6379");
-RedisKeyDumpItemReader<String> reader = RedisKeyDumpItemReader.builder().redisURI(sourceURI).live().threads(2).build();
-RedisURI targetURI = RedisURI.create("rediss://target:6379");
-RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder().redisURI(targetURI).replace().build();
-TaskletStep step = stepBuilderFactory.get("step").<KeyDump<String>, KeyDump<String>>chunk(50).reader(reader).writer(writer).build();
+RedisClient source = RedisClient.create("redis://source:6379");
+KeyDumpItemReader reader = KeyDumpItemReader.builder().client(source).build();
+RedisClient target = RedisClient.create("rediss://target:6379");
+KeyDumpItemWriter writer = KeyDumpItemWriter.builder().client(target).build();
+TaskletStep step = stepBuilderFactory.get("step").<KeyDump, KeyDump>chunk(50).reader(reader).writer(writer).build();
 jobBuilderFactory.get("job").start(step).build();
 ----
