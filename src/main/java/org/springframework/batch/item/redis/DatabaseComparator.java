@@ -16,7 +16,6 @@ import org.springframework.batch.item.redis.support.TransferOptions;
 
 import lombok.Builder;
 import lombok.Builder.Default;
-import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,12 +26,9 @@ public class DatabaseComparator {
 
 	private static final long DEFAULT_TTL_TOLERANCE = 1;
 
-	@NonNull
 	private final DataStructureItemReader left;
-	@NonNull
 	private final DataStructureReader right;
 	@Default
-	@NonNull
 	private final TransferOptions transferOptions = TransferOptions.builder().build();
 	/**
 	 * TTL tolerance in seconds

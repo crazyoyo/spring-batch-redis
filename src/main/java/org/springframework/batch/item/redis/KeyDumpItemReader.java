@@ -2,11 +2,11 @@ package org.springframework.batch.item.redis;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractKeyValueItemReader;
-import org.springframework.batch.item.redis.support.ClientBuilder;
 import org.springframework.batch.item.redis.support.DumpReader;
 import org.springframework.batch.item.redis.support.KeyItemReader;
 import org.springframework.batch.item.redis.support.KeyValue;
 import org.springframework.batch.item.redis.support.ReaderOptions;
+import org.springframework.batch.item.redis.support.RedisConnectionPoolBuilder;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.api.StatefulConnection;
@@ -27,7 +27,7 @@ public class KeyDumpItemReader extends AbstractKeyValueItemReader<KeyValue<byte[
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class KeyDumpItemReaderBuilder extends ClientBuilder<KeyDumpItemReaderBuilder> {
+	public static class KeyDumpItemReaderBuilder extends RedisConnectionPoolBuilder<KeyDumpItemReaderBuilder> {
 
 		private ReaderOptions options = ReaderOptions.builder().build();
 

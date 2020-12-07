@@ -28,7 +28,7 @@ public abstract class AbstractKeyCommandItemWriter<T> extends AbstractRedisItemW
 	protected abstract RedisFuture<?> write(BaseRedisAsyncCommands<String, String> commands, String key, T item);
 
 	public static abstract class AbstractKeyCommandItemWriterBuilder<T, B extends AbstractKeyCommandItemWriterBuilder<T, B>>
-			extends ClientBuilder<B> {
+			extends RedisConnectionPoolBuilder<B> {
 
 		protected Converter<T, String> keyConverter;
 

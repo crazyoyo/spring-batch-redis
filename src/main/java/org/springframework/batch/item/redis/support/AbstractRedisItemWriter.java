@@ -35,6 +35,7 @@ public abstract class AbstractRedisItemWriter<T> extends AbstractItemStreamItemW
 			GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig) {
 		setName(ClassUtils.getShortName(getClass()));
 		Assert.notNull(client, "A Redis client is required.");
+		Assert.notNull(poolConfig, "A connection pool config is required.");
 		this.client = client;
 		this.poolConfig = poolConfig;
 		this.async = ClientUtils.async(client);

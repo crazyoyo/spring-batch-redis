@@ -4,8 +4,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.function.Function;
 
-import org.springframework.batch.item.redis.support.ClientBuilder;
 import org.springframework.batch.item.redis.support.ClientUtils;
+import org.springframework.batch.item.redis.support.RedisClientBuilder;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -69,7 +69,7 @@ public class StreamItemReader extends AbstractItemCountingItemStreamItemReader<S
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class StreamItemReaderBuilder extends ClientBuilder<StreamItemReaderBuilder> {
+	public static class StreamItemReaderBuilder extends RedisClientBuilder<StreamItemReaderBuilder> {
 
 		private XReadArgs args = new XReadArgs();
 		private StreamOffset<String> offset;

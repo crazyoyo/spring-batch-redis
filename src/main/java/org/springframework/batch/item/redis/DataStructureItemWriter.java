@@ -8,7 +8,7 @@ import java.util.Map;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractRedisItemWriter;
 import org.springframework.batch.item.redis.support.DataStructure;
-import org.springframework.batch.item.redis.support.ClientBuilder;
+import org.springframework.batch.item.redis.support.RedisConnectionPoolBuilder;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
@@ -93,7 +93,8 @@ public class DataStructureItemWriter extends AbstractRedisItemWriter<DataStructu
 		return new DataStructureItemWriterBuilder();
 	}
 
-	public static class DataStructureItemWriterBuilder extends ClientBuilder<DataStructureItemWriterBuilder> {
+	public static class DataStructureItemWriterBuilder
+			extends RedisConnectionPoolBuilder<DataStructureItemWriterBuilder> {
 
 		public DataStructureItemWriter build() {
 			return new DataStructureItemWriter(client, poolConfig);

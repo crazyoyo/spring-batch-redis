@@ -3,7 +3,7 @@ package org.springframework.batch.item.redis;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractRedisItemWriter;
 import org.springframework.batch.item.redis.support.KeyValue;
-import org.springframework.batch.item.redis.support.ClientBuilder;
+import org.springframework.batch.item.redis.support.RedisConnectionPoolBuilder;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
@@ -48,7 +48,7 @@ public class KeyDumpItemWriter extends AbstractRedisItemWriter<KeyValue<byte[]>>
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class KeyDumpItemWriterBuilder extends ClientBuilder<KeyDumpItemWriterBuilder> {
+	public static class KeyDumpItemWriterBuilder extends RedisConnectionPoolBuilder<KeyDumpItemWriterBuilder> {
 
 		private boolean replace;
 

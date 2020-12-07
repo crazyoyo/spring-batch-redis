@@ -2,7 +2,7 @@ package org.springframework.batch.item.redis;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractRedisItemWriter;
-import org.springframework.batch.item.redis.support.ClientBuilder;
+import org.springframework.batch.item.redis.support.RedisConnectionPoolBuilder;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
@@ -50,7 +50,7 @@ public class EvalItemWriter<T> extends AbstractRedisItemWriter<T> {
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class EvalItemWriterBuilder<T> extends ClientBuilder<EvalItemWriterBuilder<T>> {
+	public static class EvalItemWriterBuilder<T> extends RedisConnectionPoolBuilder<EvalItemWriterBuilder<T>> {
 
 		private String sha;
 		private ScriptOutputType outputType;

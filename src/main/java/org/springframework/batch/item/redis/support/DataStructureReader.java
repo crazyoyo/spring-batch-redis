@@ -100,7 +100,7 @@ public class DataStructureReader extends AbstractValueReader<DataStructure> {
 		return new DataStructureReaderBuilder();
 	}
 
-	public static class DataStructureReaderBuilder extends ClientBuilder<DataStructureReaderBuilder> {
+	public static class DataStructureReaderBuilder extends RedisConnectionPoolBuilder<DataStructureReaderBuilder> {
 
 		public DataStructureReader build() {
 			return new DataStructureReader(client, poolConfig);

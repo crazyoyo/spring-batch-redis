@@ -9,6 +9,7 @@ import java.util.function.Function;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.util.Assert;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
@@ -27,8 +28,9 @@ public abstract class AbstractValueReader<T> implements ValueReader<T> {
 
 	protected AbstractValueReader(AbstractRedisClient client,
 			GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig) {
+		Assert.notNull(client, "A Redis client is required.");
 		this.client = client;
-		this.poolConfig = poolConfig;
+		this.poolConfig = poolConfig == null ? new GenericObjectPoolConfig<>() : poolConfig;
 		this.async = ClientUtils.async(client);
 		this.commandTimeout = client.getDefaultTimeout().getSeconds();
 	}
