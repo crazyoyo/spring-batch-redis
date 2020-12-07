@@ -89,12 +89,16 @@ public class DataStructureItemWriter extends AbstractRedisItemWriter<DataStructu
 		return null;
 	}
 
-	public static DataStructureItemWriterBuilder builder() {
-		return new DataStructureItemWriterBuilder();
+	public static DataStructureItemWriterBuilder builder(AbstractRedisClient client) {
+		return new DataStructureItemWriterBuilder(client);
 	}
 
 	public static class DataStructureItemWriterBuilder
 			extends RedisConnectionPoolBuilder<DataStructureItemWriterBuilder> {
+
+		public DataStructureItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		public DataStructureItemWriter build() {
 			return new DataStructureItemWriter(client, poolConfig);

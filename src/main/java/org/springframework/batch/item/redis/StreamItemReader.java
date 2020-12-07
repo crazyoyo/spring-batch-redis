@@ -63,13 +63,17 @@ public class StreamItemReader extends AbstractItemCountingItemStreamItemReader<S
 		return message;
 	}
 
-	public static StreamItemReaderBuilder builder() {
-		return new StreamItemReaderBuilder();
+	public static StreamItemReaderBuilder builder(AbstractRedisClient client) {
+		return new StreamItemReaderBuilder(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class StreamItemReaderBuilder extends RedisClientBuilder<StreamItemReaderBuilder> {
+	public static class StreamItemReaderBuilder extends RedisClientBuilder {
+
+		public StreamItemReaderBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private XReadArgs args = new XReadArgs();
 		private StreamOffset<String> offset;

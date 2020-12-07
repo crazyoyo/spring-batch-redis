@@ -27,14 +27,18 @@ public class SetItemWriter<T> extends AbstractCollectionCommandItemWriter<T> {
 		return ((RedisSetAsyncCommands<String, String>) commands).sadd(key, memberId);
 	}
 
-	public static <T> SetItemWriterBuilder<T> builder() {
-		return new SetItemWriterBuilder<>();
+	public static <T> SetItemWriterBuilder<T> builder(AbstractRedisClient client) {
+		return new SetItemWriterBuilder<>(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class SetItemWriterBuilder<T>
 			extends AbstractCollectionCommandItemWriterBuilder<T, SetItemWriterBuilder<T>> {
+
+		protected SetItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		public SetItemWriter<T> build() {
 			return new SetItemWriter<>(client, poolConfig, keyConverter, memberIdConverter);

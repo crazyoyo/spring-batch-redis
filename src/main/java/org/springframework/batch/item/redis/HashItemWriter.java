@@ -33,14 +33,18 @@ public class HashItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 		return ((RedisHashAsyncCommands<String, String>) commands).hmset(key, mapConverter.convert(item));
 	}
 
-	public static <T> HashItemWriterBuilder<T> builder() {
-		return new HashItemWriterBuilder<>();
+	public static <T> HashItemWriterBuilder<T> builder(AbstractRedisClient client) {
+		return new HashItemWriterBuilder<>(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class HashItemWriterBuilder<T>
 			extends AbstractKeyCommandItemWriterBuilder<T, HashItemWriterBuilder<T>> {
+
+		protected HashItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private Converter<T, Map<String, String>> mapConverter;
 

@@ -36,14 +36,18 @@ public class SortedSetItemWriter<T> extends AbstractCollectionCommandItemWriter<
 		return ((RedisSortedSetAsyncCommands<String, String>) commands).zadd(key, score, memberId);
 	}
 
-	public static <T> SortedSetItemWriterBuilder<T> builder() {
-		return new SortedSetItemWriterBuilder<>();
+	public static <T> SortedSetItemWriterBuilder<T> builder(AbstractRedisClient client) {
+		return new SortedSetItemWriterBuilder<>(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class SortedSetItemWriterBuilder<T>
 			extends AbstractCollectionCommandItemWriterBuilder<T, SortedSetItemWriterBuilder<T>> {
+
+		protected SortedSetItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private Converter<T, Double> scoreConverter;
 

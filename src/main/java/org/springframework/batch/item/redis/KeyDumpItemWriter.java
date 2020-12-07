@@ -42,13 +42,17 @@ public class KeyDumpItemWriter extends AbstractRedisItemWriter<KeyValue<byte[]>>
 		return ttl * 1000;
 	}
 
-	public static KeyDumpItemWriterBuilder builder() {
-		return new KeyDumpItemWriterBuilder();
+	public static KeyDumpItemWriterBuilder builder(AbstractRedisClient client) {
+		return new KeyDumpItemWriterBuilder(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class KeyDumpItemWriterBuilder extends RedisConnectionPoolBuilder<KeyDumpItemWriterBuilder> {
+
+		public KeyDumpItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private boolean replace;
 

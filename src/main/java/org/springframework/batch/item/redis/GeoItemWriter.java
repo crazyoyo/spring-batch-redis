@@ -44,14 +44,18 @@ public class GeoItemWriter<T> extends AbstractCollectionCommandItemWriter<T> {
 		return ((RedisGeoAsyncCommands<String, String>) commands).geoadd(key, longitude, latitude, memberId);
 	}
 
-	public static <T> GeoItemWriterBuilder<T> builder() {
-		return new GeoItemWriterBuilder<>();
+	public static <T> GeoItemWriterBuilder<T> builder(AbstractRedisClient client) {
+		return new GeoItemWriterBuilder<>(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class GeoItemWriterBuilder<T>
 			extends AbstractCollectionCommandItemWriterBuilder<T, GeoItemWriterBuilder<T>> {
+
+		protected GeoItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private Converter<T, Double> longitudeConverter;
 		private Converter<T, Double> latitudeConverter;

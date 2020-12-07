@@ -96,11 +96,15 @@ public class DataStructureReader extends AbstractValueReader<DataStructure> {
 		}
 	}
 
-	public static DataStructureReaderBuilder builder() {
-		return new DataStructureReaderBuilder();
+	public static DataStructureReaderBuilder builder(AbstractRedisClient client) {
+		return new DataStructureReaderBuilder(client);
 	}
 
 	public static class DataStructureReaderBuilder extends RedisConnectionPoolBuilder<DataStructureReaderBuilder> {
+
+		public DataStructureReaderBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		public DataStructureReader build() {
 			return new DataStructureReader(client, poolConfig);

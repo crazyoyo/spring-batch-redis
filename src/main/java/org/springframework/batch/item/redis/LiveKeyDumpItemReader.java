@@ -21,13 +21,17 @@ public class LiveKeyDumpItemReader extends AbstractKeyValueItemReader<KeyValue<b
 				options.getTransferOptions(), options.getQueueOptions());
 	}
 
-	public static LiveKeyDumpItemReaderBuilder builder() {
-		return new LiveKeyDumpItemReaderBuilder();
+	public static LiveKeyDumpItemReaderBuilder builder(AbstractRedisClient client) {
+		return new LiveKeyDumpItemReaderBuilder(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class LiveKeyDumpItemReaderBuilder extends RedisConnectionPoolBuilder<LiveKeyDumpItemReaderBuilder> {
+
+		public LiveKeyDumpItemReaderBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private LiveReaderOptions options = LiveReaderOptions.builder().build();
 

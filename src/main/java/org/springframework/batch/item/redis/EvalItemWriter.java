@@ -44,13 +44,17 @@ public class EvalItemWriter<T> extends AbstractRedisItemWriter<T> {
 		return ((RedisScriptingAsyncCommands<String, String>) commands).evalsha(sha, outputType, keys, args);
 	}
 
-	public static <T> EvalItemWriterBuilder<T> builder() {
-		return new EvalItemWriterBuilder<>();
+	public static <T> EvalItemWriterBuilder<T> builder(AbstractRedisClient client) {
+		return new EvalItemWriterBuilder<>(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class EvalItemWriterBuilder<T> extends RedisConnectionPoolBuilder<EvalItemWriterBuilder<T>> {
+
+		public EvalItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private String sha;
 		private ScriptOutputType outputType;

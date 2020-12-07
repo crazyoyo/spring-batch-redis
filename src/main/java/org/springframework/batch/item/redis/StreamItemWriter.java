@@ -40,14 +40,18 @@ public class StreamItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 		return streamCommands.xadd(key, args, body);
 	}
 
-	public static <T> StreamItemWriterBuilder<T> builder() {
-		return new StreamItemWriterBuilder<>();
+	public static <T> StreamItemWriterBuilder<T> builder(AbstractRedisClient client) {
+		return new StreamItemWriterBuilder<>(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class StreamItemWriterBuilder<T>
 			extends AbstractKeyCommandItemWriterBuilder<T, StreamItemWriterBuilder<T>> {
+
+		protected StreamItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private Converter<T, Map<String, String>> bodyConverter;
 

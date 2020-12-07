@@ -21,13 +21,17 @@ public class KeyDumpItemReader extends AbstractKeyValueItemReader<KeyValue<byte[
 				options.getTransferOptions(), options.getQueueOptions());
 	}
 
-	public static KeyDumpItemReaderBuilder builder() {
-		return new KeyDumpItemReaderBuilder();
+	public static KeyDumpItemReaderBuilder builder(AbstractRedisClient client) {
+		return new KeyDumpItemReaderBuilder(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class KeyDumpItemReaderBuilder extends RedisConnectionPoolBuilder<KeyDumpItemReaderBuilder> {
+
+		public KeyDumpItemReaderBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private ReaderOptions options = ReaderOptions.builder().build();
 

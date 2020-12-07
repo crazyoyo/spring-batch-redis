@@ -32,6 +32,10 @@ public abstract class AbstractCollectionCommandItemWriter<T> extends AbstractKey
 	public static abstract class AbstractCollectionCommandItemWriterBuilder<T, B extends AbstractCollectionCommandItemWriterBuilder<T, B>>
 			extends AbstractKeyCommandItemWriterBuilder<T, B> {
 
+		protected AbstractCollectionCommandItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
+
 		protected Converter<T, String> memberIdConverter;
 
 		@SuppressWarnings("unchecked")

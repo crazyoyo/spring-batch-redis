@@ -30,6 +30,10 @@ public abstract class AbstractKeyCommandItemWriter<T> extends AbstractRedisItemW
 	public static abstract class AbstractKeyCommandItemWriterBuilder<T, B extends AbstractKeyCommandItemWriterBuilder<T, B>>
 			extends RedisConnectionPoolBuilder<B> {
 
+		protected AbstractKeyCommandItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
+
 		protected Converter<T, String> keyConverter;
 
 		@SuppressWarnings("unchecked")

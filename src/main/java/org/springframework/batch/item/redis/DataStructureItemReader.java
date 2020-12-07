@@ -21,14 +21,18 @@ public class DataStructureItemReader extends AbstractKeyValueItemReader<DataStru
 				options.getTransferOptions(), options.getQueueOptions());
 	}
 
-	public static DataStructureItemReaderBuilder builder() {
-		return new DataStructureItemReaderBuilder();
+	public static DataStructureItemReaderBuilder builder(AbstractRedisClient client) {
+		return new DataStructureItemReaderBuilder(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class DataStructureItemReaderBuilder
 			extends RedisConnectionPoolBuilder<DataStructureItemReaderBuilder> {
+
+		public DataStructureItemReaderBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private ReaderOptions options = ReaderOptions.builder().build();
 

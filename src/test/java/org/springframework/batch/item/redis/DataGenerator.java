@@ -6,41 +6,44 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
+import org.springframework.batch.item.redis.support.ClientUtils;
+
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import lombok.Builder;
+import lombok.Builder.Default;
 import lombok.Getter;
 
+@Builder
 public class DataGenerator implements Runnable {
 
-	private final RedisClient client;
-	private final int start;
-	private final int end;
-	private final long sleep;
+	private final AbstractRedisClient client;
+	@Default
+	private final DataGeneratorOptions options = DataGeneratorOptions.builder().build();
 	@Getter
-	private boolean finished;
+	private boolean finished = false;
 
-	@Builder
-	public DataGenerator(RedisClient client, int start, int end, long sleep) {
-		this.client = client;
-		this.start = start;
-		this.end = end;
-		this.sleep = sleep;
+	public static DataGeneratorBuilder builder(AbstractRedisClient client) {
+		return new DataGeneratorBuilder().client(client);
 	}
 
 	@Override
 	public void run() {
 		Random random = new Random();
-		StatefulRedisConnection<String, String> connection = client.connect();
+		Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async = ClientUtils
+				.async(client);
+		StatefulConnection<String, String> connection = ClientUtils.connection(client);
 		try {
-			RedisAsyncCommands<String, String> commands = connection.async();
+			RedisAsyncCommands<String, String> commands = (RedisAsyncCommands<String, String>) async.apply(connection);
 			commands.setAutoFlushCommands(false);
 			List<RedisFuture<?>> futures = new ArrayList<>();
-			for (int index = start; index < end; index++) {
+			for (int index = options.getStart(); index < options.getEnd(); index++) {
 				String stringKey = "string:" + index;
 				futures.add(commands.set(stringKey, "value:" + index));
 				futures.add(commands.expireat(stringKey, System.currentTimeMillis() + random.nextInt(100000)));
@@ -56,8 +59,8 @@ public class DataGenerator implements Runnable {
 					LettuceFutures.awaitAll(60, TimeUnit.SECONDS, futures.toArray(new RedisFuture[0]));
 					futures.clear();
 				}
-				if (sleep > 0) {
-					Thread.sleep(sleep);
+				if (options.getSleep() > 0) {
+					Thread.sleep(options.getSleep());
 				}
 			}
 			commands.flushCommands();

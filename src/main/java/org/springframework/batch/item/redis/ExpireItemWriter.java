@@ -35,14 +35,18 @@ public class ExpireItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 		return ((RedisKeyAsyncCommands<String, String>) commands).pexpire(key, millis);
 	}
 
-	public static <T> ExpireItemWriterBuilder<T> builder() {
-		return new ExpireItemWriterBuilder<>();
+	public static <T> ExpireItemWriterBuilder<T> builder(AbstractRedisClient client) {
+		return new ExpireItemWriterBuilder<>(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class ExpireItemWriterBuilder<T>
 			extends AbstractKeyCommandItemWriterBuilder<T, ExpireItemWriterBuilder<T>> {
+
+		public ExpireItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private Converter<T, Long> timeoutConverter;
 

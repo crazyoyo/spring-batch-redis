@@ -31,14 +31,18 @@ public class StringItemWriter<T> extends AbstractKeyCommandItemWriter<T> {
 		return ((RedisStringAsyncCommands<String, String>) commands).set(key, valueConverter.convert(item));
 	}
 
-	public static <T> StringItemWriterBuilder<T> builder() {
-		return new StringItemWriterBuilder<>();
+	public static <T> StringItemWriterBuilder<T> builder(AbstractRedisClient client) {
+		return new StringItemWriterBuilder<>(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class StringItemWriterBuilder<T>
 			extends AbstractKeyCommandItemWriterBuilder<T, StringItemWriterBuilder<T>> {
+
+		protected StringItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private Converter<T, String> valueConverter;
 

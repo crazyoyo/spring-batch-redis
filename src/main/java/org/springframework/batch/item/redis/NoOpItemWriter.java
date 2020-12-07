@@ -23,13 +23,17 @@ public class NoOpItemWriter<T> extends AbstractRedisItemWriter<T> {
 		return null;
 	}
 
-	public static <T> NoOpItemWriterBuilder<T> builder() {
-		return new NoOpItemWriterBuilder<>();
+	public static <T> NoOpItemWriterBuilder<T> builder(AbstractRedisClient client) {
+		return new NoOpItemWriterBuilder<>(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class NoOpItemWriterBuilder<T> extends RedisConnectionPoolBuilder<NoOpItemWriterBuilder<T>> {
+
+		public NoOpItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		public NoOpItemWriter<T> build() {
 			return new NoOpItemWriter<>(client, poolConfig);

@@ -21,14 +21,18 @@ public class LiveDataStructureItemReader extends AbstractKeyValueItemReader<Data
 				new DataStructureReader(client, poolConfig), options.getTransferOptions(), options.getQueueOptions());
 	}
 
-	public static LiveDataStructureItemReaderBuilder builder() {
-		return new LiveDataStructureItemReaderBuilder();
+	public static LiveDataStructureItemReaderBuilder builder(AbstractRedisClient client) {
+		return new LiveDataStructureItemReaderBuilder(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class LiveDataStructureItemReaderBuilder
 			extends RedisConnectionPoolBuilder<LiveDataStructureItemReaderBuilder> {
+
+		public LiveDataStructureItemReaderBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		private LiveReaderOptions options = LiveReaderOptions.builder().build();
 

@@ -31,14 +31,18 @@ public class ListItemWriter<T> extends AbstractCollectionCommandItemWriter<T> {
 		return lpush ? listCommands.lpush(key, memberId) : listCommands.rpush(key, memberId);
 	}
 
-	public static <T> ListItemWriterBuilder<T> builder() {
-		return new ListItemWriterBuilder<>();
+	public static <T> ListItemWriterBuilder<T> builder(AbstractRedisClient client) {
+		return new ListItemWriterBuilder<>(client);
 	}
 
 	@Setter
 	@Accessors(fluent = true)
 	public static class ListItemWriterBuilder<T>
 			extends AbstractCollectionCommandItemWriterBuilder<T, ListItemWriterBuilder<T>> {
+
+		protected ListItemWriterBuilder(AbstractRedisClient client) {
+			super(client);
+		}
 
 		public enum PushDirection {
 			LEFT, RIGHT

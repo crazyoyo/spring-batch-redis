@@ -1,16 +1,13 @@
 package org.springframework.batch.item.redis.support;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisClient;
 
-@SuppressWarnings("unchecked")
-public class RedisClientBuilder<B extends RedisClientBuilder<B>> {
+public class RedisClientBuilder {
 
-	protected AbstractRedisClient client = RedisClient.create();
+	protected AbstractRedisClient client;
 
-	public B client(AbstractRedisClient client) {
+	public RedisClientBuilder(AbstractRedisClient client) {
 		this.client = client;
-		return (B) this;
 	}
 
 }
