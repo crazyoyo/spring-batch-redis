@@ -4,7 +4,7 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.util.Assert;
 
-public class RedisConnectionPoolBuilder<K, V, B extends RedisConnectionPoolBuilder> extends CommandTimeoutBuilder<B> {
+public class RedisKeyValueItemReaderBuilder<K, V, B extends RedisKeyValueItemReaderBuilder<K, V, B>> extends AbstractKeyValueItemReaderBuilder<K, V, B> {
 
     private GenericObjectPool<StatefulRedisConnection<K, V>> pool;
 
@@ -17,5 +17,4 @@ public class RedisConnectionPoolBuilder<K, V, B extends RedisConnectionPoolBuild
         Assert.notNull(pool, "A connection pool is required.");
         return pool;
     }
-
 }

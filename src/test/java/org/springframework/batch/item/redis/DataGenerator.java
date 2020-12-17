@@ -1,52 +1,48 @@
 package org.springframework.batch.item.redis;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-
-import org.springframework.batch.item.redis.support.ClientUtils;
-
-import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
-import lombok.Builder;
-import lombok.Builder.Default;
-import lombok.Getter;
+import lombok.Setter;
+import lombok.experimental.Accessors;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.springframework.util.Assert;
 
-@Builder
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+
+@Slf4j
 public class DataGenerator implements Runnable {
 
-	private final AbstractRedisClient client;
-	@Default
-	private final DataGeneratorOptions options = DataGeneratorOptions.builder().build();
-	@Getter
-	private boolean finished = false;
+	private final GenericObjectPool<StatefulRedisConnection<String,String>> pool;
+	private final boolean expire;
+	private final int start;
+	private final int end;
+	private final long sleep;
 
-	public static DataGeneratorBuilder builder(AbstractRedisClient client) {
-		return new DataGeneratorBuilder().client(client);
+	public DataGenerator(GenericObjectPool<StatefulRedisConnection<String, String>> pool, int start, int end, long sleep, boolean expire) {
+		this.pool = pool;
+		this.start = start;
+		this.end = end;
+		this.sleep = sleep;
+		this.expire = expire;
 	}
 
 	@Override
 	public void run() {
 		Random random = new Random();
-		Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async = ClientUtils
-				.async(client);
-		StatefulConnection<String, String> connection = ClientUtils.connection(client);
-		try {
-			RedisAsyncCommands<String, String> commands = (RedisAsyncCommands<String, String>) async.apply(connection);
+		try (StatefulRedisConnection<String,String> connection = pool.borrowObject()) {
+			RedisAsyncCommands<String, String> commands = connection.async();
 			commands.setAutoFlushCommands(false);
 			List<RedisFuture<?>> futures = new ArrayList<>();
-			for (int index = options.getStart(); index < options.getEnd(); index++) {
+			for (int index = start; index < end; index++) {
 				String stringKey = "string:" + index;
 				futures.add(commands.set(stringKey, "value:" + index));
-				futures.add(commands.expireat(stringKey, System.currentTimeMillis() + random.nextInt(100000)));
+				if (expire) {
+					futures.add(commands.expireat(stringKey, System.currentTimeMillis() + random.nextInt(100000)));
+				}
 				Map<String, String> hash = new HashMap<>();
 				hash.put("field1", "value" + index);
 				hash.put("field2", "value" + index);
@@ -59,19 +55,42 @@ public class DataGenerator implements Runnable {
 					LettuceFutures.awaitAll(60, TimeUnit.SECONDS, futures.toArray(new RedisFuture[0]));
 					futures.clear();
 				}
-				if (options.getSleep() > 0) {
-					Thread.sleep(options.getSleep());
+				if (sleep > 0) {
+					Thread.sleep(sleep);
 				}
 			}
 			commands.flushCommands();
 			LettuceFutures.awaitAll(60, TimeUnit.SECONDS, futures.toArray(new RedisFuture[0]));
-			futures.clear();
-			this.finished = true;
 		} catch (InterruptedException e) {
 			// ignore
-		} finally {
-			connection.close();
+		} catch (Exception e) {
+			log.error("Could not get connection from pool", e);
 		}
+	}
+
+	public static DataGeneratorBuilder builder() {
+		return new DataGeneratorBuilder();
+	}
+
+	@Setter
+	@Accessors(fluent = true)
+	public static class DataGeneratorBuilder {
+
+		private static final int DEFAULT_START = 0;
+		private static final int DEFAULT_END = 1000;
+		private static final boolean DEFAULT_EXPIRE = true;
+
+		private GenericObjectPool<StatefulRedisConnection<String,String>> pool;
+		private int start = DEFAULT_START;
+		private int end = DEFAULT_END;
+		private long sleep;
+		private boolean expire = DEFAULT_EXPIRE;
+
+		public DataGenerator build() {
+			Assert.notNull(pool, "A Redis connection pool is required.");
+			return new DataGenerator(pool, start, end, sleep, expire);
+		}
+
 	}
 
 }

@@ -2,10 +2,7 @@ package org.springframework.batch.item.redis.support;
 
 import java.util.List;
 
-import org.springframework.batch.item.ItemStream;
+public interface ValueReader<K, T> {
 
-public interface ValueReader<T> extends ItemStream {
-
-	List<T> read(List<? extends String> keys) throws Exception;
-
+    List<T> values(List<? extends K> keys) throws Exception;
 }

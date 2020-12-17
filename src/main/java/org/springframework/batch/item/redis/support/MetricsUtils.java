@@ -26,7 +26,7 @@ public interface MetricsUtils {
 	 * @param tags        of the timer
 	 * @return a new timer instance
 	 */
-	public static Timer createTimer(String name, String description, Tag... tags) {
+	static Timer createTimer(String name, String description, Tag... tags) {
 		return Timer.builder(METRICS_PREFIX + name).description(description).tags(Arrays.asList(tags))
 				.register(Metrics.globalRegistry);
 	}
@@ -36,7 +36,7 @@ public interface MetricsUtils {
 	 * 
 	 * @return a new timer sample instance
 	 */
-	public static Timer.Sample createTimerSample() {
+	static Timer.Sample createTimerSample() {
 		return Timer.start(Metrics.globalRegistry);
 	}
 
@@ -49,12 +49,12 @@ public interface MetricsUtils {
 	 * @param tags        of the timer
 	 * @return a new long task timer instance
 	 */
-	public static LongTaskTimer createLongTaskTimer(String name, String description, Tag... tags) {
+	static LongTaskTimer createLongTaskTimer(String name, String description, Tag... tags) {
 		return LongTaskTimer.builder(METRICS_PREFIX + name).description(description).tags(Arrays.asList(tags))
 				.register(Metrics.globalRegistry);
 	}
 
-	public static <T extends Collection<?>> T createGaugeCollectionSize(String name, T collection, Tag... tags) {
+	static <T extends Collection<?>> T createGaugeCollectionSize(String name, T collection, Tag... tags) {
 		return Metrics.globalRegistry.gaugeCollectionSize(METRICS_PREFIX + name, Arrays.asList(tags), collection);
 	}
 

@@ -1,124 +1,105 @@
 package org.springframework.batch.item.redis.support;
 
-import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.TimeUnit;
-
-import org.springframework.batch.item.ExecutionContext;
+import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.ItemStreamWriter;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import io.micrometer.core.instrument.Tag;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.*;
 
 @Slf4j
-public abstract class AbstractKeyValueItemReader<T extends KeyValue<?>> extends
-		AbstractItemCountingItemStreamItemReader<T> implements BoundedItemReader<T>, FlushableItemStreamReader<T> {
+public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>, C extends StatefulConnection<K, V>> extends AbstractPollableItemReader<T> implements ValueReader<K, T> {
 
-	@Getter
-	private final ItemReader<String> keyReader;
-	private final ValueReader<T> valueReader;
-	private final BlockingQueue<T> queue;
-	private final Transfer<String, String> transfer;
-	private Tag nameTag;
-	private long queuePollingTimeout;
-	private TransferExecution<String, String> transferExecution;
-	private CompletableFuture<Void> transferFuture;
+    private final ItemReader<K> keyReader;
+    private final long commandTimeout;
+    private final JobOptions jobOptions;
+    private final int queueCapacity;
+    private BlockingQueue<T> queue;
+    private JobExecution jobExecution;
 
-	protected AbstractKeyValueItemReader(ItemReader<String> keyReader, ValueReader<T> valueReader,
-			TransferOptions transferOptions, QueueOptions queueOptions) {
-		setName(ClassUtils.getShortName(getClass()));
-		Assert.notNull(keyReader, "A key reader is required.");
-		Assert.notNull(valueReader, "A value reader is required.");
-		Assert.notNull(transferOptions, "Transfer options are required.");
-		Assert.notNull(queueOptions, "Queue options are required.");
-		this.keyReader = keyReader;
-		this.valueReader = valueReader;
-		this.transfer = Transfer.<String, String>builder().name("value-reader").reader(keyReader)
-				.writer(new ValueEnqueuer()).options(transferOptions).build();
-		this.queue = new LinkedBlockingDeque<>(queueOptions.getCapacity());
-		this.queuePollingTimeout = queueOptions.getPollingTimeout().toMillis();
-	}
+    protected AbstractKeyValueItemReader(ItemReader<K> keyReader, Duration commandTimeout, JobOptions jobOptions, int queueCapacity, Duration pollingTimeout) {
+        super(pollingTimeout);
+        Assert.notNull(keyReader, "Key reader is required.");
+        Assert.notNull(jobOptions, "Job options are required.");
+        this.jobOptions = jobOptions;
+        this.queueCapacity = queueCapacity;
+        this.keyReader = keyReader;
+        this.commandTimeout = commandTimeout.getSeconds();
+    }
 
-	@Override
-	public void setName(String name) {
-		this.nameTag = Tag.of("name", name);
-		super.setName(name);
-	}
+    @Override
+    protected void doOpen() throws Exception {
+        queue = new LinkedBlockingDeque<>(queueCapacity);
+        MetricsUtils.createGaugeCollectionSize("reader.queue.size", queue);
+        JobFactory<K, K> factory = new JobFactory<>();
+        factory.afterPropertiesSet();
+        String name = ClassUtils.getShortName(getClass());
+        TaskletStep step = factory.<K, K>step(name + "-step", jobOptions).reader(keyReader).writer(this::writeKeys).build();
+        Job job = factory.getJobBuilderFactory().get(name + "-job").start(step).build();
+        this.jobExecution = factory.executeAsync(job, new JobParameters());
+    }
 
-	@Override
-	protected void doOpen() {
-		MetricsUtils.createGaugeCollectionSize("reader.queue.size", queue, nameTag);
-		transferExecution = new TransferExecution<>(transfer);
-		transferFuture = transferExecution.start();
-	}
+    public boolean isRunning() {
+        if (jobExecution == null) {
+            return false;
+        }
+        return jobExecution.isRunning();
+    }
 
-	@Override
-	protected void doClose() throws ItemStreamException, InterruptedException, ExecutionException {
-		if (!queue.isEmpty()) {
-			log.warn("Closing {} - {} items still in queue", ClassUtils.getShortName(getClass()), queue.size());
-		}
-		log.info("Stopping key transfer");
-		transferExecution.stop();
-		log.info("Waiting for key transfer to finish");
-		transferFuture.get();
-	}
+    @Override
+    public boolean isTerminated() {
+        return !isRunning();
+    }
 
-	private class ValueEnqueuer implements ItemStreamWriter<String> {
+    @Override
+    protected void doClose() {
+        if (isRunning()) {
+            log.warn("Enqueuer job still running");
+        }
+        if (!queue.isEmpty()) {
+            log.warn("Closing {} - {} items still in queue", ClassUtils.getShortName(getClass()), queue.size());
+        }
+        queue.clear();
+    }
 
-		@Override
-		public void open(ExecutionContext executionContext) {
-			valueReader.open(executionContext);
-		}
+    private void writeKeys(List<? extends K> keys) throws Exception {
+        for (T value : values(keys)) {
+            queue.removeIf(v -> v.getKey().equals(value.getKey()));
+            queue.put(value);
+        }
+    }
 
-		@Override
-		public void close() throws ItemStreamException {
-			valueReader.close();
-		}
+    @Override
+    public List<T> values(List<? extends K> keys) throws Exception {
+        try (C connection = connection()) {
+            BaseRedisAsyncCommands<K, V> commands = commands(connection);
+            commands.setAutoFlushCommands(false);
+            try {
+                return readValues(keys, commands, commandTimeout);
+            } finally {
+                commands.setAutoFlushCommands(true);
+            }
+        }
+    }
 
-		@Override
-		public void update(ExecutionContext executionContext) throws ItemStreamException {
-			valueReader.update(executionContext);
-		}
 
-		@Override
-		public void write(List<? extends String> keys) throws Exception {
-			for (T value : valueReader.read(keys)) {
-				queue.removeIf(v -> v.getKey().equals(value.getKey()));
-				queue.put(value);
-			}
-		}
+    protected abstract C connection() throws Exception;
 
-	}
+    protected abstract BaseRedisAsyncCommands<K, V> commands(C connection);
 
-	@Override
-	protected T doRead() throws Exception {
-		T item;
-		do {
-			item = queue.poll(queuePollingTimeout, TimeUnit.MILLISECONDS);
-		} while (item == null && !transferExecution.isTerminated());
-		return item;
-	}
+    protected abstract List<T> readValues(List<? extends K> keys, BaseRedisAsyncCommands<K, V> commands, long timeout) throws InterruptedException, ExecutionException, TimeoutException;
 
-	@Override
-	public void flush() {
-		transferExecution.flush();
-	}
-
-	@Override
-	public int available() {
-		if (keyReader instanceof BoundedItemReader) {
-			return ((BoundedItemReader<String>) keyReader).available();
-		}
-		return 0;
-	}
+    @Override
+    public T poll(Duration timeout) throws InterruptedException {
+        return queue.poll(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    }
 
 }
