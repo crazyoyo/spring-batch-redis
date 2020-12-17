@@ -35,7 +35,7 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
 
     @Override
     protected void doOpen() {
-        MetricsUtils.createGaugeCollectionSize("livekeyreader.queue.size", queue);
+        MetricsUtils.createGaugeCollectionSize("reader.notification.queue.size", queue);
         log.debug("Subscribing to pub/sub pattern {}, queue capacity: {}", pubSubPattern, queue.remainingCapacity());
         subscribe(pubSubPattern);
     }
