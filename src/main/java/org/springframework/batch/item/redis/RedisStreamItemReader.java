@@ -6,8 +6,6 @@ import io.lettuce.core.api.sync.RedisStreamCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.springframework.batch.item.redis.support.AbstractStreamItemReader;
-import org.springframework.batch.item.redis.support.AbstractStreamItemReaderBuilder;
-import org.springframework.util.Assert;
 
 import java.time.Duration;
 
@@ -25,18 +23,21 @@ public class RedisStreamItemReader<K, V> extends AbstractStreamItemReader<K, V> 
         return connection.sync();
     }
 
-    public static <K, V> RedisStreamItemReaderBuilder<K, V> builder() {
-        return new RedisStreamItemReaderBuilder<>();
+    public static RedisStreamItemReaderBuilder builder(StatefulRedisConnection<String, String> connection) {
+        return new RedisStreamItemReaderBuilder(connection);
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisStreamItemReaderBuilder<K, V> extends AbstractStreamItemReaderBuilder<K, V, RedisStreamItemReaderBuilder<K, V>> {
+    public static class RedisStreamItemReaderBuilder extends StreamItemReaderBuilder<RedisStreamItemReaderBuilder> {
 
-        private StatefulRedisConnection<K, V> connection;
+        private final StatefulRedisConnection<String, String> connection;
 
-        public RedisStreamItemReader<K, V> build() {
-            Assert.notNull(connection, "A Redis connection is required.");
+        public RedisStreamItemReaderBuilder(StatefulRedisConnection<String, String> connection) {
+            this.connection = connection;
+        }
+
+        public RedisStreamItemReader<String, String> build() {
             return new RedisStreamItemReader<>(connection, offset, block, count, noack);
         }
 

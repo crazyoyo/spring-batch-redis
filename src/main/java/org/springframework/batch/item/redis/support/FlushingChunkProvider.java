@@ -18,6 +18,7 @@ import org.springframework.util.Assert;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * ChunkProvider that allows for incomplete chunks when timeout is reached
@@ -71,17 +72,18 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
             I item = null;
             try {
                 item = poll(timeout - (System.currentTimeMillis() - start));
+                if (item == null) {
+                    if (itemReader.isTerminated()) {
+                        log.debug("End chunk");
+                        inputs.setEnd();
+                    }
+                    return RepeatStatus.FINISHED;
+                }
             } catch (SkipOverflowException e) {
                 // read() tells us about an excess of skips by throwing an exception
                 status = BatchMetrics.STATUS_FAILURE;
                 return RepeatStatus.FINISHED;
             } finally {
-                if (item == null) {
-                    if (itemReader.isTerminated()) {
-                        inputs.setEnd();
-                    }
-                    return RepeatStatus.FINISHED;
-                }
                 stopTimer(sample, contribution.getStepExecution(), status);
             }
             inputs.add(item);
@@ -97,7 +99,7 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
 
     protected I poll(long timeout) throws InterruptedException {
         listener.beforeRead();
-        I item = itemReader.poll(Duration.ofMillis(timeout));
+        I item = itemReader.poll(timeout, TimeUnit.MILLISECONDS);
         if (item != null) {
             listener.afterRead(item);
         }

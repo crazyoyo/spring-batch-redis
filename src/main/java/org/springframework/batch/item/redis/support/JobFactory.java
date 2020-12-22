@@ -18,19 +18,20 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 
-public class JobFactory<I, O> implements InitializingBean {
+@SuppressWarnings("deprecation")
+public class JobFactory implements InitializingBean {
 
-    private MapJobRepositoryFactoryBean jobRepositoryFactoryBean;
     @Getter
     private JobBuilderFactory jobBuilderFactory;
     @Getter
     private StepBuilderFactory stepBuilderFactory;
     private JobLauncher syncLauncher;
+    @Getter
     private JobLauncher asyncLauncher;
 
     @Override
     public void afterPropertiesSet() throws Exception {
-        jobRepositoryFactoryBean = new MapJobRepositoryFactoryBean();
+        MapJobRepositoryFactoryBean jobRepositoryFactoryBean = new MapJobRepositoryFactoryBean();
         JobRepository jobRepository = jobRepositoryFactoryBean.getObject();
         jobBuilderFactory = new JobBuilderFactory(jobRepository);
         stepBuilderFactory = new StepBuilderFactory(jobRepository, jobRepositoryFactoryBean.getTransactionManager());
@@ -53,18 +54,18 @@ public class JobFactory<I, O> implements InitializingBean {
         return launcher;
     }
 
-    public JobExecution execute(Job job, JobParameters parameters) throws JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
-        return syncLauncher.run(job, parameters);
+    public void execute(Job job, JobParameters parameters) throws JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
+        syncLauncher.run(job, parameters);
     }
 
     public JobExecution executeAsync(Job job, JobParameters parameters) throws JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
         return asyncLauncher.run(job, parameters);
     }
 
-    public <I, O> SimpleStepBuilder<I, O> step(String name, JobOptions jobOptions) {
+    public <I, O> SimpleStepBuilder<I, O> step(String name, int chunkSize, int threads) {
         SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
-        taskExecutor.setConcurrencyLimit(jobOptions.getThreads());
-        return (SimpleStepBuilder<I, O>) stepBuilderFactory.get(name).<I, O>chunk(jobOptions.getChunkSize()).taskExecutor(taskExecutor).throttleLimit(jobOptions.getThreads());
+        taskExecutor.setConcurrencyLimit(threads);
+        return (SimpleStepBuilder<I, O>) stepBuilderFactory.get(name).<I, O>chunk(chunkSize).taskExecutor(taskExecutor).throttleLimit(threads);
     }
 
 }

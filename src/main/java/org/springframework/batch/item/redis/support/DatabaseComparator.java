@@ -10,25 +10,32 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.ClassUtils;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Builder
 public class DatabaseComparator<K, V> {
 
+    public static Duration DEFAULT_TTL_TOLERANCE = Duration.ofSeconds(1);
+
     @NonNull
     private final ItemReader<DataStructure<K>> left;
     @NonNull
     private final ValueReader<K, DataStructure<K>> right;
     @Builder.Default
-    private final ComparatorOptions options = ComparatorOptions.builder().build();
+    private final Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
+    @Builder.Default
+    private final int chunkSize = AbstractKeyValueItemReader.ScanKeyValueItemReaderBuilder.DEFAULT_CHUNK_SIZE;
+    @Builder.Default
+    private final int threads = AbstractKeyValueItemReader.ScanKeyValueItemReaderBuilder.DEFAULT_THREAD_COUNT;
 
     public DatabaseComparison execute() throws Exception {
-        JobFactory<DataStructure<K>, DataStructure<K>> factory = new JobFactory<>();
+        JobFactory factory = new JobFactory();
         factory.afterPropertiesSet();
         String name = ClassUtils.getShortName(getClass());
-        KeyComparisonItemWriter<K> writer = new KeyComparisonItemWriter<>(right, options.getTtlTolerance().getSeconds());
-        TaskletStep step = factory.<DataStructure<K>, DataStructure<K>>step(name + "-step", options.getJobOptions()).reader(left).writer(writer).build();
+        KeyComparisonItemWriter<K> writer = new KeyComparisonItemWriter<>(right, ttlTolerance.getSeconds());
+        TaskletStep step = factory.<DataStructure<K>, DataStructure<K>>step(name + "-step", chunkSize, threads).reader(left).writer(writer).build();
         Job job = factory.getJobBuilderFactory().get(name + "-job").start(step).build();
         factory.execute(job, new JobParameters());
         return new DatabaseComparison(writer.getComparisons());

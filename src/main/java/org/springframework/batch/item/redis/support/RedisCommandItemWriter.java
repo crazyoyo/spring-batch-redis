@@ -6,7 +6,6 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.springframework.util.Assert;
 
 import java.time.Duration;
 import java.util.function.BiFunction;
@@ -30,19 +29,23 @@ public class RedisCommandItemWriter<K, V, T> extends AbstractCommandItemWriter<K
         return pool.borrowObject();
     }
 
-    public static <K, V, T> RedisCommandItemWriterBuilder<K, V, T> builder() {
-        return new RedisCommandItemWriterBuilder<>();
+    public static <T> RedisCommandItemWriterBuilder<T> builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool, BiFunction<?, T, RedisFuture<?>> command) {
+        return new RedisCommandItemWriterBuilder<>(pool, (BiFunction) command);
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisCommandItemWriterBuilder<K, V, T> extends AbstractCommandItemWriterBuilder<K, V, T, RedisCommandItemWriterBuilder<K, V, T>> {
+    public static class RedisCommandItemWriterBuilder<T> extends CommandItemWriterBuilder<T, RedisCommandItemWriterBuilder<T>> {
 
-        private GenericObjectPool<StatefulRedisConnection<K, V>> pool;
+        private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
 
-        public RedisCommandItemWriter<K, V, T> build() {
-            Assert.notNull(pool, "A connection pool is required.");
-            return new RedisCommandItemWriter<>(pool, getCommand(), timeout);
+        public RedisCommandItemWriterBuilder(GenericObjectPool<StatefulRedisConnection<String, String>> pool, BiFunction<BaseRedisAsyncCommands<String, String>, T, RedisFuture<?>> command) {
+            super(command);
+            this.pool = pool;
+        }
+
+        public RedisCommandItemWriter<String, String, T> build() {
+            return new RedisCommandItemWriter<>(pool, command, commandTimeout);
         }
 
     }

@@ -6,7 +6,7 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractKeyDumpItemWriter;
-import org.springframework.batch.item.redis.support.RedisConnectionPoolBuilder;
+import org.springframework.batch.item.redis.support.CommandTimeoutBuilder;
 
 import java.time.Duration;
 
@@ -29,18 +29,23 @@ public class RedisKeyDumpItemWriter<K, V> extends AbstractKeyDumpItemWriter<K, V
         return connection.async();
     }
 
-    public static <K, V> RedisKeyDumpItemWriterBuilder<K, V> builder() {
-        return new RedisKeyDumpItemWriterBuilder<>();
+    public static RedisKeyDumpItemWriterBuilder builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool) {
+        return new RedisKeyDumpItemWriterBuilder(pool);
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisKeyDumpItemWriterBuilder<K, V> extends RedisConnectionPoolBuilder<K, V, RedisKeyDumpItemWriterBuilder<K, V>> {
+    public static class RedisKeyDumpItemWriterBuilder extends CommandTimeoutBuilder<RedisKeyDumpItemWriterBuilder> {
 
+        private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
         private boolean replace;
 
-        public RedisKeyDumpItemWriter<K, V> build() {
-            return new RedisKeyDumpItemWriter<>(getPool(), replace, commandTimeout);
+        public RedisKeyDumpItemWriterBuilder(GenericObjectPool<StatefulRedisConnection<String, String>> pool) {
+            this.pool = pool;
+        }
+
+        public RedisKeyDumpItemWriter<String, String> build() {
+            return new RedisKeyDumpItemWriter<>(pool, replace, commandTimeout);
         }
 
     }

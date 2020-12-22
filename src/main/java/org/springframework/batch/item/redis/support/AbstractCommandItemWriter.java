@@ -30,4 +30,14 @@ public abstract class AbstractCommandItemWriter<K, V, T, C extends StatefulConne
         return futures;
     }
 
+    public static class CommandItemWriterBuilder<T, B extends CommandItemWriterBuilder<T, B>> extends CommandTimeoutBuilder<B> {
+
+        protected final BiFunction<BaseRedisAsyncCommands<String, String>, T, RedisFuture<?>> command;
+
+        protected CommandItemWriterBuilder(BiFunction<BaseRedisAsyncCommands<String, String>, T, RedisFuture<?>> command) {
+            this.command = command;
+        }
+
+    }
+
 }

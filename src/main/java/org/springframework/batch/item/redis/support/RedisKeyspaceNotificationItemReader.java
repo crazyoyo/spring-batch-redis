@@ -2,16 +2,19 @@ package org.springframework.batch.item.redis.support;
 
 import io.lettuce.core.pubsub.RedisPubSubAdapter;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
-import lombok.Builder;
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.util.Assert;
+
+import java.time.Duration;
 
 public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceNotificationItemReader<K, V> {
 
     private final StatefulRedisPubSubConnection<K, V> connection;
     private final KeyspaceNotificationListener listener = new KeyspaceNotificationListener();
 
-    @Builder
-    public RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<K, V> connection, KeyspaceNotificationReaderOptions<K> options) {
-        super(options);
+    public RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<K, V> connection, K pubSubPattern, Converter<K, K> keyExtractor, int queueCapacity, Duration pollingTimeout) {
+        super(pubSubPattern, keyExtractor, queueCapacity, pollingTimeout);
+        Assert.notNull(connection, "A pub/sub connection is required.");
         this.connection = connection;
     }
 

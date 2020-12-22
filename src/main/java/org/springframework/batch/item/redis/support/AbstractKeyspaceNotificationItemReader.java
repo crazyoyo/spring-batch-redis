@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis.support;
 import com.hybhub.util.concurrent.ConcurrentSetBlockingQueue;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.util.Assert;
 
 import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
@@ -13,15 +14,18 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
 
 
     private final K pubSubPattern;
-    private final Converter<K, K> notificationToKeyConverter;
+    private final Converter<K, K> keyExtractor;
     private final BlockingQueue<K> queue;
     private boolean stopped;
 
-    protected AbstractKeyspaceNotificationItemReader(KeyspaceNotificationReaderOptions<K> options) {
-        super(options.getQueuePollingTimeout());
-        this.pubSubPattern = options.getPubSubPattern();
-        this.notificationToKeyConverter = options.getKeyExtractor();
-        this.queue = new ConcurrentSetBlockingQueue<>(options.getQueueCapacity());
+    protected AbstractKeyspaceNotificationItemReader(K pubSubPattern, Converter<K, K> keyExtractor, int queueCapacity, Duration pollingTimeout) {
+        super(pollingTimeout);
+        Assert.notNull(pubSubPattern, "A pub/sub subscription pattern is required.");
+        Assert.notNull(keyExtractor, "A key extractor is required.");
+        Assert.isTrue(queueCapacity > 0, "Queue capacity must be greater than zero.");
+        this.pubSubPattern = pubSubPattern;
+        this.keyExtractor = keyExtractor;
+        this.queue = new ConcurrentSetBlockingQueue<>(queueCapacity);
     }
 
     public void stop() {
@@ -29,8 +33,8 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
     }
 
     @Override
-    public K poll(Duration timeout) throws InterruptedException {
-        return queue.poll(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    public K poll(long timeout, TimeUnit unit) throws InterruptedException {
+        return queue.poll(timeout, unit);
     }
 
     @Override
@@ -60,7 +64,10 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
         if (notification == null) {
             return;
         }
-        K key = notificationToKeyConverter.convert(notification);
+        K key = keyExtractor.convert(notification);
+        if (key == null) {
+            return;
+        }
         log.debug("Adding key {}", key);
         queue.offer(key);
     }

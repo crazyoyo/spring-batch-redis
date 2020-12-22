@@ -8,18 +8,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.Assert;
 
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public abstract class AbstractStreamItemReader<K, V> extends AbstractPollableItemReader<StreamMessage<K, V>> {
 
     private final Long count;
-    private boolean noack;
+    private final boolean noack;
     private StreamOffset<K> offset;
     private Iterator<StreamMessage<K, V>> iterator;
-    private boolean stopped;
 
     public AbstractStreamItemReader(StreamOffset<K> offset, Duration block, Long count, boolean noack) {
         super(block);
@@ -31,7 +31,7 @@ public abstract class AbstractStreamItemReader<K, V> extends AbstractPollableIte
 
     @Override
     protected void doOpen() {
-        iterator = new ArrayList<StreamMessage<K, V>>().iterator();
+        iterator = Collections.emptyIterator();
     }
 
     @Override
@@ -39,23 +39,13 @@ public abstract class AbstractStreamItemReader<K, V> extends AbstractPollableIte
         iterator = null;
     }
 
-    public void stop() {
-        this.stopped = true;
-    }
-
     @Override
-    public boolean isTerminated() {
-        return stopped;
-    }
-
-    @Override
-    public StreamMessage<K, V> poll(Duration timeout) {
+    public StreamMessage<K, V> poll(long timeout, TimeUnit unit) {
         if (!iterator.hasNext()) {
-            XReadArgs args = XReadArgs.Builder.block(timeout).noack(noack);
+            XReadArgs args = XReadArgs.Builder.block(unit.toMillis(timeout)).noack(noack);
             if (count != null) {
                 args.count(count);
             }
-            log.debug("Reading stream with args {} and offset {}", args, offset);
             List<StreamMessage<K, V>> messages = commands().xread(args, offset);
             if (messages == null || messages.isEmpty()) {
                 return null;
@@ -64,9 +54,42 @@ public abstract class AbstractStreamItemReader<K, V> extends AbstractPollableIte
         }
         StreamMessage<K, V> message = iterator.next();
         offset = StreamOffset.from(message.getStream(), message.getId());
+        log.debug("Message: {}", message);
         return message;
     }
 
     protected abstract RedisStreamCommands<K, V> commands();
+
+    public static class StreamItemReaderBuilder<B extends StreamItemReaderBuilder<B>> {
+
+        public final static Duration DEFAULT_BLOCK = Duration.ofMillis(100);
+
+        protected XReadArgs.StreamOffset<String> offset;
+        protected Duration block = DEFAULT_BLOCK;
+        protected Long count;
+        protected boolean noack;
+
+        public B offset(XReadArgs.StreamOffset<String> offset) {
+            this.offset = offset;
+            return (B) this;
+        }
+
+        public B block(Duration block) {
+            this.block = block;
+            return (B) this;
+        }
+
+        public B count(long count) {
+            this.count = count;
+            return (B) this;
+        }
+
+        public B noack(boolean noack) {
+            this.noack = noack;
+            return (B) this;
+        }
+
+    }
+
 
 }

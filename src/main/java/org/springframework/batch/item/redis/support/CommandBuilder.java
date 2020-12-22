@@ -16,52 +16,52 @@ public interface CommandBuilder<C, T> {
 
     BiFunction<C, T, RedisFuture<?>> build();
 
-    abstract class KeyCommandBuilder<K, V, C, T, B extends KeyCommandBuilder<K, V, C, T, B>> implements CommandBuilder<C, T> {
+    abstract class KeyCommandBuilder<C, T, B extends KeyCommandBuilder<C, T, B>> implements CommandBuilder<C, T> {
 
         @NonNull
-        private Converter<T, K> keyConverter;
+        private Converter<T, String> keyConverter;
 
         @SuppressWarnings("unchecked")
-        public B keyConverter(Converter<T, K> keyConverter) {
+        public B keyConverter(Converter<T, String> keyConverter) {
             this.keyConverter = keyConverter;
             return (B) this;
         }
 
-        protected K key(T source) {
+        protected String key(T source) {
             return keyConverter.convert(source);
         }
     }
 
-    abstract class CollectionCommandBuilder<K, V, C, T, B extends CollectionCommandBuilder<K, V, C, T, B>> extends KeyCommandBuilder<K, V, C, T, B> {
+    abstract class CollectionCommandBuilder<C, T, B extends CollectionCommandBuilder<C, T, B>> extends KeyCommandBuilder<C, T, B> {
 
         @NonNull
-        private Converter<T, V> memberIdConverter;
+        private Converter<T, String> memberIdConverter;
 
         @SuppressWarnings("unchecked")
-        public B memberIdConverter(Converter<T, V> memberIdConverter) {
+        public B memberIdConverter(Converter<T, String> memberIdConverter) {
             this.memberIdConverter = memberIdConverter;
             return (B) this;
         }
 
-        protected V memberId(T source) {
+        protected String memberId(T source) {
             return memberIdConverter.convert(source);
         }
     }
 
     @Setter
     @Accessors(fluent = true)
-    class EvalBuilder<K, V, T> implements CommandBuilder<RedisScriptingAsyncCommands<K, V>, T> {
+    class EvalBuilder<T> implements CommandBuilder<RedisScriptingAsyncCommands<String, String>, T> {
 
         @NonNull
         private String sha;
         @NonNull
         private ScriptOutputType outputType;
         @NonNull
-        private Converter<T, K[]> keysConverter;
+        private Converter<T, String[]> keysConverter;
         @NonNull
-        private Converter<T, V[]> argsConverter;
+        private Converter<T, String[]> argsConverter;
 
-        public BiFunction<RedisScriptingAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<RedisScriptingAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> c.evalsha(sha, outputType, keysConverter.convert(t), argsConverter.convert(t));
         }
 
@@ -69,12 +69,12 @@ public interface CommandBuilder<C, T> {
 
     @Setter
     @Accessors(fluent = true)
-    class ExpireBuilder<K, V, T> extends KeyCommandBuilder<K, V, RedisKeyAsyncCommands<K, V>, T, ExpireBuilder<K, V, T>> {
+    class ExpireBuilder<T> extends KeyCommandBuilder<RedisKeyAsyncCommands<String, String>, T, ExpireBuilder<T>> {
 
         @NonNull
         private Converter<T, Long> timeoutConverter;
 
-        public BiFunction<RedisKeyAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<RedisKeyAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> c.expire(key(t), timeoutConverter.convert(t));
         }
 
@@ -82,13 +82,13 @@ public interface CommandBuilder<C, T> {
 
     @Setter
     @Accessors(fluent = true)
-    class HmsetBuilder<K, V, T> extends KeyCommandBuilder<K, V, RedisHashAsyncCommands<K, V>, T, HmsetBuilder<K, V, T>> {
+    class HmsetBuilder<T> extends KeyCommandBuilder<RedisHashAsyncCommands<String, String>, T, HmsetBuilder<T>> {
 
         @NonNull
-        private Converter<T, Map<K, V>> mapConverter;
+        private Converter<T, Map<String, String>> mapConverter;
 
         @Override
-        public BiFunction<RedisHashAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<RedisHashAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> c.hmset(key(t), mapConverter.convert(t));
         }
     }
@@ -96,46 +96,46 @@ public interface CommandBuilder<C, T> {
 
     @Setter
     @Accessors(fluent = true)
-    class GeoaddBuilder<K, V, T> extends CollectionCommandBuilder<K, V, RedisGeoAsyncCommands<K, V>, T, GeoaddBuilder<K, V, T>> {
+    class GeoaddBuilder<T> extends CollectionCommandBuilder<RedisGeoAsyncCommands<String, String>, T, GeoaddBuilder<T>> {
 
         @NonNull
         private Converter<T, Double> longitudeConverter;
         @NonNull
         private Converter<T, Double> latitudeConverter;
 
-        public BiFunction<RedisGeoAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<RedisGeoAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> c.geoadd(key(t), longitudeConverter.convert(t), latitudeConverter.convert(t), memberId(t));
         }
 
     }
 
-    class LpushBuilder<K, V, T> extends CollectionCommandBuilder<K, V, RedisListAsyncCommands<K, V>, T, LpushBuilder<K, V, T>> {
+    class LpushBuilder<T> extends CollectionCommandBuilder<RedisListAsyncCommands<String, String>, T, LpushBuilder<T>> {
 
-        public BiFunction<RedisListAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<RedisListAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> c.lpush(key(t), memberId(t));
         }
 
     }
 
-    class NoopBuilder<K, V, T> implements CommandBuilder<BaseRedisAsyncCommands<K, V>, T> {
+    class NoopBuilder<T> implements CommandBuilder<BaseRedisAsyncCommands<String, String>, T> {
 
         @Override
-        public BiFunction<BaseRedisAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<BaseRedisAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> null;
         }
     }
 
-    class RpushBuilder<K, V, T> extends CollectionCommandBuilder<K, V, RedisListAsyncCommands<K, V>, T, RpushBuilder<K, V, T>> {
+    class RpushBuilder<T> extends CollectionCommandBuilder<RedisListAsyncCommands<String, String>, T, RpushBuilder<T>> {
 
-        public BiFunction<RedisListAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<RedisListAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> c.rpush(key(t), memberId(t));
         }
 
     }
 
-    class SaddBuilder<K, V, T> extends CollectionCommandBuilder<K, V, RedisSetAsyncCommands<K, V>, T, SaddBuilder<K, V, T>> {
+    class SaddBuilder<T> extends CollectionCommandBuilder<RedisSetAsyncCommands<String, String>, T, SaddBuilder<T>> {
 
-        public BiFunction<RedisSetAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<RedisSetAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> c.sadd(key(t), memberId(t));
         }
 
@@ -143,12 +143,12 @@ public interface CommandBuilder<C, T> {
 
     @Setter
     @Accessors(fluent = true)
-    class SetBuilder<K, V, T> extends KeyCommandBuilder<K, V, RedisStringAsyncCommands<K, V>, T, SetBuilder<K, V, T>> {
+    class SetBuilder<T> extends KeyCommandBuilder<RedisStringAsyncCommands<String, String>, T, SetBuilder<T>> {
 
         @NonNull
-        private Converter<T, V> valueConverter;
+        private Converter<T, String> valueConverter;
 
-        public BiFunction<RedisStringAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<RedisStringAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> c.set(key(t), valueConverter.convert(t));
         }
 
@@ -156,12 +156,12 @@ public interface CommandBuilder<C, T> {
 
     @Setter
     @Accessors(fluent = true)
-    class ZaddBuilder<K, V, T> extends CollectionCommandBuilder<K, V, RedisSortedSetAsyncCommands<K, V>, T, ZaddBuilder<K, V, T>> {
+    class ZaddBuilder<T> extends CollectionCommandBuilder<RedisSortedSetAsyncCommands<String, String>, T, ZaddBuilder<T>> {
 
         @NonNull
         private Converter<T, Double> scoreConverter;
 
-        public BiFunction<RedisSortedSetAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<RedisSortedSetAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> c.zadd(key(t), scoreConverter.convert(t), memberId(t));
         }
 
@@ -169,56 +169,56 @@ public interface CommandBuilder<C, T> {
 
     @Setter
     @Accessors(fluent = true)
-    class XaddBuilder<K, V, T> extends KeyCommandBuilder<K, V, RedisStreamAsyncCommands<K, V>, T, XaddBuilder<K, V, T>> {
+    class XaddBuilder<T> extends KeyCommandBuilder<RedisStreamAsyncCommands<String, String>, T, XaddBuilder<T>> {
 
         @NonNull
-        private Converter<T, Map<K, V>> bodyConverter;
+        private Converter<T, Map<String, String>> bodyConverter;
         @NonNull
         private Converter<T, XAddArgs> argsConverter = s -> null;
 
         @Override
-        public BiFunction<RedisStreamAsyncCommands<K, V>, T, RedisFuture<?>> build() {
+        public BiFunction<RedisStreamAsyncCommands<String, String>, T, RedisFuture<?>> build() {
             return (c, t) -> c.xadd(key(t), argsConverter.convert(t), bodyConverter.convert(t));
         }
     }
 
-    static <K, V, T> EvalBuilder<K, V, T> eval() {
+    static <T> EvalBuilder<T> eval() {
         return new EvalBuilder<>();
     }
 
-    static <K, V, T> ExpireBuilder<K, V, T> expire() {
+    static <T> ExpireBuilder<T> expire() {
         return new ExpireBuilder<>();
     }
 
-    static <K, V, T> HmsetBuilder<K, V, T> hmset() {
+    static <T> HmsetBuilder<T> hmset() {
         return new HmsetBuilder<>();
     }
 
-    static <K, V, T> LpushBuilder<K, V, T> lpush() {
+    static <T> LpushBuilder<T> lpush() {
         return new LpushBuilder<>();
     }
 
-    static <K, V, T> NoopBuilder<K, V, T> noop() {
+    static <T> NoopBuilder<T> noop() {
         return new NoopBuilder<>();
     }
 
-    static <K, V, T> RpushBuilder<K, V, T> rpush() {
+    static <T> RpushBuilder<T> rpush() {
         return new RpushBuilder<>();
     }
 
-    static <K, V, T> SaddBuilder<K, V, T> sadd() {
+    static <T> SaddBuilder<T> sadd() {
         return new SaddBuilder<>();
     }
 
-    static <K, V, T> SetBuilder<K, V, T> set() {
+    static <T> SetBuilder<T> set() {
         return new SetBuilder<>();
     }
 
-    static <K, V, T> XaddBuilder<K, V, T> xadd() {
+    static <T> XaddBuilder<T> xadd() {
         return new XaddBuilder<>();
     }
 
-    static <K, V, T> ZaddBuilder<K, V, T> zadd() {
+    static <T> ZaddBuilder<T> zadd() {
         return new ZaddBuilder<>();
     }
 

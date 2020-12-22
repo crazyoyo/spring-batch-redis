@@ -95,8 +95,8 @@ public class DataGenerator implements Callable<Long> {
         }
     }
 
-    public static DataGeneratorBuilder builder() {
-        return new DataGeneratorBuilder();
+    public static DataGeneratorBuilder builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool) {
+        return new DataGeneratorBuilder(pool);
     }
 
     @Setter
@@ -107,11 +107,15 @@ public class DataGenerator implements Callable<Long> {
         private static final int DEFAULT_END = 1000;
         private static final boolean DEFAULT_EXPIRE = true;
 
-        private GenericObjectPool<StatefulRedisConnection<String, String>> pool;
+        private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
         private int start = DEFAULT_START;
         private int end = DEFAULT_END;
         private long sleep;
         private boolean expire = DEFAULT_EXPIRE;
+
+        public DataGeneratorBuilder(GenericObjectPool<StatefulRedisConnection<String, String>> pool) {
+            this.pool = pool;
+        }
 
         public DataGenerator build() {
             Assert.notNull(pool, "A Redis connection pool is required.");

@@ -1,7 +1,6 @@
 package org.springframework.batch.item.redis.support;
 
 import io.lettuce.core.RedisURI;
-import org.springframework.util.Assert;
 
 import java.time.Duration;
 

@@ -8,22 +8,18 @@ import java.time.Duration;
 
 public class RedisKeyItemReader<K, V> extends AbstractKeyItemReader<K, V, StatefulRedisConnection<K, V>> {
 
-    public RedisKeyItemReader(StatefulRedisConnection<K, V> connection, Duration commandTimeout, long scanCount, String scanMatch, int sampleSize) {
-        super(connection, commandTimeout, scanCount, scanMatch, sampleSize);
+    public RedisKeyItemReader(StatefulRedisConnection<K, V> connection, Duration commandTimeout, long scanCount, String scanMatch) {
+        super(connection, commandTimeout, scanCount, scanMatch);
     }
 
     @Override
-    protected RedisAsyncCommands<K, V> async(StatefulRedisConnection<K, V> connection) throws Exception {
+    protected RedisAsyncCommands<K, V> async(StatefulRedisConnection<K, V> connection) {
         return connection.async();
     }
 
     @Override
-    protected BaseRedisCommands<K, V> sync(StatefulRedisConnection<K, V> connection) throws Exception {
+    protected BaseRedisCommands<K, V> sync(StatefulRedisConnection<K, V> connection) {
         return connection.sync();
-    }
-
-    public static <K, V> RedisKeyItemReaderBuilder<K, V> builder() {
-        return new RedisKeyItemReaderBuilder<>();
     }
 
 }

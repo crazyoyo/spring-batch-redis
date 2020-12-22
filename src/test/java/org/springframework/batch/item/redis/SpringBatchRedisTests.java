@@ -9,8 +9,10 @@ import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.sync.RedisCommands;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
+import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.search.Search;
+import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -18,16 +20,17 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.junit.Assert;
 import org.junit.jupiter.api.*;
 import org.junit.runner.RunWith;
-import org.springframework.batch.core.*;
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.repository.JobRestartException;
-import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
-import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.DefaultBufferedReaderFactory;
@@ -48,6 +51,7 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -139,33 +143,16 @@ public class SpringBatchRedisTests {
     @Test
     public void testFlushingStep() throws Exception {
         StatefulRedisPubSubConnection<String, String> pubSubConnection = sourceRedisClient.connectPubSub();
-        RedisKeyspaceNotificationItemReader<String, String> reader = new RedisKeyspaceNotificationItemReader<>(pubSubConnection, KeyspaceNotificationReaderOptions.builder().build());
+        RedisDataStructureItemReader<String, String> reader = RedisDataStructureItemReader.builder(sourcePool, pubSubConnection).build();
         ListItemWriter<String> writer = new ListItemWriter<>();
-        StepBuilder stepBuilder = stepBuilderFactory.get("polling-step");
-        TaskletStep step = new FlushingStepBuilder<String, String>(stepBuilder).chunk(50).reader(reader).writer(writer).build();
-        Job job = jobBuilderFactory.get("polling-job").start(step).build();
-        JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
+        JobExecution execution = executeFlushing("flushing", (RedisKeyspaceNotificationItemReader<String, String>) reader.getKeyReader(), writer);
         while (!execution.isRunning()) {
             Thread.sleep(10);
         }
-        DataGenerator.builder().pool(sourcePool).end(3).expire(false).build().call();
+        DataGenerator.builder(sourcePool).end(3).expire(false).build().call();
         Thread.sleep(100);
         Assertions.assertEquals(15, writer.getWrittenItems().size());
         execution.stop();
-    }
-
-    @Test
-    public void testKeyValueItemReaderProgress() throws Exception {
-        DataGenerator.builder().pool(sourcePool).end(100).expire(false).build().call();
-        RedisKeyItemReader<String, String> keyReader = RedisKeyItemReader.<String, String>builder().connection(sourceConnection).build();
-        RedisDataStructureItemReader<String, String> reader = RedisDataStructureItemReader.<String, String>builder().pool(sourcePool).keyReader(keyReader).build();
-        reader.open(new ExecutionContext());
-        do {
-            Thread.sleep(10);
-        } while (!reader.isRunning());
-        long total = keyReader.size();
-        Assertions.assertEquals(sourceSync.dbsize(), total, 10);
-        reader.close();
     }
 
     @Test
@@ -177,7 +164,7 @@ public class SpringBatchRedisTests {
             }
         };
         execute("scan-reader-populate", fileReader, hmsetWriter);
-        RedisDataStructureItemReader<String, String> reader = RedisDataStructureItemReader.<String, String>builder().pool(sourcePool).keyReader(RedisKeyItemReader.<String, String>builder().connection(sourceConnection).build()).build();
+        RedisDataStructureItemReader<String, String> reader = RedisDataStructureItemReader.builder(sourcePool, sourceConnection).build();
         ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
         JobExecution execution = execute("scan-reader", reader, writer);
         Assert.assertTrue(execution.getAllFailureExceptions().isEmpty());
@@ -186,8 +173,8 @@ public class SpringBatchRedisTests {
 
     @Test
     public void testStreamReader() throws Exception {
-        DataGenerator.builder().pool(sourcePool).end(100).build().call();
-        AbstractStreamItemReader reader = RedisStreamItemReader.<String, String>builder().connection(sourceConnection).offset(StreamOffset.from("stream:0", "0-0")).build();
+        DataGenerator.builder(sourcePool).end(100).build().call();
+        RedisStreamItemReader<String, String> reader = RedisStreamItemReader.builder(sourceConnection).offset(StreamOffset.from("stream:0", "0-0")).build();
         reader.setMaxItemCount(10);
         ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
         execute("stream-reader", reader, writer);
@@ -210,8 +197,8 @@ public class SpringBatchRedisTests {
             messages.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-        BiFunction<RedisStreamAsyncCommands<String, String>, Map<String, String>, RedisFuture<?>> command = CommandBuilder.<String, String, Map<String, String>>xadd().keyConverter(i -> stream).bodyConverter(i -> i).build();
-        RedisCommandItemWriter writer = RedisCommandItemWriter.<String, String, Map<String, String>>builder().pool(targetPool).command(command).build();
+        BiFunction<RedisStreamAsyncCommands<String, String>, Map<String, String>, RedisFuture<?>> command = CommandBuilder.<Map<String, String>>xadd().keyConverter(i -> stream).bodyConverter(i -> i).build();
+        RedisCommandItemWriter writer = RedisCommandItemWriter.builder(targetPool, command).build();
         execute("stream-writer", reader, writer);
         Assertions.assertEquals(messages.size(), targetSync.xlen(stream));
         List<StreamMessage<String, String>> xrange = targetSync.xrange(stream, Range.create("-", "+"));
@@ -234,8 +221,8 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
         KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash").converters(h -> h.remove("id")).build();
-        BiFunction<RedisHashAsyncCommands<String, String>, Map<String, String>, RedisFuture<?>> hmset = CommandBuilder.<String, String, Map<String, String>>hmset().keyConverter(keyConverter).mapConverter(m -> m).build();
-        RedisCommandItemWriter writer = RedisCommandItemWriter.<String, String, Map<String, String>>builder().pool(targetPool).command(hmset).build();
+        BiFunction<RedisHashAsyncCommands<String, String>, Map<String, String>, RedisFuture<?>> hmset = CommandBuilder.<Map<String, String>>hmset().keyConverter(keyConverter).mapConverter(m -> m).build();
+        RedisCommandItemWriter writer = RedisCommandItemWriter.builder(targetPool, hmset).build();
         execute("hash-writer", reader, writer);
         Assertions.assertEquals(maps.size(), targetSync.keys("hash:*").size());
         for (int index = 0; index < maps.size(); index++) {
@@ -253,8 +240,8 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<ScoredValue<String>> reader = new ListItemReader<>(values);
         KeyMaker<ScoredValue<String>> keyConverter = KeyMaker.<ScoredValue<String>>builder().prefix("zset").build();
-        BiFunction<RedisSortedSetAsyncCommands<String, String>, ScoredValue<String>, RedisFuture<?>> command = CommandBuilder.<String, String, ScoredValue<String>>zadd().keyConverter(keyConverter).memberIdConverter(v -> v.getValue()).scoreConverter(v -> v.getScore()).build();
-        RedisCommandItemWriter writer = RedisCommandItemWriter.<String, String, ScoredValue<String>>builder().pool(targetPool).command(command).build();
+        BiFunction<RedisSortedSetAsyncCommands<String, String>, ScoredValue<String>, RedisFuture<?>> command = CommandBuilder.<ScoredValue<String>>zadd().keyConverter(keyConverter).memberIdConverter(Value::getValue).scoreConverter(ScoredValue::getScore).build();
+        RedisCommandItemWriter writer = RedisCommandItemWriter.builder(targetPool, command).build();
         execute("sorted-set-writer", reader, writer);
         Assertions.assertEquals(1, targetSync.dbsize());
         Assertions.assertEquals(values.size(), targetSync.zcard("zset"));
@@ -277,7 +264,7 @@ public class SpringBatchRedisTests {
             list.add(keyValue);
         }
         ListItemReader<DataStructure<String>> reader = new ListItemReader<>(list);
-        RedisDataStructureItemWriter<String, String> writer = RedisDataStructureItemWriter.<String, String>builder().pool(targetPool).build();
+        RedisDataStructureItemWriter<String, String> writer = RedisDataStructureItemWriter.builder(targetPool).build();
         execute("value-writer", reader, writer);
         List<String> keys = targetSync.keys("hash:*");
         Assertions.assertEquals(count, keys.size());
@@ -285,9 +272,9 @@ public class SpringBatchRedisTests {
 
     @Test
     public void testReplication() throws Exception {
-        DataGenerator.builder().pool(sourcePool).end(10000).build().call();
-        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.<String, String>builder().pool(sourcePool).keyReader(RedisKeyItemReader.<String, String>builder().connection(sourceConnection).build()).build();
-        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.<String, String>builder().pool(targetPool).replace(true).build();
+        DataGenerator.builder(sourcePool).end(10000).build().call();
+        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.builder(sourcePool, sourceConnection).build();
+        RedisKeyDumpItemWriter<String, String> writer = RedisKeyDumpItemWriter.builder(targetPool).replace(true).build();
         execute("replication", reader, writer);
         compare();
     }
@@ -295,15 +282,14 @@ public class SpringBatchRedisTests {
     @Test
     public void testLiveReplication() throws Exception {
         StatefulRedisPubSubConnection<String, String> pubSubConnection = sourceRedisClient.connectPubSub();
-        RedisKeyspaceNotificationItemReader<String, String> keyReader = RedisKeyspaceNotificationItemReader.<String, String>builder().connection(pubSubConnection).options(KeyspaceNotificationReaderOptions.builder().build()).build();
-        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.<String, String>builder().pool(sourcePool).keyReader(keyReader).build();
-        RedisKeyDumpItemWriter writer = RedisKeyDumpItemWriter.<String, String>builder().pool(targetPool).replace(true).build();
-        JobExecution execution = asyncJobLauncher.run(job("live-replication", reader, writer), new JobParameters());
+        RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.builder(sourcePool, pubSubConnection).build();
+        RedisKeyDumpItemWriter writer = RedisKeyDumpItemWriter.builder(targetPool).replace(true).build();
+        JobExecution execution = executeFlushing("live-replication", reader, writer);
         Thread.sleep(100);
-        DataGenerator.builder().pool(sourcePool).end(2).sleep(1L).build().call();
+        DataGenerator.builder(sourcePool).end(2).sleep(1L).build().call();
         Thread.sleep(100);
         log.info("Stopping keyspace notification reader");
-        keyReader.stop();
+        ((RedisKeyspaceNotificationItemReader<String, String>) reader.getKeyReader()).stop();
         log.info("Waiting for job to complete");
         while (execution.isRunning()) {
             log.info("Job execution status: {} - stopping: {}", execution.getStatus(), execution.isStopping());
@@ -315,8 +301,8 @@ public class SpringBatchRedisTests {
 
     private void compare() throws Exception {
         Assert.assertEquals(sourceSync.dbsize(), targetSync.dbsize());
-        RedisDataStructureItemReader<String, String> left = RedisDataStructureItemReader.<String, String>builder().pool(sourcePool).keyReader(RedisKeyItemReader.<String, String>builder().connection(sourceConnection).build()).build();
-        RedisDataStructureItemReader<String, String> right = RedisDataStructureItemReader.<String, String>builder().pool(targetPool).keyReader(RedisKeyItemReader.<String, String>builder().connection(targetConnection).build()).build();
+        RedisDataStructureItemReader<String, String> left = RedisDataStructureItemReader.builder(sourcePool, sourceConnection).build();
+        RedisDataStructureItemReader<String, String> right = RedisDataStructureItemReader.builder(targetPool, targetConnection).build();
         DatabaseComparator<String, String> comparator = DatabaseComparator.<String, String>builder().left(left).right(right).build();
         DatabaseComparison comparison = comparator.execute();
         Assertions.assertTrue(comparison.isIdentical());
@@ -326,37 +312,56 @@ public class SpringBatchRedisTests {
         return jobLauncher.run(job(name, reader, writer), new JobParameters());
     }
 
-    private <T> JobExecution executeAsync(String name, ItemReader<T> reader, ItemWriter<T> writer) throws JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
+    private <T> JobExecution executeAsync(String name, ItemReader<T> reader, ItemWriter<T> writer) throws Exception {
         return asyncJobLauncher.run(job(name, reader, writer), new JobParameters());
     }
 
-    private <I, O> Job job(String name, ItemReader<? extends I> reader, ItemWriter<? super O> writer) {
-        return jobBuilderFactory.get(name + "-job").start(step(name, reader, writer)).build();
+    private <T> JobExecution executeFlushing(String name, PollableItemReader<T> reader, ItemWriter<T> writer) throws JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
+        TaskletStep step = new FlushingStepBuilder<T, T>(stepBuilderFactory.get(name + "-step")).chunk(50).reader(reader).writer(writer).build();
+        return asyncJobLauncher.run(job(name, step), new JobParameters());
     }
 
-    private <I, O> Step step(String name, ItemReader<? extends I> reader, ItemWriter<? super O> writer) {
-        StepBuilder stepBuilder = stepBuilderFactory.get(name + "-step");
-        if (reader instanceof PollableItemReader) {
-            return new FlushingStepBuilder<I, O>(stepBuilder).<I, O>chunk(50).reader(reader).writer(writer).build();
-        }
-        return stepBuilder.<I, O>chunk(50).reader(reader).writer(writer).build();
+    private <T> Job job(String name, ItemReader<? extends T> reader, ItemWriter<T> writer) {
+        return job(name, stepBuilderFactory.get(name + "-step").<T, T>chunk(50).reader(reader).writer(writer).build());
+    }
 
+    private Job job(String name, TaskletStep step) {
+        return jobBuilderFactory.get(name + "-job").start(step).build();
     }
 
     @Test
     public void testMetrics() throws Exception {
-        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
+            @Override
+            public String get(String key) {
+                return null;
+            }
+
+            @Override
+            public Duration step() {
+                return Duration.ofMillis(1);
+            }
+        }, Clock.SYSTEM);
         Metrics.addRegistry(registry);
-        DataGenerator.builder().pool(sourcePool).end(10).build().call();
-        RedisKeyItemReader<String, String> keyReader = RedisKeyItemReader.<String, String>builder().connection(sourceConnection).build();
-        RedisDataStructureItemReader reader = RedisDataStructureItemReader.<String, String>builder().pool(sourcePool).keyReader(keyReader).build();
+        DataGenerator.builder(sourcePool).end(100).build().call();
+        RedisDataStructureItemReader reader = RedisDataStructureItemReader.builder(sourcePool, sourceConnection).queueCapacity(10).chunkSize(1).build();
         ThrottledWriter<DataStructure<String>> writer = ThrottledWriter.<DataStructure<String>>builder().build();
-        execute("metrics", reader, writer);
+        TaskletStep step = stepBuilderFactory.get("metrics-step").<DataStructure<String>, DataStructure<String>>chunk(1).reader(reader).writer(writer).build();
+        Job job = jobBuilderFactory.get("metrics-job").start(step).build();
+        JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
+        while (!execution.isRunning()) {
+            Thread.sleep(1);
+        }
+        Thread.sleep(100);
+        registry.forEachMeter(m -> log.info("Meter: {}", m.getId().getName()));
         Search search = registry.find("spring.batch.item.read");
         Assertions.assertNotNull(search.timer());
         search = registry.find("spring.batch.redis.reader.queue.size");
-        Assertions.assertEquals(0, search.gauge().value());
-        log.info("Job completed");
+        Assertions.assertNotNull(search.gauge());
+        while (execution.isRunning()) {
+            Thread.sleep(1);
+        }
     }
 
 }

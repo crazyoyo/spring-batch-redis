@@ -6,7 +6,6 @@ import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.*;
-import org.springframework.batch.item.redis.support.DataStructure;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 
@@ -49,7 +48,7 @@ public abstract class AbstractDataStructureItemWriter<K, V, C extends StatefulCo
                             futures.add(((RedisSetAsyncCommands<K, V>) commands).sadd(item.getKey(), (V[]) ((Collection<V>) item.getValue()).toArray()));
                             break;
                         case ZSET:
-                            futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(item.getKey(), (ScoredValue<V>[]) ((Collection<ScoredValue<V>>) item.getValue()).toArray(new ScoredValue[0])));
+                            futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(item.getKey(), ((Collection<ScoredValue<V>>) item.getValue()).toArray(new ScoredValue[0])));
                             break;
                         case HASH:
                             futures.add(((RedisHashAsyncCommands<K, V>) commands).hmset(item.getKey(), (Map<K, V>) item.getValue()));

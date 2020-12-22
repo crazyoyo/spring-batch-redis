@@ -4,7 +4,7 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractDataStructureItemWriter;
-import org.springframework.batch.item.redis.support.RedisConnectionPoolBuilder;
+import org.springframework.batch.item.redis.support.CommandTimeoutBuilder;
 
 import java.time.Duration;
 
@@ -27,14 +27,20 @@ public class RedisDataStructureItemWriter<K, V> extends AbstractDataStructureIte
         return connection.async();
     }
 
-    public static <K, V> RedisDataStructureItemWriterBuilder<K, V> builder() {
-        return new RedisDataStructureItemWriterBuilder<>();
+    public static RedisDataStructureItemWriterBuilder builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool) {
+        return new RedisDataStructureItemWriterBuilder(pool);
     }
 
-    public static class RedisDataStructureItemWriterBuilder<K, V> extends RedisConnectionPoolBuilder<K, V, RedisDataStructureItemWriterBuilder<K, V>> {
+    public static class RedisDataStructureItemWriterBuilder extends CommandTimeoutBuilder<RedisDataStructureItemWriterBuilder> {
 
-        public RedisDataStructureItemWriter<K, V> build() {
-            return new RedisDataStructureItemWriter<>(getPool(), commandTimeout);
+        private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
+
+        public RedisDataStructureItemWriterBuilder(GenericObjectPool<StatefulRedisConnection<String, String>> pool) {
+            this.pool = pool;
+        }
+
+        public RedisDataStructureItemWriter<String, String> build() {
+            return new RedisDataStructureItemWriter<>(pool, commandTimeout);
         }
 
     }

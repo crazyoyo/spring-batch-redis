@@ -2,11 +2,13 @@ package org.springframework.batch.item.redis;
 
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
+import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.AbstractKeyDumpItemReader;
-import org.springframework.batch.item.redis.support.JobOptions;
-import org.springframework.batch.item.redis.support.RedisClusterKeyValueItemReaderBuilder;
+import org.springframework.batch.item.redis.support.RedisClusterKeyItemReader;
+import org.springframework.batch.item.redis.support.RedisClusterKeyspaceNotificationItemReader;
+import org.springframework.util.Assert;
 
 import java.time.Duration;
 
@@ -14,8 +16,9 @@ public class RedisClusterKeyDumpItemReader<K, V> extends AbstractKeyDumpItemRead
 
     private final GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool;
 
-    public RedisClusterKeyDumpItemReader(GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool, ItemReader<K> keyReader, Duration commandTimeout, JobOptions jobOptions, int queueCapacity, Duration pollingTimeout) {
-        super(keyReader, commandTimeout, jobOptions, queueCapacity, pollingTimeout);
+    public RedisClusterKeyDumpItemReader(GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool, ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity, Duration pollingTimeout) {
+        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+        Assert.notNull(pool, "A connection pool is required.");
         this.pool = pool;
     }
 
@@ -29,14 +32,44 @@ public class RedisClusterKeyDumpItemReader<K, V> extends AbstractKeyDumpItemRead
         return connection.async();
     }
 
-    public static <K, V> RedisClusterKeyDumpItemReaderBuilder<K, V> builder() {
-        return new RedisClusterKeyDumpItemReaderBuilder<>();
+    public static RedisClusterKeyDumpItemReaderBuilder builder(GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool, StatefulRedisClusterConnection<String, String> connection) {
+        return new RedisClusterKeyDumpItemReaderBuilder(pool, connection);
     }
 
-    public static class RedisClusterKeyDumpItemReaderBuilder<K, V> extends RedisClusterKeyValueItemReaderBuilder<K, V, RedisClusterKeyDumpItemReaderBuilder<K, V>> {
+    public static RedisClusterNotificationKeyDumpItemReaderBuilder builder(GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool, StatefulRedisClusterPubSubConnection<String, String> connection) {
+        return new RedisClusterNotificationKeyDumpItemReaderBuilder(pool, connection);
+    }
 
-        public RedisClusterKeyDumpItemReader<K, V> build() {
-            return new RedisClusterKeyDumpItemReader<>(getPool(), getKeyReader(), commandTimeout, jobOptions, queueCapacity, pollingTimeout);
+    public static class RedisClusterKeyDumpItemReaderBuilder extends ScanKeyValueItemReaderBuilder<RedisClusterKeyDumpItemReaderBuilder> {
+
+        private final GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool;
+        private final StatefulRedisClusterConnection<String, String> connection;
+
+        public RedisClusterKeyDumpItemReaderBuilder(GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool, StatefulRedisClusterConnection<String, String> connection) {
+            this.pool = pool;
+            this.connection = connection;
+        }
+
+        public RedisClusterKeyDumpItemReader<String, String> build() {
+            RedisClusterKeyItemReader<String, String> keyReader = new RedisClusterKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern);
+            return new RedisClusterKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+        }
+
+    }
+
+    public static class RedisClusterNotificationKeyDumpItemReaderBuilder extends NotificationKeyValueItemReaderBuilder<RedisClusterNotificationKeyDumpItemReaderBuilder> {
+
+        private final GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool;
+        private final StatefulRedisClusterPubSubConnection<String,String> connection;
+
+        public RedisClusterNotificationKeyDumpItemReaderBuilder(GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool, StatefulRedisClusterPubSubConnection<String, String> connection) {
+            this.pool = pool;
+            this.connection = connection;
+        }
+
+        public RedisClusterKeyDumpItemReader<String, String> build() {
+            RedisClusterKeyspaceNotificationItemReader<String, String> keyReader = new RedisClusterKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, queueCapacity, queuePollingTimeout);
+            return new RedisClusterKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
         }
 
     }

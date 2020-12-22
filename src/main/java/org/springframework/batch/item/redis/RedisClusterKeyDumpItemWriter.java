@@ -2,14 +2,11 @@ package org.springframework.batch.item.redis;
 
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import lombok.Builder;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.springframework.batch.item.redis.support.AbstractDataStructureItemWriter;
 import org.springframework.batch.item.redis.support.AbstractKeyDumpItemWriter;
-import org.springframework.batch.item.redis.support.RedisClusterConnectionPoolBuilder;
-import org.springframework.batch.item.redis.support.RedisConnectionPoolBuilder;
+import org.springframework.batch.item.redis.support.CommandTimeoutBuilder;
 
 import java.time.Duration;
 
@@ -32,18 +29,23 @@ public class RedisClusterKeyDumpItemWriter<K, V> extends AbstractKeyDumpItemWrit
         return connection.async();
     }
 
-    public static <K, V> RedisClusterKeyDumpItemWriterBuilder<K, V> builder() {
-        return new RedisClusterKeyDumpItemWriterBuilder<>();
+    public static RedisClusterKeyDumpItemWriterBuilder builder(GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool) {
+        return new RedisClusterKeyDumpItemWriterBuilder(pool);
     }
 
     @Setter
     @Accessors(fluent = true)
-    public static class RedisClusterKeyDumpItemWriterBuilder<K, V> extends RedisClusterConnectionPoolBuilder<K, V, RedisClusterKeyDumpItemWriterBuilder<K, V>> {
+    public static class RedisClusterKeyDumpItemWriterBuilder extends CommandTimeoutBuilder<RedisClusterKeyDumpItemWriterBuilder> {
 
+        private final GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool;
         private boolean replace;
 
-        public RedisClusterKeyDumpItemWriter<K, V> build() {
-            return new RedisClusterKeyDumpItemWriter<>(getPool(), replace, commandTimeout);
+        public RedisClusterKeyDumpItemWriterBuilder(GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool) {
+            this.pool = pool;
+        }
+
+        public RedisClusterKeyDumpItemWriter<String, String> build() {
+            return new RedisClusterKeyDumpItemWriter<>(pool, replace, commandTimeout);
         }
 
     }

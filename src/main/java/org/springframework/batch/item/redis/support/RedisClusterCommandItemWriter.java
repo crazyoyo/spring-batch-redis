@@ -3,10 +3,7 @@ package org.springframework.batch.item.redis.support;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.springframework.util.Assert;
 
 import java.time.Duration;
 import java.util.function.BiFunction;
@@ -30,8 +27,23 @@ public class RedisClusterCommandItemWriter<K, V, T> extends AbstractCommandItemW
         return pool.borrowObject();
     }
 
-    public static <K, V, T> RedisClusterCommandItemWriterBuilder<K, V, T> builder() {
-        return new RedisClusterCommandItemWriterBuilder<>();
+    public static <T> RedisClusterCommandItemWriterBuilder<T> builder(GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool, BiFunction<?, T, RedisFuture<?>> command) {
+        return new RedisClusterCommandItemWriterBuilder<>(pool, (BiFunction) command);
+    }
+
+    public static class RedisClusterCommandItemWriterBuilder<T> extends CommandItemWriterBuilder<T, RedisClusterCommandItemWriterBuilder<T>> {
+
+        private final GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool;
+
+        public RedisClusterCommandItemWriterBuilder(GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool, BiFunction<BaseRedisAsyncCommands<String, String>, T, RedisFuture<?>> command) {
+            super(command);
+            this.pool = pool;
+        }
+
+        public RedisClusterCommandItemWriter<String, String, T> build() {
+            return new RedisClusterCommandItemWriter(pool, command, commandTimeout);
+        }
+
     }
 
 }

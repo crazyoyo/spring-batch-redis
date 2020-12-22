@@ -6,10 +6,8 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 
 public abstract class AbstractRedisItemWriter<K, V, T, C extends StatefulConnection<K, V>> extends AbstractItemStreamItemWriter<T> {
 
