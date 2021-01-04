@@ -7,11 +7,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.step.tasklet.TaskletStep;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
@@ -55,9 +56,14 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>,
     protected void doOpen() throws Exception {
         JobFactory factory = new JobFactory();
         factory.afterPropertiesSet();
-        TaskletStep step = factory.<K, K>step(name + "-step", chunkSize, threads).reader(keyReader).writer(valueReader).build();
-        Job job = factory.getJobBuilderFactory().get(name + "-job").start(step).build();
-        this.jobExecution = factory.executeAsync(job, new JobParameters());
+        SimpleStepBuilder<K, K> stepBuilder = factory.step(name + "-step").<K, K>chunk(chunkSize);
+        if (keyReader instanceof PollableItemReader) {
+            stepBuilder = new FlushingStepBuilder<>(stepBuilder);
+        }
+        SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
+        taskExecutor.setConcurrencyLimit(threads);
+        Job job = factory.job(name + "-job").start(stepBuilder.reader(keyReader).writer(valueReader).taskExecutor(taskExecutor).throttleLimit(threads).build()).build();
+        this.jobExecution = factory.getAsyncLauncher().run(job, new JobParameters());
         while (!jobExecution.isRunning()) {
             Thread.sleep(1);
         }

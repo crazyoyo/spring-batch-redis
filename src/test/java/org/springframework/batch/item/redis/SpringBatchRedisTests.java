@@ -339,7 +339,7 @@ public class SpringBatchRedisTests {
         Assert.assertEquals(sourceSync.dbsize(), targetSync.dbsize());
         RedisDataStructureItemReader<String, String> left = RedisDataStructureItemReader.builder(sourcePool, sourceConnection).build();
         RedisDataStructureItemReader<String, String> right = RedisDataStructureItemReader.builder(targetPool, targetConnection).build();
-        DatabaseComparator<String, String> comparator = DatabaseComparator.<String, String>builder().left(left).right(right).build();
+        DatabaseComparator<String> comparator = DatabaseComparator.<String>builder().left(left).right(right).build();
         DatabaseComparison comparison = comparator.execute();
         Assertions.assertTrue(comparison.isIdentical());
     }

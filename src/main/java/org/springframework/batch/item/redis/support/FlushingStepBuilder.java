@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.function.Function;
 
+import org.springframework.batch.core.step.builder.AbstractTaskletStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilderHelper;
 import org.springframework.batch.core.step.item.ChunkOrientedTasklet;
@@ -13,6 +14,7 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.repeat.RepeatOperations;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.util.Assert;
 
 public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
@@ -64,6 +66,11 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 	}
 
 	@Override
+	public FlushingStepBuilder<I, O> reader(ItemReader<? extends I> reader) {
+		return (FlushingStepBuilder<I, O>) super.reader(reader);
+	}
+
+	@Override
 	public FlushingStepBuilder<I, O> writer(ItemWriter<? super O> writer) {
 		return (FlushingStepBuilder<I, O>) super.writer(writer);
 	}
@@ -77,4 +84,5 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 	public FlushingStepBuilder<I, O> processor(ItemProcessor<? super I, ? extends O> processor) {
 		return (FlushingStepBuilder<I, O>) super.processor(processor);
 	}
+
 }

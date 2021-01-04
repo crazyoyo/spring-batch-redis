@@ -12,10 +12,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends AbstractPollableItemReader<K> {
 
-    public enum EventType {
-        COPY_TO, EXPIRE, EXPIRED, RENAME_FROM, RENAME_TO, MOVE_FROM, MOVE_TO, DEL, EVICTED
-    }
-
     private final K pubSubPattern;
     private final Converter<K, K> keyExtractor;
     private final BlockingQueue<K> queue;

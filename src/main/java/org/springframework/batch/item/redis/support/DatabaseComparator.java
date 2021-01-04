@@ -3,11 +3,11 @@ package org.springframework.batch.item.redis.support;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
-import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.util.ClassUtils;
 
 import java.time.Duration;
@@ -15,7 +15,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Builder
-public class DatabaseComparator<K, V> {
+public class DatabaseComparator<K> {
 
     public static Duration DEFAULT_TTL_TOLERANCE = Duration.ofSeconds(1);
 
@@ -30,15 +30,16 @@ public class DatabaseComparator<K, V> {
     @Builder.Default
     private final int threads = AbstractKeyValueItemReader.ScanKeyValueItemReaderBuilder.DEFAULT_THREAD_COUNT;
 
-    public DatabaseComparison execute() throws Exception {
+    public DatabaseComparison<K> execute() throws Exception {
         JobFactory factory = new JobFactory();
         factory.afterPropertiesSet();
         String name = ClassUtils.getShortName(getClass());
         KeyComparisonItemWriter<K> writer = new KeyComparisonItemWriter<>(right, ttlTolerance.getSeconds());
-        TaskletStep step = factory.<DataStructure<K>, DataStructure<K>>step(name + "-step", chunkSize, threads).reader(left).writer(writer).build();
-        Job job = factory.getJobBuilderFactory().get(name + "-job").start(step).build();
-        factory.execute(job, new JobParameters());
-        return new DatabaseComparison(writer.getComparisons());
+        SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
+        taskExecutor.setConcurrencyLimit(threads);
+        TaskletStep step = factory.step(name + "-step").<DataStructure<K>, DataStructure<K>>chunk(chunkSize).reader(left).writer(writer).taskExecutor(taskExecutor).throttleLimit(threads).build();
+        factory.getSyncLauncher().run(factory.job(name + "-job").start(step).build(), new JobParameters());
+        return new DatabaseComparison<>(writer.getComparisons());
     }
 
     private static class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<DataStructure<K>> {
