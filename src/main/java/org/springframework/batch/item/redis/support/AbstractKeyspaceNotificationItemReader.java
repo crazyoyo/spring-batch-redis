@@ -12,6 +12,9 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends AbstractPollableItemReader<K> {
 
+    public enum EventType {
+        COPY_TO, EXPIRE, EXPIRED, RENAME_FROM, RENAME_TO, MOVE_FROM, MOVE_TO, DEL, EVICTED
+    }
 
     private final K pubSubPattern;
     private final Converter<K, K> keyExtractor;
@@ -60,15 +63,14 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
 
     protected abstract void unsubscribe(K pubSubPattern);
 
-    protected void notification(K notification, V message) {
-        if (notification == null) {
+    protected void notification(K channel, V message) {
+        if (channel == null) {
             return;
         }
-        K key = keyExtractor.convert(notification);
+        K key = keyExtractor.convert(channel);
         if (key == null) {
             return;
         }
-        log.debug("Adding key {}", key);
         queue.offer(key);
     }
 

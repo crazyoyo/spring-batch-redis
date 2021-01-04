@@ -4,32 +4,41 @@ import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
-import lombok.Setter;
-import lombok.experimental.Accessors;
+import lombok.Builder;
+import lombok.NonNull;
+import lombok.Singular;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.springframework.util.Assert;
+import org.springframework.batch.item.redis.support.DataType;
 
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
+@Builder
 public class DataGenerator implements Callable<Long> {
 
-    private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
-    private final boolean expire;
-    private final int start;
-    private final int end;
-    private final long sleep;
 
-    public DataGenerator(GenericObjectPool<StatefulRedisConnection<String, String>> pool, int start, int end, long sleep, boolean expire) {
-        this.pool = pool;
-        this.start = start;
-        this.end = end;
-        this.sleep = sleep;
-        this.expire = expire;
-    }
+    private static final int DEFAULT_START = 0;
+    private static final int DEFAULT_END = 1000;
+    private static final boolean DEFAULT_EXPIRE = true;
+    private static final int DEFAULT_BATCH_SIZE = 50;
+    private static final int DEFAULT_MAX_EXPIRE = 100000;
+
+    @NonNull
+    private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
+    @Builder.Default
+    private int start = DEFAULT_START;
+    @Builder.Default
+    private int end = DEFAULT_END;
+    private long sleep;
+    @Builder.Default
+    private int maxExpire = DEFAULT_MAX_EXPIRE;
+    @Builder.Default
+    private int batchSize = DEFAULT_BATCH_SIZE;
+    @Singular
+    private Set<DataType> dataTypes;
 
     @Override
     public Long call() throws Exception {
@@ -61,19 +70,34 @@ public class DataGenerator implements Callable<Long> {
         public Long call() throws InterruptedException {
             long count = 0;
             for (int index = start; index < end; index++) {
-                String stringKey = "string:" + index;
-                futures.add(commands.set(stringKey, "value:" + index));
-                if (expire) {
-                    futures.add(commands.expireat(stringKey, System.currentTimeMillis() + random.nextInt(100000)));
+                if (contains(DataType.STRING)) {
+                    String stringKey = "string:" + index;
+                    futures.add(commands.set(stringKey, "value:" + index));
+                    if (maxExpire > 0) {
+                        futures.add(commands.expireat(stringKey, System.currentTimeMillis() + random.nextInt(maxExpire)));
+                    }
                 }
                 Map<String, String> hash = new HashMap<>();
                 hash.put("field1", "value" + index);
                 hash.put("field2", "value" + index);
-                futures.add(commands.hmset("hash:" + index, hash));
-                futures.add(commands.sadd("set:" + (index % 10), "member:" + index));
-                futures.add(commands.zadd("zset:" + (index % 10), index % 3, "member:" + index));
-                futures.add(commands.xadd("stream:" + (index % 10), hash));
-                if (futures.size() >= 50) {
+                String member = "member:" + index;
+                int collectionIndex = index % 10;
+                if (contains(DataType.HASH)) {
+                    futures.add(commands.hmset("hash:" + index, hash));
+                }
+                if (contains(DataType.SET)) {
+                    futures.add(commands.sadd("set:" + collectionIndex, member));
+                }
+                if (contains(DataType.ZSET)) {
+                    futures.add(commands.zadd("zset:" + collectionIndex, index % 3, member));
+                }
+                if (contains(DataType.STREAM)) {
+                    futures.add(commands.xadd("stream:" + collectionIndex, hash));
+                }
+                if (contains(DataType.LIST)) {
+                    futures.add(commands.lpush("list:" + collectionIndex, member));
+                }
+                if (futures.size() >= batchSize) {
                     count += flush();
                 }
                 if (sleep > 0) {
@@ -95,33 +119,12 @@ public class DataGenerator implements Callable<Long> {
         }
     }
 
-    public static DataGeneratorBuilder builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool) {
-        return new DataGeneratorBuilder(pool);
+    private boolean contains(DataType type) {
+        if (dataTypes.isEmpty()) {
+            return true;
+        }
+        return dataTypes.contains(type);
     }
 
-    @Setter
-    @Accessors(fluent = true)
-    public static class DataGeneratorBuilder {
-
-        private static final int DEFAULT_START = 0;
-        private static final int DEFAULT_END = 1000;
-        private static final boolean DEFAULT_EXPIRE = true;
-
-        private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
-        private int start = DEFAULT_START;
-        private int end = DEFAULT_END;
-        private long sleep;
-        private boolean expire = DEFAULT_EXPIRE;
-
-        public DataGeneratorBuilder(GenericObjectPool<StatefulRedisConnection<String, String>> pool) {
-            this.pool = pool;
-        }
-
-        public DataGenerator build() {
-            Assert.notNull(pool, "A Redis connection pool is required.");
-            return new DataGenerator(pool, start, end, sleep, expire);
-        }
-
-    }
 
 }

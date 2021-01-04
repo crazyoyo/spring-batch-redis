@@ -29,6 +29,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>,
     private final ItemReader<K> keyReader;
     private final ValueReader valueReader;
     private JobExecution jobExecution;
+    private String name;
 
     protected AbstractKeyValueItemReader(ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity, Duration pollingTimeout) {
         super(pollingTimeout);
@@ -45,10 +46,15 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>,
     }
 
     @Override
+    public void setName(String name) {
+        this.name = name;
+        super.setName(name);
+    }
+
+    @Override
     protected void doOpen() throws Exception {
         JobFactory factory = new JobFactory();
         factory.afterPropertiesSet();
-        String name = ClassUtils.getShortName(getClass());
         TaskletStep step = factory.<K, K>step(name + "-step", chunkSize, threads).reader(keyReader).writer(valueReader).build();
         Job job = factory.getJobBuilderFactory().get(name + "-job").start(step).build();
         this.jobExecution = factory.executeAsync(job, new JobParameters());
