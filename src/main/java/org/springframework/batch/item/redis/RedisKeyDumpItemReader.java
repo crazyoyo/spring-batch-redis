@@ -5,9 +5,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.redis.support.AbstractKeyDumpItemReader;
-import org.springframework.batch.item.redis.support.RedisKeyItemReader;
-import org.springframework.batch.item.redis.support.RedisKeyspaceNotificationItemReader;
+import org.springframework.batch.item.redis.support.*;
 
 import java.time.Duration;
 

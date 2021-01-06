@@ -7,12 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
-import org.springframework.core.convert.converter.Converter;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
@@ -56,13 +53,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>,
     protected void doOpen() throws Exception {
         JobFactory factory = new JobFactory();
         factory.afterPropertiesSet();
-        SimpleStepBuilder<K, K> stepBuilder = factory.step(name + "-step").<K, K>chunk(chunkSize);
-        if (keyReader instanceof PollableItemReader) {
-            stepBuilder = new FlushingStepBuilder<>(stepBuilder);
-        }
-        SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
-        taskExecutor.setConcurrencyLimit(threads);
-        Job job = factory.job(name + "-job").start(stepBuilder.reader(keyReader).writer(valueReader).taskExecutor(taskExecutor).throttleLimit(threads).build()).build();
+        Job job = factory.job(name + "-job").start(factory.step(name + "-step", chunkSize, threads, keyReader, null, valueReader)).build();
         this.jobExecution = factory.getAsyncLauncher().run(job, new JobParameters());
         while (!jobExecution.isRunning()) {
             Thread.sleep(1);
@@ -144,97 +135,5 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>,
     public T poll(long timeout, TimeUnit unit) throws InterruptedException {
         return valueReader.getQueue().poll(timeout, unit);
     }
-
-    private static class KeyValueItemReaderBuilder<B extends KeyValueItemReaderBuilder<B>> extends CommandTimeoutBuilder<B> {
-
-        public static final Duration DEFAULT_POLLING_TIMEOUT = Duration.ofMillis(100);
-        public static final int DEFAULT_QUEUE_CAPACITY = 1000;
-        public static final int DEFAULT_CHUNK_SIZE = 50;
-        public static final int DEFAULT_THREAD_COUNT = 1;
-        public static final String DEFAULT_KEY_PATTERN = "*";
-
-        protected int chunkSize = DEFAULT_CHUNK_SIZE;
-        protected int threads = DEFAULT_THREAD_COUNT;
-        protected int queueCapacity = DEFAULT_QUEUE_CAPACITY;
-        protected Duration pollingTimeout = DEFAULT_POLLING_TIMEOUT;
-
-        protected String keyPattern = DEFAULT_KEY_PATTERN;
-
-        public B keyPattern(String keyPattern) {
-            this.keyPattern = keyPattern;
-            return (B) this;
-        }
-
-        public B chunkSize(int chunkSize) {
-            this.chunkSize = chunkSize;
-            return (B) this;
-        }
-
-        public B threads(int threads) {
-            this.threads = threads;
-            return (B) this;
-        }
-
-        public B queueCapacity(int queueCapacity) {
-            this.queueCapacity = queueCapacity;
-            return (B) this;
-        }
-
-        public B pollingTimeout(Duration pollingTimeout) {
-            this.pollingTimeout = pollingTimeout;
-            return (B) this;
-        }
-
-    }
-
-    protected static abstract class ScanKeyValueItemReaderBuilder<B extends ScanKeyValueItemReaderBuilder<B>> extends KeyValueItemReaderBuilder<B> {
-
-        public static final long DEFAULT_SCAN_COUNT = 1000;
-        public static final int DEFAULT_SAMPLE_SIZE = 30;
-
-        protected long scanCount = DEFAULT_SCAN_COUNT;
-
-        public B scanCount(long scanCount) {
-            this.scanCount = scanCount;
-            return (B) this;
-        }
-
-    }
-
-
-    protected static abstract class NotificationKeyValueItemReaderBuilder<B extends NotificationKeyValueItemReaderBuilder<B>> extends KeyValueItemReaderBuilder<B> {
-
-        public static final int DEFAULT_DATABASE = 0;
-        protected static final Converter<String, String> DEFAULT_KEY_EXTRACTOR = m -> m.substring(m.indexOf(":") + 1);
-        private static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
-
-        private static final int DEFAULT_QUEUE_CAPACITY = 1000;
-        private static final Duration DEFAULT_QUEUE_POLLING_TIMEOUT = Duration.ofMillis(100);
-
-        private int database = DEFAULT_DATABASE;
-        protected int queueCapacity = DEFAULT_QUEUE_CAPACITY;
-        protected Duration queuePollingTimeout = DEFAULT_QUEUE_POLLING_TIMEOUT;
-
-        public B queueCapacity(int queueCapacity) {
-            this.queueCapacity = queueCapacity;
-            return (B) this;
-        }
-
-        public B queuePollingTimeout(Duration queuePollingTimeout) {
-            this.queuePollingTimeout = queuePollingTimeout;
-            return (B) this;
-        }
-
-        public B database(int database) {
-            this.database = database;
-            return (B) this;
-        }
-
-        protected String pubSubPattern() {
-            return String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern);
-        }
-
-    }
-
 
 }

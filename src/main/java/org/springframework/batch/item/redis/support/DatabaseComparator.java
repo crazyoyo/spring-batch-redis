@@ -26,9 +26,9 @@ public class DatabaseComparator<K> {
     @Builder.Default
     private final Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
     @Builder.Default
-    private final int chunkSize = AbstractKeyValueItemReader.ScanKeyValueItemReaderBuilder.DEFAULT_CHUNK_SIZE;
+    private final int chunkSize = KeyValueItemReaderBuilder.DEFAULT_CHUNK_SIZE;
     @Builder.Default
-    private final int threads = AbstractKeyValueItemReader.ScanKeyValueItemReaderBuilder.DEFAULT_THREAD_COUNT;
+    private final int threads = KeyValueItemReaderBuilder.DEFAULT_THREAD_COUNT;
 
     public DatabaseComparison<K> execute() throws Exception {
         JobFactory factory = new JobFactory();

@@ -5,9 +5,7 @@ import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.redis.support.AbstractKeyDumpItemReader;
-import org.springframework.batch.item.redis.support.RedisClusterKeyItemReader;
-import org.springframework.batch.item.redis.support.RedisClusterKeyspaceNotificationItemReader;
+import org.springframework.batch.item.redis.support.*;
 import org.springframework.util.Assert;
 
 import java.time.Duration;

@@ -190,6 +190,10 @@ public interface CommandBuilder<C, T> {
         return new ExpireBuilder<>();
     }
 
+    static <T> GeoaddBuilder<T> geoadd() {
+        return new GeoaddBuilder<>();
+    }
+
     static <T> HmsetBuilder<T> hmset() {
         return new HmsetBuilder<>();
     }
@@ -221,5 +225,6 @@ public interface CommandBuilder<C, T> {
     static <T> ZaddBuilder<T> zadd() {
         return new ZaddBuilder<>();
     }
+
 
 }

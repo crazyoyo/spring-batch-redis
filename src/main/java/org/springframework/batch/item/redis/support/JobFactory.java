@@ -7,7 +7,12 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.core.step.tasklet.TaskletStep;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 
@@ -31,7 +36,7 @@ public class JobFactory implements InitializingBean {
         syncLauncher.setJobRepository(jobRepository);
         syncLauncher.afterPropertiesSet();
         asyncLauncher = new SimpleJobLauncher();
-        asyncLauncher.setJobRepository(jobRepository);;
+        asyncLauncher.setJobRepository(jobRepository);
         asyncLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
         asyncLauncher.afterPropertiesSet();
     }
@@ -42,6 +47,16 @@ public class JobFactory implements InitializingBean {
 
     public JobBuilder job(String name) {
         return jobs.get(name);
+    }
+
+    public <I, O> TaskletStep step(String name, int chunkSize, int threads, ItemReader<I> reader, ItemProcessor<I, O> processor, ItemWriter<O> writer) {
+        SimpleStepBuilder<I, O> stepBuilder = step(name).chunk(chunkSize);
+        if (reader instanceof PollableItemReader) {
+            stepBuilder = new FlushingStepBuilder<>(stepBuilder);
+        }
+        SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
+        taskExecutor.setConcurrencyLimit(threads);
+        return stepBuilder.reader(reader).processor(processor).writer(writer).taskExecutor(taskExecutor).throttleLimit(threads).build();
     }
 
 }

@@ -360,7 +360,6 @@ public class SpringBatchRedisTests {
         return stepBuilderFactory.get(name + "-step").<T, T>chunk(50).reader(reader).writer(writer).build();
     }
 
-
     private <T> TaskletStep flushingStep(String name, PollableItemReader<? extends T> reader, ItemWriter<T> writer) {
         return new FlushingStepBuilder<T, T>(stepBuilderFactory.get(name + "-step")).chunk(50).reader(reader).writer(writer).build();
     }

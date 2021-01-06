@@ -33,8 +33,7 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 
 	@Override
 	public FlushingStepBuilder<I, O> chunk(int chunkSize) {
-		super.chunk(chunkSize);
-		return this;
+		return (FlushingStepBuilder<I, O>) super.chunk(chunkSize);
 	}
 
 	@SuppressWarnings("unchecked")
