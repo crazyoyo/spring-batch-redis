@@ -399,4 +399,11 @@ public class SpringBatchRedisTests {
         }
     }
 
+    @Test
+    public void testDatasetSizeEstimator() throws Exception {
+        DataGenerator.builder().pool(sourcePool).end(1234).build().call();
+        Long estimated = RedisDatasetSizeEstimator.builder(sourceConnection).build().call();
+        Assertions.assertEquals(sourceSync.dbsize(), estimated);
+    }
+
 }
