@@ -29,16 +29,16 @@ public class DataGenerator implements Callable<Long> {
     @NonNull
     private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
     @Builder.Default
-    private int start = DEFAULT_START;
+    private final int start = DEFAULT_START;
     @Builder.Default
-    private int end = DEFAULT_END;
-    private long sleep;
+    private final int end = DEFAULT_END;
+    private final long sleep;
     @Builder.Default
-    private int maxExpire = DEFAULT_MAX_EXPIRE;
+    private final int maxExpire = DEFAULT_MAX_EXPIRE;
     @Builder.Default
-    private int batchSize = DEFAULT_BATCH_SIZE;
+    private final int batchSize = DEFAULT_BATCH_SIZE;
     @Singular
-    private Set<DataType> dataTypes;
+    private final Set<DataType> dataTypes;
 
     @Override
     public Long call() throws Exception {

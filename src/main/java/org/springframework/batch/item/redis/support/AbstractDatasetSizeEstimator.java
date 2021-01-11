@@ -1,13 +1,11 @@
 package org.springframework.batch.item.redis.support;
 
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.api.async.RedisServerAsyncCommands;
 import lombok.AllArgsConstructor;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;

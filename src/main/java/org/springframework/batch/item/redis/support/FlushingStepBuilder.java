@@ -1,10 +1,5 @@
 package org.springframework.batch.item.redis.support;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.function.Function;
-
-import org.springframework.batch.core.step.builder.AbstractTaskletStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilderHelper;
 import org.springframework.batch.core.step.item.ChunkOrientedTasklet;
@@ -14,8 +9,11 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.repeat.RepeatOperations;
-import org.springframework.core.task.TaskExecutor;
 import org.springframework.util.Assert;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.function.Function;
 
 public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 

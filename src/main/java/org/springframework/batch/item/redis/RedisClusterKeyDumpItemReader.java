@@ -50,7 +50,7 @@ public class RedisClusterKeyDumpItemReader<K, V> extends AbstractKeyDumpItemRead
 
         public RedisClusterKeyDumpItemReader<String, String> build() {
             RedisClusterKeyItemReader<String, String> keyReader = new RedisClusterKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern);
-            return new RedisClusterKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+            return new RedisClusterKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
         }
 
     }
@@ -66,8 +66,8 @@ public class RedisClusterKeyDumpItemReader<K, V> extends AbstractKeyDumpItemRead
         }
 
         public RedisClusterKeyDumpItemReader<String, String> build() {
-            RedisClusterKeyspaceNotificationItemReader<String, String> keyReader = new RedisClusterKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, queueCapacity, queuePollingTimeout);
-            return new RedisClusterKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+            RedisClusterKeyspaceNotificationItemReader<String, String> keyReader = new RedisClusterKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, notificationQueueCapacity, notificationQueuePollingTimeout);
+            return new RedisClusterKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
         }
 
     }

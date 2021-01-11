@@ -8,18 +8,19 @@ public abstract class NotificationKeyValueItemReaderBuilder<B extends Notificati
 
     protected static final Converter<String, String> DEFAULT_KEY_EXTRACTOR = m -> m.substring(m.indexOf(":") + 1);
     private static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
+    public static final Duration DEFAULT_NOTIFICATION_QUEUE_POLLING_TIMEOUT = Duration.ofMillis(100);
 
+    protected int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
+    protected Duration notificationQueuePollingTimeout = DEFAULT_NOTIFICATION_QUEUE_POLLING_TIMEOUT;
     private int database = DEFAULT_DATABASE;
-    protected int queueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
-    protected Duration queuePollingTimeout = DEFAULT_QUEUE_POLLING_TIMEOUT;
 
-    public B queueCapacity(int queueCapacity) {
-        this.queueCapacity = queueCapacity;
+    public B notificationQueueCapacity(int notificationQueueCapacity) {
+        this.notificationQueueCapacity = notificationQueueCapacity;
         return (B) this;
     }
 
-    public B queuePollingTimeout(Duration queuePollingTimeout) {
-        this.queuePollingTimeout = queuePollingTimeout;
+    public B notificationQueuePollingTimeout(Duration notificationQueuePollingTimeout) {
+        this.notificationQueuePollingTimeout = notificationQueuePollingTimeout;
         return (B) this;
     }
 

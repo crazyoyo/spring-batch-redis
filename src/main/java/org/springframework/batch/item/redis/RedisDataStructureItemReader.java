@@ -50,7 +50,7 @@ public class RedisDataStructureItemReader<K, V> extends AbstractDataStructureIte
 
         public RedisDataStructureItemReader<String, String> build() {
             RedisKeyItemReader<String, String> keyReader = new RedisKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern);
-            return new RedisDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+            return new RedisDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
         }
 
     }
@@ -66,8 +66,8 @@ public class RedisDataStructureItemReader<K, V> extends AbstractDataStructureIte
         }
 
         public RedisDataStructureItemReader<String, String> build() {
-            RedisKeyspaceNotificationItemReader<String, String> keyReader = new RedisKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, queueCapacity, queuePollingTimeout);
-            return new RedisDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+            RedisKeyspaceNotificationItemReader<String, String> keyReader = new RedisKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, notificationQueueCapacity, notificationQueuePollingTimeout);
+            return new RedisDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
         }
 
     }

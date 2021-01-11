@@ -1,12 +1,9 @@
 package org.springframework.batch.item.redis.support;
 
-import org.springframework.core.convert.converter.Converter;
-
 import java.time.Duration;
 
 public class KeyValueItemReaderBuilder<B extends KeyValueItemReaderBuilder<B>> extends CommandTimeoutBuilder<B> {
 
-    public static final Duration DEFAULT_POLLING_TIMEOUT = Duration.ofMillis(100);
     public static final int DEFAULT_QUEUE_CAPACITY = 1000;
     public static final int DEFAULT_CHUNK_SIZE = 50;
     public static final int DEFAULT_THREAD_COUNT = 1;
@@ -17,9 +14,9 @@ public class KeyValueItemReaderBuilder<B extends KeyValueItemReaderBuilder<B>> e
     public static final Duration DEFAULT_QUEUE_POLLING_TIMEOUT = Duration.ofMillis(100);
 
     protected int chunkSize = DEFAULT_CHUNK_SIZE;
-    protected int threads = DEFAULT_THREAD_COUNT;
+    protected int threadCount = DEFAULT_THREAD_COUNT;
     protected int queueCapacity = DEFAULT_QUEUE_CAPACITY;
-    protected Duration pollingTimeout = DEFAULT_POLLING_TIMEOUT;
+    protected Duration queuePollingTimeout = DEFAULT_QUEUE_POLLING_TIMEOUT;
     protected String keyPattern = DEFAULT_KEY_PATTERN;
 
     public B keyPattern(String keyPattern) {
@@ -32,8 +29,8 @@ public class KeyValueItemReaderBuilder<B extends KeyValueItemReaderBuilder<B>> e
         return (B) this;
     }
 
-    public B threads(int threads) {
-        this.threads = threads;
+    public B threadCount(int threadCount) {
+        this.threadCount = threadCount;
         return (B) this;
     }
 
@@ -42,8 +39,8 @@ public class KeyValueItemReaderBuilder<B extends KeyValueItemReaderBuilder<B>> e
         return (B) this;
     }
 
-    public B pollingTimeout(Duration pollingTimeout) {
-        this.pollingTimeout = pollingTimeout;
+    public B queuePollingTimeout(Duration queuePollingTimeout) {
+        this.queuePollingTimeout = queuePollingTimeout;
         return (B) this;
     }
 
