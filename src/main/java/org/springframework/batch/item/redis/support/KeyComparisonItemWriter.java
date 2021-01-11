@@ -1,10 +1,15 @@
 package org.springframework.batch.item.redis.support;
 
 import lombok.Getter;
+import lombok.Setter;
+import lombok.experimental.Accessors;
+import org.springframework.batch.item.redis.RedisClusterDataStructureItemReader;
+import org.springframework.batch.item.redis.RedisDataStructureItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -73,6 +78,32 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
             return null;
         }
         return DiffType.VALUE;
+    }
+
+    public static KeyComparisonItemWriterBuilder builder(RedisDataStructureItemReader<String, String> right) {
+        return new KeyComparisonItemWriterBuilder(right);
+    }
+
+    public static KeyComparisonItemWriterBuilder builder(RedisClusterDataStructureItemReader<String, String> right) {
+        return new KeyComparisonItemWriterBuilder(right);
+    }
+
+    @Setter
+    @Accessors(fluent = true)
+    public static class KeyComparisonItemWriterBuilder {
+
+        public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofSeconds(1);
+
+        private final ValueReader<String, DataStructure<String>> right;
+        private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
+
+        public KeyComparisonItemWriterBuilder(ValueReader<String, DataStructure<String>> right) {
+            this.right = right;
+        }
+
+        public KeyComparisonItemWriter<String> build() {
+            return new KeyComparisonItemWriter<>(right, ttlTolerance.getSeconds());
+        }
     }
 
 }
