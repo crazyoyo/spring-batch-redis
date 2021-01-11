@@ -19,8 +19,6 @@ import java.util.regex.Pattern;
 @AllArgsConstructor
 public abstract class AbstractDatasetSizeEstimator implements Callable<Long> {
 
-    protected static final int DEFAULT_SAMPLE_SIZE = 100;
-
     private final long commandTimeout;
     private final int sampleSize;
     private final String keyPattern;
@@ -57,31 +55,4 @@ public abstract class AbstractDatasetSizeEstimator implements Callable<Long> {
         return dbsize * matchCount / sampleSize;
     }
 
-    public static class DatasetSizeEstimatorBuilder<B extends DatasetSizeEstimatorBuilder<B>> {
-
-        protected long commandTimeout = RedisURI.DEFAULT_TIMEOUT;
-        protected int sampleSize = DEFAULT_SAMPLE_SIZE;
-        protected String keyPattern = KeyValueItemReaderBuilder.DEFAULT_KEY_PATTERN;
-
-        public B commandTimeout(Duration commandTimeout) {
-            this.commandTimeout = commandTimeout.getSeconds();
-            return (B) this;
-        }
-
-        public B commandTimeout(long commandTimeout) {
-            this.commandTimeout = commandTimeout;
-            return (B) this;
-        }
-
-        public B sampleSize(int sampleSize) {
-            this.sampleSize = sampleSize;
-            return (B) this;
-        }
-
-        public B keyPattern(String keyPattern) {
-            this.keyPattern = keyPattern;
-            return (B) this;
-        }
-
-    }
 }
