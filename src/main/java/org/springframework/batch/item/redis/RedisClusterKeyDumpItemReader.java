@@ -49,7 +49,7 @@ public class RedisClusterKeyDumpItemReader<K, V> extends AbstractKeyDumpItemRead
         }
 
         public RedisClusterKeyDumpItemReader<String, String> build() {
-            RedisClusterKeyItemReader<String, String> keyReader = new RedisClusterKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern);
+            RedisClusterKeyItemReader<String, String> keyReader = new RedisClusterKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern, sampleSize, keyPatternPredicate());
             return new RedisClusterKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
         }
 
@@ -58,7 +58,7 @@ public class RedisClusterKeyDumpItemReader<K, V> extends AbstractKeyDumpItemRead
     public static class RedisClusterNotificationKeyDumpItemReaderBuilder extends NotificationKeyValueItemReaderBuilder<RedisClusterNotificationKeyDumpItemReaderBuilder> {
 
         private final GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool;
-        private final StatefulRedisClusterPubSubConnection<String,String> connection;
+        private final StatefulRedisClusterPubSubConnection<String, String> connection;
 
         public RedisClusterNotificationKeyDumpItemReaderBuilder(GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool, StatefulRedisClusterPubSubConnection<String, String> connection) {
             this.pool = pool;

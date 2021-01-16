@@ -5,11 +5,12 @@ import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 
 import java.time.Duration;
+import java.util.function.Predicate;
 
 public class RedisClusterKeyItemReader<K, V> extends AbstractKeyItemReader<K, V, StatefulRedisClusterConnection<K, V>> {
 
-    public RedisClusterKeyItemReader(StatefulRedisClusterConnection<K, V> connection, Duration commandTimeout, long scanCount, String scanMatch) {
-        super(connection, commandTimeout, scanCount, scanMatch);
+    public RedisClusterKeyItemReader(StatefulRedisClusterConnection<K, V> connection, Duration commandTimeout, long scanCount, String scanMatch, int sampleSize, Predicate<K> keyPatternPredicate) {
+        super(connection, commandTimeout, scanCount, scanMatch, sampleSize, keyPatternPredicate);
     }
 
     @Override

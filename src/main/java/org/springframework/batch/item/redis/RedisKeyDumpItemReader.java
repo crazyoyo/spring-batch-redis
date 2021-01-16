@@ -47,7 +47,7 @@ public class RedisKeyDumpItemReader<K, V> extends AbstractKeyDumpItemReader<K, V
         }
 
         public RedisKeyDumpItemReader<String, String> build() {
-            RedisKeyItemReader<String, String> keyReader = new RedisKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern);
+            RedisKeyItemReader<String, String> keyReader = new RedisKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern, sampleSize, keyPatternPredicate());
             return new RedisKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
         }
 

@@ -49,7 +49,7 @@ public class RedisClusterDataStructureItemReader<K, V> extends AbstractDataStruc
         }
 
         public RedisClusterDataStructureItemReader<String, String> build() {
-            RedisClusterKeyItemReader<String, String> keyReader = new RedisClusterKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern);
+            RedisClusterKeyItemReader<String, String> keyReader = new RedisClusterKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern, sampleSize, keyPatternPredicate());
             return new RedisClusterDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
         }
 

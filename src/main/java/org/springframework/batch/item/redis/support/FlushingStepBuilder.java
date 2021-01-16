@@ -17,7 +17,7 @@ import java.util.function.Function;
 
 public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 
-	private final static Duration DEFAULT_TIMEOUT = Duration.ofMillis(50);
+	public final static Duration DEFAULT_TIMEOUT = Duration.ofMillis(50);
 
 	private Duration timeout = DEFAULT_TIMEOUT;
 

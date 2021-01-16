@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
@@ -18,7 +19,7 @@ import java.util.List;
 import java.util.concurrent.*;
 
 @Slf4j
-public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>, C extends StatefulConnection<K, V>> extends AbstractPollableItemReader<T> implements ValueReader<K, T> {
+public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>, C extends StatefulConnection<K, V>> extends AbstractPollableItemReader<T> implements ValueReader<K, T>, BoundedItemReader<T> {
 
     private final int threads;
     private final int chunkSize;
@@ -53,18 +54,29 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>,
     protected void doOpen() throws Exception {
         JobFactory factory = new JobFactory();
         factory.afterPropertiesSet();
-        Job job = factory.job(name + "-job").start(factory.step(name + "-step", chunkSize, threads, keyReader, null, valueReader)).build();
+        SimpleStepBuilder<K, K> stepBuilder = factory.step(name + "-step", chunkSize, keyReader, null, valueReader);
+        Job job = factory.job(name + "-job").start(factory.threads(stepBuilder, threads).build()).build();
         this.jobExecution = factory.getAsyncLauncher().run(job, new JobParameters());
         while (!jobExecution.isRunning()) {
             Thread.sleep(1);
         }
+        if (keyReader instanceof AbstractKeyItemReader) {
+            while (!((AbstractKeyItemReader<K, V, C>) keyReader).isOpen()) {
+                Thread.sleep(1);
+            }
+        }
+    }
+
+    @Override
+    public Long size() {
+        if (keyReader instanceof BoundedItemReader) {
+            return ((BoundedItemReader<K>) keyReader).size();
+        }
+        return null;
     }
 
     public boolean isRunning() {
-        if (jobExecution == null) {
-            return false;
-        }
-        return jobExecution.isRunning();
+        return jobExecution != null && jobExecution.isRunning();
     }
 
     @Override
@@ -73,9 +85,12 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>,
     }
 
     @Override
-    protected void doClose() {
-        if (isRunning()) {
-            log.warn("Enqueuer job still running");
+    protected void doClose() throws InterruptedException {
+        if (jobExecution != null) {
+            jobExecution.stop();
+        }
+        while (!isTerminated()) {
+            Thread.sleep(10);
         }
     }
 

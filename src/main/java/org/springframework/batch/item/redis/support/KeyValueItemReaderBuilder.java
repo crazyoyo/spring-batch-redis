@@ -9,6 +9,7 @@ public class KeyValueItemReaderBuilder<B extends KeyValueItemReaderBuilder<B>> e
     public static final int DEFAULT_THREAD_COUNT = 1;
     public static final String DEFAULT_KEY_PATTERN = "*";
     public static final long DEFAULT_SCAN_COUNT = 1000;
+    public static final int DEFAULT_SAMPLE_SIZE = 100;
     public static final int DEFAULT_DATABASE = 0;
     public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = 1000;
     public static final Duration DEFAULT_QUEUE_POLLING_TIMEOUT = Duration.ofMillis(100);

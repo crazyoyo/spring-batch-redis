@@ -29,6 +29,7 @@ import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.DefaultBufferedReaderFactory;
@@ -319,11 +320,17 @@ public class SpringBatchRedisTests {
         SimpleFlow liveReplicationFlow = new FlowBuilder<SimpleFlow>("live-replication-flow").start(liveReplicationStep).build();
         Job job = jobs.get("live-replication-job").start(new FlowBuilder<SimpleFlow>("live-replication-flow").split(new SimpleAsyncTaskExecutor()).add(replicationFlow, liveReplicationFlow).build()).build().build();
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
-        Thread.sleep(100);
-        DataGenerator.builder().pool(sourcePool).end(123).sleep(1L).build().call();
-        while (reader.isRunning()) {
+        while (!reader.isRunning()) {
             Thread.sleep(10);
         }
+        while (!liveReader.isRunning()) {
+            Thread.sleep(10);
+        }
+        DataGenerator.builder().pool(sourcePool).end(123).sleep(1L).build().call();
+        while (!reader.isTerminated()) {
+            Thread.sleep(10);
+        }
+        Thread.sleep(FlushingStepBuilder.DEFAULT_TIMEOUT.toMillis());
         ((RedisKeyspaceNotificationItemReader<String, String>) liveReader.getKeyReader()).stop();
         while (execution.isRunning()) {
             Thread.sleep(100);
@@ -335,7 +342,7 @@ public class SpringBatchRedisTests {
         Assert.assertEquals(sourceSync.dbsize(), targetSync.dbsize());
         RedisDataStructureItemReader<String, String> left = RedisDataStructureItemReader.builder(sourcePool, sourceConnection).build();
         KeyComparisonItemWriter<String> writer = new KeyComparisonItemWriter<>(RedisDataStructureItemReader.builder(targetPool, targetConnection).build(), 1);
-        execute(name+"-compare", left, writer);
+        execute(name + "-compare", left, writer);
         Assertions.assertTrue(writer.getOkCount() == sourceSync.dbsize());
         writer.getDiffs().forEach((k, v) -> Assertions.assertTrue(v.isEmpty()));
     }
@@ -400,10 +407,16 @@ public class SpringBatchRedisTests {
     }
 
     @Test
-    public void testDatasetSizeEstimator() throws Exception {
+    public void testKeyReaderSize() throws Exception {
         DataGenerator.builder().pool(sourcePool).end(1234).build().call();
-        Long estimated = RedisDatasetSizeEstimator.builder(sourceConnection).build().call();
+        RedisDataStructureItemReader<String, String> reader = RedisDataStructureItemReader.builder(sourcePool, sourceConnection).build();
+        reader.open(new ExecutionContext());
+        while (!((RedisKeyItemReader<String, String>) reader.getKeyReader()).isOpen()) {
+            Thread.sleep(10);
+        }
+        Long estimated = reader.size();
         Assertions.assertEquals(sourceSync.dbsize(), estimated);
+        reader.close();
     }
 
 }
