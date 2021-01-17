@@ -14,8 +14,8 @@ public class RedisClusterDataStructureItemReader<K, V> extends AbstractDataStruc
 
     private final GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool;
 
-    public RedisClusterDataStructureItemReader(GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool, ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity, Duration pollingTimeout) {
-        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+    public RedisClusterDataStructureItemReader(GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool, ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity) {
+        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity);
         Assert.notNull(pool, "A connection pool is required.");
         this.pool = pool;
     }
@@ -50,7 +50,7 @@ public class RedisClusterDataStructureItemReader<K, V> extends AbstractDataStruc
 
         public RedisClusterDataStructureItemReader<String, String> build() {
             RedisClusterKeyItemReader<String, String> keyReader = new RedisClusterKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern, sampleSize, keyPatternPredicate());
-            return new RedisClusterDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
+            return new RedisClusterDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity);
         }
 
     }
@@ -66,8 +66,8 @@ public class RedisClusterDataStructureItemReader<K, V> extends AbstractDataStruc
         }
 
         public RedisClusterDataStructureItemReader<String, String> build() {
-            RedisClusterKeyspaceNotificationItemReader<String, String> keyReader = new RedisClusterKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, notificationQueueCapacity, notificationQueuePollingTimeout);
-            return new RedisClusterDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
+            RedisClusterKeyspaceNotificationItemReader<String, String> keyReader = new RedisClusterKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, notificationQueueCapacity);
+            return new RedisClusterDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity);
         }
 
     }

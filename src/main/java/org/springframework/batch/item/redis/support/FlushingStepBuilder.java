@@ -17,9 +17,10 @@ import java.util.function.Function;
 
 public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 
-	public final static Duration DEFAULT_TIMEOUT = Duration.ofMillis(50);
+	public final static Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 
-	private Duration timeout = DEFAULT_TIMEOUT;
+	private Duration flushingInterval = DEFAULT_FLUSHING_INTERVAL;
+	private Duration idleTimeout = null; // no idle stream detection by default
 
 	public FlushingStepBuilder(StepBuilderHelper<?> parent) {
 		super(parent);
@@ -44,7 +45,7 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 		Assert.state(writer != null, "ItemWriter must be provided");
 		RepeatOperations repeatOperations = createChunkOperations();
 		FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>((PollableItemReader<I>) reader,
-				repeatOperations, timeout);
+				repeatOperations, flushingInterval, idleTimeout);
 		SimpleChunkProcessor<I, O> chunkProcessor = new SimpleChunkProcessor<>(getProcessor(), writer);
 		chunkProvider.setListeners(new ArrayList<>(getItemListeners()));
 		chunkProcessor.setListeners(new ArrayList<>(getItemListeners()));
@@ -53,8 +54,13 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 		return tasklet;
 	}
 
-	public FlushingStepBuilder<I, O> timeout(Duration timeout) {
-		this.timeout = timeout;
+	public FlushingStepBuilder<I, O> flushingInterval(Duration flushingInterval) {
+		this.flushingInterval = flushingInterval;
+		return this;
+	}
+
+	public FlushingStepBuilder<I, O> idleTimeout(Duration idleTimeout) {
+		this.idleTimeout = idleTimeout;
 		return this;
 	}
 

@@ -14,5 +14,4 @@ public interface PollableItemReader<T> extends ItemReader<T> {
      */
     T poll(long timeout, TimeUnit unit) throws InterruptedException;
 
-    boolean isTerminated();
 }

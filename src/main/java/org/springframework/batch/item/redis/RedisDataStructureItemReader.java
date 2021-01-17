@@ -14,8 +14,8 @@ public class RedisDataStructureItemReader<K, V> extends AbstractDataStructureIte
 
     private final GenericObjectPool<StatefulRedisConnection<K, V>> pool;
 
-    public RedisDataStructureItemReader(GenericObjectPool<StatefulRedisConnection<K, V>> pool, ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity, Duration pollingTimeout) {
-        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+    public RedisDataStructureItemReader(GenericObjectPool<StatefulRedisConnection<K, V>> pool, ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity) {
+        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity);
         Assert.notNull(pool, "A connection pool is required.");
         this.pool = pool;
     }
@@ -50,7 +50,7 @@ public class RedisDataStructureItemReader<K, V> extends AbstractDataStructureIte
 
         public RedisDataStructureItemReader<String, String> build() {
             RedisKeyItemReader<String, String> keyReader = new RedisKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern, sampleSize, keyPatternPredicate());
-            return new RedisDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
+            return new RedisDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity);
         }
 
     }
@@ -66,8 +66,8 @@ public class RedisDataStructureItemReader<K, V> extends AbstractDataStructureIte
         }
 
         public RedisDataStructureItemReader<String, String> build() {
-            RedisKeyspaceNotificationItemReader<String, String> keyReader = new RedisKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, notificationQueueCapacity, notificationQueuePollingTimeout);
-            return new RedisDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
+            RedisKeyspaceNotificationItemReader<String, String> keyReader = new RedisKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, notificationQueueCapacity);
+            return new RedisDataStructureItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity);
         }
 
     }

@@ -15,8 +15,8 @@ import java.util.concurrent.TimeoutException;
 
 public abstract class AbstractKeyDumpItemReader<K, V, C extends StatefulConnection<K, V>> extends AbstractKeyValueItemReader<K, V, KeyValue<K, byte[]>, C> {
 
-    protected AbstractKeyDumpItemReader(ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity, Duration pollingTimeout) {
-        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+    protected AbstractKeyDumpItemReader(ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity) {
+        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity);
     }
 
     @Override

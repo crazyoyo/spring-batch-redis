@@ -5,15 +5,13 @@ import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import java.time.Duration;
-
 public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceNotificationItemReader<K, V> {
 
     private final StatefulRedisPubSubConnection<K, V> connection;
     private final KeyspaceNotificationListener listener = new KeyspaceNotificationListener();
 
-    public RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<K, V> connection, K pubSubPattern, Converter<K, K> keyExtractor, int queueCapacity, Duration pollingTimeout) {
-        super(pubSubPattern, keyExtractor, queueCapacity, pollingTimeout);
+    public RedisKeyspaceNotificationItemReader(StatefulRedisPubSubConnection<K, V> connection, K pubSubPattern, Converter<K, K> keyExtractor, int queueCapacity) {
+        super(pubSubPattern, keyExtractor, queueCapacity);
         Assert.notNull(connection, "A pub/sub connection is required.");
         this.connection = connection;
     }

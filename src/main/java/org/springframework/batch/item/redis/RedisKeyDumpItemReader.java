@@ -13,8 +13,8 @@ public class RedisKeyDumpItemReader<K, V> extends AbstractKeyDumpItemReader<K, V
 
     private final GenericObjectPool<StatefulRedisConnection<K, V>> pool;
 
-    public RedisKeyDumpItemReader(GenericObjectPool<StatefulRedisConnection<K, V>> pool, ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity, Duration pollingTimeout) {
-        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+    public RedisKeyDumpItemReader(GenericObjectPool<StatefulRedisConnection<K, V>> pool, ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity) {
+        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity);
         this.pool = pool;
     }
 
@@ -48,7 +48,7 @@ public class RedisKeyDumpItemReader<K, V> extends AbstractKeyDumpItemReader<K, V
 
         public RedisKeyDumpItemReader<String, String> build() {
             RedisKeyItemReader<String, String> keyReader = new RedisKeyItemReader<>(connection, commandTimeout, scanCount, keyPattern, sampleSize, keyPatternPredicate());
-            return new RedisKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
+            return new RedisKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity);
         }
 
     }
@@ -64,8 +64,8 @@ public class RedisKeyDumpItemReader<K, V> extends AbstractKeyDumpItemReader<K, V
         }
 
         public RedisKeyDumpItemReader<String, String> build() {
-            RedisKeyspaceNotificationItemReader<String, String> keyReader = new RedisKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, notificationQueueCapacity, notificationQueuePollingTimeout);
-            return new RedisKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity, queuePollingTimeout);
+            RedisKeyspaceNotificationItemReader<String, String> keyReader = new RedisKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, notificationQueueCapacity);
+            return new RedisKeyDumpItemReader<>(pool, keyReader, commandTimeout, chunkSize, threadCount, queueCapacity);
         }
 
     }

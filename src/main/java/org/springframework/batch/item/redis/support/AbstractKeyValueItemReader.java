@@ -30,8 +30,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>,
     private JobExecution jobExecution;
     private String name;
 
-    protected AbstractKeyValueItemReader(ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity, Duration pollingTimeout) {
-        super(pollingTimeout);
+    protected AbstractKeyValueItemReader(ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity) {
         Assert.notNull(keyReader, "Key reader is required.");
         Assert.notNull(commandTimeout, "Command timeout is required.");
         Assert.isTrue(chunkSize > 0, "Chunk size must be greater than zero.");
@@ -100,7 +99,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>,
         private final BlockingQueue<T> queue;
 
         public ValueReader(int queueCapacity) {
-            queue = new LinkedBlockingDeque<>(queueCapacity);
+            this.queue = new LinkedBlockingDeque<>(queueCapacity);
         }
 
         @Override

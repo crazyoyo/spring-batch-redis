@@ -1,5 +1,6 @@
 package org.springframework.batch.item.redis.support;
 
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.Assert;
@@ -11,13 +12,14 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public abstract class AbstractPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T> implements PollableItemReader<T> {
 
-    private final long pollingTimeout;
+    private static final long DEFAULT_POLLING_TIMEOUT = 100;
+
+    @Setter
+    private long pollingTimeout = DEFAULT_POLLING_TIMEOUT;
     private boolean stopped;
 
-    protected AbstractPollableItemReader(Duration pollingTimeout) {
+    protected AbstractPollableItemReader() {
         setName(ClassUtils.getShortName(getClass()));
-        Assert.notNull(pollingTimeout, "Polling timeout is required.");
-        this.pollingTimeout = pollingTimeout.toMillis();
     }
 
     @Override
@@ -33,8 +35,7 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemCounting
         this.stopped = true;
     }
 
-    @Override
-    public boolean isTerminated() {
+    protected boolean isTerminated() {
         return stopped;
     }
 

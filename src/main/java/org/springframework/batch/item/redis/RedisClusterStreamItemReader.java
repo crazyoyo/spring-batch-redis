@@ -7,14 +7,12 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.springframework.batch.item.redis.support.AbstractStreamItemReader;
 
-import java.time.Duration;
-
 public class RedisClusterStreamItemReader<K, V> extends AbstractStreamItemReader<K, V> {
 
     private final StatefulRedisClusterConnection<K, V> connection;
 
-    public RedisClusterStreamItemReader(StatefulRedisClusterConnection<K, V> connection, XReadArgs.StreamOffset<K> offset, Duration block, Long count, boolean noack) {
-        super(offset, block, count, noack);
+    public RedisClusterStreamItemReader(StatefulRedisClusterConnection<K, V> connection, XReadArgs.StreamOffset<K> offset, Long count, boolean noack) {
+        super(offset, count, noack);
         this.connection = connection;
     }
 
@@ -39,7 +37,7 @@ public class RedisClusterStreamItemReader<K, V> extends AbstractStreamItemReader
         }
 
         public RedisClusterStreamItemReader<String, String> build() {
-            return new RedisClusterStreamItemReader<>(connection, offset, block, count, noack);
+            return new RedisClusterStreamItemReader<>(connection, offset, count, noack);
         }
 
     }

@@ -7,16 +7,14 @@ import lombok.Builder;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import java.time.Duration;
-
 public class RedisClusterKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceNotificationItemReader<K, V> {
 
     private final StatefulRedisClusterPubSubConnection<K, V> connection;
     private final ClusterKeyspaceNotificationListener listener = new ClusterKeyspaceNotificationListener();
 
     @Builder
-    public RedisClusterKeyspaceNotificationItemReader(StatefulRedisClusterPubSubConnection<K, V> connection, K pubSubPattern, Converter<K, K> keyExtractor, int queueCapacity, Duration pollingTimeout) {
-        super(pubSubPattern, keyExtractor, queueCapacity, pollingTimeout);
+    public RedisClusterKeyspaceNotificationItemReader(StatefulRedisClusterPubSubConnection<K, V> connection, K pubSubPattern, Converter<K, K> keyExtractor, int queueCapacity) {
+        super(pubSubPattern, keyExtractor, queueCapacity);
         Assert.notNull(connection, "A pub/sub connection is required.");
         this.connection = connection;
     }

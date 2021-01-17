@@ -15,8 +15,8 @@ import java.util.concurrent.TimeoutException;
 
 public abstract class AbstractDataStructureItemReader<K, V, C extends StatefulConnection<K, V>> extends AbstractKeyValueItemReader<K, V, DataStructure<K>, C> {
 
-    protected AbstractDataStructureItemReader(ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity, Duration pollingTimeout) {
-        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity, pollingTimeout);
+    protected AbstractDataStructureItemReader(ItemReader<K> keyReader, Duration commandTimeout, int chunkSize, int threads, int queueCapacity) {
+        super(keyReader, commandTimeout, chunkSize, threads, queueCapacity);
     }
 
     @Override

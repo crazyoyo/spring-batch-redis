@@ -19,6 +19,7 @@ import org.springframework.util.Assert;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * ChunkProvider that allows for incomplete chunks when timeout is reached
@@ -29,15 +30,18 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
     private final PollableItemReader<? extends I> itemReader;
     private final MulticasterBatchListener<I, ?> listener = new MulticasterBatchListener<>();
     private final RepeatOperations repeatOperations;
-    private final long timeout; // milliseconds
+    private final long flushingInterval; // millis
+    private final long idleTimeout; // millis
+    private final AtomicLong lastActivity = new AtomicLong(System.currentTimeMillis());
 
-    public FlushingChunkProvider(PollableItemReader<? extends I> itemReader, RepeatOperations repeatOperations, Duration timeout) {
+    public FlushingChunkProvider(PollableItemReader<? extends I> itemReader, RepeatOperations repeatOperations, Duration flushingInterval, Duration idleTimeout) {
         Assert.notNull(itemReader, "Item reader is required.");
         Assert.notNull(repeatOperations, "Repeat operations are required.");
-        Assert.notNull(timeout, "Timeout is required.");
+        Assert.notNull(flushingInterval, "Timeout is required.");
         this.itemReader = itemReader;
         this.repeatOperations = repeatOperations;
-        this.timeout = timeout.toMillis();
+        this.flushingInterval = flushingInterval.toMillis();
+        this.idleTimeout = idleTimeout == null ? Long.MAX_VALUE : idleTimeout.toMillis();
     }
 
     /**
@@ -63,31 +67,30 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
 
     @Override
     public Chunk<I> provide(final StepContribution contribution) {
-
         final long start = System.currentTimeMillis();
         final Chunk<I> inputs = new Chunk<>();
         repeatOperations.iterate(context -> {
-            Timer.Sample sample = Timer.start(Metrics.globalRegistry);
-            String status = BatchMetrics.STATUS_SUCCESS;
             I item = null;
+            Timer.Sample sample = Timer.start(Metrics.globalRegistry);
+            long now = System.currentTimeMillis();
+            long idleDuration = now - lastActivity.get();
             try {
-                item = poll(timeout - (System.currentTimeMillis() - start));
-                if (item == null) {
-                    if (itemReader.isTerminated()) {
-                        log.debug("End chunk");
-                        inputs.setEnd();
-                    }
-                    return RepeatStatus.FINISHED;
-                }
+                item = poll(flushingInterval - (now - start));
             } catch (SkipOverflowException e) {
                 // read() tells us about an excess of skips by throwing an exception
-                status = BatchMetrics.STATUS_FAILURE;
+                stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_FAILURE);
                 return RepeatStatus.FINISHED;
-            } finally {
-                stopTimer(sample, contribution.getStepExecution(), status);
             }
+            if (item == null) {
+                if (idleDuration > idleTimeout) {
+                    inputs.setEnd();
+                }
+                return RepeatStatus.CONTINUABLE;
+            }
+            stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_SUCCESS);
             inputs.add(item);
             contribution.incrementReadCount();
+            lastActivity.set(now);
             return RepeatStatus.CONTINUABLE;
         });
         return inputs;
@@ -98,12 +101,20 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
     }
 
     protected I poll(long timeout) throws InterruptedException {
-        listener.beforeRead();
-        I item = itemReader.poll(timeout, TimeUnit.MILLISECONDS);
-        if (item != null) {
-            listener.afterRead(item);
+        try {
+            listener.beforeRead();
+            I item = itemReader.poll(timeout, TimeUnit.MILLISECONDS);
+            if (item != null) {
+                listener.afterRead(item);
+            }
+            return item;
+        } catch (Exception e) {
+            if (log.isDebugEnabled()) {
+                log.debug(e.getMessage() + " : " + e.getClass().getName());
+            }
+            listener.onReadError(e);
+            throw e;
         }
-        return item;
     }
 
     @Override

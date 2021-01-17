@@ -7,7 +7,6 @@ import io.lettuce.core.api.sync.RedisStreamCommands;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.Assert;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -21,8 +20,7 @@ public abstract class AbstractStreamItemReader<K, V> extends AbstractPollableIte
     private StreamOffset<K> offset;
     private Iterator<StreamMessage<K, V>> iterator;
 
-    public AbstractStreamItemReader(StreamOffset<K> offset, Duration block, Long count, boolean noack) {
-        super(block);
+    public AbstractStreamItemReader(StreamOffset<K> offset, Long count, boolean noack) {
         Assert.notNull(offset, "Offset is required.");
         this.offset = offset;
         this.count = count;
@@ -62,20 +60,12 @@ public abstract class AbstractStreamItemReader<K, V> extends AbstractPollableIte
 
     public static class StreamItemReaderBuilder<B extends StreamItemReaderBuilder<B>> {
 
-        public final static Duration DEFAULT_BLOCK = Duration.ofMillis(100);
-
         protected XReadArgs.StreamOffset<String> offset;
-        protected Duration block = DEFAULT_BLOCK;
         protected Long count;
         protected boolean noack;
 
         public B offset(XReadArgs.StreamOffset<String> offset) {
             this.offset = offset;
-            return (B) this;
-        }
-
-        public B block(Duration block) {
-            this.block = block;
             return (B) this;
         }
 

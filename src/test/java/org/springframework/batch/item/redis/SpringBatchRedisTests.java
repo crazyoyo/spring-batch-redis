@@ -23,11 +23,15 @@ import org.junit.runner.RunWith;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
+import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
+import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
@@ -124,6 +128,29 @@ public class SpringBatchRedisTests {
     @Autowired
     private StepBuilderFactory steps;
 
+
+    private <I, O> JobExecution execute(String name, ItemReader<? extends I> reader, ItemWriter<O> writer) throws JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
+        TaskletStep step = step(name, reader, writer);
+        return jobLauncher.run(job(name, step), new JobParameters());
+    }
+
+    private <I, O> JobExecution executeFlushing(String name, PollableItemReader<? extends I> reader, ItemWriter<O> writer) throws InterruptedException, JobParametersInvalidException, JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException {
+        TaskletStep step = flushingStep(name, reader, writer);
+        JobExecution execution = asyncJobLauncher.run(job(name, step), new JobParameters());
+        while (!execution.isRunning()) {
+            Thread.sleep(1);
+        }
+        return execution;
+    }
+
+    private <I, O> TaskletStep step(String name, ItemReader<? extends I> reader, ItemWriter<O> writer) {
+        return steps.get(name + "-step").<I, O>chunk(50).reader(reader).writer(writer).build();
+    }
+
+    private <I, O> TaskletStep flushingStep(String name, PollableItemReader<? extends I> reader, ItemWriter<O> writer) {
+        return new FlushingStepBuilder<I, O>(steps.get(name + "-step")).chunk(50).idleTimeout(Duration.ofMillis(500)).reader(reader).writer(writer).build();
+    }
+
     private FlatFileItemReader<Map<String, String>> fileReader(Resource resource) throws IOException {
         FlatFileItemReaderBuilder<Map<String, String>> builder = new FlatFileItemReaderBuilder<>();
         builder.name("flat-file-reader");
@@ -144,17 +171,22 @@ public class SpringBatchRedisTests {
     @Test
     public void testFlushingStep() throws Exception {
         StatefulRedisPubSubConnection<String, String> pubSubConnection = sourceRedisClient.connectPubSub();
-        RedisDataStructureItemReader<String, String> reader = RedisDataStructureItemReader.builder(sourcePool, pubSubConnection).build();
+        RedisKeyspaceNotificationItemReader<String, String> reader = (RedisKeyspaceNotificationItemReader<String, String>) RedisDataStructureItemReader.builder(sourcePool, pubSubConnection).build().getKeyReader();
         ListItemWriter<String> writer = new ListItemWriter<>();
-        TaskletStep step = flushingStep("flushing", (RedisKeyspaceNotificationItemReader<String, String>) reader.getKeyReader(), writer);
-        JobExecution execution = asyncJobLauncher.run(job("flushing", step), new JobParameters());
-        while (!execution.isRunning()) {
+        JobExecution execution = executeFlushing("flushing", reader, writer);
+        while (!reader.isRunning()) {
             Thread.sleep(10);
         }
         DataGenerator.builder().pool(sourcePool).end(3).maxExpire(0).dataType(DataType.STRING).dataType(DataType.HASH).build().call();
-        Thread.sleep(100);
+        awaitJobTermination(execution);
         Assertions.assertEquals(sourceSync.dbsize(), writer.getWrittenItems().size());
-        execution.stop();
+        awaitJobTermination(execution);
+    }
+
+    private void awaitJobTermination(JobExecution execution) throws InterruptedException {
+        while (execution.isRunning()) {
+            Thread.sleep(10);
+        }
     }
 
     @Test
@@ -278,18 +310,12 @@ public class SpringBatchRedisTests {
         StatefulRedisPubSubConnection<String, String> pubSubConnection = sourceRedisClient.connectPubSub();
         RedisKeyDumpItemReader<String, String> reader = RedisKeyDumpItemReader.builder(sourcePool, pubSubConnection).build();
         ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
-        TaskletStep step = flushingStep("live-replication", reader, writer);
-        JobExecution execution = asyncJobLauncher.run(job("live-reader", step), new JobParameters());
-        Thread.sleep(100);
-        DataGenerator.builder().pool(sourcePool).end(123).maxExpire(0).dataType(DataType.STRING).dataType(DataType.HASH).build().call();
-        Thread.sleep(100);
-        log.info("Stopping keyspace notification reader");
-        ((RedisKeyspaceNotificationItemReader<String, String>) reader.getKeyReader()).stop();
-        log.info("Waiting for job to complete");
-        while (execution.isRunning()) {
-            log.info("Job execution status: {} - stopping: {}", execution.getStatus(), execution.isStopping());
-            Thread.sleep(100);
+        JobExecution execution = executeFlushing("live-reader", reader, writer);
+        while (!reader.isRunning()) {
+            Thread.sleep(10);
         }
+        DataGenerator.builder().pool(sourcePool).end(123).maxExpire(0).dataType(DataType.STRING).dataType(DataType.HASH).build().call();
+        awaitJobTermination(execution);
         Assertions.assertEquals(sourceSync.dbsize(), writer.getWrittenItems().size());
     }
 
@@ -327,14 +353,7 @@ public class SpringBatchRedisTests {
             Thread.sleep(10);
         }
         DataGenerator.builder().pool(sourcePool).end(123).sleep(1L).build().call();
-        while (!reader.isTerminated()) {
-            Thread.sleep(10);
-        }
-        Thread.sleep(FlushingStepBuilder.DEFAULT_TIMEOUT.toMillis());
-        ((RedisKeyspaceNotificationItemReader<String, String>) liveReader.getKeyReader()).stop();
-        while (execution.isRunning()) {
-            Thread.sleep(100);
-        }
+        awaitJobTermination(execution);
         compare("live-replication");
     }
 
@@ -345,26 +364,6 @@ public class SpringBatchRedisTests {
         execute(name + "-compare", left, writer);
         Assertions.assertTrue(writer.getOkCount() == sourceSync.dbsize());
         writer.getDiffs().forEach((k, v) -> Assertions.assertTrue(v.isEmpty()));
-    }
-
-    private <T> JobExecution execute(String name, ItemReader<T> reader, ItemWriter<T> writer) throws Exception {
-        return jobLauncher.run(job(name, reader, writer), new JobParameters());
-    }
-
-    private <T> JobExecution executeAsync(String name, ItemReader<T> reader, ItemWriter<T> writer) throws Exception {
-        return asyncJobLauncher.run(job(name, reader, writer), new JobParameters());
-    }
-
-    private <T> Job job(String name, ItemReader<? extends T> reader, ItemWriter<T> writer) {
-        return job(name, step(name, reader, writer));
-    }
-
-    private <T> TaskletStep step(String name, ItemReader<? extends T> reader, ItemWriter<T> writer) {
-        return steps.get(name + "-step").<T, T>chunk(50).reader(reader).writer(writer).build();
-    }
-
-    private <T> TaskletStep flushingStep(String name, PollableItemReader<? extends T> reader, ItemWriter<T> writer) {
-        return new FlushingStepBuilder<T, T>(steps.get(name + "-step")).chunk(50).reader(reader).writer(writer).build();
     }
 
     private Job job(String name, TaskletStep step) {
