@@ -1,7 +1,6 @@
 package org.springframework.batch.item.redis.support;
 
 import com.hybhub.util.concurrent.ConcurrentSetBlockingQueue;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
@@ -15,9 +14,6 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
     private final K pubSubPattern;
     private final Converter<K, K> keyExtractor;
     private final BlockingQueue<K> queue;
-    private boolean stopped;
-    @Getter
-    private boolean running;
 
     protected AbstractKeyspaceNotificationItemReader(K pubSubPattern, Converter<K, K> keyExtractor, int queueCapacity) {
         Assert.notNull(pubSubPattern, "A pub/sub subscription pattern is required.");
@@ -26,10 +22,6 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
         this.pubSubPattern = pubSubPattern;
         this.keyExtractor = keyExtractor;
         this.queue = new ConcurrentSetBlockingQueue<>(queueCapacity);
-    }
-
-    public void stop() {
-        this.stopped = true;
     }
 
     @Override
@@ -42,12 +34,6 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
         MetricsUtils.createGaugeCollectionSize("reader.notification.queue.size", queue);
         log.debug("Subscribing to pub/sub pattern {}, queue capacity: {}", pubSubPattern, queue.remainingCapacity());
         subscribe(pubSubPattern);
-        this.running = true;
-    }
-
-    @Override
-    public boolean isTerminated() {
-        return stopped;
     }
 
     protected abstract void subscribe(K pattern);

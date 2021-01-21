@@ -32,12 +32,12 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
     private final RepeatOperations repeatOperations;
     private final long flushingInterval; // millis
     private final long idleTimeout; // millis
-    private final AtomicLong lastActivity = new AtomicLong(System.currentTimeMillis());
+    private long lastActivity;
 
     public FlushingChunkProvider(PollableItemReader<? extends I> itemReader, RepeatOperations repeatOperations, Duration flushingInterval, Duration idleTimeout) {
         Assert.notNull(itemReader, "Item reader is required.");
         Assert.notNull(repeatOperations, "Repeat operations are required.");
-        Assert.notNull(flushingInterval, "Timeout is required.");
+        Assert.notNull(flushingInterval, "Flushing interval is required.");
         this.itemReader = itemReader;
         this.repeatOperations = repeatOperations;
         this.flushingInterval = flushingInterval.toMillis();
@@ -68,21 +68,28 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
     @Override
     public Chunk<I> provide(final StepContribution contribution) {
         final long start = System.currentTimeMillis();
+        if (lastActivity == 0) {
+            lastActivity = start;
+        }
         final Chunk<I> inputs = new Chunk<>();
         repeatOperations.iterate(context -> {
-            I item = null;
+            long pollingTimeout = flushingInterval - (System.currentTimeMillis() - start);
+            if (pollingTimeout < 0) {
+                return RepeatStatus.FINISHED;
+            }
             Timer.Sample sample = Timer.start(Metrics.globalRegistry);
-            long now = System.currentTimeMillis();
-            long idleDuration = now - lastActivity.get();
+            I item;
             try {
-                item = poll(flushingInterval - (now - start));
+                item = poll(pollingTimeout);
             } catch (SkipOverflowException e) {
                 // read() tells us about an excess of skips by throwing an exception
                 stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_FAILURE);
                 return RepeatStatus.FINISHED;
             }
             if (item == null) {
+                long idleDuration = System.currentTimeMillis() - lastActivity;
                 if (idleDuration > idleTimeout) {
+                    log.debug("Idle for {} ms - End of stream", idleDuration);
                     inputs.setEnd();
                 }
                 return RepeatStatus.CONTINUABLE;
@@ -90,7 +97,7 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
             stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_SUCCESS);
             inputs.add(item);
             contribution.incrementReadCount();
-            lastActivity.set(now);
+            lastActivity = System.currentTimeMillis();
             return RepeatStatus.CONTINUABLE;
         });
         return inputs;

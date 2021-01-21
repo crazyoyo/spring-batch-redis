@@ -55,11 +55,11 @@ All item writers can perform both inserts or deletes depending on the value and 
 
 === `KeyDumpItemWriter`
 
-`AbstractKeyDumpItemWriter` accepts `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
+`KeyDumpItemWriter` accepts `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
 
 === `DataStructureItemWriter`
 
-`AbstractDataStructureItemWriter` accepts `DataStructure` objects and calls the write command specific to the data type:
+`DataStructureItemWriter` accepts `DataStructure` objects and calls the write command specific to the data type:
 
 * Hash -> HMSET
 * List -> LPUSH

@@ -1,10 +1,8 @@
 package org.springframework.batch.item.redis.support;
 
+import lombok.Builder;
 import lombok.Getter;
-import lombok.Setter;
-import lombok.experimental.Accessors;
-import org.springframework.batch.item.redis.RedisClusterDataStructureItemReader;
-import org.springframework.batch.item.redis.RedisDataStructureItemReader;
+import org.springframework.batch.item.redis.DataStructureItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -14,7 +12,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<DataStructure<K>> {
+public class KeyComparisonItemWriter<K, V> extends AbstractItemStreamItemWriter<DataStructure<K>> {
 
     public enum DiffType {
         VALUE, LEFT_ONLY, RIGHT_ONLY, TTL
@@ -23,27 +21,28 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
     private final AtomicLong ok = new AtomicLong();
     @Getter
     private final Map<DiffType, List<K>> diffs = new HashMap<>();
-    private final ValueReader<K, DataStructure<K>> right;
+    private final DataStructureItemReader<K, V> valueReader;
     /**
      * TTL diff tolerance in seconds
      */
     private final long ttlTolerance;
 
-    public KeyComparisonItemWriter(ValueReader<K, DataStructure<K>> right, long ttlTolerance) {
+    @Builder
+    public KeyComparisonItemWriter(DataStructureItemReader<K, V> valueReader, Duration ttlTolerance) {
         setName(ClassUtils.getShortName(getClass()));
-        Assert.notNull(right, "A value reader is required.");
-        Assert.isTrue(ttlTolerance >= 0, "TTL tolerance must be positive.");
-        this.right = right;
+        Assert.notNull(valueReader, "A value reader is required");
+        Assert.notNull(ttlTolerance, "TTL tolerance is required");
+        this.valueReader = valueReader;
         for (DiffType type : DiffType.values()) {
             diffs.put(type, new ArrayList<>());
         }
-        this.ttlTolerance = ttlTolerance;
+        this.ttlTolerance = ttlTolerance.getSeconds();
     }
 
     @Override
     public void write(List<? extends DataStructure<K>> items) throws Exception {
         List<K> keys = items.stream().map(DataStructure::getKey).collect(Collectors.toList());
-        List<DataStructure<K>> rightItems = right.values(keys);
+        List<DataStructure<K>> rightItems = valueReader.values(keys);
         for (int index = 0; index < items.size(); index++) {
             DataStructure<K> left = items.get(index);
             DataStructure<K> right = rightItems.get(index);
@@ -78,32 +77,6 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
             return null;
         }
         return DiffType.VALUE;
-    }
-
-    public static KeyComparisonItemWriterBuilder builder(RedisDataStructureItemReader<String, String> right) {
-        return new KeyComparisonItemWriterBuilder(right);
-    }
-
-    public static KeyComparisonItemWriterBuilder builder(RedisClusterDataStructureItemReader<String, String> right) {
-        return new KeyComparisonItemWriterBuilder(right);
-    }
-
-    @Setter
-    @Accessors(fluent = true)
-    public static class KeyComparisonItemWriterBuilder {
-
-        public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofSeconds(1);
-
-        private final ValueReader<String, DataStructure<String>> right;
-        private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
-
-        public KeyComparisonItemWriterBuilder(ValueReader<String, DataStructure<String>> right) {
-            this.right = right;
-        }
-
-        public KeyComparisonItemWriter<String> build() {
-            return new KeyComparisonItemWriter<>(right, ttlTolerance.getSeconds());
-        }
     }
 
 }

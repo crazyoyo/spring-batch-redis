@@ -4,7 +4,7 @@ import io.lettuce.core.RedisURI;
 
 import java.time.Duration;
 
-public class CommandTimeoutBuilder<B extends CommandTimeoutBuilder> {
+public class CommandTimeoutBuilder<B extends CommandTimeoutBuilder<B>> {
 
     protected Duration commandTimeout = RedisURI.DEFAULT_TIMEOUT_DURATION;
 
