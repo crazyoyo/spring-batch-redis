@@ -83,7 +83,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>>
 
     @Override
     protected void doOpen() throws Exception {
-        log.info("Opening {}", name);
+        log.debug("Opening {}", name);
         JobFactory factory = new JobFactory();
         factory.afterPropertiesSet();
         SimpleStepBuilder<K, K> stepBuilder = stepBuilderProvider.apply(factory.step(name + "-step").chunk(chunkSize)).reader(keyReader).writer(this::addToQueue);
@@ -96,12 +96,12 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>>
         while (!jobExecution.isRunning()) {
             Thread.sleep(10);
         }
-        log.info("Opened {}", name);
+        log.debug("Opened {}", name);
     }
 
     @Override
     protected void doClose() throws InterruptedException {
-        log.info("Closing {}", name);
+        log.debug("Closing {}", name);
         if (!queue.isEmpty()) {
             log.warn("Closing {} with {} items still in queue", ClassUtils.getShortName(getClass()), queue.size());
         }
@@ -109,7 +109,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>>
             Thread.sleep(10);
         }
         jobExecution = null;
-        log.info("Closed {}", name);
+        log.debug("Closed {}", name);
     }
 
     public List<T> values(List<? extends K> keys) throws Exception {
