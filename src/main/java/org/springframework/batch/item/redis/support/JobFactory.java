@@ -10,6 +10,7 @@ import org.springframework.batch.core.repository.support.MapJobRepositoryFactory
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.SyncTaskExecutor;
 
 @SuppressWarnings("deprecation")
 public class JobFactory implements InitializingBean {
@@ -29,6 +30,7 @@ public class JobFactory implements InitializingBean {
         steps = new StepBuilderFactory(jobRepository, jobRepositoryFactoryBean.getTransactionManager());
         syncLauncher = new SimpleJobLauncher();
         syncLauncher.setJobRepository(jobRepository);
+        syncLauncher.setTaskExecutor(new SyncTaskExecutor());
         syncLauncher.afterPropertiesSet();
         asyncLauncher = new SimpleJobLauncher();
         asyncLauncher.setJobRepository(jobRepository);
