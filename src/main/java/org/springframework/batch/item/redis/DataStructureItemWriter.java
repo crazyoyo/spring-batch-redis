@@ -49,7 +49,7 @@ public class DataStructureItemWriter<K, V> extends AbstractKeyValueItemWriter<K,
                         futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(item.getKey(), ((Collection<ScoredValue<V>>) item.getValue()).toArray(new ScoredValue[0])));
                         break;
                     case HASH:
-                        futures.add(((RedisHashAsyncCommands<K, V>) commands).hmset(item.getKey(), (Map<K, V>) item.getValue()));
+                        futures.add(((RedisHashAsyncCommands<K, V>) commands).hset(item.getKey(), (Map<K, V>) item.getValue()));
                         break;
                     case STREAM:
                         Collection<StreamMessage<K, V>> messages = (Collection<StreamMessage<K, V>>) item.getValue();

@@ -82,14 +82,14 @@ public interface CommandBuilder<C, T> {
 
     @Setter
     @Accessors(fluent = true)
-    class HmsetBuilder<T> extends KeyCommandBuilder<RedisHashAsyncCommands<String, String>, T, HmsetBuilder<T>> {
+    class HsetBuilder<T> extends KeyCommandBuilder<RedisHashAsyncCommands<String, String>, T, HsetBuilder<T>> {
 
         @NonNull
         private Converter<T, Map<String, String>> mapConverter;
 
         @Override
         public BiFunction<RedisHashAsyncCommands<String, String>, T, RedisFuture<?>> build() {
-            return (c, t) -> c.hmset(key(t), mapConverter.convert(t));
+            return (c, t) -> c.hset(key(t), mapConverter.convert(t));
         }
     }
 
@@ -194,8 +194,8 @@ public interface CommandBuilder<C, T> {
         return new GeoaddBuilder<>();
     }
 
-    static <T> HmsetBuilder<T> hmset() {
-        return new HmsetBuilder<>();
+    static <T> HsetBuilder<T> hset() {
+        return new HsetBuilder<>();
     }
 
     static <T> LpushBuilder<T> lpush() {

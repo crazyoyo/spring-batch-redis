@@ -61,7 +61,7 @@ All item writers can perform both inserts or deletes depending on the value and 
 
 `DataStructureItemWriter` accepts `DataStructure` objects and calls the write command specific to the data type:
 
-* Hash -> HMSET
+* Hash -> HSET
 * List -> LPUSH
 * Set -> SADD
 * Stream -> XADD

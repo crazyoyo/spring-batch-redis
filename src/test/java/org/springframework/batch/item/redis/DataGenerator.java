@@ -83,7 +83,7 @@ public class DataGenerator implements Callable<Long> {
                 String member = "member:" + index;
                 int collectionIndex = index % 10;
                 if (contains(DataType.HASH)) {
-                    futures.add(commands.hmset("hash:" + index, hash));
+                    futures.add(commands.hset("hash:" + index, hash));
                 }
                 if (contains(DataType.SET)) {
                     futures.add(commands.sadd("set:" + collectionIndex, member));

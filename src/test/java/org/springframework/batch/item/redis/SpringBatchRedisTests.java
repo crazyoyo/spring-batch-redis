@@ -188,12 +188,12 @@ public class SpringBatchRedisTests {
     @Test
     public void testDataStructureReader() throws Exception {
         FlatFileItemReader<Map<String, String>> fileReader = fileReader(new ClassPathResource("beers.csv"));
-        ItemWriter<Map<String, String>> hmsetWriter = items -> {
+        ItemWriter<Map<String, String>> hsetWriter = items -> {
             for (Map<String, String> item : items) {
-                sourceSync.hmset(item.get(Beers.FIELD_ID), item);
+                sourceSync.hset(item.get(Beers.FIELD_ID), item);
             }
         };
-        execute("scan-reader-populate", fileReader, hmsetWriter);
+        execute("scan-reader-populate", fileReader, hsetWriter);
         DataStructureItemReader<String, String> reader = DataStructureItemReader.builder(sourcePool, sourceConnection).build();
         ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
         JobExecution execution = execute("scan-reader", reader, writer);
@@ -252,8 +252,8 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
         KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash").converters(h -> h.remove("id")).build();
-        BiFunction<RedisHashAsyncCommands<String, String>, Map<String, String>, RedisFuture<?>> hmset = CommandBuilder.<Map<String, String>>hmset().keyConverter(keyConverter).mapConverter(m -> m).build();
-        CommandItemWriter writer = CommandItemWriter.builder(targetPool, (BiFunction) hmset).build();
+        BiFunction<RedisHashAsyncCommands<String, String>, Map<String, String>, RedisFuture<?>> hset = CommandBuilder.<Map<String, String>>hset().keyConverter(keyConverter).mapConverter(m -> m).build();
+        CommandItemWriter writer = CommandItemWriter.builder(targetPool, (BiFunction) hset).build();
         execute("hash-writer", reader, writer);
         Assertions.assertEquals(maps.size(), targetSync.keys("hash:*").size());
         for (int index = 0; index < maps.size(); index++) {
