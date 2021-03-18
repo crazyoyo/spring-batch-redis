@@ -324,6 +324,15 @@ public class SpringBatchRedisTests {
     }
 
     @Test
+    public void testDataStructureReplication() throws Exception {
+        DataGenerator.builder().pool(sourcePool).end(10000).build().call();
+        DataStructureItemReader<String, String> reader = DataStructureItemReader.builder(sourcePool, sourceConnection).build();
+        DataStructureItemWriter<String, String> writer = DataStructureItemWriter.builder(targetPool).build();
+        execute("replication", reader, writer);
+        compare("replication");
+    }
+
+    @Test
     public void testLiveReplication() throws Exception {
         DataGenerator.builder().pool(sourcePool).end(10000).build().call();
         KeyDumpItemReader<String, String> reader = KeyDumpItemReader.builder(sourcePool, sourceConnection).build();

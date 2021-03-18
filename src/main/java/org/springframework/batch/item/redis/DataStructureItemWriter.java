@@ -40,7 +40,7 @@ public class DataStructureItemWriter<K, V> extends AbstractKeyValueItemWriter<K,
                         futures.add(((RedisStringAsyncCommands<K, V>) commands).set(item.getKey(), (V) item.getValue()));
                         break;
                     case LIST:
-                        futures.add(((RedisListAsyncCommands<K, V>) commands).lpush(item.getKey(), (V[]) ((Collection<V>) item.getValue()).toArray()));
+                        futures.add(((RedisListAsyncCommands<K, V>) commands).rpush(item.getKey(), (V[]) ((Collection<V>) item.getValue()).toArray()));
                         break;
                     case SET:
                         futures.add(((RedisSetAsyncCommands<K, V>) commands).sadd(item.getKey(), (V[]) ((Collection<V>) item.getValue()).toArray()));
