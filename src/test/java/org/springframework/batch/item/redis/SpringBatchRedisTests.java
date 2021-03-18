@@ -368,9 +368,9 @@ public class SpringBatchRedisTests {
         DataStructureItemReader<String, String> left = DataStructureItemReader.builder(sourcePool, sourceConnection).build();
         KeyComparisonItemWriter<String, String> writer = new KeyComparisonItemWriter<>(DataStructureItemReader.builder(targetPool, targetConnection).build(), Duration.ofSeconds(1));
         execute(name + "-compare", left, writer);
-        Assertions.assertTrue(writer.getOkCount() == sourceSync.dbsize());
-        Assertions.assertFalse(writer.hasDiffs());
-        Assertions.assertTrue(writer.allDiffs().isEmpty());
+        Assertions.assertTrue(writer.getResults().getOk() == sourceSync.dbsize());
+        Assertions.assertFalse(writer.getResults().hasDiffs());
+        Assertions.assertTrue(writer.getResults().isOk());
     }
 
     private Job job(String name, TaskletStep step) {
