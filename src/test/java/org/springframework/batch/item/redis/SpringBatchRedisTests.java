@@ -70,7 +70,7 @@ import java.util.function.BiFunction;
 @Slf4j
 public class SpringBatchRedisTests {
 
-    private static final DockerImageName REDIS_IMAGE_NAME = DockerImageName.parse("redis:5.0.3-alpine");
+    private static final DockerImageName REDIS_IMAGE_NAME = DockerImageName.parse("redis:latest");
     private static GenericContainer sourceRedis;
     private static GenericContainer targetRedis;
     private static RedisClient sourceRedisClient;
@@ -115,7 +115,7 @@ public class SpringBatchRedisTests {
     }
 
     @BeforeEach
-    public void flush() {
+    public void flush() throws InterruptedException {
         sourceSync.flushall();
         targetSync.flushall();
     }
@@ -315,19 +315,19 @@ public class SpringBatchRedisTests {
     }
 
     @Test
-    public void testReplication() throws Exception {
-        DataGenerator.builder().pool(sourcePool).end(10000).build().call();
-        KeyDumpItemReader<String, String> reader = KeyDumpItemReader.builder(sourcePool, sourceConnection).build();
-        KeyDumpItemWriter<String, String> writer = KeyDumpItemWriter.builder(targetPool).replace(true).build();
-        execute("replication", reader, writer);
-        compare("replication");
-    }
-
-    @Test
     public void testDataStructureReplication() throws Exception {
         DataGenerator.builder().pool(sourcePool).end(10000).build().call();
         DataStructureItemReader<String, String> reader = DataStructureItemReader.builder(sourcePool, sourceConnection).build();
         DataStructureItemWriter<String, String> writer = DataStructureItemWriter.builder(targetPool).build();
+        execute("ds-replication", reader, writer);
+        compare("ds-replication");
+    }
+
+    @Test
+    public void testReplication() throws Exception {
+        DataGenerator.builder().pool(sourcePool).end(10000).build().call();
+        KeyDumpItemReader<String, String> reader = KeyDumpItemReader.builder(sourcePool, sourceConnection).build();
+        KeyDumpItemWriter<String, String> writer = KeyDumpItemWriter.builder(targetPool).replace(true).build();
         execute("replication", reader, writer);
         compare("replication");
     }
