@@ -55,6 +55,23 @@ public class KeyComparisonItemWriter<K, V> extends AbstractItemStreamItemWriter<
         }
     }
 
+    public boolean hasDiffs() {
+        for (List<K> list : diffs.values()) {
+            if (!list.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public Map<K, DiffType> allDiffs() {
+        Map<K, DiffType> allDiffs = new HashMap<>();
+        for (Map.Entry<DiffType, List<K>> list : diffs.entrySet()) {
+            list.getValue().forEach(k -> allDiffs.put(k, list.getKey()));
+        }
+        return allDiffs;
+    }
+
     public long getOkCount() {
         return ok.get();
     }
