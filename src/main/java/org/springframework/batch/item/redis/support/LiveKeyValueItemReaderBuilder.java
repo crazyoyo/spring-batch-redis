@@ -10,9 +10,10 @@ import org.springframework.core.convert.converter.Converter;
 import java.time.Duration;
 import java.util.function.Function;
 
+@SuppressWarnings("rawtypes")
 @Setter
 @Accessors(fluent = true)
-public abstract class LiveKeyValueItemReaderBuilder<T extends AbstractKeyValueItemReader<String, String, ?>> extends AbstractKeyValueItemReader.AbstractKeyValueItemReaderBuilder<T, LiveKeyValueItemReaderBuilder<T>> {
+public abstract class LiveKeyValueItemReaderBuilder<R extends AbstractKeyValueItemReader> extends AbstractKeyValueItemReader.AbstractKeyValueItemReaderBuilder<R, LiveKeyValueItemReaderBuilder<R>> {
 
     public static final int DEFAULT_DATABASE = 0;
     public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = 1000;

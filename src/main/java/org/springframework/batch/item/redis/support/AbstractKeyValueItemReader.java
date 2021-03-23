@@ -16,19 +16,19 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 @Slf4j
-public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractItemCountingItemStreamItemReader<T> implements PollableItemReader<T> {
+public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnection<K, V>, T extends KeyValue<K, ?>> extends AbstractItemCountingItemStreamItemReader<T> implements PollableItemReader<T> {
 
     @Getter
     private final ItemReader<K> keyReader;
-    private final GenericObjectPool<? extends StatefulConnection<K, V>> pool;
-    private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands;
-    protected final long commandTimeout;
+    protected final GenericObjectPool<C> pool;
+    protected final Function<C, BaseRedisAsyncCommands<K, V>> commands;
     private final int threads;
     private final int chunkSize;
     private final BlockingQueue<T> queue;
@@ -36,31 +36,28 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>>
     private JobExecution jobExecution;
     private String name;
 
-    protected AbstractKeyValueItemReader(ItemReader<K> keyReader, GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, int chunkSize, int threads, int queueCapacity) {
-        this(keyReader, pool, commands, commandTimeout, chunkSize, threads, queueCapacity, Function.identity());
+    protected AbstractKeyValueItemReader(ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, int chunkSize, int threads, int queueCapacity) {
+        this(keyReader, pool, commands, chunkSize, threads, queueCapacity, Function.identity());
     }
 
-    protected AbstractKeyValueItemReader(ItemReader<K> keyReader, GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout, int chunkSize, int threads, int queueCapacity, Function<SimpleStepBuilder<K, K>, SimpleStepBuilder<K, K>> stepBuilderProvider) {
+    protected AbstractKeyValueItemReader(ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, int chunkSize, int threads, int queueCapacity, Function<SimpleStepBuilder<K, K>, SimpleStepBuilder<K, K>> stepBuilderProvider) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(keyReader, "A key reader is required.");
         Assert.notNull(pool, "A connection pool is required");
         Assert.notNull(commands, "A command function is required");
-        Assert.notNull(commandTimeout, "A command timeout is required");
         Assert.isTrue(chunkSize > 0, "Chunk size must be greater than zero.");
         Assert.isTrue(threads > 0, "Thread count must be greater than zero.");
         Assert.isTrue(queueCapacity > 0, "Queue capacity must be greater than zero.");
         this.keyReader = keyReader;
         this.pool = pool;
         this.commands = commands;
-        this.commandTimeout = commandTimeout.getSeconds();
         this.threads = threads;
         this.chunkSize = chunkSize;
         this.queue = new LinkedBlockingDeque<>(queueCapacity);
         this.stepBuilderProvider = stepBuilderProvider;
     }
 
-    protected abstract List<T> values(List<? extends K> keys, BaseRedisAsyncCommands<K, V> commands) throws InterruptedException, ExecutionException, TimeoutException;
-
+    @SuppressWarnings("NullableProblems")
     @Override
     public void setName(String name) {
         this.name = name;
@@ -81,6 +78,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>>
         return item;
     }
 
+    @SuppressWarnings("BusyWait")
     @Override
     protected void doOpen() throws Exception {
         log.debug("Opening {}", name);
@@ -99,6 +97,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>>
         log.debug("Opened {}", name);
     }
 
+    @SuppressWarnings("BusyWait")
     @Override
     protected void doClose() throws InterruptedException {
         log.debug("Closing {}", name);
@@ -112,17 +111,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>>
         log.debug("Closed {}", name);
     }
 
-    public List<T> values(List<? extends K> keys) throws Exception {
-        try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-            BaseRedisAsyncCommands<K, V> commands = this.commands.apply(connection);
-            commands.setAutoFlushCommands(false);
-            try {
-                return values(keys, commands);
-            } finally {
-                commands.setAutoFlushCommands(true);
-            }
-        }
-    }
+    public abstract List<T> values(List<? extends K> keys) throws Exception;
 
     private void addToQueue(List<? extends K> keys) throws Exception {
         for (T value : values(keys)) {
@@ -131,7 +120,8 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>>
         }
     }
 
-    public static abstract class AbstractKeyValueItemReaderBuilder<T extends AbstractKeyValueItemReader<String, String, ?>, B extends AbstractKeyValueItemReaderBuilder<T, B>> extends CommandTimeoutBuilder<B> {
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static abstract class AbstractKeyValueItemReaderBuilder<R extends AbstractKeyValueItemReader, B extends AbstractKeyValueItemReaderBuilder<R, B>> {
 
         public static final int DEFAULT_QUEUE_CAPACITY = 1000;
         public static final int DEFAULT_CHUNK_SIZE = 50;
@@ -146,6 +136,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>>
             return (B) this;
         }
 
+        @SuppressWarnings("unused")
         public B threadCount(int threadCount) {
             this.threadCount = threadCount;
             return (B) this;
@@ -156,7 +147,7 @@ public abstract class AbstractKeyValueItemReader<K, V, T extends KeyValue<K, ?>>
             return (B) this;
         }
 
-        public abstract T build();
+        public abstract R build();
 
     }
 

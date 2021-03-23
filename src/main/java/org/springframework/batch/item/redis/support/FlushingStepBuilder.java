@@ -26,9 +26,9 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
     @SuppressWarnings("unchecked")
     @Override
     protected Tasklet createTasklet() {
-        Assert.state(getReader() != null, "ItemReader must be provided");
+        Assert.notNull(getReader(), "ItemReader must be provided");
         Assert.state(getReader() instanceof PollableItemReader, "Reader must be an instance of PollableItemReader");
-        Assert.state(getWriter() != null, "ItemWriter must be provided");
+        Assert.notNull(getWriter(), "ItemWriter must be provided");
         ChunkProvider<I> chunkProvider = createChunkProvider();
         ChunkProcessor<I> chunkProcessor = createChunkProcessor();
         ChunkOrientedTasklet<I> tasklet = new ChunkOrientedTasklet<>(chunkProvider, chunkProcessor);
@@ -42,6 +42,7 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
         return (FlushingStepBuilder<I, O>) super.reader(reader);
     }
 
+    @SuppressWarnings("unchecked")
     protected FlushingChunkProvider<I> createChunkProvider() {
         FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>((PollableItemReader<I>) getReader(), createChunkOperations(), flushingInterval, idleTimeout);
         chunkProvider.setListeners(new ArrayList<>(getItemListeners()));

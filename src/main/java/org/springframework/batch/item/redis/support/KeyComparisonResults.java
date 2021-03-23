@@ -35,6 +35,7 @@ public class KeyComparisonResults<K> {
      * @param key the key that was compared
      * @return number of keys that are identical on both sides
      */
+    @SuppressWarnings("unused")
     public long ok(K key) {
         return ok.incrementAndGet();
     }

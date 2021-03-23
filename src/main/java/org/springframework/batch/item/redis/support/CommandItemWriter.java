@@ -7,7 +7,6 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
@@ -17,8 +16,8 @@ public class CommandItemWriter<K, V, T> extends AbstractRedisItemWriter<K, V, T>
 
     private final BiFunction<BaseRedisAsyncCommands<K, V>, T, RedisFuture<?>> command;
 
-    public CommandItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, Duration commandTimeout, BiFunction<BaseRedisAsyncCommands<K, V>, T, RedisFuture<?>> command) {
-        super(pool, async, commandTimeout);
+    public CommandItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, BiFunction<BaseRedisAsyncCommands<K, V>, T, RedisFuture<?>> command) {
+        super(pool, async);
         this.command = command;
     }
 
@@ -34,7 +33,7 @@ public class CommandItemWriter<K, V, T> extends AbstractRedisItemWriter<K, V, T>
         return futures;
     }
 
-    public abstract static class CommandItemWriterBuilder<T> extends CommandTimeoutBuilder<CommandItemWriterBuilder<T>> {
+    public abstract static class CommandItemWriterBuilder<T> {
 
         protected final BiFunction<BaseRedisAsyncCommands<String, String>, T, RedisFuture<?>> command;
 
@@ -50,7 +49,7 @@ public class CommandItemWriter<K, V, T> extends AbstractRedisItemWriter<K, V, T>
         return new CommandItemWriterBuilder<T>(command) {
             @Override
             public CommandItemWriter<String, String, T> build() {
-                return new CommandItemWriter<>(pool, c -> ((StatefulRedisConnection<String, String>) c).async(), commandTimeout, command);
+                return new CommandItemWriter<>(pool, c -> ((StatefulRedisConnection<String, String>) c).async(), command);
             }
         };
     }
@@ -59,7 +58,7 @@ public class CommandItemWriter<K, V, T> extends AbstractRedisItemWriter<K, V, T>
         return new CommandItemWriterBuilder<T>(command) {
             @Override
             public CommandItemWriter<String, String, T> build() {
-                return new CommandItemWriter<>(pool, c -> ((StatefulRedisClusterConnection<String, String>) c).async(), commandTimeout, command);
+                return new CommandItemWriter<>(pool, c -> ((StatefulRedisClusterConnection<String, String>) c).async(), command);
             }
         };
     }

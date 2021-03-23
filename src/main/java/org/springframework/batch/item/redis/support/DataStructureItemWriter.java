@@ -1,31 +1,28 @@
-package org.springframework.batch.item.redis;
+package org.springframework.batch.item.redis.support;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.*;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.redis.support.AbstractKeyValueItemWriter;
-import org.springframework.batch.item.redis.support.CommandTimeoutBuilder;
 import org.springframework.batch.item.redis.support.DataStructure;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public class DataStructureItemWriter<K, V> extends AbstractKeyValueItemWriter<K, V, DataStructure<K>> {
+public class DataStructureItemWriter<K, V, C extends StatefulConnection<K, V>> extends AbstractKeyValueItemWriter<K, V, C, DataStructure<K>> {
 
-    public DataStructureItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> commands, Duration commandTimeout) {
-        super(pool, commands, commandTimeout);
+    public DataStructureItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands) {
+        super(pool, commands);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected List<RedisFuture<?>> write(List<? extends DataStructure<K>> items, BaseRedisAsyncCommands<K, V> commands) {
         List<RedisFuture<?>> futures = new ArrayList<>();
@@ -64,30 +61,6 @@ public class DataStructureItemWriter<K, V> extends AbstractKeyValueItemWriter<K,
             }
         }
         return futures;
-    }
-
-    public static abstract class DataStructureItemWriterBuilder<K, V> extends CommandTimeoutBuilder<DataStructureItemWriterBuilder<K, V>> {
-
-        public abstract DataStructureItemWriter<K, V> build();
-
-    }
-
-    public static <K, V> DataStructureItemWriterBuilder<K, V> builder(GenericObjectPool<StatefulRedisConnection<K, V>> pool) {
-        return new DataStructureItemWriterBuilder<K, V>() {
-            @Override
-            public DataStructureItemWriter<K, V> build() {
-                return new DataStructureItemWriter<>(pool, c -> ((StatefulRedisConnection<K, V>) c).async(), commandTimeout);
-            }
-        };
-    }
-
-    public static <K, V> DataStructureItemWriterBuilder<K, V> clusterBuilder(GenericObjectPool<StatefulRedisClusterConnection<K, V>> pool) {
-        return new DataStructureItemWriterBuilder<K, V>() {
-            @Override
-            public DataStructureItemWriter<K, V> build() {
-                return new DataStructureItemWriter<>(pool, c -> ((StatefulRedisClusterConnection<K, V>) c).async(), commandTimeout);
-            }
-        };
     }
 
 }

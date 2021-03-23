@@ -16,12 +16,14 @@ public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceN
         this.connection = connection;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected void subscribe(K pattern) {
         connection.addListener(listener);
         connection.sync().psubscribe(pattern);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected void unsubscribe(K pubSubPattern) {
         connection.sync().punsubscribe(pubSubPattern);

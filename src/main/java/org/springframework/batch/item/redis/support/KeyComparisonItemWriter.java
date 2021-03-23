@@ -1,7 +1,6 @@
 package org.springframework.batch.item.redis.support;
 
 import lombok.Builder;
-import org.springframework.batch.item.redis.DataStructureItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -13,7 +12,7 @@ import java.util.stream.Collectors;
 
 public class KeyComparisonItemWriter<K, V> extends AbstractItemStreamItemWriter<DataStructure<K>> {
 
-    private final DataStructureItemReader<K, V> valueReader;
+    private final DataStructureItemReader<K, V, ?> valueReader;
     /**
      * TTL diff tolerance in seconds
      */
@@ -21,7 +20,7 @@ public class KeyComparisonItemWriter<K, V> extends AbstractItemStreamItemWriter<
     private final KeyComparisonResults<K> results;
 
     @Builder
-    public KeyComparisonItemWriter(DataStructureItemReader<K, V> valueReader, Duration ttlTolerance) {
+    public KeyComparisonItemWriter(DataStructureItemReader<K, V, ?> valueReader, Duration ttlTolerance) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(valueReader, "A value reader is required");
         Assert.notNull(ttlTolerance, "TTL tolerance is required");

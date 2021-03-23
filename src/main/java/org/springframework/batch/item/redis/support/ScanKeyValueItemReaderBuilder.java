@@ -8,9 +8,10 @@ import lombok.experimental.Accessors;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+@SuppressWarnings("rawtypes")
 @Setter
 @Accessors(fluent = true)
-public abstract class ScanKeyValueItemReaderBuilder<T extends AbstractKeyValueItemReader<String, String, ?>> extends AbstractKeyValueItemReader.AbstractKeyValueItemReaderBuilder<T, ScanKeyValueItemReaderBuilder<T>> {
+public abstract class ScanKeyValueItemReaderBuilder<R extends AbstractKeyValueItemReader> extends AbstractKeyValueItemReader.AbstractKeyValueItemReaderBuilder<R, ScanKeyValueItemReaderBuilder<R>> {
 
     public static final String DEFAULT_SCAN_MATCH = "*";
     public static final long DEFAULT_SCAN_COUNT = 1000;
@@ -26,11 +27,11 @@ public abstract class ScanKeyValueItemReaderBuilder<T extends AbstractKeyValueIt
     }
 
     public ScanKeyItemReader<String, String> keyReader(StatefulRedisConnection<String, String> connection) {
-        return new ScanKeyItemReader<>(connection, c -> ((StatefulRedisConnection<String, String>) c).async(), c -> ((StatefulRedisConnection<String, String>) c).sync(), commandTimeout, scanCount, scanMatch, sampleSize, keyPatternPredicate());
+        return new ScanKeyItemReader<>(connection, c -> ((StatefulRedisConnection<String, String>) c).async(), c -> ((StatefulRedisConnection<String, String>) c).sync(), scanCount, scanMatch, sampleSize, keyPatternPredicate());
     }
 
     public ScanKeyItemReader<String, String> keyReader(StatefulRedisClusterConnection<String, String> connection) {
-        return new ScanKeyItemReader<>(connection, c -> ((StatefulRedisClusterConnection<String, String>) c).async(), c -> ((StatefulRedisClusterConnection<String, String>) c).sync(), commandTimeout, scanCount, scanMatch, sampleSize, keyPatternPredicate());
+        return new ScanKeyItemReader<>(connection, c -> ((StatefulRedisClusterConnection<String, String>) c).async(), c -> ((StatefulRedisClusterConnection<String, String>) c).sync(), scanCount, scanMatch, sampleSize, keyPatternPredicate());
     }
 
 }

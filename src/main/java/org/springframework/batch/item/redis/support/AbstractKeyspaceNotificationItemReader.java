@@ -47,6 +47,7 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
 
     protected abstract void unsubscribe(K pubSubPattern);
 
+    @SuppressWarnings("unused")
     protected void notification(K channel, V message) {
         if (channel == null) {
             return;

@@ -1,34 +1,36 @@
-package org.springframework.batch.item.redis;
+package org.springframework.batch.item.redis.support;
 
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XReadArgs;
 import io.lettuce.core.XReadArgs.StreamOffset;
-import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.RedisStreamCommands;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.batch.item.redis.support.AbstractPollableItemReader;
 import org.springframework.util.Assert;
 
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 @Slf4j
-public class StreamItemReader<K, V> extends AbstractPollableItemReader<StreamMessage<K, V>> {
+public class StreamItemReader<K, V, C extends StatefulConnection<K, V>> extends AbstractPollableItemReader<StreamMessage<K, V>> {
 
-    private final RedisStreamCommands<K, V> commands;
+    private final C connection;
+    private final Function<C, RedisStreamCommands<K, V>> commands;
     private final Long count;
     private final boolean noack;
     private StreamOffset<K> offset;
     private Iterator<StreamMessage<K, V>> iterator;
 
-    public StreamItemReader(RedisStreamCommands<K, V> commands, StreamOffset<K> offset, Long count, boolean noack) {
-        Assert.notNull(commands, "A RedisStreamCommands instance is required.");
+    public StreamItemReader(C connection, Function<C, RedisStreamCommands<K, V>> commands, StreamOffset<K> offset, Long count, boolean noack) {
+        Assert.notNull(connection, "A Redis connection is required.");
+        Assert.notNull(commands, "A command provider is required");
         Assert.notNull(offset, "Offset is required.");
+        this.connection = connection;
         this.commands = commands;
         this.offset = offset;
         this.count = count;
@@ -45,6 +47,7 @@ public class StreamItemReader<K, V> extends AbstractPollableItemReader<StreamMes
         iterator = null;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public StreamMessage<K, V> poll(long timeout, TimeUnit unit) {
         if (!iterator.hasNext()) {
@@ -52,7 +55,7 @@ public class StreamItemReader<K, V> extends AbstractPollableItemReader<StreamMes
             if (count != null) {
                 args.count(count);
             }
-            List<StreamMessage<K, V>> messages = commands.xread(args, offset);
+            List<StreamMessage<K, V>> messages = commands.apply(connection).xread(args, offset);
             if (messages == null || messages.isEmpty()) {
                 return null;
             }
@@ -64,35 +67,17 @@ public class StreamItemReader<K, V> extends AbstractPollableItemReader<StreamMes
         return message;
     }
 
+    @SuppressWarnings("rawtypes")
     @Setter
     @Accessors(fluent = true)
-    public static abstract class StreamItemReaderBuilder<K, V> {
+    public static abstract class StreamItemReaderBuilder<K, R extends StreamItemReader> {
 
         protected XReadArgs.StreamOffset<K> offset;
         protected Long count;
         protected boolean noack;
 
-        public abstract StreamItemReader<K, V> build();
+        public abstract R build();
 
     }
-
-    public static <K, V> StreamItemReaderBuilder<K, V> builder(StatefulRedisConnection<K, V> connection) {
-        return new StreamItemReaderBuilder<K, V>() {
-            @Override
-            public StreamItemReader<K, V> build() {
-                return new StreamItemReader<>(connection.sync(), offset, count, noack);
-            }
-        };
-    }
-
-    public static <K, V> StreamItemReaderBuilder<K, V> builder(StatefulRedisClusterConnection<K, V> connection) {
-        return new StreamItemReaderBuilder<K, V>() {
-            @Override
-            public StreamItemReader<K, V> build() {
-                return new StreamItemReader<>(connection.sync(), offset, count, noack);
-            }
-        };
-    }
-
 
 }

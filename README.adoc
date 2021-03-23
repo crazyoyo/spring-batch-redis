@@ -72,12 +72,4 @@ If TTL >= 0 then an additional call is made to `EXPIRE` command.
 
 == Usage
 
-[source,java]
-----
-RedisClient source = RedisClient.create("redis://source:6379");
-KeyDumpItemReader reader = KeyDumpItemReader.builder().client(source).build();
-RedisClient target = RedisClient.create("rediss://target:6379");
-KeyDumpItemWriter writer = KeyDumpItemWriter.builder().client(target).build();
-TaskletStep step = stepBuilderFactory.get("step").<KeyDump, KeyDump>chunk(50).reader(reader).writer(writer).build();
-jobBuilderFactory.get("job").start(step).build();
-----
+Refer to unit test for usage examples

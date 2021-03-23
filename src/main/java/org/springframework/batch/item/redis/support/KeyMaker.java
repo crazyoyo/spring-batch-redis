@@ -35,6 +35,7 @@ public interface KeyMaker<T> extends Converter<T, String> {
             return this;
         }
 
+        @SuppressWarnings("unchecked")
         public KeyMakerBuilder<T> converters(Converter<T, String>... converters) {
             Assert.notNull(converters, "Key converters cannot be null.");
             this.converters = Arrays.asList(converters);

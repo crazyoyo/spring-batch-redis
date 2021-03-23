@@ -19,6 +19,7 @@ public class RedisClusterKeyspaceNotificationItemReader<K, V> extends AbstractKe
         this.connection = connection;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected void subscribe(K pattern) {
         connection.addListener(listener);
@@ -26,6 +27,7 @@ public class RedisClusterKeyspaceNotificationItemReader<K, V> extends AbstractKe
         connection.sync().upstream().commands().psubscribe(pattern);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected void unsubscribe(K pubSubPattern) {
         connection.sync().upstream().commands().punsubscribe(pubSubPattern);

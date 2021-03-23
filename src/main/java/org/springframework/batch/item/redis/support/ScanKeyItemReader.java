@@ -14,7 +14,6 @@ import org.springframework.batch.item.support.AbstractItemCountingItemStreamItem
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -30,24 +29,21 @@ public class ScanKeyItemReader<K, V> extends AbstractItemCountingItemStreamItemR
     private final long scanCount;
     private final String scanMatch;
     private final Predicate<K> keyPatternPredicate;
-    private final long commandTimeout;
     private final int sampleSize;
     private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
     private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync;
     private ScanIterator<K> iterator;
     private Long size;
 
-    public ScanKeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, Duration commandTimeout, long scanCount, String scanMatch, int sampleSize, Predicate<K> keyPatternPredicate) {
+    public ScanKeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, long scanCount, String scanMatch, int sampleSize, Predicate<K> keyPatternPredicate) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(connection, "A Redis connection is required");
         Assert.notNull(async, "An async command function is required");
         Assert.notNull(sync, "A sync command function is required");
-        Assert.notNull(commandTimeout, "Command timeout is required");
         Assert.notNull(keyPatternPredicate, "A key predicate is required");
         this.connection = connection;
         this.async = async;
         this.sync = sync;
-        this.commandTimeout = commandTimeout.getSeconds();
         this.scanCount = scanCount;
         this.scanMatch = scanMatch;
         this.sampleSize = sampleSize;
@@ -65,6 +61,7 @@ public class ScanKeyItemReader<K, V> extends AbstractItemCountingItemStreamItemR
         this.iterator = ScanIterator.scan((RedisKeyCommands<K, V>) sync.apply(connection), scanArgs);
     }
 
+    @SuppressWarnings("unchecked")
     private Long calculateSize() throws InterruptedException, ExecutionException, TimeoutException {
         BaseRedisAsyncCommands<K, V> async = this.async.apply(connection);
         async.setAutoFlushCommands(false);
@@ -76,9 +73,10 @@ public class ScanKeyItemReader<K, V> extends AbstractItemCountingItemStreamItemR
         }
         async.flushCommands();
         async.setAutoFlushCommands(true);
+        long commandTimeout = connection.getTimeout().toMillis();
         int matchCount = 0;
         for (RedisFuture<K> future : keyFutures) {
-            K key = future.get(commandTimeout, TimeUnit.SECONDS);
+            K key = future.get(commandTimeout, TimeUnit.MILLISECONDS);
             if (key == null) {
                 continue;
             }
@@ -86,7 +84,7 @@ public class ScanKeyItemReader<K, V> extends AbstractItemCountingItemStreamItemR
                 matchCount++;
             }
         }
-        Long dbsize = dbsizeFuture.get(commandTimeout, TimeUnit.SECONDS);
+        Long dbsize = dbsizeFuture.get(commandTimeout, TimeUnit.MILLISECONDS);
         if (dbsize == null) {
             return null;
         }

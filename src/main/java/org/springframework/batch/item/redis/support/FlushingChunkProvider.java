@@ -19,7 +19,6 @@ import org.springframework.util.Assert;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * ChunkProvider that allows for incomplete chunks when timeout is reached
