@@ -11,12 +11,12 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
+public abstract class AbstractRedisItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractItemStreamItemWriter<T> {
 
-    private final GenericObjectPool<? extends StatefulConnection<K, V>> pool;
-    private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
+    private final GenericObjectPool<C> pool;
+    private final Function<C, BaseRedisAsyncCommands<K, V>> async;
 
-    public AbstractRedisItemWriter(GenericObjectPool<? extends StatefulConnection<K, V>> pool, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
+    public AbstractRedisItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> async) {
         Assert.notNull(pool, "A connection pool is required");
         Assert.notNull(async, "An async command function is required");
         this.pool = pool;
@@ -25,7 +25,7 @@ public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractItemStrea
 
     @Override
     public void write(List<? extends T> items) throws Exception {
-        try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+        try (C connection = pool.borrowObject()) {
             BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
             commands.setAutoFlushCommands(false);
             List<RedisFuture<?>> futures = write(items, commands);

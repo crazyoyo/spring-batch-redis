@@ -228,7 +228,7 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
         BiFunction<RedisStreamAsyncCommands<String, String>, Map<String, String>, RedisFuture<?>> command = CommandBuilder.<Map<String, String>>xadd().keyConverter(i -> stream).bodyConverter(i -> i).build();
-        CommandItemWriter writer = CommandItemWriter.builder(targetPool, (BiFunction) command).build();
+        RedisCommandItemWriter<String, String, Map<String, String>> writer = new RedisCommandItemWriter<>(targetPool, (BiFunction) command);
         execute("stream-writer", reader, writer);
         Assertions.assertEquals(messages.size(), targetSync.xlen(stream));
         List<StreamMessage<String, String>> xrange = targetSync.xrange(stream, Range.create("-", "+"));
@@ -252,7 +252,7 @@ public class SpringBatchRedisTests {
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
         KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash").converters(h -> h.remove("id")).build();
         BiFunction<RedisHashAsyncCommands<String, String>, Map<String, String>, RedisFuture<?>> hset = CommandBuilder.<Map<String, String>>hset().keyConverter(keyConverter).mapConverter(m -> m).build();
-        CommandItemWriter writer = CommandItemWriter.builder(targetPool, (BiFunction) hset).build();
+        RedisCommandItemWriter<String, String, Map<String, String>> writer = new RedisCommandItemWriter<>(targetPool, (BiFunction) hset);
         execute("hash-writer", reader, writer);
         Assertions.assertEquals(maps.size(), targetSync.keys("hash:*").size());
         for (int index = 0; index < maps.size(); index++) {
@@ -271,7 +271,7 @@ public class SpringBatchRedisTests {
         ListItemReader<ScoredValue<String>> reader = new ListItemReader<>(values);
         KeyMaker<ScoredValue<String>> keyConverter = KeyMaker.<ScoredValue<String>>builder().prefix("zset").build();
         BiFunction<RedisSortedSetAsyncCommands<String, String>, ScoredValue<String>, RedisFuture<?>> command = CommandBuilder.<ScoredValue<String>>zadd().keyConverter(keyConverter).memberIdConverter(Value::getValue).scoreConverter(ScoredValue::getScore).build();
-        CommandItemWriter writer = CommandItemWriter.builder(targetPool, (BiFunction) command).build();
+        RedisCommandItemWriter<String,String,Map<String,String>> writer = new RedisCommandItemWriter<>(targetPool, (BiFunction) command);
         execute("sorted-set-writer", reader, writer);
         Assertions.assertEquals(1, targetSync.dbsize());
         Assertions.assertEquals(values.size(), targetSync.zcard("zset"));
