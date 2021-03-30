@@ -7,8 +7,6 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.redis.support.AbstractKeyValueItemReader;
-import org.springframework.batch.item.redis.support.KeyValue;
 
 import java.util.ArrayList;
 import java.util.List;

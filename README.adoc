@@ -55,7 +55,7 @@ All item writers can perform both inserts or deletes depending on the value and 
 
 === `KeyDumpItemWriter`
 
-`KeyDumpItemWriter` accepts `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
+`KeyDumpOperation` accepts `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
 
 === `DataStructureItemWriter`
 

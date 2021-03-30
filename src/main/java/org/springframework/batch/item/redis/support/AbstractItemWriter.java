@@ -7,16 +7,20 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
-public abstract class AbstractRedisItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractItemStreamItemWriter<T> {
+public abstract class AbstractItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractItemStreamItemWriter<T> {
 
     private final GenericObjectPool<C> pool;
     private final Function<C, BaseRedisAsyncCommands<K, V>> async;
 
-    public AbstractRedisItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> async) {
+    protected AbstractItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> async) {
         Assert.notNull(pool, "A connection pool is required");
         Assert.notNull(async, "An async command function is required");
         this.pool = pool;
@@ -28,15 +32,14 @@ public abstract class AbstractRedisItemWriter<K, V, C extends StatefulConnection
         try (C connection = pool.borrowObject()) {
             BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
             commands.setAutoFlushCommands(false);
-            List<RedisFuture<?>> futures = write(items, commands);
-            commands.flushCommands();
-            long commandTimeout = connection.getTimeout().toMillis();
-            for (RedisFuture<?> future : futures) {
-                future.get(commandTimeout, TimeUnit.MILLISECONDS);
+            try {
+                write(commands, connection.getTimeout(), items);
+            } finally {
+                commands.setAutoFlushCommands(true);
             }
-            commands.setAutoFlushCommands(true);
         }
     }
 
-    protected abstract List<RedisFuture<?>> write(List<? extends T> items, BaseRedisAsyncCommands<K, V> commands);
+    protected abstract void write(BaseRedisAsyncCommands<K,V> commands, Duration timeout, List<? extends T> items) throws InterruptedException, ExecutionException, TimeoutException;
+
 }

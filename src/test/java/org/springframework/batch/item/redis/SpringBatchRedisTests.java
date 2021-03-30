@@ -3,9 +3,6 @@ package org.springframework.batch.item.redis;
 import io.lettuce.core.*;
 import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.async.RedisHashAsyncCommands;
-import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
-import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.sync.RedisCommands;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
@@ -61,7 +58,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
@@ -227,8 +223,8 @@ public class SpringBatchRedisTests {
             messages.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-        BiFunction<RedisStreamAsyncCommands<String, String>, Map<String, String>, RedisFuture<?>> command = CommandBuilder.<Map<String, String>>xadd().keyConverter(i -> stream).bodyConverter(i -> i).build();
-        RedisCommandItemWriter<String, String, Map<String, String>> writer = new RedisCommandItemWriter<>(targetPool, (BiFunction) command);
+        RedisOperation<String, String, Map<String, String>> xadd = RedisOperationBuilder.<String, String, Map<String, String>>xadd().keyConverter(i -> stream).bodyConverter(i -> i).build();
+        RedisOperationItemWriter<String, String, Map<String, String>> writer = new RedisOperationItemWriter<>(targetPool, xadd);
         execute("stream-writer", reader, writer);
         Assertions.assertEquals(messages.size(), targetSync.xlen(stream));
         List<StreamMessage<String, String>> xrange = targetSync.xrange(stream, Range.create("-", "+"));
@@ -251,8 +247,8 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
         KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash").converters(h -> h.remove("id")).build();
-        BiFunction<RedisHashAsyncCommands<String, String>, Map<String, String>, RedisFuture<?>> hset = CommandBuilder.<Map<String, String>>hset().keyConverter(keyConverter).mapConverter(m -> m).build();
-        RedisCommandItemWriter<String, String, Map<String, String>> writer = new RedisCommandItemWriter<>(targetPool, (BiFunction) hset);
+        RedisOperation<String, String, Map<String, String>> hset = RedisOperationBuilder.<String, String, Map<String, String>>hset().keyConverter(keyConverter).mapConverter(m -> m).build();
+        RedisOperationItemWriter<String, String, Map<String, String>> writer = new RedisOperationItemWriter<>(targetPool, hset);
         execute("hash-writer", reader, writer);
         Assertions.assertEquals(maps.size(), targetSync.keys("hash:*").size());
         for (int index = 0; index < maps.size(); index++) {
@@ -261,7 +257,6 @@ public class SpringBatchRedisTests {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void testSortedSetWriter() throws Exception {
         List<ScoredValue<String>> values = new ArrayList<>();
@@ -270,8 +265,8 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<ScoredValue<String>> reader = new ListItemReader<>(values);
         KeyMaker<ScoredValue<String>> keyConverter = KeyMaker.<ScoredValue<String>>builder().prefix("zset").build();
-        BiFunction<RedisSortedSetAsyncCommands<String, String>, ScoredValue<String>, RedisFuture<?>> command = CommandBuilder.<ScoredValue<String>>zadd().keyConverter(keyConverter).memberIdConverter(Value::getValue).scoreConverter(ScoredValue::getScore).build();
-        RedisCommandItemWriter<String,String,Map<String,String>> writer = new RedisCommandItemWriter<>(targetPool, (BiFunction) command);
+        RedisOperation<String, String, ScoredValue<String>> zadd = RedisOperationBuilder.<String, String, ScoredValue<String>>zadd().keyConverter(keyConverter).memberIdConverter(Value::getValue).scoreConverter(ScoredValue::getScore).build();
+        RedisOperationItemWriter<String, String, ScoredValue<String>> writer = new RedisOperationItemWriter<>(targetPool, zadd);
         execute("sorted-set-writer", reader, writer);
         Assertions.assertEquals(1, targetSync.dbsize());
         Assertions.assertEquals(values.size(), targetSync.zcard("zset"));
