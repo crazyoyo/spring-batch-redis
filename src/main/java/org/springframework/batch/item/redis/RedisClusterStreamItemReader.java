@@ -13,8 +13,9 @@ public class RedisClusterStreamItemReader<K, V> extends StreamItemReader<K, V, S
     public static <K, V> StreamItemReaderBuilder<K, RedisClusterStreamItemReader<K, V>> builder(StatefulRedisClusterConnection<K, V> connection) {
 
         return new StreamItemReaderBuilder<K, RedisClusterStreamItemReader<K, V>>() {
+
             @Override
-            public RedisClusterStreamItemReader<K, V> build() {
+            protected RedisClusterStreamItemReader<K, V> build(XReadArgs.StreamOffset<K> offset, Long count, boolean noack) {
                 return new RedisClusterStreamItemReader<>(connection, offset, count, noack);
             }
         };

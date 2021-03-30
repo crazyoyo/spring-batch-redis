@@ -127,9 +127,9 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
         public static final int DEFAULT_CHUNK_SIZE = 50;
         public static final int DEFAULT_THREAD_COUNT = 1;
 
-        protected int chunkSize = DEFAULT_CHUNK_SIZE;
-        protected int threadCount = DEFAULT_THREAD_COUNT;
-        protected int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+        private int chunkSize = DEFAULT_CHUNK_SIZE;
+        private int threadCount = DEFAULT_THREAD_COUNT;
+        private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
         public B chunkSize(int chunkSize) {
             this.chunkSize = chunkSize;
@@ -147,7 +147,11 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
             return (B) this;
         }
 
-        public abstract R build();
+        public R build() {
+            return build(chunkSize, threadCount, queueCapacity);
+        }
+
+        protected abstract R build(int chunkSize, int threadCount, int queueCapacity);
 
     }
 

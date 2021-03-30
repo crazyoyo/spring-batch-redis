@@ -26,11 +26,11 @@ public abstract class ScanKeyValueItemReaderBuilder<R extends AbstractKeyValueIt
         return k -> pattern.matcher(k).matches();
     }
 
-    public ScanKeyItemReader<String, String> keyReader(StatefulRedisConnection<String, String> connection) {
+    protected ScanKeyItemReader<String, String> keyReader(StatefulRedisConnection<String, String> connection) {
         return new ScanKeyItemReader<>(connection, c -> ((StatefulRedisConnection<String, String>) c).async(), c -> ((StatefulRedisConnection<String, String>) c).sync(), scanCount, scanMatch, sampleSize, keyPatternPredicate());
     }
 
-    public ScanKeyItemReader<String, String> keyReader(StatefulRedisClusterConnection<String, String> connection) {
+    protected ScanKeyItemReader<String, String> keyReader(StatefulRedisClusterConnection<String, String> connection) {
         return new ScanKeyItemReader<>(connection, c -> ((StatefulRedisClusterConnection<String, String>) c).async(), c -> ((StatefulRedisClusterConnection<String, String>) c).sync(), scanCount, scanMatch, sampleSize, keyPatternPredicate());
     }
 

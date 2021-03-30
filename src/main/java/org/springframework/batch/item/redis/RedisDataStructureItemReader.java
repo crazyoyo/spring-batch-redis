@@ -23,8 +23,9 @@ public class RedisDataStructureItemReader<K, V> extends DataStructureItemReader<
 
     public static ScanKeyValueItemReaderBuilder<RedisDataStructureItemReader<String, String>> builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool, StatefulRedisConnection<String, String> connection) {
         return new ScanKeyValueItemReaderBuilder<RedisDataStructureItemReader<String, String>>() {
+
             @Override
-            public RedisDataStructureItemReader<String, String> build() {
+            protected RedisDataStructureItemReader<String, String> build(int chunkSize, int threadCount, int queueCapacity) {
                 return new RedisDataStructureItemReader<>(keyReader(connection), pool, chunkSize, threadCount, queueCapacity);
             }
         };
@@ -32,9 +33,10 @@ public class RedisDataStructureItemReader<K, V> extends DataStructureItemReader<
 
     public static LiveKeyValueItemReaderBuilder<RedisDataStructureItemReader<String, String>> builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool, StatefulRedisPubSubConnection<String, String> connection) {
         return new LiveKeyValueItemReaderBuilder<RedisDataStructureItemReader<String, String>>() {
+
             @Override
-            public RedisDataStructureItemReader<String, String> build() {
-                return new RedisDataStructureItemReader<>(keyspaceNotificationReader(connection), pool, chunkSize, threadCount, queueCapacity, stepBuilderProvider());
+            protected RedisDataStructureItemReader<String, String> build(int chunkSize, int threadCount, int queueCapacity, Function<SimpleStepBuilder<String, String>, SimpleStepBuilder<String, String>> stepBuilderProvider) {
+                return new RedisDataStructureItemReader<>(keyspaceNotificationReader(connection), pool, chunkSize, threadCount, queueCapacity, stepBuilderProvider);
             }
         };
     }

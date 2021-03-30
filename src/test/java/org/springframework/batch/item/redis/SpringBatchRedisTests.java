@@ -234,6 +234,28 @@ public class SpringBatchRedisTests {
         }
     }
 
+    @Test
+    public void testTransactionStreamWriter() throws Exception {
+        String stream = "stream:0";
+        List<Map<String, String>> messages = new ArrayList<>();
+        for (int index = 0; index < 100; index++) {
+            Map<String, String> body = new HashMap<>();
+            body.put("field1", "value1");
+            body.put("field2", "value2");
+            messages.add(body);
+        }
+        ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
+        RedisOperation<String, String, Map<String, String>> xadd = RedisOperationBuilder.<String, String, Map<String, String>>xadd().keyConverter(i -> stream).bodyConverter(i -> i).build();
+        RedisTransactionItemWriter<String, String, Map<String, String>> writer = new RedisTransactionItemWriter<>(targetPool, xadd);
+        execute("stream-writer", reader, writer);
+        Assertions.assertEquals(messages.size(), targetSync.xlen(stream));
+        List<StreamMessage<String, String>> xrange = targetSync.xrange(stream, Range.create("-", "+"));
+        for (int index = 0; index < xrange.size(); index++) {
+            StreamMessage<String, String> message = xrange.get(index);
+            Assertions.assertEquals(messages.get(index), message.getBody());
+        }
+    }
+
     @SuppressWarnings("unchecked")
     @Test
     public void testHashWriter() throws Exception {

@@ -72,11 +72,15 @@ public class StreamItemReader<K, V, C extends StatefulConnection<K, V>> extends 
     @Accessors(fluent = true)
     public static abstract class StreamItemReaderBuilder<K, R extends StreamItemReader> {
 
-        protected XReadArgs.StreamOffset<K> offset;
-        protected Long count;
-        protected boolean noack;
+        private XReadArgs.StreamOffset<K> offset;
+        private Long count;
+        private boolean noack;
 
-        public abstract R build();
+        public R build() {
+            return build(offset, count, noack);
+        }
+
+        protected abstract R build(StreamOffset<K> offset, Long count, boolean noack);
 
     }
 

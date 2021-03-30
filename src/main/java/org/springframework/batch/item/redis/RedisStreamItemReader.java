@@ -13,8 +13,9 @@ public class RedisStreamItemReader<K, V> extends StreamItemReader<K, V, Stateful
     public static <K, V> StreamItemReaderBuilder<K, RedisStreamItemReader<K, V>> builder(StatefulRedisConnection<K, V> connection) {
 
         return new StreamItemReaderBuilder<K, RedisStreamItemReader<K, V>>() {
+
             @Override
-            public RedisStreamItemReader<K, V> build() {
+            protected RedisStreamItemReader<K, V> build(XReadArgs.StreamOffset<K> offset, Long count, boolean noack) {
                 return new RedisStreamItemReader<>(connection, offset, count, noack);
             }
         };

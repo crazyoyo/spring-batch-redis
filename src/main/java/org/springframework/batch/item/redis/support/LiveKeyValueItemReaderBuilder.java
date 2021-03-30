@@ -18,12 +18,12 @@ public abstract class LiveKeyValueItemReaderBuilder<R extends AbstractKeyValueIt
     public static final int DEFAULT_DATABASE = 0;
     public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = 1000;
     public static final String DEFAULT_KEY_PATTERN = "*";
-    protected static final Converter<String, String> DEFAULT_KEY_EXTRACTOR = m -> m.substring(m.indexOf(":") + 1);
+    private static final Converter<String, String> DEFAULT_KEY_EXTRACTOR = m -> m.substring(m.indexOf(":") + 1);
     private static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 
-    protected Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
-    protected Duration idleTimeout;
-    protected int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
+    private Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
+    private Duration idleTimeout;
+    private int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
     private String keyPattern = DEFAULT_KEY_PATTERN;
     private int database = DEFAULT_DATABASE;
 
@@ -31,16 +31,19 @@ public abstract class LiveKeyValueItemReaderBuilder<R extends AbstractKeyValueIt
         return String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern);
     }
 
-    public RedisKeyspaceNotificationItemReader<String, String> keyspaceNotificationReader(StatefulRedisPubSubConnection<String, String> connection) {
+    protected RedisKeyspaceNotificationItemReader<String, String> keyspaceNotificationReader(StatefulRedisPubSubConnection<String, String> connection) {
         return new RedisKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, notificationQueueCapacity);
     }
 
-    public RedisClusterKeyspaceNotificationItemReader<String, String> keyspaceNotificationReader(StatefulRedisClusterPubSubConnection<String, String> connection) {
+    protected RedisClusterKeyspaceNotificationItemReader<String, String> keyspaceNotificationReader(StatefulRedisClusterPubSubConnection<String, String> connection) {
         return new RedisClusterKeyspaceNotificationItemReader<>(connection, pubSubPattern(), DEFAULT_KEY_EXTRACTOR, notificationQueueCapacity);
     }
 
-    public Function<SimpleStepBuilder<String, String>, SimpleStepBuilder<String, String>> stepBuilderProvider() {
-        return b -> new FlushingStepBuilder<>(b).flushingInterval(flushingInterval).idleTimeout(idleTimeout);
+    @Override
+    protected R build(int chunkSize, int threadCount, int queueCapacity) {
+        return build(chunkSize, threadCount, queueCapacity, b -> new FlushingStepBuilder<>(b).flushingInterval(flushingInterval).idleTimeout(idleTimeout));
     }
+
+    protected abstract R build(int chunkSize, int threadCount, int queueCapacity, Function<SimpleStepBuilder<String, String>, SimpleStepBuilder<String, String>> stepBuilderProvider);
 
 }
