@@ -9,36 +9,55 @@ import org.springframework.batch.item.redis.support.DataStructureItemReader;
 import org.springframework.batch.item.redis.support.LiveKeyValueItemReaderBuilder;
 import org.springframework.batch.item.redis.support.ScanKeyValueItemReaderBuilder;
 
+import java.time.Duration;
 import java.util.function.Function;
 
 public class RedisDataStructureItemReader<K, V> extends DataStructureItemReader<K, V, StatefulRedisConnection<K, V>> {
 
-    public RedisDataStructureItemReader(ItemReader<K> keyReader, GenericObjectPool<StatefulRedisConnection<K, V>> pool, int chunkSize, int threads, int queueCapacity) {
-        super(keyReader, pool, StatefulRedisConnection::async, chunkSize, threads, queueCapacity);
+    public RedisDataStructureItemReader(Duration readTimeout, ItemReader<K> keyReader, GenericObjectPool<StatefulRedisConnection<K, V>> pool, int chunkSize, int threads, int queueCapacity) {
+        super(readTimeout, keyReader, pool, StatefulRedisConnection::async, chunkSize, threads, queueCapacity);
     }
 
-    public RedisDataStructureItemReader(ItemReader<K> keyReader, GenericObjectPool<StatefulRedisConnection<K, V>> pool, int chunkSize, int threads, int queueCapacity, Function<SimpleStepBuilder<K, K>, SimpleStepBuilder<K, K>> stepBuilderProvider) {
-        super(keyReader, pool, StatefulRedisConnection::async, chunkSize, threads, queueCapacity, stepBuilderProvider);
+    public RedisDataStructureItemReader(Duration readTimeout, ItemReader<K> keyReader, GenericObjectPool<StatefulRedisConnection<K, V>> pool, int chunkSize, int threads, int queueCapacity, Function<SimpleStepBuilder<K, K>, SimpleStepBuilder<K, K>> stepBuilderProvider) {
+        super(readTimeout, keyReader, pool, StatefulRedisConnection::async, chunkSize, threads, queueCapacity, stepBuilderProvider);
     }
 
-    public static ScanKeyValueItemReaderBuilder<RedisDataStructureItemReader<String, String>> builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool, StatefulRedisConnection<String, String> connection) {
-        return new ScanKeyValueItemReaderBuilder<RedisDataStructureItemReader<String, String>>() {
-
-            @Override
-            protected RedisDataStructureItemReader<String, String> build(int chunkSize, int threadCount, int queueCapacity) {
-                return new RedisDataStructureItemReader<>(keyReader(connection), pool, chunkSize, threadCount, queueCapacity);
-            }
-        };
+    public static RedisScanDataStructureItemReaderBuilder builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool, StatefulRedisConnection<String, String> connection) {
+        return new RedisScanDataStructureItemReaderBuilder(pool, connection);
     }
 
-    public static LiveKeyValueItemReaderBuilder<RedisDataStructureItemReader<String, String>> builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool, StatefulRedisPubSubConnection<String, String> connection) {
-        return new LiveKeyValueItemReaderBuilder<RedisDataStructureItemReader<String, String>>() {
+    public static class RedisScanDataStructureItemReaderBuilder extends ScanKeyValueItemReaderBuilder<RedisScanDataStructureItemReaderBuilder> {
 
-            @Override
-            protected RedisDataStructureItemReader<String, String> build(int chunkSize, int threadCount, int queueCapacity, Function<SimpleStepBuilder<String, String>, SimpleStepBuilder<String, String>> stepBuilderProvider) {
-                return new RedisDataStructureItemReader<>(keyspaceNotificationReader(connection), pool, chunkSize, threadCount, queueCapacity, stepBuilderProvider);
-            }
-        };
+        private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
+        private final StatefulRedisConnection<String, String> connection;
+
+        public RedisScanDataStructureItemReaderBuilder(GenericObjectPool<StatefulRedisConnection<String, String>> pool, StatefulRedisConnection<String, String> connection) {
+            this.pool = pool;
+            this.connection = connection;
+        }
+
+        public RedisDataStructureItemReader<String, String> build() {
+            return new RedisDataStructureItemReader<>(readTimeout, keyReader(connection), pool, chunkSize, threadCount, queueCapacity);
+        }
+    }
+
+    public static RedisLiveDataStructureItemReaderBuilder builder(GenericObjectPool<StatefulRedisConnection<String, String>> pool, StatefulRedisPubSubConnection<String, String> connection) {
+        return new RedisLiveDataStructureItemReaderBuilder(pool, connection);
+    }
+
+    public static class RedisLiveDataStructureItemReaderBuilder extends LiveKeyValueItemReaderBuilder<RedisLiveDataStructureItemReaderBuilder> {
+
+        private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
+        private final StatefulRedisPubSubConnection<String, String> connection;
+
+        public RedisLiveDataStructureItemReaderBuilder(GenericObjectPool<StatefulRedisConnection<String, String>> pool, StatefulRedisPubSubConnection<String, String> connection) {
+            this.pool = pool;
+            this.connection = connection;
+        }
+
+        public RedisDataStructureItemReader<String, String> build() {
+            return new RedisDataStructureItemReader<>(readTimeout, keyspaceNotificationReader(connection), pool, chunkSize, threadCount, queueCapacity, stepBuilderProvider());
+        }
     }
 
 }

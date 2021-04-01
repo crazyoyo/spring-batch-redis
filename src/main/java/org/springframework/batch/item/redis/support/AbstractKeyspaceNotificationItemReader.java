@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
+import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -15,7 +16,8 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
     private final Converter<K, K> keyExtractor;
     private final BlockingQueue<K> queue;
 
-    protected AbstractKeyspaceNotificationItemReader(K pubSubPattern, Converter<K, K> keyExtractor, int queueCapacity) {
+    protected AbstractKeyspaceNotificationItemReader(Duration readTimeout, K pubSubPattern, Converter<K, K> keyExtractor, int queueCapacity) {
+        super(readTimeout);
         Assert.notNull(pubSubPattern, "A pub/sub subscription pattern is required.");
         Assert.notNull(keyExtractor, "A key extractor is required.");
         Assert.isTrue(queueCapacity > 0, "Queue capacity must be greater than zero.");

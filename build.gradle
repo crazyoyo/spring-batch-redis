@@ -42,7 +42,7 @@ dependencies {
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     api 'io.lettuce:lettuce-core:6.0.3.RELEASE'
     api 'org.apache.commons:commons-pool2'
-    implementation ('org.springframework.boot:spring-boot-starter-batch') {
+    api ('org.springframework.boot:spring-boot-starter-batch') {
         exclude group: 'io.lettuce', module: 'lettuce-core'
     }
     implementation 'com.h2database:h2'

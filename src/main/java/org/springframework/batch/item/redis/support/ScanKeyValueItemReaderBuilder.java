@@ -2,16 +2,12 @@ package org.springframework.batch.item.redis.support;
 
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 @SuppressWarnings("rawtypes")
-@Setter
-@Accessors(fluent = true)
-public abstract class ScanKeyValueItemReaderBuilder<R extends AbstractKeyValueItemReader> extends AbstractKeyValueItemReader.AbstractKeyValueItemReaderBuilder<R, ScanKeyValueItemReaderBuilder<R>> {
+public abstract class ScanKeyValueItemReaderBuilder<B extends ScanKeyValueItemReaderBuilder<B>> extends AbstractKeyValueItemReader.KeyValueItemReaderBuilder<B> {
 
     public static final String DEFAULT_SCAN_MATCH = "*";
     public static final long DEFAULT_SCAN_COUNT = 1000;
@@ -20,6 +16,21 @@ public abstract class ScanKeyValueItemReaderBuilder<R extends AbstractKeyValueIt
     private String scanMatch = DEFAULT_SCAN_MATCH;
     private long scanCount = DEFAULT_SCAN_COUNT;
     private int sampleSize = DEFAULT_SAMPLE_SIZE;
+
+    public B scanMatch(String scanMatch) {
+        this.scanMatch = scanMatch;
+        return (B) this;
+    }
+
+    public B scanCount(long scanCount) {
+        this.scanCount = scanCount;
+        return (B) this;
+    }
+
+    public B sampleSize(int sampleSize) {
+        this.sampleSize = sampleSize;
+        return (B) this;
+    }
 
     private Predicate<String> keyPatternPredicate() {
         Pattern pattern = Pattern.compile(GlobToRegexConverter.convert(scanMatch));

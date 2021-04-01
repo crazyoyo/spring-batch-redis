@@ -5,11 +5,11 @@ import io.lettuce.core.XReadArgs;
 import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.RedisStreamCommands;
-import lombok.Setter;
-import lombok.experimental.Accessors;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.Assert;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -21,18 +21,22 @@ public class StreamItemReader<K, V, C extends StatefulConnection<K, V>> extends 
 
     private final C connection;
     private final Function<C, RedisStreamCommands<K, V>> commands;
+    private final Long block;
     private final Long count;
     private final boolean noack;
+    @Getter
     private StreamOffset<K> offset;
     private Iterator<StreamMessage<K, V>> iterator;
 
-    public StreamItemReader(C connection, Function<C, RedisStreamCommands<K, V>> commands, StreamOffset<K> offset, Long count, boolean noack) {
+    public StreamItemReader(Duration readTimeout, C connection, Function<C, RedisStreamCommands<K, V>> commands, StreamOffset<K> offset, Long block, Long count, boolean noack) {
+        super(readTimeout);
         Assert.notNull(connection, "A Redis connection is required.");
         Assert.notNull(commands, "A command provider is required");
         Assert.notNull(offset, "Offset is required.");
         this.connection = connection;
         this.commands = commands;
         this.offset = offset;
+        this.block = block;
         this.count = count;
         this.noack = noack;
     }
@@ -51,37 +55,63 @@ public class StreamItemReader<K, V, C extends StatefulConnection<K, V>> extends 
     @Override
     public StreamMessage<K, V> poll(long timeout, TimeUnit unit) {
         if (!iterator.hasNext()) {
-            XReadArgs args = XReadArgs.Builder.block(unit.toMillis(timeout)).noack(noack);
-            if (count != null) {
-                args.count(count);
-            }
-            List<StreamMessage<K, V>> messages = commands.apply(connection).xread(args, offset);
+            List<StreamMessage<K, V>> messages = nextMessages(unit.toMillis(timeout));
             if (messages == null || messages.isEmpty()) {
                 return null;
             }
             iterator = messages.iterator();
         }
         StreamMessage<K, V> message = iterator.next();
-        offset = StreamOffset.from(message.getStream(), message.getId());
-        log.debug("Message: {}", message);
         return message;
     }
 
-    @SuppressWarnings("rawtypes")
-    @Setter
-    @Accessors(fluent = true)
-    public static abstract class StreamItemReaderBuilder<K, R extends StreamItemReader> {
+    public List<StreamMessage<K, V>> readMessages() {
+        return nextMessages(block);
+    }
 
-        private XReadArgs.StreamOffset<K> offset;
-        private Long count;
-        private boolean noack;
+    private List<StreamMessage<K, V>> nextMessages(Long block) {
+        XReadArgs args = XReadArgs.Builder.noack(noack);
+        if (block != null) {
+            args.block(block);
+        }
+        if (count != null) {
+            args.count(count);
+        }
+        List<StreamMessage<K, V>> messages = commands.apply(connection).xread(args, offset);
+        if (messages != null && !messages.isEmpty()) {
+            StreamMessage<K, V> lastMessage = messages.get(messages.size() - 1);
+            offset = StreamOffset.from(lastMessage.getStream(), lastMessage.getId());
+        }
+        return messages;
+    }
 
-        public R build() {
-            return build(offset, count, noack);
+    @SuppressWarnings("unchecked")
+    public static class StreamItemReaderBuilder<K, B extends StreamItemReaderBuilder<K, B>> extends PollableItemReaderBuilder<B> {
+
+        protected XReadArgs.StreamOffset<K> offset;
+        protected Long block;
+        protected Long count;
+        protected boolean noack;
+
+        public B offset(XReadArgs.StreamOffset<K> offset) {
+            this.offset = offset;
+            return (B) this;
         }
 
-        protected abstract R build(StreamOffset<K> offset, Long count, boolean noack);
+        public B block(Long block) {
+            this.block = block;
+            return (B) this;
+        }
 
+        public B count(Long count) {
+            this.count = count;
+            return (B) this;
+        }
+
+        public B noack(boolean noack) {
+            this.noack = noack;
+            return (B) this;
+        }
     }
 
 }

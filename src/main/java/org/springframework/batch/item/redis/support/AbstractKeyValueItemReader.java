@@ -11,11 +11,11 @@ import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 @Slf4j
-public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnection<K, V>, T extends KeyValue<K, ?>> extends AbstractItemCountingItemStreamItemReader<T> implements PollableItemReader<T> {
+public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnection<K, V>, T extends KeyValue<K, ?>> extends AbstractPollableItemReader<T> {
 
     @Getter
     private final ItemReader<K> keyReader;
@@ -36,11 +36,12 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
     private JobExecution jobExecution;
     private String name;
 
-    protected AbstractKeyValueItemReader(ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, int chunkSize, int threads, int queueCapacity) {
-        this(keyReader, pool, commands, chunkSize, threads, queueCapacity, Function.identity());
+    protected AbstractKeyValueItemReader(Duration readTimeout, ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, int chunkSize, int threads, int queueCapacity) {
+        this(readTimeout, keyReader, pool, commands, chunkSize, threads, queueCapacity, Function.identity());
     }
 
-    protected AbstractKeyValueItemReader(ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, int chunkSize, int threads, int queueCapacity, Function<SimpleStepBuilder<K, K>, SimpleStepBuilder<K, K>> stepBuilderProvider) {
+    protected AbstractKeyValueItemReader(Duration readTimeout, ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, int chunkSize, int threads, int queueCapacity, Function<SimpleStepBuilder<K, K>, SimpleStepBuilder<K, K>> stepBuilderProvider) {
+        super(readTimeout);
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(keyReader, "A key reader is required.");
         Assert.notNull(pool, "A connection pool is required");
@@ -70,12 +71,8 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
     }
 
     @Override
-    protected T doRead() throws InterruptedException {
-        T item;
-        do {
-            item = poll(DEFAULT_POLLING_TIMEOUT, TimeUnit.MILLISECONDS);
-        } while (item == null && jobExecution.isRunning());
-        return item;
+    protected boolean isRunning() {
+        return super.isRunning() && jobExecution.isRunning();
     }
 
     @SuppressWarnings("BusyWait")
@@ -94,13 +91,15 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
         while (!jobExecution.isRunning()) {
             Thread.sleep(10);
         }
+        super.doOpen();
         log.debug("Opened {}", name);
     }
 
     @SuppressWarnings("BusyWait")
     @Override
-    protected void doClose() throws InterruptedException {
+    protected void doClose() throws Exception {
         log.debug("Closing {}", name);
+        super.doClose();
         if (!queue.isEmpty()) {
             log.warn("Closing {} with {} items still in queue", ClassUtils.getShortName(getClass()), queue.size());
         }
@@ -121,15 +120,15 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static abstract class AbstractKeyValueItemReaderBuilder<R extends AbstractKeyValueItemReader, B extends AbstractKeyValueItemReaderBuilder<R, B>> {
+    public static class KeyValueItemReaderBuilder<B extends KeyValueItemReaderBuilder<B>> extends PollableItemReaderBuilder<B> {
 
         public static final int DEFAULT_QUEUE_CAPACITY = 1000;
         public static final int DEFAULT_CHUNK_SIZE = 50;
         public static final int DEFAULT_THREAD_COUNT = 1;
 
-        private int chunkSize = DEFAULT_CHUNK_SIZE;
-        private int threadCount = DEFAULT_THREAD_COUNT;
-        private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+        protected int chunkSize = DEFAULT_CHUNK_SIZE;
+        protected int threadCount = DEFAULT_THREAD_COUNT;
+        protected int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
         public B chunkSize(int chunkSize) {
             this.chunkSize = chunkSize;
@@ -146,12 +145,6 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
             this.queueCapacity = queueCapacity;
             return (B) this;
         }
-
-        public R build() {
-            return build(chunkSize, threadCount, queueCapacity);
-        }
-
-        protected abstract R build(int chunkSize, int threadCount, int queueCapacity);
 
     }
 

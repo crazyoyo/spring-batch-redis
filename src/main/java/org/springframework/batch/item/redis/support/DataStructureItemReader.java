@@ -8,6 +8,7 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -15,12 +16,12 @@ import java.util.function.Function;
 
 public class DataStructureItemReader<K, V, C extends StatefulConnection<K, V>> extends AbstractKeyValueItemReader<K, V, C, DataStructure<K>> {
 
-    public DataStructureItemReader(ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, int chunkSize, int threads, int queueCapacity) {
-        super(keyReader, pool, commands, chunkSize, threads, queueCapacity);
+    public DataStructureItemReader(Duration readTimeout, ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, int chunkSize, int threads, int queueCapacity) {
+        super(readTimeout, keyReader, pool, commands, chunkSize, threads, queueCapacity);
     }
 
-    public DataStructureItemReader(ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, int chunkSize, int threads, int queueCapacity, Function<SimpleStepBuilder<K, K>, SimpleStepBuilder<K, K>> stepBuilderProvider) {
-        super(keyReader, pool, commands, chunkSize, threads, queueCapacity, stepBuilderProvider);
+    public DataStructureItemReader(Duration readTimeout, ItemReader<K> keyReader, GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands, int chunkSize, int threads, int queueCapacity, Function<SimpleStepBuilder<K, K>, SimpleStepBuilder<K, K>> stepBuilderProvider) {
+        super(readTimeout, keyReader, pool, commands, chunkSize, threads, queueCapacity, stepBuilderProvider);
     }
 
     @SuppressWarnings("unchecked")
