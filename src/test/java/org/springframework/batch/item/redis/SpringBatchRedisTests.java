@@ -27,7 +27,6 @@ import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
-import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.DefaultBufferedReaderFactory;
@@ -138,6 +137,7 @@ public class SpringBatchRedisTests {
         TaskletStep step = flushing(step(name, reader, writer)).build();
         JobExecution execution = asyncJobLauncher.run(job(name, step), new JobParameters());
         awaitRunning(execution);
+        Thread.sleep(100);
         return execution;
     }
 
@@ -288,7 +288,7 @@ public class SpringBatchRedisTests {
     public void testSortedSetWriter() throws Throwable {
         List<ScoredValue<String>> values = new ArrayList<>();
         for (int index = 0; index < 100; index++) {
-            values.add(ScoredValue.fromNullable(index % 10, String.valueOf(index)));
+            values.add((ScoredValue<String>) ScoredValue.fromNullable(index % 10, String.valueOf(index)));
         }
         ListItemReader<ScoredValue<String>> reader = new ListItemReader<>(values);
         KeyMaker<ScoredValue<String>> keyConverter = KeyMaker.<ScoredValue<String>>builder().prefix("zset").build();
@@ -431,12 +431,14 @@ public class SpringBatchRedisTests {
 
     @Test
     public void testKeyReaderSize() throws Throwable {
-        DataGenerator.builder().pool(sourcePool).end(1234).build().call();
-        ScanKeyItemReader<String, String> keyReader = (ScanKeyItemReader<String, String>) RedisDataStructureItemReader.builder(sourcePool, sourceConnection).build().getKeyReader();
-        keyReader.open(new ExecutionContext());
-        Long estimated = keyReader.size();
-        Assertions.assertEquals(sourceSync.dbsize(), estimated);
-        keyReader.close();
+        DataGenerator.builder().pool(sourcePool).end(12345).build().call();
+        long hashCount = sourceSync.keys("hash:*").size();
+        ScanSizeEstimator<StatefulRedisConnection<String, String>> estimator = new ScanSizeEstimator<>(sourcePool, StatefulRedisConnection::async);
+        long matchSize = estimator.estimate(ScanSizeEstimator.Options.builder().match("hash:*").sampleSize(1000).build());
+        Assertions.assertTrue((double) Math.abs(hashCount - matchSize) / (double) hashCount < .05);
+        long typeSize = estimator.estimate(ScanSizeEstimator.Options.builder().type(DataType.HASH).sampleSize(1000).build());
+        Assertions.assertTrue((double) Math.abs(hashCount - typeSize) / (double) hashCount < .05);
+
     }
 
 }

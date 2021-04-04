@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
-public class OperationItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractItemWriter<K,V,C,T> {
+public class OperationItemWriter<K, V, C extends StatefulConnection<K, V>, T> extends AbstractItemWriter<K, V, C, T> {
 
     private final RedisOperation<K, V, T> operation;
 

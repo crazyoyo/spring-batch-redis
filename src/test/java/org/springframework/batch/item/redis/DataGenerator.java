@@ -5,7 +5,6 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import lombok.Builder;
-import lombok.NonNull;
 import lombok.Singular;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -26,7 +25,6 @@ public class DataGenerator implements Callable<Long> {
     private static final int DEFAULT_BATCH_SIZE = 50;
     private static final int DEFAULT_MAX_EXPIRE = 100000;
 
-    @NonNull
     private final GenericObjectPool<StatefulRedisConnection<String, String>> pool;
     @Builder.Default
     private final int start = DEFAULT_START;

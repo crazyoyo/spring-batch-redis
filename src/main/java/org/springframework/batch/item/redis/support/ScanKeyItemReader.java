@@ -1,12 +1,8 @@
 package org.springframework.batch.item.redis.support;
 
-import io.lettuce.core.RedisFuture;
-import io.lettuce.core.ScanArgs;
+import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import io.lettuce.core.api.async.RedisServerAsyncCommands;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisKeyCommands;
 import lombok.extern.slf4j.Slf4j;
@@ -14,86 +10,47 @@ import org.springframework.batch.item.support.AbstractItemCountingItemStreamItem
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 @Slf4j
-public class ScanKeyItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<K> implements BoundedItemReader<K> {
+public class ScanKeyItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<K> {
 
     private final StatefulConnection<K, V> connection;
-    private final long scanCount;
-    private final String scanMatch;
-    private final Predicate<K> keyPatternPredicate;
-    private final int sampleSize;
-    private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
+    private final Long count;
+    private final String match;
+    private final String type;
     private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync;
     private ScanIterator<K> iterator;
     private Long size;
 
-    public ScanKeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, long scanCount, String scanMatch, int sampleSize, Predicate<K> keyPatternPredicate) {
+    public ScanKeyItemReader(StatefulConnection<K, V> connection, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, Long count, String match, String type) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(connection, "A Redis connection is required");
-        Assert.notNull(async, "An async command function is required");
         Assert.notNull(sync, "A sync command function is required");
-        Assert.notNull(keyPatternPredicate, "A key predicate is required");
         this.connection = connection;
-        this.async = async;
         this.sync = sync;
-        this.scanCount = scanCount;
-        this.scanMatch = scanMatch;
-        this.sampleSize = sampleSize;
-        this.keyPatternPredicate = keyPatternPredicate;
+        this.count = count;
+        this.match = match;
+        this.type = type;
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected synchronized void doOpen() throws InterruptedException, ExecutionException, TimeoutException {
+    protected synchronized void doOpen() {
         if (iterator != null) {
             return;
         }
-        this.size = calculateSize();
-        ScanArgs scanArgs = ScanArgs.Builder.limit(scanCount).match(scanMatch);
-        this.iterator = ScanIterator.scan((RedisKeyCommands<K, V>) sync.apply(connection), scanArgs);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Long calculateSize() throws InterruptedException, ExecutionException, TimeoutException {
-        BaseRedisAsyncCommands<K, V> async = this.async.apply(connection);
-        async.setAutoFlushCommands(false);
-        RedisFuture<Long> dbsizeFuture = ((RedisServerAsyncCommands<K, V>) async).dbsize();
-        List<RedisFuture<K>> keyFutures = new ArrayList<>(sampleSize);
-        // rough estimate of keys matching pattern
-        for (int index = 0; index < sampleSize; index++) {
-            keyFutures.add(((RedisKeyAsyncCommands<K, V>) async).randomkey());
+        KeyScanArgs args = new KeyScanArgs();
+        if (count != null) {
+            args.limit(count);
         }
-        async.flushCommands();
-        async.setAutoFlushCommands(true);
-        long commandTimeout = connection.getTimeout().toMillis();
-        int matchCount = 0;
-        for (RedisFuture<K> future : keyFutures) {
-            K key = future.get(commandTimeout, TimeUnit.MILLISECONDS);
-            if (key == null) {
-                continue;
-            }
-            if (keyPatternPredicate.test(key)) {
-                matchCount++;
-            }
+        if (match != null) {
+            args.match(match);
         }
-        Long dbsize = dbsizeFuture.get(commandTimeout, TimeUnit.MILLISECONDS);
-        if (dbsize == null) {
-            return null;
+        if (type != null) {
+            args.type(type);
         }
-        return dbsize * matchCount / sampleSize;
-    }
-
-    @Override
-    public Long size() {
-        return size;
+        this.iterator = ScanIterator.scan((RedisKeyCommands<K, V>) sync.apply(connection), args);
     }
 
     @Override
