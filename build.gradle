@@ -161,3 +161,5 @@ tasks.named("dependencyUpdates").configure {
 
 tasks.distZip.shouldRunAfter tasks.javadocJar
 afterReleaseBuild.dependsOn ":githubRelease"
+afterReleaseBuild.dependsOn ":publishToSonatype"
+afterReleaseBuild.dependsOn ":closeAndReleaseSonatypeStagingRepository"
