@@ -36,14 +36,12 @@ jar {
 dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
-    implementation 'com.hybhub:concurrent-util:0.3.0'
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     api 'io.lettuce:lettuce-core:6.1.0.RELEASE'
     api 'org.apache.commons:commons-pool2'
     api ('org.springframework.boot:spring-boot-starter-batch') {
         exclude group: 'io.lettuce', module: 'lettuce-core'
     }
-    implementation 'com.h2database:h2'
     testImplementation 'io.micrometer:micrometer-core'
     testImplementation('org.springframework.boot:spring-boot-starter-test') {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'

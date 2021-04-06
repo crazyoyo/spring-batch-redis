@@ -61,7 +61,10 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
         if (key == null) {
             return;
         }
-        queue.offer(key);
+        boolean success = queue.offer(key);
+        if (!success) {
+            log.debug("Notification queue full");
+        }
     }
 
 }
