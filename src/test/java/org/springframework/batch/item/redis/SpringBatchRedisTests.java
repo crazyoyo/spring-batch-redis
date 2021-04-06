@@ -205,7 +205,6 @@ public class SpringBatchRedisTests {
     public void testStreamReader() throws Throwable {
         DataGenerator.builder().dataType(DataType.STREAM).pool(sourcePool).end(100).build().call();
         RedisStreamItemReader<String, String> reader = RedisStreamItemReader.builder(sourceConnection).offset(StreamOffset.from("stream:0", "0-0")).build();
-        reader.setMaxItemCount(10);
         ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
         JobExecution execution = executeFlushing("stream-reader", reader, writer);
         awaitJobTermination(execution);

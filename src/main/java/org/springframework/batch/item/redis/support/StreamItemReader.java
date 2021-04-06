@@ -39,16 +39,7 @@ public class StreamItemReader<K, V, C extends StatefulConnection<K, V>> extends 
         this.block = block;
         this.count = count;
         this.noack = noack;
-    }
-
-    @Override
-    protected void doOpen() {
-        iterator = Collections.emptyIterator();
-    }
-
-    @Override
-    protected void doClose() {
-        iterator = null;
+        this.iterator = Collections.emptyIterator();
     }
 
     @SuppressWarnings("unchecked")
@@ -85,7 +76,7 @@ public class StreamItemReader<K, V, C extends StatefulConnection<K, V>> extends 
         return messages;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "unused"})
     public static class StreamItemReaderBuilder<K, B extends StreamItemReaderBuilder<K, B>> extends PollableItemReaderBuilder<B> {
 
         protected XReadArgs.StreamOffset<K> offset;

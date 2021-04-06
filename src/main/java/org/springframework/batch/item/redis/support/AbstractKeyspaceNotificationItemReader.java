@@ -2,6 +2,7 @@ package org.springframework.batch.item.redis.support;
 
 import com.hybhub.util.concurrent.ConcurrentSetBlockingQueue;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
@@ -32,7 +33,8 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
     }
 
     @Override
-    protected void doOpen() {
+    public void open(ExecutionContext executionContext) {
+        super.open(executionContext);
         MetricsUtils.createGaugeCollectionSize("reader.notification.queue.size", queue);
         log.debug("Subscribing to pub/sub pattern {}, queue capacity: {}", pubSubPattern, queue.remainingCapacity());
         subscribe(pubSubPattern);
@@ -41,7 +43,8 @@ public abstract class AbstractKeyspaceNotificationItemReader<K, V> extends Abstr
     protected abstract void subscribe(K pattern);
 
     @Override
-    protected void doClose() {
+    public void close() {
+        super.close();
         log.debug("Unsubscribing from pub/sub pattern {}", pubSubPattern);
         unsubscribe(pubSubPattern);
         queue.clear();

@@ -3,7 +3,8 @@ package org.springframework.batch.item.redis.support;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
@@ -11,7 +12,7 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
-public abstract class AbstractPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T> implements PollableItemReader<T> {
+public abstract class AbstractPollableItemReader<T> extends ItemStreamSupport implements PollableItemReader<T>{
 
     private final long timeout;
     private boolean running;
@@ -23,12 +24,17 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemCounting
     }
 
     @Override
-    protected void doOpen() throws Exception {
+    public void open(ExecutionContext executionContext) {
         this.running = true;
     }
 
     @Override
-    protected T doRead() throws Exception {
+    public void close() {
+        this.running = false;
+    }
+
+    @Override
+    public T read() throws Exception {
         T item;
         do {
             item = poll(timeout, TimeUnit.MILLISECONDS);
@@ -36,15 +42,12 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemCounting
         return item;
     }
 
-    @Override
-    protected void doClose() throws Exception {
-        this.running = false;
-    }
 
     protected boolean isRunning() {
         return running;
     }
 
+    @SuppressWarnings("unchecked")
     @Setter
     @Accessors(fluent = true)
     public static class PollableItemReaderBuilder<B extends PollableItemReaderBuilder<B>> {

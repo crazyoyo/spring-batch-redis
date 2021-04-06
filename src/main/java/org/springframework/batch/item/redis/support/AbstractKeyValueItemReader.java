@@ -10,7 +10,9 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -77,34 +79,50 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
 
     @SuppressWarnings("BusyWait")
     @Override
-    protected void doOpen() throws Exception {
+    public void open(ExecutionContext executionContext) throws ItemStreamException {
         log.debug("Opening {}", name);
         JobFactory factory = new JobFactory();
-        factory.afterPropertiesSet();
+        try {
+            factory.afterPropertiesSet();
+        } catch (Exception e) {
+            throw new ItemStreamException("Failed to initialize the reader", e);
+        }
         SimpleStepBuilder<K, K> stepBuilder = stepBuilderProvider.apply(factory.step(name + "-step").chunk(chunkSize)).reader(keyReader).writer(this::addToQueue);
         SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
         taskExecutor.setConcurrencyLimit(threads);
         TaskletStep step = stepBuilder.taskExecutor(taskExecutor).throttleLimit(threads).build();
         Job job = factory.job(name + "-job").start(step).build();
         MetricsUtils.createGaugeCollectionSize("reader.queue.size", queue);
-        this.jobExecution = factory.getAsyncLauncher().run(job, new JobParameters());
-        while (!jobExecution.isRunning()) {
-            Thread.sleep(10);
+        try {
+            this.jobExecution = factory.getAsyncLauncher().run(job, new JobParameters());
+        } catch (Exception e) {
+            throw new ItemStreamException("Could not run job " + job.getName());
         }
-        super.doOpen();
+        while (!jobExecution.isRunning()) {
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                throw new ItemStreamException("Interrupted while waiting for job to run");
+            }
+        }
+        super.open(executionContext);
         log.debug("Opened {}", name);
     }
 
     @SuppressWarnings("BusyWait")
     @Override
-    protected void doClose() throws Exception {
+    public void close() {
         log.debug("Closing {}", name);
-        super.doClose();
+        super.close();
         if (!queue.isEmpty()) {
             log.warn("Closing {} with {} items still in queue", ClassUtils.getShortName(getClass()), queue.size());
         }
         while (jobExecution.isRunning()) {
-            Thread.sleep(10);
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                throw new ItemStreamException("Interrupted while waiting for job to finish running");
+            }
         }
         jobExecution = null;
         log.debug("Closed {}", name);
@@ -119,7 +137,7 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({"unchecked", "unused"})
     public static class KeyValueItemReaderBuilder<B extends KeyValueItemReaderBuilder<B>> extends PollableItemReaderBuilder<B> {
 
         public static final int DEFAULT_QUEUE_CAPACITY = 1000;
@@ -135,7 +153,6 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
             return (B) this;
         }
 
-        @SuppressWarnings("unused")
         public B threadCount(int threadCount) {
             this.threadCount = threadCount;
             return (B) this;

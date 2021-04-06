@@ -1,9 +1,16 @@
 package org.springframework.batch.item.redis.support;
 
+import io.lettuce.core.KeyScanArgs;
+import io.lettuce.core.ScanIterator;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.sync.BaseRedisCommands;
+import io.lettuce.core.api.sync.RedisKeyCommands;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.support.IteratorItemReader;
 
-public abstract class ScanKeyValueItemReaderBuilder<B extends ScanKeyValueItemReaderBuilder<B>> extends AbstractKeyValueItemReader.KeyValueItemReaderBuilder<B> {
+@SuppressWarnings({"unused", "unchecked"})
+public class ScanKeyValueItemReaderBuilder<B extends ScanKeyValueItemReaderBuilder<B>> extends AbstractKeyValueItemReader.KeyValueItemReaderBuilder<B> {
 
     public static final String DEFAULT_SCAN_MATCH = "*";
     public static final long DEFAULT_SCAN_COUNT = 1000;
@@ -27,12 +34,23 @@ public abstract class ScanKeyValueItemReaderBuilder<B extends ScanKeyValueItemRe
         return (B) this;
     }
 
-    protected ScanKeyItemReader<String, String> keyReader(StatefulRedisConnection<String, String> connection) {
-        return new ScanKeyItemReader<>(connection, c -> ((StatefulRedisConnection<String, String>) c).sync(), scanCount, scanMatch, scanType);
+    protected ItemReader<String> keyReader(StatefulRedisConnection<String, String> connection) {
+        return keyReader(connection.sync());
     }
 
-    protected ScanKeyItemReader<String, String> keyReader(StatefulRedisClusterConnection<String, String> connection) {
-        return new ScanKeyItemReader<>(connection, c -> ((StatefulRedisClusterConnection<String, String>) c).sync(), scanCount, scanMatch, scanType);
+    protected ItemReader<String> keyReader(StatefulRedisClusterConnection<String, String> connection) {
+        return keyReader(connection.sync());
+    }
+
+    private <K, V> ItemReader<K> keyReader(BaseRedisCommands<K, V> commands) {
+        KeyScanArgs args = KeyScanArgs.Builder.limit(scanCount);
+        if (scanMatch != null) {
+            args.match(scanMatch);
+        }
+        if (scanType != null) {
+            args.type(scanType);
+        }
+        return new IteratorItemReader<>(ScanIterator.scan((RedisKeyCommands<K, V>) commands, args));
     }
 
 }

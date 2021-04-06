@@ -1,15 +1,14 @@
 package org.springframework.batch.item.redis.support;
 
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
-import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.core.convert.converter.Converter;
 
 import java.time.Duration;
 import java.util.function.Function;
 
+@SuppressWarnings({"unused", "unchecked"})
 public class LiveKeyValueItemReaderBuilder<B extends LiveKeyValueItemReaderBuilder<B>> extends AbstractKeyValueItemReader.KeyValueItemReaderBuilder<B> {
 
     public static final int DEFAULT_DATABASE = 0;
