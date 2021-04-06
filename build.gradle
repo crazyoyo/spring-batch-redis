@@ -1,9 +1,7 @@
 plugins {
-	id 'org.springframework.boot' version '2.4.4'
-	id 'io.spring.dependency-management' version '1.0.11.RELEASE'
-    id 'distribution'
+    id 'org.springframework.boot' version '2.4.4'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'java-library'
-    id 'java-library-distribution'
     id 'maven-publish'
     id 'signing'
     id 'io.github.gradle-nexus.publish-plugin' version '1.0.0'
@@ -28,11 +26,11 @@ repositories {
 }
 
 bootJar {
-  enabled = false
+    enabled = false
 }
 
 jar {
-  enabled = true
+    enabled = true
 }
 
 dependencies {
@@ -66,27 +64,12 @@ test {
     useJUnitPlatform()
 }
 
-distributions {
-    main {
-        contents {
-            from (project.docsDir) {
-                into 'docs'
-            }
-            from 'README.adoc'
-            from 'LICENSE'
-        }
-    }
-}
-
-distTar {
-    compression = Compression.GZIP
-}
-
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
+            from(components.java)
             versionMapping {
                 usage('java-api') {
                     fromResolutionOf('runtimeClasspath')
@@ -96,7 +79,6 @@ publishing {
                 }
             }
             pom {
-                groupId = 'com.redislabs'
                 name = 'Spring Batch Redis'
                 description = 'Spring Batch reader and writer implementations for Redis'
                 url = 'https://github.com/Redislabs-Solution-Architects/spring-batch-redis'
@@ -140,26 +122,24 @@ githubRelease {
     token = project.hasProperty('githubToken') ? project.property('githubToken') : ''
     owner "Redislabs-Solution-Architects"
     repo "spring-batch-redis"
-    releaseAssets distZip, distTar
     body changelog()
 }
 
 def isNonStable = { String version ->
-  def nonStableKeyword = ['PREVIEW'].any { it -> version.toUpperCase().contains(it) }
-  def stableKeyword = ['RELEASE', 'FINAL', 'GA', 'JRE8'].any { it -> version.toUpperCase().contains(it) }
-  def regex = /^[0-9,.v-]+([.-]r)?$/
-  return nonStableKeyword || (!stableKeyword && !(version ==~ regex))
+    def nonStableKeyword = ['PREVIEW'].any { it -> version.toUpperCase().contains(it) }
+    def stableKeyword = ['RELEASE', 'FINAL', 'GA', 'JRE8'].any { it -> version.toUpperCase().contains(it) }
+    def regex = /^[0-9,.v-]+([.-]r)?$/
+    return nonStableKeyword || (!stableKeyword && !(version ==~ regex))
 }
 
 tasks.named("dependencyUpdates").configure {
 
-  rejectVersionIf {
-    isNonStable(it.candidate.version) && !isNonStable(it.currentVersion)
-  }
+    rejectVersionIf {
+        isNonStable(it.candidate.version) && !isNonStable(it.currentVersion)
+    }
 
 }
 
-tasks.distZip.shouldRunAfter tasks.javadocJar
 afterReleaseBuild.dependsOn ":githubRelease"
 afterReleaseBuild.dependsOn ":publishToSonatype"
 afterReleaseBuild.dependsOn ":closeAndReleaseSonatypeStagingRepository"
