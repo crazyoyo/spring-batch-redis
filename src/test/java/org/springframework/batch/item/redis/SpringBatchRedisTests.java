@@ -25,6 +25,7 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.step.builder.AbstractTaskletStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ItemReader;
@@ -43,6 +44,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
@@ -122,7 +124,10 @@ public class SpringBatchRedisTests {
 
 
     private <I, O> JobExecution execute(String name, ItemReader<? extends I> reader, ItemWriter<O> writer) throws Throwable {
-        TaskletStep step = step(name, reader, writer).build();
+        return execute(name, step(name, reader, writer).build());
+    }
+
+    private JobExecution execute(String name, TaskletStep step) throws Exception {
         return checkForFailure(jobLauncher.run(job(name, step), new JobParameters()));
     }
 
@@ -214,6 +219,29 @@ public class SpringBatchRedisTests {
             Assertions.assertTrue(message.getBody().containsKey("field1"));
             Assertions.assertTrue(message.getBody().containsKey("field2"));
         }
+    }
+
+    @Test
+    public void testMultithreadedReader() throws Throwable {
+        FlatFileItemReader<Map<String, String>> fileReader = fileReader(new ClassPathResource("beers.csv"));
+        ItemWriter<Map<String, String>> hsetWriter = items -> {
+            for (Map<String, String> item : items) {
+                sourceSync.hset(item.get(Beers.FIELD_ID), item);
+            }
+        };
+        execute("multithreaded-scan-reader-populate", fileReader, hsetWriter);
+        RedisDataStructureItemReader<String, String> reader = RedisDataStructureItemReader.builder(sourcePool, sourceConnection).build();
+        ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
+        String name = "multithreaded-scan-reader";
+        int threads = 4;
+        ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+        taskExecutor.setMaxPoolSize(threads);
+        taskExecutor.setCorePoolSize(threads);
+        taskExecutor.afterPropertiesSet();
+        AbstractTaskletStepBuilder<SimpleStepBuilder<DataStructure<String>, DataStructure<String>>> step = step(name, reader, writer).taskExecutor(taskExecutor).throttleLimit(threads);
+        JobExecution execution = execute(name, step.build());
+        Assertions.assertTrue(execution.getAllFailureExceptions().isEmpty());
+        Assertions.assertEquals(Beers.SIZE, writer.getWrittenItems().size());
     }
 
     @Test

@@ -4,7 +4,7 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamSupport;
+import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
@@ -12,7 +12,7 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
-public abstract class AbstractPollableItemReader<T> extends ItemStreamSupport implements PollableItemReader<T>{
+public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T>{
 
     private final long timeout;
     private boolean running;
