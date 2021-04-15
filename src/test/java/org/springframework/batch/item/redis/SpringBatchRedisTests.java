@@ -462,10 +462,9 @@ public class SpringBatchRedisTests {
         long hashCount = sourceSync.keys("hash:*").size();
         ScanSizeEstimator<StatefulRedisConnection<String, String>> estimator = new ScanSizeEstimator<>(sourcePool, StatefulRedisConnection::async);
         long matchSize = estimator.estimate(ScanSizeEstimator.Options.builder().match("hash:*").sampleSize(1000).build());
-        Assertions.assertTrue((double) Math.abs(hashCount - matchSize) / (double) hashCount < .05);
+        Assertions.assertEquals(hashCount, matchSize, hashCount / 10);
         long typeSize = estimator.estimate(ScanSizeEstimator.Options.builder().type(DataType.HASH).sampleSize(1000).build());
-        Assertions.assertTrue((double) Math.abs(hashCount - typeSize) / (double) hashCount < .05);
-
+        Assertions.assertEquals(hashCount, typeSize, hashCount / 10);
     }
 
 }
