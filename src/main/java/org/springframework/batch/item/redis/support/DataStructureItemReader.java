@@ -42,8 +42,8 @@ public class DataStructureItemReader<K, V, C extends StatefulConnection<K, V>> e
                 List<RedisFuture<?>> valueFutures = new ArrayList<>(keys.size());
                 for (int index = 0; index < keys.size(); index++) {
                     K key = keys.get(index);
-                    String typeName = typeFutures.get(index).get(commandTimeout, TimeUnit.MILLISECONDS);
-                    DataType type = DataType.fromCode(typeName);
+                    RedisFuture<String> typeFuture = typeFutures.get(index);
+                    DataType type = typeFuture == null ? null : toDataType(typeFuture.get(commandTimeout, TimeUnit.MILLISECONDS));
                     valueFutures.add(getValue(commands, key, type));
                     ttlFutures.add(((RedisKeyAsyncCommands<K, V>) commands).ttl(key));
                     DataStructure<K> dataStructure = new DataStructure<>();
@@ -54,14 +54,22 @@ public class DataStructureItemReader<K, V, C extends StatefulConnection<K, V>> e
                 commands.flushCommands();
                 for (int index = 0; index < values.size(); index++) {
                     DataStructure<K> dataStructure = values.get(index);
-                    dataStructure.setValue(valueFutures.get(index).get(commandTimeout, TimeUnit.MILLISECONDS));
-                    dataStructure.setTtl(ttlFutures.get(index).get(commandTimeout, TimeUnit.MILLISECONDS));
+                    RedisFuture<?> valueFuture = valueFutures.get(index);
+                    Object value = valueFuture == null ? null : valueFuture.get(commandTimeout, TimeUnit.MILLISECONDS);
+                    dataStructure.setValue(value);
+                    RedisFuture<Long> ttlFuture = ttlFutures.get(index);
+                    Long ttl = ttlFuture == null ? null : ttlFuture.get(commandTimeout, TimeUnit.MILLISECONDS);
+                    dataStructure.setTtl(ttl);
                 }
                 return values;
             } finally {
                 commands.setAutoFlushCommands(true);
             }
         }
+    }
+
+    private DataType toDataType(String code) {
+        return DataType.fromCode(code);
     }
 
     @SuppressWarnings("unchecked")

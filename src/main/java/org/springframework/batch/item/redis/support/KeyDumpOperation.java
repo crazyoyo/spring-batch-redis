@@ -5,6 +5,7 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
+@SuppressWarnings("unchecked")
 public class KeyDumpOperation<K, V> implements RedisOperation<K, V, KeyValue<K, byte[]>> {
 
     private final boolean replace;

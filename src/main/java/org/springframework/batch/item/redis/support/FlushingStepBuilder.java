@@ -23,7 +23,6 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
         super(parent);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     protected Tasklet createTasklet() {
         Assert.notNull(getReader(), "ItemReader must be provided");

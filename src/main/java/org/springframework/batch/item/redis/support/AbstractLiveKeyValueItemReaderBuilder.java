@@ -9,7 +9,7 @@ import java.time.Duration;
 import java.util.function.Function;
 
 @SuppressWarnings({"unused", "unchecked"})
-public class LiveKeyValueItemReaderBuilder<B extends LiveKeyValueItemReaderBuilder<B>> extends AbstractKeyValueItemReader.KeyValueItemReaderBuilder<B> {
+public abstract class AbstractLiveKeyValueItemReaderBuilder<R extends AbstractKeyValueItemReader, B extends AbstractLiveKeyValueItemReaderBuilder<R, B>> extends AbstractKeyValueItemReader.KeyValueItemReaderBuilder<R, B> {
 
     public static final int DEFAULT_DATABASE = 0;
     public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = 1000;

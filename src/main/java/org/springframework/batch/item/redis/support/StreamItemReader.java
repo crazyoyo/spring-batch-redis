@@ -42,7 +42,6 @@ public class StreamItemReader<K, V, C extends StatefulConnection<K, V>> extends 
         this.iterator = Collections.emptyIterator();
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public StreamMessage<K, V> poll(long timeout, TimeUnit unit) {
         if (!iterator.hasNext()) {
@@ -52,14 +51,15 @@ public class StreamItemReader<K, V, C extends StatefulConnection<K, V>> extends 
             }
             iterator = messages.iterator();
         }
-        StreamMessage<K, V> message = iterator.next();
-        return message;
+        return iterator.next();
     }
 
+    @SuppressWarnings("unused")
     public List<StreamMessage<K, V>> readMessages() {
         return nextMessages(block);
     }
 
+    @SuppressWarnings("unchecked")
     private List<StreamMessage<K, V>> nextMessages(Long block) {
         XReadArgs args = XReadArgs.Builder.noack(noack);
         if (block != null) {
@@ -77,7 +77,7 @@ public class StreamItemReader<K, V, C extends StatefulConnection<K, V>> extends 
     }
 
     @SuppressWarnings({"unchecked", "unused"})
-    public static class StreamItemReaderBuilder<K, B extends StreamItemReaderBuilder<K, B>> extends PollableItemReaderBuilder<B> {
+    public static abstract class StreamItemReaderBuilder<K, V, R extends StreamItemReader<K, V, ?>, B extends StreamItemReaderBuilder<K, V, R, B>> extends PollableItemReaderBuilder<B> {
 
         protected XReadArgs.StreamOffset<K> offset;
         protected Long block;
@@ -103,6 +103,9 @@ public class StreamItemReader<K, V, C extends StatefulConnection<K, V>> extends 
             this.noack = noack;
             return (B) this;
         }
+
+        public abstract R build();
+
     }
 
 }

@@ -42,8 +42,10 @@ public class KeyDumpItemReader<K, V, C extends StatefulConnection<K, V>> extends
             try {
                 for (int index = 0; index < keys.size(); index++) {
                     K key = keys.get(index);
-                    Long ttl = ttlFutures.get(index).get(commandTimeout, TimeUnit.MILLISECONDS);
-                    byte[] dump = dumpFutures.get(index).get(commandTimeout, TimeUnit.MILLISECONDS);
+                    RedisFuture<Long> ttlFuture = ttlFutures.get(index);
+                    Long ttl = ttlFuture == null ? null : ttlFuture.get(commandTimeout, TimeUnit.MILLISECONDS);
+                    RedisFuture<byte[]> dumpFuture = dumpFutures.get(index);
+                    byte[] dump = dumpFuture == null ? null : dumpFuture.get(commandTimeout, TimeUnit.MILLISECONDS);
                     dumps.add(new KeyValue<>(key, ttl, dump));
                 }
                 return dumps;

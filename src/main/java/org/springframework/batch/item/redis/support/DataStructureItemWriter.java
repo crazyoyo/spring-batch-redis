@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
+@SuppressWarnings("unchecked")
 public class DataStructureItemWriter<K, V, C extends StatefulConnection<K, V>> extends AbstractItemWriter<K, V, C, DataStructure<K>> {
 
     public DataStructureItemWriter(GenericObjectPool<C> pool, Function<C, BaseRedisAsyncCommands<K, V>> commands) {

@@ -6,8 +6,8 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.DataStructureItemReader;
-import org.springframework.batch.item.redis.support.LiveKeyValueItemReaderBuilder;
-import org.springframework.batch.item.redis.support.ScanKeyValueItemReaderBuilder;
+import org.springframework.batch.item.redis.support.AbstractLiveKeyValueItemReaderBuilder;
+import org.springframework.batch.item.redis.support.AbstractScanKeyValueItemReaderBuilder;
 
 import java.time.Duration;
 import java.util.function.Function;
@@ -26,7 +26,7 @@ public class RedisClusterDataStructureItemReader<K, V> extends DataStructureItem
         return new RedisClusterScanDataStructureItemReaderBuilder(pool, connection);
     }
 
-    public static class RedisClusterScanDataStructureItemReaderBuilder extends ScanKeyValueItemReaderBuilder<RedisClusterScanDataStructureItemReaderBuilder> {
+    public static class RedisClusterScanDataStructureItemReaderBuilder extends AbstractScanKeyValueItemReaderBuilder<RedisClusterDataStructureItemReader<String, String>, RedisClusterScanDataStructureItemReaderBuilder> {
 
         private final GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool;
         private final StatefulRedisClusterConnection<String, String> connection;
@@ -36,6 +36,7 @@ public class RedisClusterDataStructureItemReader<K, V> extends DataStructureItem
             this.connection = connection;
         }
 
+        @Override
         public RedisClusterDataStructureItemReader<String, String> build() {
             return new RedisClusterDataStructureItemReader<>(readTimeout, keyReader(connection), pool, chunkSize, threadCount, queueCapacity);
         }
@@ -45,7 +46,7 @@ public class RedisClusterDataStructureItemReader<K, V> extends DataStructureItem
         return new RedisClusterLiveDataStructureItemReaderBuilder(pool, connection);
     }
 
-    public static class RedisClusterLiveDataStructureItemReaderBuilder extends LiveKeyValueItemReaderBuilder<RedisClusterLiveDataStructureItemReaderBuilder> {
+    public static class RedisClusterLiveDataStructureItemReaderBuilder extends AbstractLiveKeyValueItemReaderBuilder<RedisClusterDataStructureItemReader<String, String>, RedisClusterLiveDataStructureItemReaderBuilder> {
 
         private final GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool;
         private final StatefulRedisClusterPubSubConnection<String, String> connection;
@@ -55,6 +56,7 @@ public class RedisClusterDataStructureItemReader<K, V> extends DataStructureItem
             this.connection = connection;
         }
 
+        @Override
         public RedisClusterDataStructureItemReader<String, String> build() {
             return new RedisClusterDataStructureItemReader<>(readTimeout, keyspaceNotificationReader(connection), pool, chunkSize, threadCount, queueCapacity, stepBuilderProvider());
         }

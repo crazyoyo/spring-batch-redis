@@ -17,7 +17,7 @@ public class RedisClusterStreamItemReader<K, V> extends StreamItemReader<K, V, S
     }
 
 
-    public static class RedisClusterStreamItemReaderBuilder<K, V> extends StreamItemReaderBuilder<K, RedisClusterStreamItemReaderBuilder<K, V>> {
+    public static class RedisClusterStreamItemReaderBuilder<K, V> extends StreamItemReaderBuilder<K, V, RedisClusterStreamItemReader<K, V>, RedisClusterStreamItemReaderBuilder<K, V>> {
 
         private final StatefulRedisClusterConnection<K, V> connection;
 
@@ -25,6 +25,7 @@ public class RedisClusterStreamItemReader<K, V> extends StreamItemReader<K, V, S
             this.connection = connection;
         }
 
+        @Override
         public RedisClusterStreamItemReader<K, V> build() {
             return new RedisClusterStreamItemReader<>(readTimeout, connection, offset, block, count, noack);
         }

@@ -13,10 +13,10 @@ public class RedisStreamItemReader<K, V> extends StreamItemReader<K, V, Stateful
     }
 
     public static <K, V> RedisStreamItemReaderBuilder<K, V> builder(StatefulRedisConnection<K, V> connection) {
-        return new RedisStreamItemReaderBuilder(connection);
+        return new RedisStreamItemReaderBuilder<>(connection);
     }
 
-    public static class RedisStreamItemReaderBuilder<K, V> extends StreamItemReaderBuilder<K, RedisStreamItemReaderBuilder<K, V>> {
+    public static class RedisStreamItemReaderBuilder<K, V> extends StreamItemReaderBuilder<K, V, RedisStreamItemReader<K, V>, RedisStreamItemReaderBuilder<K, V>> {
 
         private final StatefulRedisConnection<K, V> connection;
 
@@ -24,6 +24,7 @@ public class RedisStreamItemReader<K, V> extends StreamItemReader<K, V, Stateful
             this.connection = connection;
         }
 
+        @Override
         public RedisStreamItemReader<K, V> build() {
             return new RedisStreamItemReader<>(readTimeout, connection, offset, block, count, noack);
         }

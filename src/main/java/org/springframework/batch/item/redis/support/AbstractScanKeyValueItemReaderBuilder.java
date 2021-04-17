@@ -10,7 +10,7 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.support.IteratorItemReader;
 
 @SuppressWarnings({"unused", "unchecked"})
-public class ScanKeyValueItemReaderBuilder<B extends ScanKeyValueItemReaderBuilder<B>> extends AbstractKeyValueItemReader.KeyValueItemReaderBuilder<B> {
+public abstract class AbstractScanKeyValueItemReaderBuilder<R extends AbstractKeyValueItemReader, B extends AbstractScanKeyValueItemReaderBuilder<R, B>> extends AbstractKeyValueItemReader.KeyValueItemReaderBuilder<R, B> {
 
     public static final String DEFAULT_SCAN_MATCH = "*";
     public static final long DEFAULT_SCAN_COUNT = 1000;

@@ -3,13 +3,13 @@ package org.springframework.batch.item.redis.support;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.*;
-import lombok.NonNull;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.springframework.core.convert.converter.Converter;
 
 import java.util.Map;
 
+@SuppressWarnings("unchecked")
 public interface RedisOperationBuilder<K, V, T> {
 
     RedisOperation<K, V, T> build();
@@ -35,10 +35,8 @@ public interface RedisOperationBuilder<K, V, T> {
 
     abstract class AbstractCollectionOperationBuilder<K, V, T, B extends AbstractCollectionOperationBuilder<K, V, T, B>> extends AbstractKeyOperationBuilder<K, V, T, B> {
 
-        @NonNull
         private Converter<T, V> memberIdConverter;
 
-        @SuppressWarnings("unchecked")
         public B memberIdConverter(Converter<T, V> memberIdConverter) {
             this.memberIdConverter = memberIdConverter;
             return (B) this;
@@ -56,13 +54,9 @@ public interface RedisOperationBuilder<K, V, T> {
     @Accessors(fluent = true)
     class EvalBuilder<K, V, T> implements RedisOperationBuilder<K, V, T> {
 
-        @NonNull
         private String sha;
-        @NonNull
         private ScriptOutputType outputType;
-        @NonNull
         private Converter<T, K[]> keysConverter;
-        @NonNull
         private Converter<T, V[]> argsConverter;
 
         public RedisOperation<K, V, T> build() {
@@ -75,12 +69,17 @@ public interface RedisOperationBuilder<K, V, T> {
     @Accessors(fluent = true)
     class ExpireBuilder<K, V, T> extends AbstractKeyOperationBuilder<K, V, T, ExpireBuilder<K, V, T>> {
 
-        @NonNull
         private Converter<T, Long> timeoutConverter;
 
         @Override
         protected RedisOperation<K, V, T> build(Converter<T, K> keyConverter) {
-            return (c, t) -> ((RedisKeyAsyncCommands<K, V>) c).expire(keyConverter.convert(t), timeoutConverter.convert(t));
+            return (c, t) -> {
+                Long timeout = timeoutConverter.convert(t);
+                if (timeout == null) {
+                    return null;
+                }
+                return ((RedisKeyAsyncCommands<K, V>) c).expire(keyConverter.convert(t), timeout);
+            };
         }
 
     }
@@ -89,7 +88,6 @@ public interface RedisOperationBuilder<K, V, T> {
     @Accessors(fluent = true)
     class HsetBuilder<K, V, T> extends AbstractKeyOperationBuilder<K, V, T, HsetBuilder<K, V, T>> {
 
-        @NonNull
         private Converter<T, Map<K, V>> mapConverter;
 
         @Override
@@ -108,7 +106,17 @@ public interface RedisOperationBuilder<K, V, T> {
 
         @Override
         protected RedisOperation<K, V, T> build(Converter<T, K> keyConverter, Converter<T, V> memberIdConverter) {
-            return (c, t) -> ((RedisGeoAsyncCommands<K, V>) c).geoadd(keyConverter.convert(t), longitudeConverter.convert(t), latitudeConverter.convert(t), memberIdConverter.convert(t));
+            return (c, t) -> {
+                Double longitude = longitudeConverter.convert(t);
+                if (longitude == null) {
+                    return null;
+                }
+                Double latitude = latitudeConverter.convert(t);
+                if (latitude == null) {
+                    return null;
+                }
+                return ((RedisGeoAsyncCommands<K, V>) c).geoadd(keyConverter.convert(t), longitude, latitude, memberIdConverter.convert(t));
+            };
         }
 
     }
@@ -169,7 +177,13 @@ public interface RedisOperationBuilder<K, V, T> {
 
         @Override
         protected RedisOperation<K, V, T> build(Converter<T, K> keyConverter, Converter<T, V> memberIdConverter) {
-            return (c, t) -> ((RedisSortedSetAsyncCommands<K, V>) c).zadd(keyConverter.convert(t), scoreConverter.convert(t), memberIdConverter.convert(t));
+            return (c, t) -> {
+                Double score = scoreConverter.convert(t);
+                if (score == null) {
+                    return null;
+                }
+                return ((RedisSortedSetAsyncCommands<K, V>) c).zadd(keyConverter.convert(t), score, memberIdConverter.convert(t));
+            };
         }
 
     }

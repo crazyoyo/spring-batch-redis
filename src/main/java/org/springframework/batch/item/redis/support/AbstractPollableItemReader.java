@@ -12,10 +12,10 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
-public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T>{
+public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
     private final long timeout;
-    private boolean running;
+    private boolean stopped;
 
     protected AbstractPollableItemReader(Duration readTimeout) {
         Assert.notNull(readTimeout, "A read timeout is required");
@@ -23,14 +23,18 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamIt
         this.timeout = readTimeout.toMillis();
     }
 
+    public void stop() {
+        this.stopped = true;
+    }
+
     @Override
     public void open(ExecutionContext executionContext) {
-        this.running = true;
+        this.stopped = false;
     }
 
     @Override
     public void close() {
-        this.running = false;
+        this.stopped = true;
     }
 
     @Override
@@ -42,9 +46,8 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamIt
         return item;
     }
 
-
     protected boolean isRunning() {
-        return running;
+        return !stopped;
     }
 
     @SuppressWarnings("unchecked")

@@ -6,8 +6,8 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.KeyDumpItemReader;
-import org.springframework.batch.item.redis.support.LiveKeyValueItemReaderBuilder;
-import org.springframework.batch.item.redis.support.ScanKeyValueItemReaderBuilder;
+import org.springframework.batch.item.redis.support.AbstractLiveKeyValueItemReaderBuilder;
+import org.springframework.batch.item.redis.support.AbstractScanKeyValueItemReaderBuilder;
 
 import java.time.Duration;
 import java.util.function.Function;
@@ -27,7 +27,7 @@ public class RedisClusterKeyDumpItemReader<K, V> extends KeyDumpItemReader<K, V,
         return new RedisClusterScanKeyDumpItemReaderBuilder(pool, connection);
     }
 
-    public static class RedisClusterScanKeyDumpItemReaderBuilder extends ScanKeyValueItemReaderBuilder<RedisClusterScanKeyDumpItemReaderBuilder> {
+    public static class RedisClusterScanKeyDumpItemReaderBuilder extends AbstractScanKeyValueItemReaderBuilder<RedisClusterKeyDumpItemReader<String, String>, RedisClusterScanKeyDumpItemReaderBuilder> {
 
         private final GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool;
         private final StatefulRedisClusterConnection<String, String> connection;
@@ -37,6 +37,7 @@ public class RedisClusterKeyDumpItemReader<K, V> extends KeyDumpItemReader<K, V,
             this.connection = connection;
         }
 
+        @Override
         public RedisClusterKeyDumpItemReader<String, String> build() {
             return new RedisClusterKeyDumpItemReader<>(readTimeout, keyReader(connection), pool, chunkSize, threadCount, queueCapacity);
         }
@@ -46,7 +47,7 @@ public class RedisClusterKeyDumpItemReader<K, V> extends KeyDumpItemReader<K, V,
         return new RedisClusterLiveKeyDumpItemReaderBuilder(pool, connection);
     }
 
-    public static class RedisClusterLiveKeyDumpItemReaderBuilder extends LiveKeyValueItemReaderBuilder<RedisClusterLiveKeyDumpItemReaderBuilder> {
+    public static class RedisClusterLiveKeyDumpItemReaderBuilder extends AbstractLiveKeyValueItemReaderBuilder<RedisClusterKeyDumpItemReader<String, String>, RedisClusterLiveKeyDumpItemReaderBuilder> {
 
         private final GenericObjectPool<StatefulRedisClusterConnection<String, String>> pool;
         private final StatefulRedisClusterPubSubConnection<String, String> connection;
@@ -56,8 +57,9 @@ public class RedisClusterKeyDumpItemReader<K, V> extends KeyDumpItemReader<K, V,
             this.connection = connection;
         }
 
+        @Override
         public RedisClusterKeyDumpItemReader<String, String> build() {
             return new RedisClusterKeyDumpItemReader<>(readTimeout, keyspaceNotificationReader(connection), pool, chunkSize, threadCount, queueCapacity, stepBuilderProvider());
         }
-    };
+    }
 }

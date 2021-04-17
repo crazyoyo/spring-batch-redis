@@ -13,7 +13,7 @@ import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
@@ -87,9 +87,11 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
         } catch (Exception e) {
             throw new ItemStreamException("Failed to initialize the reader", e);
         }
-        SimpleStepBuilder<K, K> stepBuilder = stepBuilderProvider.apply(factory.step(name + "-step").chunk(chunkSize)).reader(keyReader).writer(this::addToQueue);
-        SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
-        taskExecutor.setConcurrencyLimit(threads);
+        SimpleStepBuilder<K, K> stepBuilder = stepBuilderProvider.apply(factory.step(name + "-step").chunk(chunkSize)).reader(keyReader()).writer(this::addToQueue);
+        ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+        taskExecutor.setMaxPoolSize(threads);
+        taskExecutor.setCorePoolSize(threads);
+        taskExecutor.afterPropertiesSet();
         TaskletStep step = stepBuilder.taskExecutor(taskExecutor).throttleLimit(threads).build();
         Job job = factory.job(name + "-job").start(step).build();
         MetricsUtils.createGaugeCollectionSize("reader.queue.size", queue);
@@ -107,6 +109,13 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
         }
         super.open(executionContext);
         log.debug("Opened {}", name);
+    }
+
+    private ItemReader<? extends K> keyReader() {
+        if (threads > 1) {
+            return new SynchronizedItemReader<>(keyReader);
+        }
+        return keyReader;
     }
 
     @SuppressWarnings("BusyWait")
@@ -131,14 +140,15 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
     public abstract List<T> values(List<? extends K> keys) throws Exception;
 
     private void addToQueue(List<? extends K> keys) throws Exception {
-        for (T value : values(keys)) {
+        List<T> values = values(keys);
+        for (T value : values) {
             queue.removeIf(v -> v.getKey().equals(value.getKey()));
             queue.put(value);
         }
     }
 
     @SuppressWarnings({"unchecked", "unused"})
-    public static class KeyValueItemReaderBuilder<B extends KeyValueItemReaderBuilder<B>> extends PollableItemReaderBuilder<B> {
+    public static abstract class KeyValueItemReaderBuilder<R extends AbstractKeyValueItemReader, B extends KeyValueItemReaderBuilder<R, B>> extends PollableItemReaderBuilder<B> {
 
         public static final int DEFAULT_QUEUE_CAPACITY = 1000;
         public static final int DEFAULT_CHUNK_SIZE = 50;
@@ -162,6 +172,8 @@ public abstract class AbstractKeyValueItemReader<K, V, C extends StatefulConnect
             this.queueCapacity = queueCapacity;
             return (B) this;
         }
+
+        public abstract R build();
 
     }
 
