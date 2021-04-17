@@ -46,15 +46,8 @@ public class DataGenerator implements Callable<Long> {
         throw new IllegalArgumentException("builder() method is private");
     }
 
-    public static DataGeneratorBuilder builder(RedisContainer redisContainer) {
-        return new DataGeneratorBuilder().connection(connection(redisContainer));
-    }
-
-    private static StatefulConnection<String, String> connection(RedisContainer container) {
-        if (container.isCluster()) {
-            return RedisClusterClient.create(container.getRedisUri()).connect();
-        }
-        return RedisClient.create(container.getRedisUri()).connect();
+    public static DataGeneratorBuilder builder(StatefulConnection<String,String> connection) {
+        return new DataGeneratorBuilder().connection(connection);
     }
 
     @Override
