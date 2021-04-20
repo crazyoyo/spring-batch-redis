@@ -1,6 +1,8 @@
 package org.springframework.batch.item.redis;
 
+import com.redislabs.testcontainers.RedisClusterContainer;
 import com.redislabs.testcontainers.RedisContainer;
+import com.redislabs.testcontainers.RedisStandaloneContainer;
 import io.lettuce.core.*;
 import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.StatefulConnection;
@@ -78,11 +80,11 @@ import java.util.stream.Stream;
 public class SpringBatchRedisTests {
 
     @Container
-    private static final RedisContainer REDIS = new RedisContainer().withKeyspaceNotifications();
+    private static final RedisStandaloneContainer REDIS = new RedisStandaloneContainer().withKeyspaceNotifications();
     @Container
-    private static final RedisContainer REDIS_CLUSTER = new RedisContainer().withClusterKeyspaceNotifications();
+    private static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer().withKeyspaceNotifications();
     @Container
-    private static final RedisContainer REDIS_REPLICA = new RedisContainer();
+    private static final RedisStandaloneContainer REDIS_REPLICA = new RedisStandaloneContainer();
 
     private final Map<RedisContainer, AbstractRedisClient> clients = new HashMap<>();
     private final Map<RedisContainer, StatefulConnection<String, String>> connections = new HashMap<>();
@@ -98,8 +100,8 @@ public class SpringBatchRedisTests {
     }
 
     private void add(RedisContainer container) {
-        String uri = container.getRedisUri();
-        if (container.isCluster()) {
+        String uri = container.getRedisURI();
+        if (container instanceof RedisClusterContainer) {
             RedisClusterClient client = RedisClusterClient.create(uri);
             clients.put(container, client);
             StatefulRedisClusterConnection<String, String> connection = client.connect();
@@ -136,7 +138,7 @@ public class SpringBatchRedisTests {
 
     private <C extends StatefulConnection<String, String>> GenericObjectPool<C> pool(RedisContainer container) {
         GenericObjectPoolConfig<StatefulConnection<String, String>> config = new GenericObjectPoolConfig<>();
-        if (container.isCluster()) {
+        if (container instanceof RedisClusterContainer) {
             return (GenericObjectPool<C>) ConnectionPoolSupport.createGenericObjectPool(((RedisClusterClient) clients.get(container))::connect, config);
         }
         return (GenericObjectPool<C>) ConnectionPoolSupport.createGenericObjectPool(((RedisClient) clients.get(container))::connect, config);
@@ -164,7 +166,7 @@ public class SpringBatchRedisTests {
         clients.clear();
     }
 
-    static Stream<RedisContainer> sourceContainers() {
+    static Stream<RedisContainer> containers() {
         return Stream.of(REDIS, REDIS_CLUSTER);
     }
 
@@ -230,7 +232,7 @@ public class SpringBatchRedisTests {
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     void testFlushingStep(RedisContainer container) throws Throwable {
         PollableItemReader<String> reader = keyspaceNotificationItemReader(container);
         ListItemWriter<String> writer = new ListItemWriter<>();
@@ -242,7 +244,7 @@ public class SpringBatchRedisTests {
     }
 
     private PollableItemReader<String> keyspaceNotificationItemReader(RedisContainer container) {
-        if (container.isCluster()) {
+        if (container instanceof RedisClusterContainer) {
             return (PollableItemReader<String>) RedisClusterDataStructureItemReader.builder(pool(container), (StatefulRedisClusterPubSubConnection<String, String>) pubSubConnection(container)).build().getKeyReader();
         }
         return (PollableItemReader<String>) RedisDataStructureItemReader.builder(pool(container), pubSubConnection(container)).build().getKeyReader();
@@ -256,7 +258,7 @@ public class SpringBatchRedisTests {
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     void testDataStructureReader(RedisContainer container) throws Throwable {
         populateSource("scan-reader-populate", container);
         DataStructureItemReader<String, String, ?> reader = dataStructureReader(container).build();
@@ -285,7 +287,7 @@ public class SpringBatchRedisTests {
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     void testStreamReader(RedisContainer container) throws Throwable {
         dataGenerator(container).dataType(DataType.STREAM).end(100).build().call();
         StreamItemReader<String, String, ?> reader = streamReaderBuilder(container).offset(StreamOffset.from("stream:0", "0-0")).build();
@@ -301,14 +303,14 @@ public class SpringBatchRedisTests {
     }
 
     private StreamItemReader.StreamItemReaderBuilder<String, String, ?, ?> streamReaderBuilder(RedisContainer container) {
-        if (container.isCluster()) {
+        if (container instanceof RedisClusterContainer) {
             return RedisClusterStreamItemReader.builder(connection(container));
         }
         return RedisStreamItemReader.builder(connection(container));
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     void testMultiThreadedReader(RedisContainer container) throws Throwable {
         populateSource("multithreaded-scan-reader-populate", container);
         SynchronizedItemStreamReader<DataStructure<String>> synchronizedReader = new SynchronizedItemStreamReader<>();
@@ -329,7 +331,7 @@ public class SpringBatchRedisTests {
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     void testStreamWriter(RedisContainer redisContainer) throws Throwable {
         String stream = "stream:0";
         List<Map<String, String>> messages = new ArrayList<>();
@@ -352,8 +354,8 @@ public class SpringBatchRedisTests {
         }
     }
 
-    private String name(RedisContainer redisContainer, String name) {
-        if (redisContainer.isCluster()) {
+    private String name(RedisContainer container, String name) {
+        if (container instanceof RedisClusterContainer) {
             return "cluster-" + name;
         }
         return name;
@@ -390,7 +392,7 @@ public class SpringBatchRedisTests {
 
     @SuppressWarnings("unchecked")
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     public void testHashWriter(RedisContainer container) throws Throwable {
         List<Map<String, String>> maps = new ArrayList<>();
         for (int index = 0; index < 100; index++) {
@@ -415,14 +417,14 @@ public class SpringBatchRedisTests {
     }
 
     private <T> OperationItemWriter<String, String, ?, T> operationWriter(RedisContainer container, RedisOperation<String, String, T> operation) {
-        if (container.isCluster()) {
+        if (container instanceof RedisClusterContainer) {
             return new RedisClusterOperationItemWriter<>(pool(container), operation);
         }
         return new RedisOperationItemWriter<>(pool(container), operation);
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     public void testSortedSetWriter(RedisContainer container) throws Throwable {
         List<ScoredValue<String>> values = new ArrayList<>();
         for (int index = 0; index < 100; index++) {
@@ -441,7 +443,7 @@ public class SpringBatchRedisTests {
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     public void testDataStructureWriter(RedisContainer container) throws Throwable {
         List<DataStructure<String>> list = new ArrayList<>();
         long count = 100;
@@ -465,7 +467,7 @@ public class SpringBatchRedisTests {
 
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     public void testLiveReader(RedisContainer container) throws Throwable {
         KeyDumpItemReader<String, String, ?> reader = liveKeyDumpReader(container).idleTimeout(Duration.ofMillis(500)).build();
         ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
@@ -477,16 +479,16 @@ public class SpringBatchRedisTests {
     }
 
     private AbstractLiveKeyValueItemReaderBuilder<KeyDumpItemReader<String, String, ?>, ?> liveKeyDumpReader(RedisContainer container) {
-        if (container.isCluster()) {
+        if (container instanceof RedisClusterContainer) {
             return (AbstractLiveKeyValueItemReaderBuilder) RedisClusterKeyDumpItemReader.builder(pool(container), (StatefulRedisClusterPubSubConnection<String, String>) pubSubConnection(container));
         }
         return (AbstractLiveKeyValueItemReaderBuilder) RedisKeyDumpItemReader.builder(pool(container), pubSubConnection(container));
     }
 
-    private AbstractScanKeyValueItemReaderBuilder<KeyDumpItemReader<String, String, ?>, ?> keyDumpReader(RedisContainer redisContainer) {
-        GenericObjectPool<StatefulConnection<String, String>> pool = pool(redisContainer);
-        StatefulConnection<String, String> connection = connection(redisContainer);
-        if (redisContainer.isCluster()) {
+    private AbstractScanKeyValueItemReaderBuilder<KeyDumpItemReader<String, String, ?>, ?> keyDumpReader(RedisContainer container) {
+        GenericObjectPool<StatefulConnection<String, String>> pool = pool(container);
+        StatefulConnection<String, String> connection = connection(container);
+        if (container instanceof RedisClusterContainer) {
             return (AbstractScanKeyValueItemReaderBuilder) RedisClusterKeyDumpItemReader.builder((GenericObjectPool) pool, (StatefulRedisClusterConnection<String, String>) connection);
         }
         return (AbstractScanKeyValueItemReaderBuilder) RedisKeyDumpItemReader.builder((GenericObjectPool) pool, (StatefulRedisConnection<String, String>) connection);
@@ -494,14 +496,14 @@ public class SpringBatchRedisTests {
 
 
     private AbstractScanKeyValueItemReaderBuilder<DataStructureItemReader<String, String, ?>, ?> dataStructureReader(RedisContainer container) {
-        if (container.isCluster()) {
+        if (container instanceof RedisClusterContainer) {
             return (AbstractScanKeyValueItemReaderBuilder) RedisClusterDataStructureItemReader.builder(pool(container), (StatefulRedisClusterConnection<String, String>) connection(container));
         }
         return (AbstractScanKeyValueItemReaderBuilder) RedisDataStructureItemReader.builder(pool(container), (StatefulRedisConnection<String, String>) connection(container));
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     public void testDataStructureReplication(RedisContainer container) throws Throwable {
         dataGenerator(container).end(10000).build().call();
         DataStructureItemReader<String, String, ?> reader = dataStructureReader(container).build();
@@ -515,14 +517,14 @@ public class SpringBatchRedisTests {
     }
 
     private DataStructureItemWriter<String, String, ?> dataStructureWriter(RedisContainer container) {
-        if (container.isCluster()) {
+        if (container instanceof RedisClusterContainer) {
             return new RedisClusterDataStructureItemWriter<>((GenericObjectPool) pool(container));
         }
         return new RedisDataStructureItemWriter<>((GenericObjectPool) pool(container));
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     public void testReplication(RedisContainer redisContainer) throws Throwable {
         dataGenerator(redisContainer).end(10000).build().call();
         KeyDumpItemReader<String, String, ?> reader = keyDumpReader(redisContainer).build();
@@ -532,7 +534,7 @@ public class SpringBatchRedisTests {
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     public void testLiveReplication(RedisContainer redisContainer) throws Throwable {
         dataGenerator(redisContainer).end(10000).build().call();
         KeyDumpItemReader<String, String, ?> reader = keyDumpReader(redisContainer).build();
@@ -556,7 +558,7 @@ public class SpringBatchRedisTests {
     }
 
     private OperationItemWriter<String, String, ?, KeyValue<String, byte[]>> keyDumpWriter(RedisContainer container) {
-        if (container.isCluster()) {
+        if (container instanceof RedisClusterContainer) {
             return new RedisClusterKeyDumpItemWriter<>((GenericObjectPool) pool(container));
         }
         return new RedisKeyDumpItemWriter<>((GenericObjectPool) pool(container));
@@ -577,7 +579,7 @@ public class SpringBatchRedisTests {
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     public void testMetrics(RedisContainer redisContainer) throws Throwable {
         Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
         SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
@@ -609,10 +611,10 @@ public class SpringBatchRedisTests {
     }
 
     @ParameterizedTest
-    @MethodSource("sourceContainers")
+    @MethodSource("containers")
     public void testKeyReaderSize(RedisContainer container) throws Throwable {
         dataGenerator(container).end(12345).dataType(DataType.HASH).build().call();
-        ScanSizeEstimator<?> estimator = container.isCluster() ? new RedisClusterScanSizeEstimator(pool(container)) : new RedisScanSizeEstimator(pool(container));
+        ScanSizeEstimator<?> estimator = container instanceof RedisClusterContainer ? new RedisClusterScanSizeEstimator(pool(container)) : new RedisScanSizeEstimator(pool(container));
         long matchSize = estimator.estimate(ScanSizeEstimator.Options.builder().match("hash:*").sampleSize(100).build());
         RedisKeyCommands<String, String> sync = sync(container);
         long hashCount = sync.keys("hash:*").size();

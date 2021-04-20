@@ -34,9 +34,11 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
     private long lastActivity;
 
     public FlushingChunkProvider(PollableItemReader<? extends I> itemReader, RepeatOperations repeatOperations, Duration flushingInterval, Duration idleTimeout) {
-        Assert.notNull(itemReader, "Item reader is required.");
-        Assert.notNull(repeatOperations, "Repeat operations are required.");
-        Assert.notNull(flushingInterval, "Flushing interval is required.");
+        Assert.notNull(itemReader, "Item reader is required");
+        Assert.notNull(repeatOperations, "Repeat operations are required");
+        Assert.notNull(flushingInterval, "Flushing interval must not be null");
+        Assert.isTrue(!flushingInterval.isZero(), "Flushing interval must not be zero");
+        Assert.isTrue(!flushingInterval.isNegative(), "Flushing interval must not be negative");
         this.itemReader = itemReader;
         this.repeatOperations = repeatOperations;
         this.flushingInterval = flushingInterval.toMillis();

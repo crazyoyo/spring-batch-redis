@@ -18,7 +18,9 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamIt
     private boolean stopped;
 
     protected AbstractPollableItemReader(Duration readTimeout) {
-        Assert.notNull(readTimeout, "A read timeout is required");
+        Assert.notNull(readTimeout, "readTimeout must not be null");
+        Assert.isTrue(!readTimeout.isZero(), "readTimeout must not be zero");
+        Assert.isTrue(!readTimeout.isNegative(), "readTimeout must not be negative");
         setName(ClassUtils.getShortName(getClass()));
         this.timeout = readTimeout.toMillis();
     }
