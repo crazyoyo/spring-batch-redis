@@ -18,6 +18,7 @@ public class RedisTransactionItemWriter<K, V, T> extends OperationItemWriter<K, 
         super(pool, StatefulRedisConnection::async, operation);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected List<RedisFuture<?>> write(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
         RedisFuture<String> multiFuture = ((RedisTransactionalAsyncCommands<K, V>) commands).multi();

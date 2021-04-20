@@ -10,7 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * A blocking queue backed by a set so duplicates inside the queue are not
  * allowed.
  * 
- * @param <E>
+ * @param <E> the type of elements held in this queue
  */
 public class ConcurrentSetBlockingQueue<E> extends ConcurrentSetQueue<E> implements BlockingQueue<E> {
 

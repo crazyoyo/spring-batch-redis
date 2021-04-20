@@ -7,7 +7,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Queue backed by a set so duplicate elements are not allowed.
- * @param <E>
+ * @param <E> the type of elements held in this queue
  */
 public abstract class ConcurrentSetQueue<E> extends ConcurrentSetCollection<E> implements Queue<E> {
 
