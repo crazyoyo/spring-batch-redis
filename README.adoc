@@ -25,10 +25,10 @@ ItemReader and ItemWriter implementations for Redis based on https://lettuce.io[
 Spring Batch Redis supports two data types: key dumps and key values.
 
 === `KeyDump`
-A `KeyDump` stores a key, its TTL in seconds, and its binary representation (byte array).
+A `KeyDump` object stores a key, its TTL in milliseconds, and its binary representation (byte array).
 
 === `DataStructure`
-A `KeyValue` stores a key, its TTL in seconds, the type of data structure (hash, list, ...), and its Java representation.
+A `DataStructure` object stores a key, its TTL in seconds, the type of data structure (hash, list, ...), and its Java representation.
 
 * Hash: `HGETALL` -> `Map<String,String>`
 * List: `LRANGE` -> `List<String>`
@@ -55,7 +55,7 @@ All item writers can perform both inserts or deletes depending on the value and 
 
 === `KeyDumpItemWriter`
 
-`KeyDumpOperation` accepts `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
+`RestoreOperation` accepts `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
 
 === `DataStructureItemWriter`
 

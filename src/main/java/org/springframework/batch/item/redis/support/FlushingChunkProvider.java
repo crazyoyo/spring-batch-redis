@@ -108,7 +108,7 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
         sample.stop(BatchMetrics.createTimer("item.read", "Item reading duration", Tag.of("job.name", stepExecution.getJobExecution().getJobInstance().getJobName()), Tag.of("step.name", stepExecution.getStepName()), Tag.of("status", status)));
     }
 
-    protected I poll(long timeout) throws InterruptedException {
+    protected I poll(long timeout) throws Exception {
         try {
             listener.beforeRead();
             I item = itemReader.poll(timeout, TimeUnit.MILLISECONDS);

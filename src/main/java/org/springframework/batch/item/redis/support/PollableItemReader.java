@@ -1,10 +1,10 @@
 package org.springframework.batch.item.redis.support;
 
-import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamReader;
 
 import java.util.concurrent.TimeUnit;
 
-public interface PollableItemReader<T> extends ItemReader<T> {
+public interface PollableItemReader<T> extends ItemStreamReader<T> {
 
     /**
      * Tries to read a piece of input data. If such input is available within the given duration, advances to the next one otherwise
@@ -14,6 +14,6 @@ public interface PollableItemReader<T> extends ItemReader<T> {
      * @return T the item to be processed or {@code null} if the specified waiting time elapses before an element is available
      * @throws InterruptedException if interrupted while waiting
      */
-    T poll(long timeout, TimeUnit unit) throws InterruptedException;
+    T poll(long timeout, TimeUnit unit) throws Exception;
 
 }

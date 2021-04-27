@@ -16,23 +16,24 @@ public class KeyValue<K, V> {
 	private K key;
 
 	/**
-	 * Time-to-live in seconds for this key.
+	 * Expiration POSIX time in milliseconds for this key.
 	 *
 	 */
-	private Long ttl;
+	private long absoluteTTL;
 
 	/**
-	 * Redis value.
+	 * Redis value. Null if key does not exist
 	 * 
 	 */
 	private V value;
 
-	public boolean noKeyTtl() {
-		return ttl != null && ttl == -2;
+	public KeyValue(K key) {
+		this.key = key;
 	}
 
-	public boolean hasTtl() {
-		return ttl != null && ttl >= 0;
+	public KeyValue(K key, long absoluteTTL) {
+		this.key = key;
+		this.absoluteTTL = absoluteTTL;
 	}
 
 }

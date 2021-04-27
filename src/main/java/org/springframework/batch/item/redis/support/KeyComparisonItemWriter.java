@@ -1,6 +1,10 @@
 package org.springframework.batch.item.redis.support;
 
 import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -10,23 +14,48 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class KeyComparisonItemWriter<K, V> extends AbstractItemStreamItemWriter<DataStructure<K>> {
+@Slf4j
+public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<DataStructure<K>> {
 
-    private final DataStructureItemReader<K, V, ?> valueReader;
+    private final ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader;
     /**
-     * TTL diff tolerance in seconds
+     * TTL diff tolerance in milliseseconds
      */
     private final long ttlTolerance;
     private final KeyComparisonResults<K> results;
 
     @Builder
-    public KeyComparisonItemWriter(DataStructureItemReader<K, V, ?> valueReader, Duration ttlTolerance) {
+    public KeyComparisonItemWriter(ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader, Duration ttlTolerance) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(valueReader, "A value reader is required");
         Assert.notNull(ttlTolerance, "TTL tolerance is required");
         this.valueReader = valueReader;
-        this.ttlTolerance = ttlTolerance.getSeconds();
+        this.ttlTolerance = ttlTolerance.toMillis();
         this.results = new KeyComparisonResults<>();
+    }
+
+    @Override
+    public synchronized void open(ExecutionContext executionContext) {
+        if (valueReader instanceof ItemStream) {
+            ((ItemStream) valueReader).open(executionContext);
+        }
+        super.open(executionContext);
+    }
+
+    @Override
+    public void update(ExecutionContext executionContext) {
+        if (valueReader instanceof ItemStream) {
+            ((ItemStream) valueReader).update(executionContext);
+        }
+        super.update(executionContext);
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        if (valueReader instanceof ItemStream) {
+            ((ItemStream) valueReader).close();
+        }
     }
 
     public KeyComparisonResults<K> getResults() {
@@ -36,7 +65,11 @@ public class KeyComparisonItemWriter<K, V> extends AbstractItemStreamItemWriter<
     @Override
     public void write(List<? extends DataStructure<K>> items) throws Exception {
         List<K> keys = items.stream().map(DataStructure::getKey).collect(Collectors.toList());
-        List<DataStructure<K>> rightItems = valueReader.values(keys);
+        List<DataStructure<K>> rightItems = valueReader.process(keys);
+        if (rightItems.size() != items.size()) {
+            log.warn("Missing values in value reader response");
+            return;
+        }
         for (int index = 0; index < items.size(); index++) {
             DataStructure<K> left = items.get(index);
             K key = left.getKey();
@@ -52,7 +85,7 @@ public class KeyComparisonItemWriter<K, V> extends AbstractItemStreamItemWriter<
                     results.left(key);
                 } else {
                     if (Objects.deepEquals(left.getValue(), right.getValue())) {
-                        long ttlDiff = Math.abs(left.getTtl() - right.getTtl());
+                        long ttlDiff = Math.abs(left.getAbsoluteTTL() - right.getAbsoluteTTL());
                         if (ttlDiff > ttlTolerance) {
                             results.ttl(key);
                         } else {

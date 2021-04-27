@@ -1,58 +1,52 @@
 package org.springframework.batch.item.redis;
 
-import com.redislabs.testcontainers.RedisContainer;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.*;
 import io.lettuce.core.cluster.RedisClusterClient;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import lombok.Builder;
-import lombok.Singular;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.batch.item.redis.support.DataType;
+import org.springframework.batch.item.redis.support.CommandBuilder;
+import org.springframework.batch.item.redis.support.DataStructure;
 
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 @Slf4j
-@Builder
 public class DataGenerator implements Callable<Long> {
 
-    private static final int DEFAULT_START = 0;
-    private static final int DEFAULT_END = 1000;
-    private static final boolean DEFAULT_EXPIRE = true;
-    private static final int DEFAULT_BATCH_SIZE = 50;
-    private static final int DEFAULT_MAX_EXPIRE = 100000;
-
-    private final StatefulConnection<String, String> connection;
-    @Builder.Default
-    private final int start = DEFAULT_START;
-    @Builder.Default
-    private final int end = DEFAULT_END;
+    private final Supplier<StatefulConnection<String, String>> connectionSupplier;
+    private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
+    private final int start;
+    private final int end;
     private final long sleep;
-    @Builder.Default
-    private final int maxExpire = DEFAULT_MAX_EXPIRE;
-    @Builder.Default
-    private final int batchSize = DEFAULT_BATCH_SIZE;
-    @Singular
-    private final Set<DataType> dataTypes;
+    private final int minExpire;
+    private final int maxExpire;
+    private final int batchSize;
+    private final Set<String> dataTypes;
 
-    @SuppressWarnings("unused")
-    private static DataGeneratorBuilder builder() {
-        throw new IllegalArgumentException("builder() method is private");
-    }
-
-    public static DataGeneratorBuilder builder(StatefulConnection<String,String> connection) {
-        return new DataGeneratorBuilder().connection(connection);
+    public DataGenerator(Supplier<StatefulConnection<String, String>> connectionSupplier, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async, int start, int end, long sleep, int minExpire, int maxExpire, int batchSize, Set<String> dataTypes) {
+        this.connectionSupplier = connectionSupplier;
+        this.async = async;
+        this.start = start;
+        this.end = end;
+        this.sleep = sleep;
+        this.minExpire = minExpire;
+        this.maxExpire = maxExpire;
+        this.batchSize = batchSize;
+        this.dataTypes = dataTypes;
     }
 
     @Override
     public Long call() throws Exception {
-        BaseRedisAsyncCommands<String, String> commands = async();
+        StatefulConnection<String, String> connection = connectionSupplier.get();
+        BaseRedisAsyncCommands<String, String> commands = async.apply(connection);
         commands.setAutoFlushCommands(false);
         long count = 0;
         CommandExecutor executor = new CommandExecutor(commands);
@@ -62,13 +56,6 @@ public class DataGenerator implements Callable<Long> {
             commands.setAutoFlushCommands(true);
         }
         return count;
-    }
-
-    private BaseRedisAsyncCommands<String, String> async() {
-        if (connection instanceof StatefulRedisClusterConnection) {
-            return ((StatefulRedisClusterConnection<String, String>) connection).async();
-        }
-        return ((StatefulRedisConnection<String, String>) connection).async();
     }
 
 
@@ -87,11 +74,12 @@ public class DataGenerator implements Callable<Long> {
         public Long call() throws InterruptedException {
             long count = 0;
             for (int index = start; index < end; index++) {
-                if (contains(DataType.STRING)) {
+                if (contains(DataStructure.STRING)) {
                     String stringKey = "string:" + index;
                     futures.add(((RedisStringAsyncCommands<String, String>) commands).set(stringKey, "value:" + index));
                     if (maxExpire > 0) {
-                        futures.add(((RedisKeyAsyncCommands<String, String>) commands).expireat(stringKey, System.currentTimeMillis() + random.nextInt(maxExpire)));
+                        long time = System.currentTimeMillis() + minExpire + random.nextInt(maxExpire);
+                        futures.add(((RedisKeyAsyncCommands<String, String>) commands).pexpireat(stringKey, time));
                     }
                 }
                 Map<String, String> hash = new HashMap<>();
@@ -99,19 +87,19 @@ public class DataGenerator implements Callable<Long> {
                 hash.put("field2", "value" + index);
                 String member = "member:" + index;
                 int collectionIndex = index % 10;
-                if (contains(DataType.HASH)) {
+                if (contains(DataStructure.HASH)) {
                     futures.add(((RedisHashAsyncCommands<String, String>) commands).hset("hash:" + index, hash));
                 }
-                if (contains(DataType.SET)) {
+                if (contains(DataStructure.SET)) {
                     futures.add(((RedisSetAsyncCommands<String, String>) commands).sadd("set:" + collectionIndex, member));
                 }
-                if (contains(DataType.ZSET)) {
+                if (contains(DataStructure.ZSET)) {
                     futures.add(((RedisSortedSetAsyncCommands<String, String>) commands).zadd("zset:" + collectionIndex, index % 3, member));
                 }
-                if (contains(DataType.STREAM)) {
+                if (contains(DataStructure.STREAM)) {
                     futures.add(((RedisStreamAsyncCommands<String, String>) commands).xadd("stream:" + collectionIndex, hash));
                 }
-                if (contains(DataType.LIST)) {
+                if (contains(DataStructure.LIST)) {
                     futures.add(((RedisListAsyncCommands<String, String>) commands).lpush("list:" + collectionIndex, member));
                 }
                 if (futures.size() >= batchSize) {
@@ -136,11 +124,56 @@ public class DataGenerator implements Callable<Long> {
         }
     }
 
-    private boolean contains(DataType type) {
+    private boolean contains(String type) {
         if (dataTypes.isEmpty()) {
             return true;
         }
         return dataTypes.contains(type);
+    }
+
+    public static DataGeneratorBuilder client(RedisClient client) {
+        return new DataGeneratorBuilder(client);
+    }
+
+    public static DataGeneratorBuilder client(RedisClusterClient client) {
+        return new DataGeneratorBuilder(client);
+    }
+
+    @Setter
+    @Accessors(fluent = true)
+    public static class DataGeneratorBuilder extends CommandBuilder<DataGeneratorBuilder> {
+
+        private static final int DEFAULT_START = 0;
+        private static final int DEFAULT_END = 1000;
+        private static final int DEFAULT_BATCH_SIZE = 50;
+        private static final int DEFAULT_MIN_EXPIRE = 100000;
+        private static final int DEFAULT_MAX_EXPIRE = 1000000;
+        private static final long DEFAULT_SLEEP = 0;
+
+        private int start = DEFAULT_START;
+        private int end = DEFAULT_END;
+        private long sleep = DEFAULT_SLEEP;
+        private int minExpire = DEFAULT_MIN_EXPIRE;
+        private int maxExpire = DEFAULT_MAX_EXPIRE;
+        private int batchSize = DEFAULT_BATCH_SIZE;
+        private Set<String> dataTypes = new HashSet<>(Arrays.asList(DataStructure.HASH, DataStructure.LIST, DataStructure.STRING, DataStructure.STREAM, DataStructure.SET, DataStructure.ZSET));
+
+        public DataGeneratorBuilder(RedisClusterClient client) {
+            super(client);
+        }
+
+        public DataGeneratorBuilder(RedisClient client) {
+            super(client);
+        }
+
+        public DataGeneratorBuilder dataTypes(String... dataTypes) {
+            this.dataTypes = new HashSet<>(Arrays.asList(dataTypes));
+            return this;
+        }
+
+        public DataGenerator build() {
+            return new DataGenerator(connectionSupplier, async, start, end, sleep, minExpire, maxExpire, batchSize, new HashSet<>(dataTypes));
+        }
     }
 
 

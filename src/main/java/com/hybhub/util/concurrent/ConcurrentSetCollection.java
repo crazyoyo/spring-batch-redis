@@ -58,7 +58,7 @@ public class ConcurrentSetCollection<E> extends AbstractConcurrentSet<E> impleme
 		if (c == 0) {
 			signalNotEmpty();
 		}
-		return c >= 0;
+		return c >= 0 || set.contains(e);
 	}
 
 	@Override
