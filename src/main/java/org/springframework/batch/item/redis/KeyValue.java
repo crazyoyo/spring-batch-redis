@@ -1,4 +1,4 @@
-package org.springframework.batch.item.redis.support;
+package org.springframework.batch.item.redis;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

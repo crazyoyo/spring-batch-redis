@@ -7,6 +7,7 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.*;
 import io.lettuce.core.cluster.RedisClusterClient;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.batch.item.redis.DataStructure;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +37,7 @@ public class DataStructureValueReader<K, V> extends AbstractKeyValueReader<K, V,
         for (int index = 0; index < keys.size(); index++) {
             K key = keys.get(index);
             String type = typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
-            valueFutures.add(value(commands, timeout, key, type));
+            valueFutures.add(value(commands, key, type));
             ttlFutures.add(absoluteTTL(commands, key));
             dataStructures.add(new DataStructure<>(key, type));
         }
@@ -53,7 +54,8 @@ public class DataStructureValueReader<K, V> extends AbstractKeyValueReader<K, V,
         return dataStructures;
     }
 
-    private RedisFuture<?> value(BaseRedisAsyncCommands<K,V> commands, long timeout, K key, String type) {
+    @SuppressWarnings("unchecked")
+    private RedisFuture<?> value(BaseRedisAsyncCommands<K,V> commands, K key, String type) {
         switch (type.toLowerCase()) {
             case DataStructure.HASH:
                 return ((RedisHashAsyncCommands<K, V>) commands).hgetall(key);

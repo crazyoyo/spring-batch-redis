@@ -6,16 +6,15 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.CommandBuilder;
-import org.springframework.batch.item.redis.support.KeyValue;
-import org.springframework.batch.item.redis.support.RedisOperation;
+import org.springframework.batch.item.redis.support.RedisOperations;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class KeyDumpItemWriter<K, V> extends OperationItemWriter<K, V, KeyValue<K, byte[]>> {
+public class KeyDumpItemWriter<K, V, T> extends OperationItemWriter<K, V, T> {
 
-    public KeyDumpItemWriter(Supplier<StatefulConnection<K, V>> statefulConnectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
-        super(statefulConnectionSupplier, poolConfig, async, new RedisOperation.RestoreOperation<>(KeyValue::getKey, KeyValue::getValue, KeyValue::getAbsoluteTTL, v -> true));
+    public KeyDumpItemWriter(Supplier<StatefulConnection<K, V>> statefulConnectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, RedisOperation<K, V, T> operation) {
+        super(statefulConnectionSupplier, poolConfig, async, operation);
     }
 
     public static KeyDumpItemWriterBuilder client(RedisClient client) {
@@ -36,8 +35,8 @@ public class KeyDumpItemWriter<K, V> extends OperationItemWriter<K, V, KeyValue<
             super(client);
         }
 
-        public KeyDumpItemWriter<String, String> build() {
-            return new KeyDumpItemWriter<>(connectionSupplier, poolConfig, async);
+        public KeyDumpItemWriter<String, String, KeyValue<String, byte[]>> build() {
+            return new KeyDumpItemWriter<>(connectionSupplier, poolConfig, async, RedisOperations.<KeyValue<String,byte[]>>restore().key(KeyValue::getKey).dump(KeyValue::getValue).absoluteTTL(KeyValue::getAbsoluteTTL).build());
         }
 
     }

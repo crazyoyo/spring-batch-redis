@@ -6,8 +6,6 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ItemWriter;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -33,7 +31,7 @@ public abstract class AbstractPipelineItemWriter<K, V, T> extends ConnectionPool
         }
     }
 
-    protected abstract void write(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends T> items) throws InterruptedException, ExecutionException, TimeoutException;
+    protected abstract void write(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends T> items);
 
 
 }

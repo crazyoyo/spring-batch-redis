@@ -7,6 +7,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.batch.item.redis.KeyValue;
 
 import java.util.ArrayList;
 import java.util.List;

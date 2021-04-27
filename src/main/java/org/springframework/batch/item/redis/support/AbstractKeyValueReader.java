@@ -9,6 +9,7 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.redis.KeyValue;
 import org.springframework.util.FileCopyUtils;
 
 import java.util.List;

@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis.support;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.redis.KeyValue;
 import org.springframework.batch.item.redis.KeyValueItemReader;
 import org.springframework.util.Assert;
 
