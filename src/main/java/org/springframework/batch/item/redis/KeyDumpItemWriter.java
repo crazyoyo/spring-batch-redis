@@ -6,7 +6,6 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.CommandBuilder;
-import org.springframework.batch.item.redis.support.RedisOperations;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -36,7 +35,7 @@ public class KeyDumpItemWriter<K, V, T> extends OperationItemWriter<K, V, T> {
         }
 
         public KeyDumpItemWriter<String, String, KeyValue<String, byte[]>> build() {
-            return new KeyDumpItemWriter<>(connectionSupplier, poolConfig, async, RedisOperations.<KeyValue<String,byte[]>>restore().key(KeyValue::getKey).dump(KeyValue::getValue).absoluteTTL(KeyValue::getAbsoluteTTL).build());
+            return new KeyDumpItemWriter<>(connectionSupplier, poolConfig, async, RedisOperation.<KeyValue<String,byte[]>>restore().key(KeyValue::getKey).dump(KeyValue::getValue).absoluteTTL(KeyValue::getAbsoluteTTL).build());
         }
 
     }

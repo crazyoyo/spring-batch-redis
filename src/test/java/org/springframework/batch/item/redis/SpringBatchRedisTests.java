@@ -366,7 +366,7 @@ public class SpringBatchRedisTests {
             messages.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-        RedisOperation<String, String, Map<String, String>> xadd = RedisOperations.<Map<String, String>>xadd().key(i -> stream).body(i -> i).build();
+        RedisOperation<String, String, Map<String, String>> xadd = RedisOperation.<Map<String, String>>xadd().key(i -> stream).body(i -> i).build();
         OperationItemWriter<String, String, Map<String, String>> writer = operationWriter(redisContainer, xadd);
         execute(redisContainer, "stream-writer", reader, writer);
         RedisStreamCommands<String, String> sync = sync(redisContainer);
@@ -402,7 +402,7 @@ public class SpringBatchRedisTests {
             messages.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-        RedisOperation<String, String, Map<String, String>> xadd = RedisOperations.<Map<String, String>>xadd().key(i -> stream).body(i -> i).build();
+        RedisOperation<String, String, Map<String, String>> xadd = RedisOperation.<Map<String, String>>xadd().key(i -> stream).body(i -> i).build();
         OperationItemWriter.TransactionItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.operation(xadd).transactional().client(redisClient(REDIS)).build();
         execute(REDIS, "stream-tx-writer", reader, writer);
         RedisStreamCommands<String, String> sync = sync(REDIS);
@@ -428,7 +428,7 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
         KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash").converters(h -> h.remove("id")).build();
-        RedisOperation<String, String, Map<String, String>> hset = RedisOperations.Hset.<Map<String, String>>builder().key(keyConverter).map(m -> m).build();
+        RedisOperation<String, String, Map<String, String>> hset = RedisOperation.<Map<String, String>>hset().key(keyConverter).map(m -> m).build();
         OperationItemWriter<String, String, Map<String, String>> writer = operationWriter(container, hset);
         execute(container, "hash-writer", reader, writer);
         RedisKeyCommands<String, String> sync = sync(container);
@@ -456,7 +456,7 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<ScoredValue<String>> reader = new ListItemReader<>(values);
         KeyMaker<ScoredValue<String>> keyConverter = KeyMaker.<ScoredValue<String>>builder().prefix("zset").build();
-        RedisOperation<String, String, ScoredValue<String>> zadd = RedisOperations.Zadd.<ScoredValue<String>>builder().key(keyConverter).member(Value::getValue).score(ScoredValue::getScore).build();
+        RedisOperation<String, String, ScoredValue<String>> zadd = RedisOperation.<ScoredValue<String>>zadd().key(keyConverter).member(Value::getValue).score(ScoredValue::getScore).build();
         OperationItemWriter<String, String, ScoredValue<String>> writer = operationWriter(container, zadd);
         execute(container, "sorted-set-writer", reader, writer);
         RedisServerCommands<String, String> sync = sync(container);
