@@ -7,7 +7,6 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.*;
 import io.lettuce.core.cluster.RedisClusterClient;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.springframework.batch.item.redis.DataStructure;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,7 +81,7 @@ public class DataStructureValueReader<K, V> extends AbstractKeyValueReader<K, V,
         return new DataStructureValueReaderBuilder(client);
     }
 
-    public static class DataStructureValueReaderBuilder extends CommandBuilder<KeyDumpValueReader.KeyDumpValueReaderBuilder> {
+    public static class DataStructureValueReaderBuilder extends CommandBuilder<DataStructureValueReaderBuilder> {
 
         public DataStructureValueReaderBuilder(RedisClusterClient client) {
             super(client);

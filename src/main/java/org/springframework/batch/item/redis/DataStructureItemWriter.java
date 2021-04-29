@@ -7,6 +7,7 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractPipelineItemWriter;
 import org.springframework.batch.item.redis.support.CommandBuilder;
+import org.springframework.batch.item.redis.support.DataStructure;
 import org.springframework.core.convert.converter.Converter;
 
 import java.util.ArrayList;

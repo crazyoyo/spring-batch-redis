@@ -1,5 +1,10 @@
 package org.springframework.batch.item.redis;
 
+import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.cluster.RedisClusterClient;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
@@ -20,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 @Slf4j
 public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemStreamItemReader<T> {
@@ -29,17 +35,20 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
     private final int threads;
     private final int chunkSize;
     private final int queueCapacity;
-    private final long queuePollTimeout;
+    private final Duration queuePollTimeout;
+
     protected BlockingQueue<T> queue;
+    private long pollTimeout;
     private JobExecution jobExecution;
     private String name;
 
-    public KeyValueItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader, int chunkSize, int threads, int queueCapacity, Duration queuePollTimeout) {
+
+    protected KeyValueItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(keyReader, "A key reader is required");
         Assert.notNull(valueReader, "A value reader is required");
-        Assert.isTrue(chunkSize > 0, "Chunk size must be greater than zero");
         Assert.isTrue(threads > 0, "Thread count must be greater than zero");
+        Assert.isTrue(chunkSize > 0, "Chunk size must be greater than zero");
         Assert.isTrue(queueCapacity > 0, "Queue capacity must be greater than zero");
         Assert.notNull(queuePollTimeout, "Queue poll timeout must not be null");
         Assert.isTrue(!queuePollTimeout.isZero(), "Queue poll timeout must not be zero");
@@ -49,7 +58,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
         this.threads = threads;
         this.chunkSize = chunkSize;
         this.queueCapacity = queueCapacity;
-        this.queuePollTimeout = queuePollTimeout.toMillis();
+        this.queuePollTimeout = queuePollTimeout;
     }
 
     @SuppressWarnings("NullableProblems")
@@ -68,6 +77,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
         }
         log.debug("Opening {}", name);
         queue = new LinkedBlockingDeque<>(queueCapacity);
+        pollTimeout = queuePollTimeout.toMillis();
         MetricsUtils.createGaugeCollectionSize("reader.queue.size", queue);
         ItemWriter<K> writer = new ValueWriter<>(valueReader, queue);
         JobFactory factory = new JobFactory();
@@ -110,7 +120,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
     public T read() throws Exception {
         T item;
         do {
-            item = queue.poll(queuePollTimeout, TimeUnit.MILLISECONDS);
+            item = queue.poll(pollTimeout, TimeUnit.MILLISECONDS);
         } while (item == null && jobExecution.isRunning());
         return item;
     }
@@ -183,80 +193,152 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
 
     }
 
-    public static <T extends KeyValue<String, ?>> IntermediaryKeyValueItemReaderBuilder<T> valueReader(ItemProcessor<List<? extends String>, List<T>> valueReader) {
-        return new IntermediaryKeyValueItemReaderBuilder<>(valueReader);
+    public static KeyValueItemReaderBuilder<DataStructure<String>> dataStructure(RedisClient client) {
+        return new KeyValueItemReaderBuilder<>(client, DataStructureValueReader.client(client).build());
     }
 
-    public static class IntermediaryKeyValueItemReaderBuilder<T extends KeyValue<String, ?>> {
-
-        private final ItemProcessor<List<? extends String>, List<T>> valueReader;
-
-        public IntermediaryKeyValueItemReaderBuilder(ItemProcessor<List<? extends String>, List<T>> valueReader) {
-            this.valueReader = valueReader;
-        }
-
-        public KeyValueItemReaderBuilder<T> keyReader(ItemReader<String> keyReader) {
-            return new KeyValueItemReaderBuilder<>(keyReader, valueReader);
-        }
-
-        public KeyspaceNotificationValueItemReader.KeyspaceNotificationValueItemReaderBuilder<T> keyReader(PollableItemReader<String> keyReader) {
-            return new KeyspaceNotificationValueItemReader.KeyspaceNotificationValueItemReaderBuilder<>(keyReader, valueReader);
-        }
-
+    public static KeyValueItemReaderBuilder<DataStructure<String>> dataStructure(RedisClusterClient client) {
+        return new KeyValueItemReaderBuilder<>(client, DataStructureValueReader.client(client).build());
     }
 
-    @SuppressWarnings({"unchecked", "unused"})
-    public static class AbstractKeyValueItemReaderBuilder<T extends KeyValue<String, ?>, B extends AbstractKeyValueItemReaderBuilder<T, B>> {
+    public static KeyValueItemReaderBuilder<KeyValue<String, byte[]>> keyDump(RedisClient client) {
+        return new KeyValueItemReaderBuilder<>(client, KeyDumpValueReader.client(client).build());
+    }
 
+    public static KeyValueItemReaderBuilder<KeyValue<String, byte[]>> keyDump(RedisClusterClient client) {
+        return new KeyValueItemReaderBuilder<>(client, KeyDumpValueReader.client(client).build());
+    }
+
+    public static class AbstractKeyValueItemReaderBuilder<T extends KeyValue<String, ?>, B extends AbstractKeyValueItemReaderBuilder<T, B>> extends CommandBuilder<B> {
+
+        public static final int DEFAULT_THREADS = 1;
         public static final int DEFAULT_CHUNK_SIZE = 50;
-        public static final int DEFAULT_THREAD_COUNT = 1;
         public static final int DEFAULT_QUEUE_CAPACITY = 1000;
         public static final Duration DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
 
-        protected final ItemReader<String> keyReader;
         protected final ItemProcessor<List<? extends String>, List<T>> valueReader;
+        protected final AbstractRedisClient client;
+
+        protected int threads = DEFAULT_THREADS;
         protected int chunkSize = DEFAULT_CHUNK_SIZE;
-        protected int threadCount = DEFAULT_THREAD_COUNT;
         protected int queueCapacity = DEFAULT_QUEUE_CAPACITY;
         protected Duration queuePollTimeout = DEFAULT_QUEUE_POLL_TIMEOUT;
 
-        protected AbstractKeyValueItemReaderBuilder(ItemReader<String> keyReader, ItemProcessor<List<? extends String>, List<T>> valueReader) {
-            this.keyReader = keyReader;
+
+        public AbstractKeyValueItemReaderBuilder(RedisClient client, ItemProcessor<List<? extends String>, List<T>> valueReader) {
+            super(client);
+            this.client = client;
             this.valueReader = valueReader;
         }
 
+        public AbstractKeyValueItemReaderBuilder(RedisClusterClient client, ItemProcessor<List<? extends String>, List<T>> valueReader) {
+            super(client);
+            this.client = client;
+            this.valueReader = valueReader;
+        }
+
+        public B threads(int threads) {
+            Assert.isTrue(threads > 0, "Thread count must be greater than zero");
+            this.threads = threads;
+            return (B) this;
+        }
+
         public B chunkSize(int chunkSize) {
+            Assert.isTrue(chunkSize > 0, "Chunk size must be greater than zero");
             this.chunkSize = chunkSize;
             return (B) this;
         }
 
-        public B threadCount(int threadCount) {
-            this.threadCount = threadCount;
-            return (B) this;
-        }
-
         public B queueCapacity(int queueCapacity) {
+            Assert.isTrue(queueCapacity > 0, "Queue capacity must be greater than zero");
             this.queueCapacity = queueCapacity;
             return (B) this;
         }
 
         public B queuePollTimeout(Duration queuePollTimeout) {
+            Assert.notNull(queuePollTimeout, "Queue poll timeout must not be null");
+            Assert.isTrue(!queuePollTimeout.isZero(), "Queue poll timeout must not be zero");
+            Assert.isTrue(!queuePollTimeout.isNegative(), "Queue poll timeout must not be negative");
             this.queuePollTimeout = queuePollTimeout;
             return (B) this;
         }
 
     }
 
+
+    @Setter
+    @Accessors(fluent = true)
     public static class KeyValueItemReaderBuilder<T extends KeyValue<String, ?>> extends AbstractKeyValueItemReaderBuilder<T, KeyValueItemReaderBuilder<T>> {
 
-        public KeyValueItemReaderBuilder(ItemReader<String> keyReader, ItemProcessor<List<? extends String>, List<T>> valueReader) {
-            super(keyReader, valueReader);
+        public static final String DEFAULT_SCAN_MATCH = "*";
+        public static final long DEFAULT_SCAN_COUNT = 1000;
+
+        private String match = DEFAULT_SCAN_MATCH;
+        private long count = DEFAULT_SCAN_COUNT;
+        private String type;
+
+        public KeyValueItemReaderBuilder(RedisClient client, ItemProcessor<List<? extends String>, List<T>> valueReader) {
+            super(client, valueReader);
+        }
+
+        public KeyValueItemReaderBuilder(RedisClusterClient client, ItemProcessor<List<? extends String>, List<T>> valueReader) {
+            super(client, valueReader);
+        }
+
+        public KeyEventValueItemReaderBuilder<T> live() {
+            if (client instanceof RedisClusterClient) {
+                return new KeyEventValueItemReaderBuilder<>((RedisClusterClient) client, valueReader);
+            }
+            return new KeyEventValueItemReaderBuilder<>((RedisClient) client, valueReader);
         }
 
         public KeyValueItemReader<String, T> build() {
-            return new KeyValueItemReader<>(keyReader, valueReader, chunkSize, threadCount, queueCapacity, queuePollTimeout);
+            return new KeyValueItemReader<>(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout);
+        }
+
+        private ItemReader<String> keyReader() {
+            return new ScanKeyItemReader<>(connectionSupplier, sync, match, count, type);
         }
     }
 
+    @Setter
+    @Accessors(fluent = true)
+    public static class KeyEventValueItemReaderBuilder<T extends KeyValue<String, ?>> extends AbstractKeyValueItemReaderBuilder<T, KeyEventValueItemReaderBuilder<T>> {
+
+        public static final int DEFAULT_QUEUE_CAPACITY = 1000;
+        public static final int DEFAULT_DATABASE = 0;
+        public static final String DEFAULT_KEY_PATTERN = "*";
+        public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
+        public static final String DEFAULT_PUBSUB_PATTERN = pubSubPattern(DEFAULT_DATABASE, DEFAULT_KEY_PATTERN);
+
+        private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+        private String keyPattern = DEFAULT_KEY_PATTERN;
+        private int database = DEFAULT_DATABASE;
+        private Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
+        private Duration idleTimeout;
+
+        public KeyEventValueItemReaderBuilder(RedisClient client, ItemProcessor<List<? extends String>, List<T>> valueReader) {
+            super(client, valueReader);
+        }
+
+        public KeyEventValueItemReaderBuilder(RedisClusterClient client, ItemProcessor<List<? extends String>, List<T>> valueReader) {
+            super(client, valueReader);
+        }
+
+        private static String pubSubPattern(int database, String keyPattern) {
+            return String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern);
+        }
+
+        public KeyEventValueItemReader<String, T> build() {
+            return new KeyEventValueItemReader<>(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, flushingInterval, idleTimeout);
+        }
+
+        private PollableItemReader<String> keyReader() {
+            if (client instanceof RedisClusterClient) {
+                return new RedisClusterKeyEventItemReader((Supplier) pubSubConnectionSupplier, queueCapacity, pubSubPattern(database, keyPattern));
+            }
+            return new RedisKeyEventItemReader(pubSubConnectionSupplier, queueCapacity, pubSubPattern(database, keyPattern));
+        }
+    }
 
 }

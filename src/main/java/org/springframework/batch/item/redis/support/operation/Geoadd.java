@@ -3,23 +3,16 @@ package org.springframework.batch.item.redis.support.operation;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisGeoAsyncCommands;
-import lombok.Builder;
-import lombok.NonNull;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-@Setter
-@Accessors(fluent = true)
 public class Geoadd<T> extends AbstractCollectionOperation<T> {
 
-    @NonNull
     private final Converter<T, Double> longitude;
-    @NonNull
     private final Converter<T, Double> latitude;
 
-    @Builder
     public Geoadd(Converter<T, String> key, Converter<T, String> member, Converter<T, Double> longitude, Converter<T, Double> latitude) {
         super(key, member);
         Assert.notNull(longitude, "A longitude converter is required");
@@ -39,6 +32,23 @@ public class Geoadd<T> extends AbstractCollectionOperation<T> {
             return null;
         }
         return ((RedisGeoAsyncCommands<String, String>) commands).geoadd(key.convert(item), lon, lat, member.convert(item));
+    }
+
+    public static <T> GeoaddBuilder<T> builder() {
+        return new GeoaddBuilder<>();
+    }
+
+    @Setter
+    @Accessors(fluent = true)
+    public static class GeoaddBuilder<T> extends CollectionOperationBuilder<T, GeoaddBuilder<T>> {
+
+        private Converter<T, Double> longitude;
+        private Converter<T, Double> latitude;
+
+        public Geoadd<T> build() {
+            return new Geoadd<>(key, member, longitude, latitude);
+        }
+
     }
 
 }

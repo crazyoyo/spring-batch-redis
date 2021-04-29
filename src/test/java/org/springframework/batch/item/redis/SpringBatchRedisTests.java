@@ -4,7 +4,6 @@ import com.redislabs.testcontainers.RedisClusterContainer;
 import com.redislabs.testcontainers.RedisContainer;
 import com.redislabs.testcontainers.RedisStandaloneContainer;
 import io.lettuce.core.*;
-import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -44,6 +43,7 @@ import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.separator.DefaultRecordSeparatorPolicy;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
+import org.springframework.batch.item.redis.support.KeyValue;
 import org.springframework.batch.item.redis.support.*;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
@@ -62,6 +62,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 @Testcontainers
@@ -244,7 +245,7 @@ public class SpringBatchRedisTests {
     @ParameterizedTest
     @MethodSource("containers")
     void testFlushingStep(RedisContainer container) throws Throwable {
-        PollableItemReader<String> reader = keyspaceNotificationReader(container);
+        PollableItemReader<String> reader = keyEventReader(container);
         ListItemWriter<String> writer = new ListItemWriter<>();
         JobExecution execution = executeFlushing(container, "flushing", reader, writer);
         dataGenerator(container).end(3).maxExpire(0).dataTypes(DataStructure.STRING, DataStructure.HASH).build().call();
@@ -253,11 +254,13 @@ public class SpringBatchRedisTests {
         Assertions.assertEquals(commands.dbsize(), writer.getWrittenItems().size());
     }
 
-    private PollableItemReader<String> keyspaceNotificationReader(RedisContainer container) {
+    private PollableItemReader<String> keyEventReader(RedisContainer container) {
         if (container.isCluster()) {
-            return RedisClusterKeyspaceNotificationItemReader.client(redisClusterClient(container)).build();
+            RedisClusterClient client = redisClusterClient(container);
+            return new RedisClusterKeyEventItemReader((Supplier) client::connect, KeyEventValueItemReader.KeyEventValueItemReaderBuilder.DEFAULT_QUEUE_CAPACITY, KeyEventValueItemReader.KeyEventValueItemReaderBuilder.DEFAULT_PUBSUB_PATTERN);
         }
-        return RedisKeyspaceNotificationItemReader.client(redisClient(container)).build();
+        RedisClient client = redisClient(container);
+        return new RedisKeyEventItemReader((Supplier) client::connect, KeyEventValueItemReader.KeyEventValueItemReaderBuilder.DEFAULT_QUEUE_CAPACITY, KeyEventValueItemReader.KeyEventValueItemReaderBuilder.DEFAULT_PUBSUB_PATTERN);
     }
 
     private void awaitJobTermination(JobExecution execution) throws Throwable {
@@ -300,7 +303,7 @@ public class SpringBatchRedisTests {
     @MethodSource("containers")
     void testStreamReader(RedisContainer container) throws Throwable {
         dataGenerator(container).dataTypes(DataStructure.STREAM).end(100).build().call();
-        StreamItemReader<String, String> reader = streamReaderBuilder(container).offset(StreamOffset.from("stream:0", "0-0")).build();
+        StreamItemReader<String, String> reader = streamReader(container, XReadArgs.StreamOffset.from("stream:0", "0-0"));
         ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
         JobExecution execution = executeFlushing(container, "stream-reader", reader, writer);
         awaitJobTermination(execution);
@@ -312,11 +315,11 @@ public class SpringBatchRedisTests {
         }
     }
 
-    private StreamItemReader.StreamItemReaderBuilder streamReaderBuilder(RedisContainer container) {
+    private StreamItemReader<String, String> streamReader(RedisContainer container, XReadArgs.StreamOffset<String> offset) {
         if (container.isCluster()) {
-            return StreamItemReader.client(redisClusterClient(container));
+            return StreamItemReader.client(redisClusterClient(container)).offset(offset).build();
         }
-        return StreamItemReader.client(redisClient(container));
+        return StreamItemReader.client(redisClient(container)).offset(offset).build();
     }
 
     @ParameterizedTest
@@ -403,7 +406,7 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
         RedisOperation<String, String, Map<String, String>> xadd = RedisOperation.<Map<String, String>>xadd().key(i -> stream).body(i -> i).build();
-        OperationItemWriter.TransactionItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.operation(xadd).transactional().client(redisClient(REDIS)).build();
+        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.operation(xadd).client(redisClient(REDIS)).transactional().build();
         execute(REDIS, "stream-tx-writer", reader, writer);
         RedisStreamCommands<String, String> sync = sync(REDIS);
         Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -492,7 +495,7 @@ public class SpringBatchRedisTests {
     @ParameterizedTest
     @MethodSource("containers")
     public void testLiveReader(RedisContainer container) throws Throwable {
-        KeyspaceNotificationValueItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(container);
+        KeyEventValueItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(container);
         ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
         JobExecution execution = executeFlushing(container, "live-reader", reader, writer);
         log.debug("Generating keyspace notifications");
@@ -502,31 +505,26 @@ public class SpringBatchRedisTests {
         Assertions.assertEquals(sync.dbsize(), writer.getWrittenItems().size());
     }
 
-    private KeyspaceNotificationValueItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisContainer container) {
+    private KeyEventValueItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisContainer container) {
+        Duration idleTimeout = Duration.ofMillis(500);
         if (container.isCluster()) {
-            RedisClusterClient client = redisClusterClient(container);
-            return KeyValueItemReader.valueReader(KeyDumpValueReader.client(client).build()).keyReader(RedisClusterKeyspaceNotificationItemReader.client(client).build()).idleTimeout(Duration.ofMillis(500)).build();
+            return KeyEventValueItemReader.keyDump(redisClusterClient(container)).live().idleTimeout(idleTimeout).build();
         }
-        RedisClient client = redisClient(container);
-        return KeyValueItemReader.valueReader(KeyDumpValueReader.client(client).build()).keyReader(RedisKeyspaceNotificationItemReader.client(client).build()).idleTimeout(Duration.ofMillis(500)).build();
+        return KeyEventValueItemReader.keyDump(redisClient(container)).live().idleTimeout(idleTimeout).build();
     }
 
     private KeyValueItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisContainer container) {
         if (container.isCluster()) {
-            RedisClusterClient client = redisClusterClient(container);
-            return KeyValueItemReader.valueReader(KeyDumpValueReader.client(client).build()).keyReader(ScanKeyItemReader.client(client).build()).build();
+            return KeyValueItemReader.keyDump(redisClusterClient(container)).build();
         }
-        RedisClient client = redisClient(container);
-        return KeyValueItemReader.valueReader(KeyDumpValueReader.client(client).build()).keyReader(ScanKeyItemReader.client(client).build()).build();
+        return KeyValueItemReader.keyDump(redisClient(container)).build();
     }
 
     private KeyValueItemReader<String, DataStructure<String>> dataStructureReader(RedisContainer container) {
         if (container.isCluster()) {
-            RedisClusterClient client = redisClusterClient(container);
-            return KeyValueItemReader.valueReader(DataStructureValueReader.client(client).build()).keyReader(ScanKeyItemReader.client(client).build()).build();
+            return KeyValueItemReader.dataStructure(redisClusterClient(container)).build();
         }
-        RedisClient client = redisClient(container);
-        return KeyValueItemReader.valueReader(DataStructureValueReader.client(client).build()).keyReader(ScanKeyItemReader.client(client).build()).build();
+        return KeyValueItemReader.dataStructure(redisClient(container)).build();
     }
 
     private DataStructureValueReader<String, String> dataStructureValueReader(RedisContainer container) {
@@ -579,7 +577,7 @@ public class SpringBatchRedisTests {
         OperationItemWriter<String, String, KeyValue<String, byte[]>> writer = keyDumpWriter(REDIS_REPLICA);
         writer.setName("writer");
         TaskletStep replicationStep = step("replication", reader, writer).build();
-        KeyspaceNotificationValueItemReader liveReader = liveKeyDumpReader(redisContainer);
+        KeyEventValueItemReader liveReader = liveKeyDumpReader(redisContainer);
         liveReader.setName("live-reader");
         OperationItemWriter<String, String, KeyValue<String, byte[]>> liveWriter = keyDumpWriter(REDIS_REPLICA);
         liveWriter.setName("live-writer");
@@ -594,13 +592,12 @@ public class SpringBatchRedisTests {
         compare(redisContainer, "live-replication");
     }
 
-    private KeyDumpItemWriter<String, String, KeyValue<String, byte[]>> keyDumpWriter(RedisContainer container) {
+    private KeyDumpItemWriter<String, String> keyDumpWriter(RedisContainer container) {
         if (container.isCluster()) {
             return KeyDumpItemWriter.client(redisClusterClient(container)).build();
         }
         return KeyDumpItemWriter.client(redisClient(container)).build();
     }
-
 
     private void compare(RedisContainer redisContainer, String name) throws Throwable {
         RedisServerCommands<String, String> sourceSync = sync(redisContainer);
@@ -632,7 +629,7 @@ public class SpringBatchRedisTests {
         }, Clock.SYSTEM);
         Metrics.addRegistry(registry);
         dataGenerator(REDIS).end(100).build().call();
-        KeyValueItemReader reader = KeyValueItemReader.valueReader(DataStructureValueReader.client(redisClient(REDIS)).build()).keyReader(ScanKeyItemReader.client(redisClient(REDIS)).build()).queueCapacity(10).chunkSize(1).build();
+        KeyValueItemReader reader = KeyValueItemReader.dataStructure(redisClient(REDIS)).queueCapacity(10).chunkSize(1).build();
         ItemWriter<DataStructure<String>> writer = items -> Thread.sleep(1);
         TaskletStep step = steps.get("metrics-step").<DataStructure<String>, DataStructure<String>>chunk(1).reader(reader).writer(writer).build();
         Job job = job(REDIS, "metrics-job", step);

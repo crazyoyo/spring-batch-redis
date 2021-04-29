@@ -10,6 +10,7 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.redis.support.CommandBuilder;
+import org.springframework.batch.item.redis.support.DataStructure;
 
 import java.util.*;
 import java.util.concurrent.Callable;

@@ -6,8 +6,9 @@ import org.springframework.batch.item.redis.RedisOperation;
 
 public class Noop<T> implements RedisOperation<String, String, T> {
 
-        @Override
-        public RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item) {
-            return null;
-        }
+    @Override
+    public RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item) {
+        return null;
     }
+
+}

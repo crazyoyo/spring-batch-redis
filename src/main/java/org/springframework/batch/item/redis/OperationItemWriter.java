@@ -8,8 +8,6 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractPipelineItemWriter;
 import org.springframework.batch.item.redis.support.CommandBuilder;
@@ -71,8 +69,6 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
         return new OperationItemWriterBuilder<>(operation);
     }
 
-    @Setter
-    @Accessors(fluent = true)
     public static class OperationItemWriterBuilder<T> {
 
         private final RedisOperation<String, String, T> operation;
@@ -81,74 +77,44 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
             this.operation = operation;
         }
 
-        public FinalOperationItemWriterBuilder<T> client(RedisClusterClient client) {
-            return new FinalOperationItemWriterBuilder<>(client, operation);
+        public CommandOperationItemWriterBuilder<T> client(RedisClient client) {
+            return new CommandOperationItemWriterBuilder<>(client, operation);
         }
 
-        public FinalOperationItemWriterBuilder<T> client(RedisClient client) {
-            return new FinalOperationItemWriterBuilder<>(client, operation);
-        }
-
-        public TransactionItemWriterBuilder<T> transactional() {
-            return new TransactionItemWriterBuilder<>(operation);
+        public CommandOperationItemWriterBuilder<T> client(RedisClusterClient client) {
+            return new CommandOperationItemWriterBuilder<>(client, operation);
         }
 
     }
 
-    public static class FinalOperationItemWriterBuilder<T> extends CommandBuilder<FinalOperationItemWriterBuilder<T>> {
+    public static class CommandOperationItemWriterBuilder<T> extends CommandBuilder<CommandOperationItemWriterBuilder<T>> {
 
-        protected final RedisOperation<String, String, T> operation;
+        private final RedisOperation<String, String, T> operation;
+        private boolean transactional;
 
-        public FinalOperationItemWriterBuilder(RedisClusterClient client, RedisOperation<String, String, T> operation) {
+        public CommandOperationItemWriterBuilder(RedisClient client, RedisOperation<String, String, T> operation) {
             super(client);
             this.operation = operation;
         }
 
-        public FinalOperationItemWriterBuilder(RedisClient client, RedisOperation<String, String, T> operation) {
+        public CommandOperationItemWriterBuilder(RedisClusterClient client, RedisOperation<String, String, T> operation) {
             super(client);
             this.operation = operation;
         }
 
         public OperationItemWriter<String, String, T> build() {
+            if (transactional) {
+                return new TransactionItemWriter<>(connectionSupplier, poolConfig, async, operation);
+            }
             return new OperationItemWriter<>(connectionSupplier, poolConfig, async, operation);
         }
 
-    }
-
-    @Setter
-    @Accessors(fluent = true)
-    public static class TransactionItemWriterBuilder<T> {
-
-        private final RedisOperation<String, String, T> operation;
-
-        public TransactionItemWriterBuilder(RedisOperation<String, String, T> operation) {
-            this.operation = operation;
-        }
-
-        public FinalTransactionItemWriterBuilder<T> client(RedisClient client) {
-            return new FinalTransactionItemWriterBuilder<>(client, operation);
-        }
-
-        public FinalTransactionItemWriterBuilder<T> client(RedisClusterClient client) {
-            return new FinalTransactionItemWriterBuilder<>(client, operation);
+        public CommandOperationItemWriterBuilder<T> transactional() {
+            this.transactional = true;
+            return this;
         }
 
     }
 
-    public static class FinalTransactionItemWriterBuilder<T> extends FinalOperationItemWriterBuilder<T> {
-
-        public FinalTransactionItemWriterBuilder(RedisClient client, RedisOperation<String, String, T> operation) {
-            super(client, operation);
-        }
-
-        public FinalTransactionItemWriterBuilder(RedisClusterClient client, RedisOperation<String, String, T> operation) {
-            super(client, operation);
-        }
-
-        public TransactionItemWriter<String, String, T> build() {
-            return new TransactionItemWriter<>(connectionSupplier, poolConfig, async, operation);
-        }
-
-    }
 
 }

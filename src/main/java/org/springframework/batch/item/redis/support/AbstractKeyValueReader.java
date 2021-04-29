@@ -1,15 +1,16 @@
 package org.springframework.batch.item.redis.support;
 
+import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
+import io.lettuce.core.cluster.RedisClusterClient;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.redis.KeyValue;
 import org.springframework.util.FileCopyUtils;
 
 import java.util.List;
@@ -64,6 +65,19 @@ public abstract class AbstractKeyValueReader<K, V, T extends KeyValue<K, ?>> ext
         }
     }
 
-    protected abstract List<T> read(BaseRedisAsyncCommands<K,V> commands, long timeout, List<? extends K> keys) throws InterruptedException, ExecutionException, TimeoutException;
+    protected abstract List<T> read(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends K> keys) throws InterruptedException, ExecutionException, TimeoutException;
+
+    public static abstract class AbstractKeyValueReaderBuilder<T extends KeyValue<String, ?>> extends CommandBuilder<AbstractKeyValueReaderBuilder<T>> {
+
+        public AbstractKeyValueReaderBuilder(RedisClient client) {
+            super(client);
+        }
+
+        public AbstractKeyValueReaderBuilder(RedisClusterClient client) {
+            super(client);
+        }
+
+        public abstract AbstractKeyValueReader<String, String, T> build();
+    }
 
 }

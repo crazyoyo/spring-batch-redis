@@ -6,15 +6,22 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.CommandBuilder;
+import org.springframework.batch.item.redis.support.KeyValue;
+import org.springframework.batch.item.redis.support.operation.Restore;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class KeyDumpItemWriter<K, V, T> extends OperationItemWriter<K, V, T> {
+public class KeyDumpItemWriter<K, V> extends OperationItemWriter<K, V, KeyValue<K, byte[]>> {
 
-    public KeyDumpItemWriter(Supplier<StatefulConnection<K, V>> statefulConnectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, RedisOperation<K, V, T> operation) {
-        super(statefulConnectionSupplier, poolConfig, async, operation);
+    public KeyDumpItemWriter(Supplier<StatefulConnection<K, V>> statefulConnectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
+        super(statefulConnectionSupplier, poolConfig, async, restoreOperation());
     }
+
+    private static <K, V> RedisOperation<K, V, KeyValue<K, byte[]>> restoreOperation() {
+        return new Restore<>(KeyValue::getKey, KeyValue::getValue, KeyValue::getAbsoluteTTL, t -> true);
+    }
+
 
     public static KeyDumpItemWriterBuilder client(RedisClient client) {
         return new KeyDumpItemWriterBuilder(client);
@@ -24,7 +31,7 @@ public class KeyDumpItemWriter<K, V, T> extends OperationItemWriter<K, V, T> {
         return new KeyDumpItemWriterBuilder(client);
     }
 
-    public static class KeyDumpItemWriterBuilder extends CommandBuilder<DataStructureItemWriter.DataStructureItemWriterBuilder> {
+    public static class KeyDumpItemWriterBuilder extends CommandBuilder<KeyDumpItemWriterBuilder> {
 
         public KeyDumpItemWriterBuilder(RedisClusterClient client) {
             super(client);
@@ -34,10 +41,9 @@ public class KeyDumpItemWriter<K, V, T> extends OperationItemWriter<K, V, T> {
             super(client);
         }
 
-        public KeyDumpItemWriter<String, String, KeyValue<String, byte[]>> build() {
-            return new KeyDumpItemWriter<>(connectionSupplier, poolConfig, async, RedisOperation.<KeyValue<String,byte[]>>restore().key(KeyValue::getKey).dump(KeyValue::getValue).absoluteTTL(KeyValue::getAbsoluteTTL).build());
+        public KeyDumpItemWriter<String, String> build() {
+            return new KeyDumpItemWriter<>(connectionSupplier, poolConfig, async);
         }
 
     }
-
 }
