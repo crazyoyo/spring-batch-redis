@@ -4,15 +4,20 @@ import io.lettuce.core.pubsub.RedisPubSubAdapter;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.concurrent.BlockingQueue;
 import java.util.function.Supplier;
 
 @Slf4j
-public class RedisKeyEventItemReader extends AbstractKeyEventItemReader<StatefulRedisPubSubConnection<String, String>> {
+public class RedisKeyspaceNotificationItemReader extends AbstractKeyspaceNotificationItemReader<StatefulRedisPubSubConnection<String, String>> {
 
     private RedisPubSubAdapter<String, String> listener;
 
-    public RedisKeyEventItemReader(Supplier<StatefulRedisPubSubConnection<String, String>> connectionSupplier, int queueCapacity, String keyPattern) {
-        super(connectionSupplier, queueCapacity, keyPattern);
+    public RedisKeyspaceNotificationItemReader(Supplier<StatefulRedisPubSubConnection<String, String>> connectionSupplier, String pubSubPattern, int queueCapacity) {
+        super(connectionSupplier, pubSubPattern, queueCapacity);
+    }
+
+    public RedisKeyspaceNotificationItemReader(Supplier<StatefulRedisPubSubConnection<String, String>> connectionSupplier, String pubSubPattern, BlockingQueue<String> queue) {
+        super(connectionSupplier, pubSubPattern, queue);
     }
 
     @Override
@@ -31,13 +36,13 @@ public class RedisKeyEventItemReader extends AbstractKeyEventItemReader<Stateful
         };
         log.debug("Adding listener");
         connection.addListener(listener);
-        log.debug("Subscribing to channel pattern '{}'", pattern);
+        log.info("Subscribing to channel pattern '{}'", pattern);
         connection.sync().psubscribe(pattern);
     }
 
     @Override
     protected void unsubscribe(StatefulRedisPubSubConnection<String, String> connection, String pattern) {
-        log.debug("Unsubscribing from channel pattern '{}'", pattern);
+        log.info("Unsubscribing from channel pattern '{}'", pattern);
         connection.sync().punsubscribe(pattern);
         log.debug("Removing listener");
         connection.removeListener(listener);

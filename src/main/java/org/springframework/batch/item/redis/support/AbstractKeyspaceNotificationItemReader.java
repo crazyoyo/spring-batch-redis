@@ -14,21 +14,25 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 @Slf4j
-public abstract class AbstractKeyEventItemReader<C extends StatefulRedisPubSubConnection<String, String>> extends ItemStreamSupport implements PollableItemReader<String> {
+public abstract class AbstractKeyspaceNotificationItemReader<C extends StatefulRedisPubSubConnection<String, String>> extends ItemStreamSupport implements PollableItemReader<String> {
 
     private final Supplier<C> connectionSupplier;
-    private final int queueCapacity;
-    private final String keyPattern;
-    private BlockingQueue<String> queue;
+    private final BlockingQueue<String> queue;
+    private final String pubSubPattern;
     private C connection;
 
-    protected AbstractKeyEventItemReader(Supplier<C> connectionSupplier, int queueCapacity, String keyPattern) {
+    protected AbstractKeyspaceNotificationItemReader(Supplier<C> connectionSupplier, String pubSubPattern, int queueCapacity) {
+        this(connectionSupplier, pubSubPattern, new ConcurrentSetBlockingQueue<>(queueCapacity));
+    }
+
+    protected AbstractKeyspaceNotificationItemReader(Supplier<C> connectionSupplier, String pubSubPattern, BlockingQueue<String> queue) {
         setName(ClassUtils.getShortName(getClass()));
-        Assert.isTrue(queueCapacity > 0, "Queue capacity must be greater than zero");
-        Assert.notNull(keyPattern, "A pub/sub pattern is required");
+        Assert.notNull(connectionSupplier, "A pub/sub connection supplier is required");
+        Assert.notNull(queue, "A queue is required");
+        Assert.notNull(pubSubPattern, "A pub/sub pattern is required");
         this.connectionSupplier = connectionSupplier;
-        this.queueCapacity = queueCapacity;
-        this.keyPattern = keyPattern;
+        this.queue = queue;
+        this.pubSubPattern = pubSubPattern;
     }
 
     @Override
@@ -39,11 +43,10 @@ public abstract class AbstractKeyEventItemReader<C extends StatefulRedisPubSubCo
     @Override
     public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
         if (connection == null) {
-            queue = new ConcurrentSetBlockingQueue<>(queueCapacity);
             MetricsUtils.createGaugeCollectionSize("reader.notification.queue.size", queue);
-            log.debug("Connecting to Redis pub/sub");
+            log.info("Connecting to Redis pub/sub");
             this.connection = connectionSupplier.get();
-            subscribe(connection, keyPattern);
+            subscribe(connection, pubSubPattern);
         }
     }
 
@@ -59,7 +62,7 @@ public abstract class AbstractKeyEventItemReader<C extends StatefulRedisPubSubCo
         if (connection == null) {
             return;
         }
-        unsubscribe(connection, keyPattern);
+        unsubscribe(connection, pubSubPattern);
         connection.close();
         connection = null;
     }

@@ -90,7 +90,7 @@ public class FlushingChunkProvider<I> implements ChunkProvider<I> {
             if (item == null) {
                 long idleDuration = System.currentTimeMillis() - lastActivity;
                 if (idleDuration > idleTimeout) {
-                    log.debug("Idle for {} ms - End of stream", idleDuration);
+                    log.info("Idle for {} ms - End of stream", idleDuration);
                     inputs.setEnd();
                 }
                 return RepeatStatus.CONTINUABLE;

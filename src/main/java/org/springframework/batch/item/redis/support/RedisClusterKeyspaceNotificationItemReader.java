@@ -6,15 +6,20 @@ import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.concurrent.BlockingQueue;
 import java.util.function.Supplier;
 
 @Slf4j
-public class RedisClusterKeyEventItemReader extends AbstractKeyEventItemReader<StatefulRedisClusterPubSubConnection<String, String>> {
+public class RedisClusterKeyspaceNotificationItemReader extends AbstractKeyspaceNotificationItemReader<StatefulRedisClusterPubSubConnection<String, String>> {
 
     private RedisClusterPubSubListener<String, String> listener;
 
-    public RedisClusterKeyEventItemReader(Supplier<StatefulRedisClusterPubSubConnection<String, String>> connectionSupplier, int queueCapacity, String keyPattern) {
-        super(connectionSupplier, queueCapacity, keyPattern);
+    public RedisClusterKeyspaceNotificationItemReader(Supplier<StatefulRedisClusterPubSubConnection<String, String>> connectionSupplier, String pubSubPattern, int queueCapacity) {
+        super(connectionSupplier, pubSubPattern, queueCapacity);
+    }
+
+    public RedisClusterKeyspaceNotificationItemReader(Supplier<StatefulRedisClusterPubSubConnection<String, String>> connectionSupplier, String pubSubPattern, BlockingQueue<String> queue) {
+        super(connectionSupplier, pubSubPattern, queue);
     }
 
     @Override
@@ -35,13 +40,13 @@ public class RedisClusterKeyEventItemReader extends AbstractKeyEventItemReader<S
         log.debug("Adding listener");
         connection.addListener(listener);
         connection.setNodeMessagePropagation(true);
-        log.debug("Subscribing to channel pattern '{}'", pattern);
+        log.info("Subscribing to channel pattern '{}'", pattern);
         connection.sync().upstream().commands().psubscribe(pattern);
     }
 
     @Override
     protected void unsubscribe(StatefulRedisClusterPubSubConnection<String, String> connection, String pattern) {
-        log.debug("Unsubscribing from channel pattern '{}'", pattern);
+        log.info("Unsubscribing from channel pattern '{}'", pattern);
         connection.sync().upstream().commands().punsubscribe(pattern);
         log.debug("Removing listener");
         connection.removeListener(listener);
