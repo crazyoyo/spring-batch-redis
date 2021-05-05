@@ -12,6 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.redis.support.CommandBuilder;
 import org.springframework.batch.item.redis.support.DataStructure;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -26,12 +28,12 @@ public class DataGenerator implements Callable<Long> {
     private final int start;
     private final int end;
     private final long sleep;
-    private final int minExpire;
-    private final int maxExpire;
+    private final Duration minExpire;
+    private final Duration maxExpire;
     private final int batchSize;
     private final Set<String> dataTypes;
 
-    public DataGenerator(Supplier<StatefulConnection<String, String>> connectionSupplier, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async, int start, int end, long sleep, int minExpire, int maxExpire, int batchSize, Set<String> dataTypes) {
+    public DataGenerator(Supplier<StatefulConnection<String, String>> connectionSupplier, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async, int start, int end, long sleep, Duration minExpire, Duration maxExpire, int batchSize, Set<String> dataTypes) {
         this.connectionSupplier = connectionSupplier;
         this.async = async;
         this.start = start;
@@ -77,8 +79,8 @@ public class DataGenerator implements Callable<Long> {
                 if (contains(DataStructure.STRING)) {
                     String stringKey = "string:" + index;
                     futures.add(((RedisStringAsyncCommands<String, String>) commands).set(stringKey, "value:" + index));
-                    if (maxExpire > 0) {
-                        long time = System.currentTimeMillis() + minExpire + random.nextInt(maxExpire);
+                    if (!maxExpire.isZero()) {
+                        long time = System.currentTimeMillis() + minExpire.toMillis() + random.nextInt(Math.toIntExact(maxExpire.toMillis()));
                         futures.add(((RedisKeyAsyncCommands<String, String>) commands).pexpireat(stringKey, time));
                     }
                 }
@@ -146,15 +148,15 @@ public class DataGenerator implements Callable<Long> {
         private static final int DEFAULT_START = 0;
         private static final int DEFAULT_END = 1000;
         private static final int DEFAULT_BATCH_SIZE = 50;
-        private static final int DEFAULT_MIN_EXPIRE = 100000;
-        private static final int DEFAULT_MAX_EXPIRE = 1000000;
+        private static final Duration DEFAULT_MIN_EXPIRE = Duration.ofSeconds(100);
+        private static final Duration DEFAULT_MAX_EXPIRE = Duration.ofSeconds(1000);
         private static final long DEFAULT_SLEEP = 0;
 
         private int start = DEFAULT_START;
         private int end = DEFAULT_END;
         private long sleep = DEFAULT_SLEEP;
-        private int minExpire = DEFAULT_MIN_EXPIRE;
-        private int maxExpire = DEFAULT_MAX_EXPIRE;
+        private Duration minExpire = DEFAULT_MIN_EXPIRE;
+        private Duration maxExpire = DEFAULT_MAX_EXPIRE;
         private int batchSize = DEFAULT_BATCH_SIZE;
         private Set<String> dataTypes = new HashSet<>(Arrays.asList(DataStructure.HASH, DataStructure.LIST, DataStructure.STRING, DataStructure.STREAM, DataStructure.SET, DataStructure.ZSET));
 

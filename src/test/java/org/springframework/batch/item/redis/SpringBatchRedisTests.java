@@ -252,7 +252,7 @@ public class SpringBatchRedisTests {
         PollableItemReader<String> reader = keyEventReader(container);
         ListItemWriter<String> writer = new ListItemWriter<>();
         JobExecution execution = executeFlushing(container, "flushing", reader, writer);
-        dataGenerator(container).end(3).maxExpire(0).dataTypes(DataStructure.STRING, DataStructure.HASH).build().call();
+        dataGenerator(container).end(3).maxExpire(Duration.ofMillis(0)).dataTypes(DataStructure.STRING, DataStructure.HASH).build().call();
         awaitJobTermination(execution);
         RedisServerCommands<String, String> commands = sync(container);
         Assertions.assertEquals(commands.dbsize(), writer.getWrittenItems().size());
@@ -543,7 +543,7 @@ public class SpringBatchRedisTests {
         ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
         JobExecution execution = executeFlushing(container, "live-reader", reader, writer);
         log.debug("Generating keyspace notifications");
-        dataGenerator(container).end(123).maxExpire(0).dataTypes(DataStructure.STRING, DataStructure.HASH).build().call();
+        dataGenerator(container).end(123).maxExpire(Duration.ofMillis(0)).dataTypes(DataStructure.STRING, DataStructure.HASH).build().call();
         awaitJobTermination(execution);
         RedisServerCommands<String, String> sync = sync(container);
         Assertions.assertEquals(sync.dbsize(), writer.getWrittenItems().size());
@@ -649,11 +649,10 @@ public class SpringBatchRedisTests {
         Assertions.assertEquals(sourceSync.dbsize(), targetSync.dbsize());
         KeyValueItemReader left = dataStructureReader(redisContainer);
         DataStructureValueReader<String, String> right = dataStructureValueReader(REDIS_REPLICA);
-        KeyComparisonItemWriter<String> writer = new KeyComparisonItemWriter<>(right);
-        KeyComparisonCounter counter = KeyComparisonCounter.builder().build();
-        writer.addListener(counter);
+        KeyComparisonResultCounter<String> counter = new KeyComparisonResultCounter<>();
+        KeyComparisonItemWriter<String> writer = KeyComparisonItemWriter.valueReader(right).resultHandler(counter).ttlTolerance(Duration.ofMillis(500)).build();
         execute(redisContainer, name + "-compare", left, writer);
-        Assertions.assertEquals(sourceSync.dbsize(), counter.getOK());
+        Assertions.assertEquals(sourceSync.dbsize(), counter.get(KeyComparisonItemWriter.Result.OK));
         Assertions.assertTrue(counter.isOK());
     }
 
