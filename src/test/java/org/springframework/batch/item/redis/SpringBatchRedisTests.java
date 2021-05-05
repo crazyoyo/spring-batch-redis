@@ -649,12 +649,12 @@ public class SpringBatchRedisTests {
         Assertions.assertEquals(sourceSync.dbsize(), targetSync.dbsize());
         KeyValueItemReader left = dataStructureReader(redisContainer);
         DataStructureValueReader<String, String> right = dataStructureValueReader(REDIS_REPLICA);
-        KeyComparisonItemWriter<String> writer = new KeyComparisonItemWriter<>(right, Duration.ofSeconds(1));
+        KeyComparisonItemWriter<String> writer = new KeyComparisonItemWriter<>(right);
+        KeyComparisonCounter counter = KeyComparisonCounter.builder().build();
+        writer.addListener(counter);
         execute(redisContainer, name + "-compare", left, writer);
-        KeyComparisonResults<String> results = writer.getResults();
-        Assertions.assertEquals(sourceSync.dbsize(), writer.getResults().getOk());
-        Assertions.assertFalse(writer.getResults().hasDiffs());
-        Assertions.assertTrue(writer.getResults().isOk());
+        Assertions.assertEquals(sourceSync.dbsize(), counter.getOK());
+        Assertions.assertTrue(counter.isOK());
     }
 
     @Test
