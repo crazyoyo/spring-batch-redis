@@ -1,7 +1,7 @@
 plugins {
     id 'org.springframework.boot' version '2.4.5'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
-    id "io.freefair.lombok" version "6.0.0-m2"
+    id 'io.freefair.lombok' version '6.0.0-m2'
     id 'java-library'
     id 'maven-publish'
     id 'signing'
@@ -72,7 +72,7 @@ publishing {
             pom {
                 name = 'Spring Batch Redis'
                 description = 'Spring Batch reader and writer implementations for Redis'
-                url = 'https://github.com/Redislabs-Solution-Architects/spring-batch-redis'
+                url = 'https://github.com/redis-developer/spring-batch-redis'
                 licenses {
                     license {
                         name = 'The Apache License, Version 2.0'
@@ -86,9 +86,9 @@ publishing {
                     }
                 }
                 scm {
-                    connection = 'scm:git:git://github.com/Redislabs-Solution-Architects/spring-batch-redis'
-                    developerConnection = 'scm:git:git@github.com:Redislabs-Solution-Architects/spring-batch-redis'
-                    url = 'https://github.com/Redislabs-Solution-Architects/spring-batch-redis'
+                    connection = 'scm:git:git://github.com/redis-developer/spring-batch-redis'
+                    developerConnection = 'scm:git:git@github.com:redis-developer/spring-batch-redis'
+                    url = 'https://github.com/redis-developer/spring-batch-redis'
                 }
             }
         }
@@ -111,7 +111,7 @@ nexusPublishing {
 
 githubRelease {
     token = project.hasProperty('github.token') ? project.property('github.token') : ''
-    owner "Redislabs-Solution-Architects"
+    owner "redis-developer"
     repo "spring-batch-redis"
     body changelog()
 }
