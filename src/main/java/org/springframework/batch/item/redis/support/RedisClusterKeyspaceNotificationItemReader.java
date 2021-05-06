@@ -40,13 +40,13 @@ public class RedisClusterKeyspaceNotificationItemReader extends AbstractKeyspace
         log.debug("Adding listener");
         connection.addListener(listener);
         connection.setNodeMessagePropagation(true);
-        log.info("Subscribing to channel pattern '{}'", pattern);
+        log.debug("Subscribing to channel pattern '{}'", pattern);
         connection.sync().upstream().commands().psubscribe(pattern);
     }
 
     @Override
     protected void unsubscribe(StatefulRedisClusterPubSubConnection<String, String> connection, String pattern) {
-        log.info("Unsubscribing from channel pattern '{}'", pattern);
+        log.debug("Unsubscribing from channel pattern '{}'", pattern);
         connection.sync().upstream().commands().punsubscribe(pattern);
         log.debug("Removing listener");
         connection.removeListener(listener);

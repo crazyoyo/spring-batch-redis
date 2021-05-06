@@ -19,7 +19,23 @@ public class KeyComparisonResultCounter<K> implements KeyComparisonItemWriter.Ke
         return counters.get(result).get();
     }
 
+    public Long[] get(KeyComparisonItemWriter.Result... results) {
+        Long[] counts = new Long[results.length];
+        for (int index = 0; index < results.length; index++) {
+            counts[index] = get(results[index]);
+        }
+        return counts;
+    }
+
     public boolean isOK() {
-        return get(KeyComparisonItemWriter.Result.OK) > 0 && get(KeyComparisonItemWriter.Result.SOURCE) == 0 && get(KeyComparisonItemWriter.Result.TARGET) == 0 && get(KeyComparisonItemWriter.Result.TTL) == 0 && get(KeyComparisonItemWriter.Result.VALUE) == 0;
+        if (get(KeyComparisonItemWriter.Result.OK) == 0) {
+            return false;
+        }
+        for (KeyComparisonItemWriter.Result mismatch : KeyComparisonItemWriter.MISMATCHES) {
+            if (get(mismatch) > 0) {
+                return false;
+            }
+        }
+        return true;
     }
 }

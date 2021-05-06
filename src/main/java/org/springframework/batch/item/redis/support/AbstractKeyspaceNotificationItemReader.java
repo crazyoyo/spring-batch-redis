@@ -44,7 +44,7 @@ public abstract class AbstractKeyspaceNotificationItemReader<C extends StatefulR
     public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
         if (connection == null) {
             MetricsUtils.createGaugeCollectionSize("reader.notification.queue.size", queue);
-            log.info("Connecting to Redis pub/sub");
+            log.debug("Connecting to Redis pub/sub");
             this.connection = connectionSupplier.get();
             subscribe(connection, pubSubPattern);
         }

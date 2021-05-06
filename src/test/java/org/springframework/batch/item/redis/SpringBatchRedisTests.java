@@ -643,17 +643,46 @@ public class SpringBatchRedisTests {
         return KeyDumpItemWriter.client(redisClient(container)).build();
     }
 
-    private void compare(RedisContainer redisContainer, String name) throws Throwable {
-        RedisServerCommands<String, String> sourceSync = sync(redisContainer);
+    private void compare(RedisContainer container, String name) throws Throwable {
+        RedisServerCommands<String, String> sourceSync = sync(container);
         RedisServerCommands<String, String> targetSync = sync(REDIS_REPLICA);
         Assertions.assertEquals(sourceSync.dbsize(), targetSync.dbsize());
-        KeyValueItemReader left = dataStructureReader(redisContainer);
+        KeyValueItemReader left = dataStructureReader(container);
         DataStructureValueReader<String, String> right = dataStructureValueReader(REDIS_REPLICA);
         KeyComparisonResultCounter<String> counter = new KeyComparisonResultCounter<>();
         KeyComparisonItemWriter<String> writer = KeyComparisonItemWriter.valueReader(right).resultHandler(counter).ttlTolerance(Duration.ofMillis(500)).build();
-        execute(redisContainer, name + "-compare", left, writer);
+        execute(container, name + "-compare", left, writer);
         Assertions.assertEquals(sourceSync.dbsize(), counter.get(KeyComparisonItemWriter.Result.OK));
         Assertions.assertTrue(counter.isOK());
+    }
+
+    @ParameterizedTest
+    @MethodSource("containers")
+    public void testComparisonWriter(RedisContainer container) throws Throwable {
+        BaseRedisAsyncCommands<String, String> source = async(container);
+        source.setAutoFlushCommands(false);
+        BaseRedisAsyncCommands<String, String> target = async(REDIS_REPLICA);
+        target.setAutoFlushCommands(false);
+        List<RedisFuture<?>> sourceFutures = new ArrayList<>();
+        List<RedisFuture<?>> targetFutures = new ArrayList<>();
+        for (int index = 0; index < 100; index++) {
+            sourceFutures.add(((RedisStringAsyncCommands<String, String>) source).set("key" + index, "value" + index));
+            targetFutures.add(((RedisStringAsyncCommands<String, String>) target).set("key" + index, "value" + index));
+        }
+        source.flushCommands();
+        LettuceFutures.awaitAll(10, TimeUnit.SECONDS, sourceFutures.toArray(new RedisFuture[0]));
+        target.flushCommands();
+        LettuceFutures.awaitAll(10, TimeUnit.SECONDS, targetFutures.toArray(new RedisFuture[0]));
+        source.setAutoFlushCommands(true);
+        target.setAutoFlushCommands(true);
+        RedisHashCommands<String, String> sourceSync = sync(container);
+        sourceSync.hset("zehash", "zefield", "zevalue");
+        KeyValueItemReader left = dataStructureReader(container);
+        DataStructureValueReader<String, String> right = dataStructureValueReader(REDIS_REPLICA);
+        KeyComparisonResultCounter<String> counter = new KeyComparisonResultCounter<>();
+        KeyComparisonItemWriter<String> writer = KeyComparisonItemWriter.valueReader(right).resultHandler(counter).ttlTolerance(Duration.ofMillis(500)).build();
+        execute(container, "test-comparison-writer-compare", left, writer);
+        Assertions.assertFalse(counter.isOK());
     }
 
     @Test
@@ -679,7 +708,7 @@ public class SpringBatchRedisTests {
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         awaitRunning(execution);
         Thread.sleep(100);
-        registry.forEachMeter(m -> log.info("Meter: {}", m.getId().getName()));
+        registry.forEachMeter(m -> log.debug("Meter: {}", m.getId().getName()));
         Search search = registry.find("spring.batch.item.read");
         Assertions.assertNotNull(search.timer());
         search = registry.find("spring.batch.redis.reader.queue.size");

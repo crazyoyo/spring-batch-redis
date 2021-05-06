@@ -9,11 +9,10 @@ import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.ObjectUtils;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -21,8 +20,10 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 
 
     public enum Result {
-        OK, SOURCE, TARGET, TTL, VALUE
+        OK, SOURCE, TARGET, TYPE, TTL, VALUE
     }
+
+    public static final Set<Result> MISMATCHES = new HashSet<>(Arrays.asList(Result.SOURCE, Result.TARGET, Result.TYPE, Result.TTL, Result.VALUE));
 
     public interface KeyComparisonResultHandler<K> {
 
@@ -87,6 +88,18 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
     }
 
     private Result compare(DataStructure<K> source, DataStructure<K> target) {
+        if (DataStructure.NONE.equalsIgnoreCase(source.getType())) {
+            if (DataStructure.NONE.equalsIgnoreCase(target.getType())) {
+                return Result.OK;
+            }
+            return Result.TARGET;
+        }
+        if (DataStructure.NONE.equalsIgnoreCase(target.getType())) {
+            return Result.SOURCE;
+        }
+        if (!ObjectUtils.nullSafeEquals(source.getType(), target.getType())) {
+            return Result.TYPE;
+        }
         if (source.getValue() == null) {
             if (target.getValue() == null) {
                 return Result.OK;

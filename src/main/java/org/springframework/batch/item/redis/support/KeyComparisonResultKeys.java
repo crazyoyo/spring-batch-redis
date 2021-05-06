@@ -21,7 +21,15 @@ public class KeyComparisonResultKeys<K> implements KeyComparisonItemWriter.KeyCo
     }
 
     public boolean isOK() {
-        return !get(KeyComparisonItemWriter.Result.OK).isEmpty() && get(KeyComparisonItemWriter.Result.SOURCE).isEmpty() && get(KeyComparisonItemWriter.Result.TARGET).isEmpty() && get(KeyComparisonItemWriter.Result.TTL).isEmpty() && get(KeyComparisonItemWriter.Result.VALUE).isEmpty();
+        if (get(KeyComparisonItemWriter.Result.OK).isEmpty()) {
+            return false;
+        }
+        for (KeyComparisonItemWriter.Result mismatch : KeyComparisonItemWriter.MISMATCHES) {
+            if (!get(mismatch).isEmpty()) {
+                return false;
+            }
+        }
+        return true;
     }
 
 }

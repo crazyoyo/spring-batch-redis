@@ -17,6 +17,7 @@ public class DataStructure<K> extends KeyValue<K, Object> {
     public final static String ZSET = "zset";
     public final static String HASH = "hash";
     public final static String STREAM = "stream";
+    public static final String NONE = "none";
 
     private String type;
 

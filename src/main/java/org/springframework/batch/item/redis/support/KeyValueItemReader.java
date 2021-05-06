@@ -72,7 +72,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
             log.debug("Already opened, skipping");
             return;
         }
-        log.info("Opening {}", name);
+        log.debug("Opening {}", name);
         queue = new LinkedBlockingDeque<>(queueCapacity);
         pollTimeout = queuePollTimeout.toMillis();
         MetricsUtils.createGaugeCollectionSize("reader.queue.size", queue);
@@ -129,7 +129,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
             log.debug("Already closed, skipping");
             return;
         }
-        log.info("Closing {}", name);
+        log.debug("Closing {}", name);
         super.close();
         if (!queue.isEmpty()) {
             log.warn("Closing {} with {} items still in queue", ClassUtils.getShortName(getClass()), queue.size());
