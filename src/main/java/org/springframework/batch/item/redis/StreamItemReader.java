@@ -8,6 +8,7 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
+import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class StreamItemReader<K, V> extends ItemStreamSupport implements Pollabl
     private final Long count;
     private final Duration block;
     private final StreamOffset<K> initialOffset;
+    @Getter
     private StreamOffset<K> offset;
     private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
 

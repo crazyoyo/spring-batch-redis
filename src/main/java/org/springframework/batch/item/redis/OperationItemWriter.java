@@ -8,6 +8,8 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractPipelineItemWriter;
 import org.springframework.batch.item.redis.support.CommandBuilder;
@@ -87,6 +89,9 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
 
     }
 
+
+    @Setter
+    @Accessors(fluent = true)
     public static class CommandOperationItemWriterBuilder<T> extends CommandBuilder<CommandOperationItemWriterBuilder<T>> {
 
         private final RedisOperation<String, String, T> operation;
@@ -107,11 +112,6 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
                 return new TransactionItemWriter<>(connectionSupplier, poolConfig, async, operation);
             }
             return new OperationItemWriter<>(connectionSupplier, poolConfig, async, operation);
-        }
-
-        public CommandOperationItemWriterBuilder<T> transactional() {
-            this.transactional = true;
-            return this;
         }
 
     }

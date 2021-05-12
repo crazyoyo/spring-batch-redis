@@ -450,7 +450,7 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
         RedisOperation<String, String, Map<String, String>> xadd = RedisOperation.<Map<String, String>>xadd().key(i -> stream).body(i -> i).build();
-        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.operation(xadd).client(redisClient(REDIS)).transactional().build();
+        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.operation(xadd).client(redisClient(REDIS)).transactional(true).build();
         execute(REDIS, "stream-tx-writer", reader, writer);
         RedisStreamCommands<String, String> sync = sync(REDIS);
         Assertions.assertEquals(messages.size(), sync.xlen(stream));
