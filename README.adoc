@@ -10,7 +10,7 @@ ifdef::badges[]
 image:https://img.shields.io/github/license/redis-developer/spring-batch-redis.svg["License", link="https://github.com/redis-developer/spring-batch-redis"]
 image:https://img.shields.io/github/release/redis-developer/spring-batch-redis.svg["Latest", link="https://github.com/redis-developer/spring-batch-redis/releases/latest"]
 image:https://github.com/redis-developer/spring-batch-redis/actions/workflows/gradle.yml/badge.svg["Build", link="https://github.com/redis-developer/spring-batch-redis/actions/workflows/gradle.yml"]
-image:https://codecov.io/gh/redis-developer/spring-batch-redis/branch/master/graph/badge.svg?token=A5IX98M8JT["Coverage", link="https://codecov.io/gh/redis-developer/spring-batch-redis"]
+image:https://codecov.io/gh/redis-developer/spring-batch-redis/branch/master/graph/badge.svg?token=5PXEW410OP["Coverage", link="https://codecov.io/gh/redis-developer/spring-batch-redis"]
 endif::[]
 
 
