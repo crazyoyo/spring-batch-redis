@@ -1,23 +1,18 @@
 = Spring Batch Redis
-// Settings
-:idprefix:
-:idseparator: -
-ifdef::env-github,env-browser[:outfilesuffix: .adoc]
-ifndef::env-github[:icons: font]
-// URIs
-:project-repo: Redislabs-Solution-Architects/spring-batch-redis
-:repo-url: https://github.com/{project-repo}
-// GitHub customization
 ifdef::env-github[]
 :badges:
 :tag: master
 :!toc-title:
-:tip-caption: :bulb:
-:note-caption: :information_source:
-:important-caption: :heavy_exclamation_mark:
-:caution-caption: :fire:
-:warning-caption: :warning:
 endif::[]
+
+// Badges
+ifdef::badges[]
+image:https://img.shields.io/github/license/redis-developer/spring-batch-redis.svg["License", link="https://github.com/redis-developer/spring-batch-redis"]
+image:https://img.shields.io/github/release/redis-developer/spring-batch-redis.svg["Latest", link="https://github.com/redis-developer/spring-batch-redis/releases/latest"]
+image:https://github.com/redis-developer/spring-batch-redis/actions/workflows/gradle.yml/badge.svg[]
+image:https://codecov.io/gh/redis-developer/spring-batch-redis/branch/master/graph/badge.svg?token=A5IX98M8JT["Coverage", link="https://codecov.io/gh/redis-developer/spring-batch-redis"]
+endif::[]
+
 
 ItemReader and ItemWriter implementations for Redis based on https://lettuce.io[Lettuce].
 
