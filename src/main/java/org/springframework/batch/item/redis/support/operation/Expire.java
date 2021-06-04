@@ -3,45 +3,31 @@ package org.springframework.batch.item.redis.support.operation;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 import org.springframework.core.convert.converter.Converter;
-import org.springframework.util.Assert;
 
-public class Expire<T> extends AbstractKeyOperation<T> {
+import java.util.function.Predicate;
 
-    private final Converter<T, Long> timeout;
+public class Expire<T> extends AbstractKeyOperation<T, Long> {
 
-    public Expire(Converter<T, String> key, Converter<T, Long> timeout) {
-        super(key);
-        Assert.notNull(timeout, "A timeout converter is required");
-        this.timeout = timeout;
+    public Expire(Converter<T, String> key, Converter<T, Long> milliseconds) {
+        this(key, milliseconds, new NonexistentKeyPredicate<>(milliseconds));
+    }
+
+    public Expire(Converter<T, String> key, Converter<T, Long> milliseconds, Predicate<T> delete) {
+        super(key, milliseconds, delete);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item) {
-        Long timeout = this.timeout.convert(item);
-        if (timeout == null) {
+    protected RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item, String key, Long milliseconds) {
+        if (milliseconds == null) {
             return null;
         }
-        return ((RedisKeyAsyncCommands<String, String>) commands).pexpire(key.convert(item), timeout);
-    }
-
-    public static <T> ExpireBuilder<T> builder() {
-        return new ExpireBuilder<>();
-    }
-
-    @Setter
-    @Accessors(fluent = true)
-    public static class ExpireBuilder<T> extends KeyOperationBuilder<T, ExpireBuilder<T>> {
-
-        private Converter<T, Long> timeout;
-
-        public Expire<T> build() {
-            return new Expire<>(key, timeout);
+        if (milliseconds < 0) {
+            return null;
         }
-
+        return ((RedisKeyAsyncCommands<String, String>) commands).pexpire(key, milliseconds);
     }
+
 
 }

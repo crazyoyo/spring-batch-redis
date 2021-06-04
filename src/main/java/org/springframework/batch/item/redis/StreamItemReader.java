@@ -27,18 +27,18 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 @Slf4j
-public class StreamItemReader<K, V> extends ItemStreamSupport implements PollableItemReader<StreamMessage<K, V>> {
+public class StreamItemReader extends ItemStreamSupport implements PollableItemReader<StreamMessage<String, String>> {
 
-    private final Supplier<StatefulConnection<K, V>> connectionSupplier;
-    private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync;
+    private final Supplier<StatefulConnection<String, String>> connectionSupplier;
+    private final Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> sync;
     private final Long count;
     private final Duration block;
-    private final StreamOffset<K> initialOffset;
+    private final StreamOffset<String> initialOffset;
     @Getter
-    private StreamOffset<K> offset;
-    private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
+    private StreamOffset<String> offset;
+    private Iterator<StreamMessage<String, String>> iterator = Collections.emptyIterator();
 
-    public StreamItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier, Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, Long count, Duration block, StreamOffset<K> offset) {
+    public StreamItemReader(Supplier<StatefulConnection<String, String>> connectionSupplier, Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> sync, Long count, Duration block, StreamOffset<String> offset) {
         Assert.notNull(connectionSupplier, "A connection supplier is required");
         Assert.notNull(sync, "A command provider is required");
         this.connectionSupplier = connectionSupplier;
@@ -57,14 +57,14 @@ public class StreamItemReader<K, V> extends ItemStreamSupport implements Pollabl
     }
 
     @Override
-    public StreamMessage<K, V> read() throws Exception {
+    public StreamMessage<String, String> read() throws Exception {
         throw new IllegalAccessException("read() method is not supposed to be called");
     }
 
     @Override
-    public StreamMessage<K, V> poll(long timeout, TimeUnit unit) {
+    public StreamMessage<String, String> poll(long timeout, TimeUnit unit) {
         if (!iterator.hasNext()) {
-            List<StreamMessage<K, V>> messages = nextMessages(Duration.ofMillis(unit.toMillis(timeout)));
+            List<StreamMessage<String, String>> messages = nextMessages(Duration.ofMillis(unit.toMillis(timeout)));
             if (messages == null || messages.isEmpty()) {
                 return null;
             }
@@ -74,22 +74,22 @@ public class StreamItemReader<K, V> extends ItemStreamSupport implements Pollabl
     }
 
     @SuppressWarnings("unused")
-    public List<StreamMessage<K, V>> readMessages() {
+    public List<StreamMessage<String, String>> readMessages() {
         return nextMessages(block);
     }
 
     @SuppressWarnings("unchecked")
-    private List<StreamMessage<K, V>> nextMessages(Duration block) {
+    private List<StreamMessage<String, String>> nextMessages(Duration block) {
         XReadArgs args = XReadArgs.Builder.count(count);
         if (block != null) {
             args.block(block);
         }
-        try (StatefulConnection<K, V> connection = connectionSupplier.get()) {
+        try (StatefulConnection<String, String> connection = connectionSupplier.get()) {
             synchronized (connectionSupplier) {
-                RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
-                List<StreamMessage<K, V>> messages = commands.xread(args, offset);
+                RedisStreamCommands<String, String> commands = (RedisStreamCommands<String, String>) sync.apply(connection);
+                List<StreamMessage<String, String>> messages = commands.xread(args, offset);
                 if (messages != null && !messages.isEmpty()) {
-                    StreamMessage<K, V> lastMessage = messages.get(messages.size() - 1);
+                    StreamMessage<String, String> lastMessage = messages.get(messages.size() - 1);
                     offset = StreamOffset.from(lastMessage.getStream(), lastMessage.getId());
                 }
                 return messages;
@@ -133,7 +133,6 @@ public class StreamItemReader<K, V> extends ItemStreamSupport implements Pollabl
 
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     @Setter
     @Accessors(fluent = true)
     public static class StreamItemReaderBuilder extends CommandBuilder<StreamItemReaderBuilder> {
@@ -155,8 +154,8 @@ public class StreamItemReader<K, V> extends ItemStreamSupport implements Pollabl
             this.offset = offset;
         }
 
-        public StreamItemReader<String, String> build() {
-            return new StreamItemReader<>(connectionSupplier, sync, count, block, offset);
+        public StreamItemReader build() {
+            return new StreamItemReader(connectionSupplier, sync, count, block, offset);
         }
     }
 

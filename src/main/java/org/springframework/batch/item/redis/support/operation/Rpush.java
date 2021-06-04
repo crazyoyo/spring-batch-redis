@@ -5,27 +5,26 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 import org.springframework.core.convert.converter.Converter;
 
+import java.util.function.Predicate;
+
 public class Rpush<T> extends AbstractCollectionOperation<T> {
 
-    public Rpush(Converter<T, String> key, Converter<T, String> member) {
-        super(key, member);
+    public Rpush(String key, Converter<T, String> member) {
+        this(new ConstantConverter<>(key), member, new ConstantPredicate<>(false), new ConstantPredicate<>(false));
+    }
+
+    public Rpush(Converter<T, String> key, Converter<T, String> member, Predicate<T> delete, Predicate<T> remove) {
+        super(key, member, delete, remove);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public RedisFuture<?> add(BaseRedisAsyncCommands<String, String> commands, T item, String key, String member) {
+        return ((RedisListAsyncCommands<String, String>) commands).rpush(key, member);
     }
 
     @Override
-    public RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item) {
-        return ((RedisListAsyncCommands<String, String>) commands).rpush(key.convert(item), member.convert(item));
+    protected RedisFuture<?> remove(BaseRedisAsyncCommands<String, String> commands, String key, String member) {
+        return ((RedisListAsyncCommands<String, String>) commands).lrem(key, -1, member);
     }
-
-    public static <T> RpushBuilder<T> builder() {
-        return new RpushBuilder<>();
-    }
-
-    public static class RpushBuilder<T> extends CollectionOperationBuilder<T, RpushBuilder<T>> {
-
-        public Rpush<T> build() {
-            return new Rpush<>(key, member);
-        }
-
-    }
-
 }

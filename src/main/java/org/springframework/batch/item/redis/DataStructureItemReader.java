@@ -10,9 +10,9 @@ import org.springframework.batch.item.redis.support.KeyValueItemReader;
 
 import java.time.Duration;
 
-public class DataStructureItemReader<K, V> extends KeyValueItemReader<K, DataStructure<K>> {
+public class DataStructureItemReader extends KeyValueItemReader<DataStructure> {
 
-    public DataStructureItemReader(ItemReader<K> keyReader, DataStructureValueReader<K, V> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout) {
+    public DataStructureItemReader(ItemReader<String> keyReader, DataStructureValueReader valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout) {
         super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout);
     }
 
@@ -24,18 +24,18 @@ public class DataStructureItemReader<K, V> extends KeyValueItemReader<K, DataStr
         return new DataStructureItemReaderBuilder(client, DataStructureValueReader.client(client).build());
     }
 
-    public static class DataStructureItemReaderBuilder extends KeyValueItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>, DataStructureItemReaderBuilder> {
+    public static class DataStructureItemReaderBuilder extends KeyValueItemReaderBuilder<DataStructure, DataStructureValueReader, DataStructureItemReaderBuilder> {
 
-        public DataStructureItemReaderBuilder(RedisClient client, DataStructureValueReader<String, String> valueReader) {
+        public DataStructureItemReaderBuilder(RedisClient client, DataStructureValueReader valueReader) {
             super(client, valueReader);
         }
 
-        public DataStructureItemReaderBuilder(RedisClusterClient client, DataStructureValueReader<String, String> valueReader) {
+        public DataStructureItemReaderBuilder(RedisClusterClient client, DataStructureValueReader valueReader) {
             super(client, valueReader);
         }
 
-        public DataStructureItemReader<String, String> build() {
-            return new DataStructureItemReader<>(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout);
+        public DataStructureItemReader build() {
+            return new DataStructureItemReader(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout);
         }
 
         public LiveDataStructureItemReaderBuilder live() {
@@ -47,17 +47,17 @@ public class DataStructureItemReader<K, V> extends KeyValueItemReader<K, DataStr
 
     }
 
-    public static class LiveDataStructureItemReaderBuilder extends LiveKeyValueItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>, LiveDataStructureItemReaderBuilder> {
+    public static class LiveDataStructureItemReaderBuilder extends LiveKeyValueItemReaderBuilder<DataStructure, DataStructureValueReader, LiveDataStructureItemReaderBuilder> {
 
-        public LiveDataStructureItemReaderBuilder(RedisClient client, DataStructureValueReader<String, String> valueReader) {
+        public LiveDataStructureItemReaderBuilder(RedisClient client, DataStructureValueReader valueReader) {
             super(client, valueReader);
         }
 
-        protected LiveDataStructureItemReaderBuilder(RedisClusterClient client, DataStructureValueReader<String, String> valueReader) {
+        protected LiveDataStructureItemReaderBuilder(RedisClusterClient client, DataStructureValueReader valueReader) {
             super(client, valueReader);
         }
 
-        public LiveKeyValueItemReader<String, DataStructure<String>> build() {
+        public LiveKeyValueItemReader<DataStructure> build() {
             return new LiveKeyValueItemReader<>(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, flushingInterval, idleTimeout);
         }
     }

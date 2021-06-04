@@ -16,7 +16,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<DataStructure<K>> {
+public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataStructure> {
 
 
     public enum Result {
@@ -25,17 +25,17 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 
     public static final Set<Result> MISMATCHES = new HashSet<>(Arrays.asList(Result.SOURCE, Result.TARGET, Result.TYPE, Result.TTL, Result.VALUE));
 
-    public interface KeyComparisonResultHandler<K> {
+    public interface KeyComparisonResultHandler {
 
-        void accept(DataStructure<K> source, DataStructure<K> target, Result result);
+        void accept(DataStructure source, DataStructure target, Result result);
 
     }
 
-    private final ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader;
+    private final ItemProcessor<List<? extends String>, List<DataStructure>> valueReader;
     private final long ttlTolerance;
-    private final List<KeyComparisonResultHandler<K>> resultHandlers;
+    private final List<KeyComparisonResultHandler> resultHandlers;
 
-    public KeyComparisonItemWriter(ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader, Duration ttlTolerance, List<KeyComparisonResultHandler<K>> resultHandlers) {
+    public KeyComparisonItemWriter(ItemProcessor<List<? extends String>, List<DataStructure>> valueReader, Duration ttlTolerance, List<KeyComparisonResultHandler> resultHandlers) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(valueReader, "A value reader is required");
         Assert.notNull(ttlTolerance, "TTL tolerance cannot be null");
@@ -71,23 +71,23 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
     }
 
     @Override
-    public void write(List<? extends DataStructure<K>> sourceItems) throws Exception {
-        List<DataStructure<K>> targetItems = valueReader.process(sourceItems.stream().map(DataStructure::getKey).collect(Collectors.toList()));
+    public void write(List<? extends DataStructure> sourceItems) throws Exception {
+        List<DataStructure> targetItems = valueReader.process(sourceItems.stream().map(DataStructure::getKey).collect(Collectors.toList()));
         if (targetItems == null || targetItems.size() != sourceItems.size()) {
             log.warn("Missing values in value reader response");
             return;
         }
         for (int index = 0; index < sourceItems.size(); index++) {
-            DataStructure<K> source = sourceItems.get(index);
-            DataStructure<K> target = targetItems.get(index);
+            DataStructure source = sourceItems.get(index);
+            DataStructure target = targetItems.get(index);
             Result result = compare(source, target);
-            for (KeyComparisonResultHandler<K> handler : resultHandlers) {
+            for (KeyComparisonResultHandler handler : resultHandlers) {
                 handler.accept(source, target, result);
             }
         }
     }
 
-    private Result compare(DataStructure<K> source, DataStructure<K> target) {
+    private Result compare(DataStructure source, DataStructure target) {
         if (DataStructure.NONE.equalsIgnoreCase(source.getType())) {
             if (DataStructure.NONE.equalsIgnoreCase(target.getType())) {
                 return Result.OK;
@@ -118,7 +118,7 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
         return Result.VALUE;
     }
 
-    public static KeyComparisonItemWriterBuilder valueReader(ItemProcessor<List<? extends String>, List<DataStructure<String>>> valueReader) {
+    public static KeyComparisonItemWriterBuilder valueReader(ItemProcessor<List<? extends String>, List<DataStructure>> valueReader) {
         return new KeyComparisonItemWriterBuilder(valueReader);
     }
 
@@ -128,21 +128,21 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 
         private static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
-        private final ItemProcessor<List<? extends String>, List<DataStructure<String>>> valueReader;
-        private final List<KeyComparisonResultHandler<String>> resultHandlers = new ArrayList<>();
+        private final ItemProcessor<List<? extends String>, List<DataStructure>> valueReader;
+        private final List<KeyComparisonResultHandler> resultHandlers = new ArrayList<>();
         private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-        public KeyComparisonItemWriterBuilder(ItemProcessor<List<? extends String>, List<DataStructure<String>>> valueReader) {
+        public KeyComparisonItemWriterBuilder(ItemProcessor<List<? extends String>, List<DataStructure>> valueReader) {
             this.valueReader = valueReader;
         }
 
-        public KeyComparisonItemWriterBuilder resultHandler(KeyComparisonResultHandler<String> resultHandler) {
+        public KeyComparisonItemWriterBuilder resultHandler(KeyComparisonResultHandler resultHandler) {
             resultHandlers.add(resultHandler);
             return this;
         }
 
-        public KeyComparisonItemWriter<String> build() {
-            return new KeyComparisonItemWriter<>(valueReader, ttlTolerance, resultHandlers);
+        public KeyComparisonItemWriter build() {
+            return new KeyComparisonItemWriter(valueReader, ttlTolerance, resultHandlers);
         }
     }
 

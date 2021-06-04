@@ -20,12 +20,12 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public abstract class AbstractKeyValueReader<K, V, T extends KeyValue<K, ?>> extends ConnectionPoolItemStream<K, V> implements ItemProcessor<List<? extends K>, List<T>> {
+public abstract class AbstractKeyValueReader<T extends KeyValue<?>> extends ConnectionPoolItemStream implements ItemProcessor<List<? extends String>, List<T>> {
 
-    private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
+    private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
     private String digest;
 
-    protected AbstractKeyValueReader(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
+    protected AbstractKeyValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
         super(connectionSupplier, poolConfig);
         this.async = async;
     }
@@ -35,9 +35,9 @@ public abstract class AbstractKeyValueReader<K, V, T extends KeyValue<K, ?>> ext
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
         if (digest == null) {
-            try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+            try (StatefulConnection<String, String> connection = pool.borrowObject()) {
                 long timeout = connection.getTimeout().toMillis();
-                RedisScriptingAsyncCommands<K, V> commands = (RedisScriptingAsyncCommands<K, V>) async.apply(connection);
+                RedisScriptingAsyncCommands<String, String> commands = (RedisScriptingAsyncCommands<String, String>) async.apply(connection);
                 byte[] bytes = FileCopyUtils.copyToByteArray(getClass().getClassLoader().getResourceAsStream("absttl.lua"));
                 RedisFuture<String> load = commands.scriptLoad(bytes);
                 this.digest = load.get(timeout, TimeUnit.MILLISECONDS);
@@ -48,14 +48,14 @@ public abstract class AbstractKeyValueReader<K, V, T extends KeyValue<K, ?>> ext
     }
 
     @SuppressWarnings("unchecked")
-    protected RedisFuture<Long> absoluteTTL(BaseRedisAsyncCommands<K, V> commands, K key) {
-        return ((RedisScriptingAsyncCommands<K, V>) commands).evalsha(digest, ScriptOutputType.INTEGER, key);
+    protected RedisFuture<Long> absoluteTTL(BaseRedisAsyncCommands<String, String> commands, String key) {
+        return ((RedisScriptingAsyncCommands<String, String>) commands).evalsha(digest, ScriptOutputType.INTEGER, key);
     }
 
     @Override
-    public List<T> process(List<? extends K> keys) throws Exception {
-        try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-            BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
+    public List<T> process(List<? extends String> keys) throws Exception {
+        try (StatefulConnection<String, String> connection = pool.borrowObject()) {
+            BaseRedisAsyncCommands<String, String> commands = async.apply(connection);
             commands.setAutoFlushCommands(false);
             try {
                 return read(commands, connection.getTimeout().toMillis(), keys);
@@ -65,9 +65,9 @@ public abstract class AbstractKeyValueReader<K, V, T extends KeyValue<K, ?>> ext
         }
     }
 
-    protected abstract List<T> read(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends K> keys) throws InterruptedException, ExecutionException, TimeoutException;
+    protected abstract List<T> read(BaseRedisAsyncCommands<String, String> commands, long timeout, List<? extends String> keys) throws InterruptedException, ExecutionException, TimeoutException;
 
-    public static abstract class AbstractKeyValueReaderBuilder<T extends KeyValue<String, ?>> extends CommandBuilder<AbstractKeyValueReaderBuilder<T>> {
+    public static abstract class AbstractKeyValueReaderBuilder<T extends KeyValue<?>> extends CommandBuilder<AbstractKeyValueReaderBuilder<T>> {
 
         public AbstractKeyValueReaderBuilder(RedisClient client) {
             super(client);
@@ -77,7 +77,7 @@ public abstract class AbstractKeyValueReader<K, V, T extends KeyValue<K, ?>> ext
             super(client);
         }
 
-        public abstract AbstractKeyValueReader<String, String, T> build();
+        public abstract AbstractKeyValueReader<T> build();
     }
 
 }

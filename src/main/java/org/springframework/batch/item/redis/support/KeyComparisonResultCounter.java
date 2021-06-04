@@ -6,12 +6,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class KeyComparisonResultCounter<K> implements KeyComparisonItemWriter.KeyComparisonResultHandler<K> {
+public class KeyComparisonResultCounter implements KeyComparisonItemWriter.KeyComparisonResultHandler {
 
     private final Map<KeyComparisonItemWriter.Result, AtomicLong> counters = Arrays.stream(KeyComparisonItemWriter.Result.values()).collect(Collectors.toMap(Function.identity(), r -> new AtomicLong()));
 
     @Override
-    public void accept(DataStructure<K> source, DataStructure<K> target, KeyComparisonItemWriter.Result result) {
+    public void accept(DataStructure source, DataStructure target, KeyComparisonItemWriter.Result result) {
         counters.get(result).incrementAndGet();
     }
 

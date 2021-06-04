@@ -7,16 +7,16 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class KeyComparisonResultKeys<K> implements KeyComparisonItemWriter.KeyComparisonResultHandler<K> {
+public class KeyComparisonResultKeys implements KeyComparisonItemWriter.KeyComparisonResultHandler {
 
-    private final Map<KeyComparisonItemWriter.Result, List<K>> keyLists = Arrays.stream(KeyComparisonItemWriter.Result.values()).collect(Collectors.toMap(Function.identity(), r -> new ArrayList<>()));
+    private final Map<KeyComparisonItemWriter.Result, List> keyLists = Arrays.stream(KeyComparisonItemWriter.Result.values()).collect(Collectors.toMap(Function.identity(), r -> new ArrayList<>()));
 
     @Override
-    public void accept(DataStructure<K> source, DataStructure<K> target, KeyComparisonItemWriter.Result result) {
+    public void accept(DataStructure source, DataStructure target, KeyComparisonItemWriter.Result result) {
         keyLists.get(result).add(source.getKey());
     }
 
-    public List<K> get(KeyComparisonItemWriter.Result result) {
+    public List get(KeyComparisonItemWriter.Result result) {
         return keyLists.get(result);
     }
 

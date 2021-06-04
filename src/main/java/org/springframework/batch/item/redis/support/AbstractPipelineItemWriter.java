@@ -9,19 +9,19 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public abstract class AbstractPipelineItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> implements ItemWriter<T> {
+public abstract class AbstractPipelineItemWriter<T> extends ConnectionPoolItemStream implements ItemWriter<T> {
 
-    private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
+    private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
 
-    protected AbstractPipelineItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
+    protected AbstractPipelineItemWriter(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
         super(connectionSupplier, poolConfig);
         this.async = async;
     }
 
     @Override
     public void write(List<? extends T> items) throws Exception {
-        try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-            BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
+        try (StatefulConnection<String, String> connection = pool.borrowObject()) {
+            BaseRedisAsyncCommands<String, String> commands = async.apply(connection);
             commands.setAutoFlushCommands(false);
             try {
                 write(commands, connection.getTimeout().toMillis(), items);
@@ -31,7 +31,7 @@ public abstract class AbstractPipelineItemWriter<K, V, T> extends ConnectionPool
         }
     }
 
-    protected abstract void write(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends T> items);
+    protected abstract void write(BaseRedisAsyncCommands<String, String> commands, long timeout, List<? extends T> items);
 
 
 }

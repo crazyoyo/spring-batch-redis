@@ -12,16 +12,15 @@ import org.springframework.batch.item.redis.support.operation.Restore;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class KeyDumpItemWriter<K, V> extends OperationItemWriter<K, V, KeyValue<K, byte[]>> {
+public class KeyDumpItemWriter extends OperationItemWriter<KeyValue<byte[]>> {
 
-    public KeyDumpItemWriter(Supplier<StatefulConnection<K, V>> statefulConnectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
+    public KeyDumpItemWriter(Supplier<StatefulConnection<String, String>> statefulConnectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
         super(statefulConnectionSupplier, poolConfig, async, restoreOperation());
     }
 
-    private static <K, V> RedisOperation<K, V, KeyValue<K, byte[]>> restoreOperation() {
-        return new Restore<>(KeyValue::getKey, KeyValue::getValue, KeyValue::getAbsoluteTTL, t -> true);
+    private static RedisOperation<KeyValue<byte[]>> restoreOperation() {
+        return new Restore<>(KeyValue::getKey, KeyValue::getValue, KeyValue::getAbsoluteTTL);
     }
-
 
     public static KeyDumpItemWriterBuilder client(RedisClient client) {
         return new KeyDumpItemWriterBuilder(client);
@@ -41,8 +40,8 @@ public class KeyDumpItemWriter<K, V> extends OperationItemWriter<K, V, KeyValue<
             super(client);
         }
 
-        public KeyDumpItemWriter<String, String> build() {
-            return new KeyDumpItemWriter<>(connectionSupplier, poolConfig, async);
+        public KeyDumpItemWriter build() {
+            return new KeyDumpItemWriter(connectionSupplier, poolConfig, async);
         }
 
     }

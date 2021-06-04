@@ -5,27 +5,30 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 import org.springframework.core.convert.converter.Converter;
 
+import java.util.function.Predicate;
+
 public class Lpush<T> extends AbstractCollectionOperation<T> {
 
+    public Lpush(String key, Converter<T, String> member) {
+        this(new ConstantConverter<>(key), member);
+    }
+
     public Lpush(Converter<T, String> key, Converter<T, String> member) {
-        super(key, member);
+        this(key, member, new ConstantPredicate<>(false), new ConstantPredicate<>(false));
+    }
+
+    public Lpush(Converter<T, String> key, Converter<T, String> member, Predicate<T> delete, Predicate<T> remove) {
+        super(key, member, delete, remove);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public RedisFuture<?> add(BaseRedisAsyncCommands<String, String> commands, T item, String key, String member) {
+        return ((RedisListAsyncCommands<String, String>) commands).lpush(key, member);
     }
 
     @Override
-    public RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item) {
-        return ((RedisListAsyncCommands<String, String>) commands).lpush(key.convert(item), member.convert(item));
+    protected RedisFuture<?> remove(BaseRedisAsyncCommands<String, String> commands, String key, String member) {
+        return ((RedisListAsyncCommands<String, String>) commands).lrem(key, 1, member);
     }
-
-    public static <T> LpushBuilder<T> builder() {
-        return new LpushBuilder<>();
-    }
-
-    public static class LpushBuilder<T> extends CollectionOperationBuilder<T, LpushBuilder<T>> {
-
-        public Lpush<T> build() {
-            return new Lpush<>(key, member);
-        }
-
-    }
-
 }

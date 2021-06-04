@@ -7,13 +7,13 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class KeyValue<K, V> {
+public class KeyValue<T> {
 
 	/**
 	 * Redis key.
 	 *
 	 */
-	private K key;
+	private String key;
 
 	/**
 	 * Expiration POSIX time in milliseconds for this key.
@@ -25,13 +25,13 @@ public class KeyValue<K, V> {
 	 * Redis value. Null if key does not exist
 	 * 
 	 */
-	private V value;
+	private T value;
 
-	public KeyValue(K key) {
+	public KeyValue(String key) {
 		this.key = key;
 	}
 
-	public KeyValue(K key, long absoluteTTL) {
+	public KeyValue(String key, long absoluteTTL) {
 		this.key = key;
 		this.absoluteTTL = absoluteTTL;
 	}

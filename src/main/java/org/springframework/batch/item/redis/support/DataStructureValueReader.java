@@ -16,33 +16,33 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class DataStructureValueReader<K, V> extends AbstractKeyValueReader<K, V, DataStructure<K>> {
+public class DataStructureValueReader extends AbstractKeyValueReader<DataStructure> {
 
-    public DataStructureValueReader(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
+    public DataStructureValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
         super(connectionSupplier, poolConfig, async);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected List<DataStructure<K>> read(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends K> keys) throws InterruptedException, ExecutionException, TimeoutException {
+    protected List<DataStructure> read(BaseRedisAsyncCommands<String, String> commands, long timeout, List<? extends String> keys) throws InterruptedException, ExecutionException, TimeoutException {
         List<RedisFuture<String>> typeFutures = new ArrayList<>(keys.size());
-        for (K key : keys) {
-            typeFutures.add(((RedisKeyAsyncCommands<K, V>) commands).type(key));
+        for (String key : keys) {
+            typeFutures.add(((RedisKeyAsyncCommands<String, String>) commands).type(key));
         }
         commands.flushCommands();
-        List<DataStructure<K>> dataStructures = new ArrayList<>(keys.size());
+        List<DataStructure> dataStructures = new ArrayList<>(keys.size());
         List<RedisFuture<Long>> ttlFutures = new ArrayList<>(keys.size());
         List<RedisFuture<?>> valueFutures = new ArrayList<>(keys.size());
         for (int index = 0; index < keys.size(); index++) {
-            K key = keys.get(index);
+            String key = keys.get(index);
             String type = typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
             valueFutures.add(value(commands, key, type));
             ttlFutures.add(absoluteTTL(commands, key));
-            dataStructures.add(new DataStructure<>(key, type));
+            dataStructures.add(new DataStructure(key, type));
         }
         commands.flushCommands();
         for (int index = 0; index < dataStructures.size(); index++) {
-            DataStructure<K> dataStructure = dataStructures.get(index);
+            DataStructure dataStructure = dataStructures.get(index);
             RedisFuture<?> valueFuture = valueFutures.get(index);
             if (valueFuture != null) {
                 dataStructure.setValue(valueFuture.get(timeout, TimeUnit.MILLISECONDS));
@@ -54,20 +54,20 @@ public class DataStructureValueReader<K, V> extends AbstractKeyValueReader<K, V,
     }
 
     @SuppressWarnings("unchecked")
-    private RedisFuture<?> value(BaseRedisAsyncCommands<K,V> commands, K key, String type) {
+    private RedisFuture<?> value(BaseRedisAsyncCommands<String, String> commands, String key, String type) {
         switch (type.toLowerCase()) {
             case DataStructure.HASH:
-                return ((RedisHashAsyncCommands<K, V>) commands).hgetall(key);
+                return ((RedisHashAsyncCommands<String, String>) commands).hgetall(key);
             case DataStructure.LIST:
-                return ((RedisListAsyncCommands<K, V>) commands).lrange(key, 0, -1);
+                return ((RedisListAsyncCommands<String, String>) commands).lrange(key, 0, -1);
             case DataStructure.SET:
-                return ((RedisSetAsyncCommands<K, V>) commands).smembers(key);
+                return ((RedisSetAsyncCommands<String, String>) commands).smembers(key);
             case DataStructure.STREAM:
-                return ((RedisStreamAsyncCommands<K, V>) commands).xrange(key, Range.create("-", "+"));
+                return ((RedisStreamAsyncCommands<String, String>) commands).xrange(key, Range.create("-", "+"));
             case DataStructure.STRING:
-                return ((RedisStringAsyncCommands<K, V>) commands).get(key);
+                return ((RedisStringAsyncCommands<String, String>) commands).get(key);
             case DataStructure.ZSET:
-                return ((RedisSortedSetAsyncCommands<K, V>) commands).zrangeWithScores(key, 0, -1);
+                return ((RedisSortedSetAsyncCommands<String, String>) commands).zrangeWithScores(key, 0, -1);
             default:
                 return null;
         }
@@ -91,8 +91,8 @@ public class DataStructureValueReader<K, V> extends AbstractKeyValueReader<K, V,
             super(client);
         }
 
-        public DataStructureValueReader<String, String> build() {
-            return new DataStructureValueReader<>(connectionSupplier, poolConfig, async);
+        public DataStructureValueReader build() {
+            return new DataStructureValueReader(connectionSupplier, poolConfig, async);
         }
     }
 

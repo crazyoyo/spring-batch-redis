@@ -1,29 +1,31 @@
 package org.springframework.batch.item.redis.support.operation;
 
+import io.lettuce.core.RedisFuture;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import org.springframework.core.convert.converter.Converter;
-import org.springframework.util.Assert;
 
-public abstract class AbstractCollectionOperation<T> extends AbstractKeyOperation<T> {
+import java.util.function.Predicate;
 
-    protected final Converter<T, String> member;
+public abstract class AbstractCollectionOperation<T> extends AbstractKeyOperation<T, String> {
 
-    protected AbstractCollectionOperation(Converter<T, String> key, Converter<T, String> member) {
-        super(key);
-        Assert.notNull(member, "A member id converter is required");
-        this.member = member;
+    private final Predicate<T> remove;
+
+    protected AbstractCollectionOperation(Converter<T, String> key, Converter<T, String> member, Predicate<T> delete, Predicate<T> remove) {
+        super(key, member, delete);
+        this.remove = remove;
     }
 
-
-    public static class CollectionOperationBuilder<T, B extends CollectionOperationBuilder<T, B>> extends KeyOperationBuilder<T, B> {
-
-        protected Converter<T, String> member;
-
-        public B member(Converter<T, String> member) {
-            this.member = member;
-            return (B) this;
+    @Override
+    protected RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item, String key, String member) {
+        if (remove.test(item)) {
+            return remove(commands, key, member);
         }
-
+        return add(commands, item, key, member);
     }
+
+    protected abstract RedisFuture<?> remove(BaseRedisAsyncCommands<String, String> commands, String key, String member);
+
+    protected abstract RedisFuture<?> add(BaseRedisAsyncCommands<String, String> commands, T item, String key, String member);
 
 
 }

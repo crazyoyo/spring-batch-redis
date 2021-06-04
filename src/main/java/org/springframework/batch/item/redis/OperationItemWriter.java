@@ -21,24 +21,24 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, V, T> {
+public class OperationItemWriter<T> extends AbstractPipelineItemWriter<T> {
 
-    private final RedisOperation<K, V, T> operation;
+    private final RedisOperation<T> operation;
 
-    public OperationItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, RedisOperation<K, V, T> operation) {
+    public OperationItemWriter(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async, RedisOperation<T> operation) {
         super(connectionSupplier, poolConfig, async);
         Assert.notNull(operation, "A Redis operation is required");
         this.operation = operation;
     }
 
     @Override
-    protected void write(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends T> items) {
+    protected void write(BaseRedisAsyncCommands<String, String> commands, long timeout, List<? extends T> items) {
         List<RedisFuture<?>> futures = write(commands, items);
         commands.flushCommands();
         LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(new RedisFuture[0]));
     }
 
-    protected List<RedisFuture<?>> write(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
+    protected List<RedisFuture<?>> write(BaseRedisAsyncCommands<String, String> commands, List<? extends T> items) {
         List<RedisFuture<?>> futures = new ArrayList<>(items.size());
         for (T item : items) {
             futures.add(operation.execute(commands, item));
@@ -46,18 +46,18 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
         return futures;
     }
 
-    public static class TransactionItemWriter<K, V, T> extends OperationItemWriter<K, V, T> {
+    public static class TransactionItemWriter<T> extends OperationItemWriter<T> {
 
-        public TransactionItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, RedisOperation<K, V, T> operation) {
+        public TransactionItemWriter(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async, RedisOperation<T> operation) {
             super(connectionSupplier, poolConfig, async, operation);
         }
 
         @SuppressWarnings("unchecked")
         @Override
-        protected List<RedisFuture<?>> write(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
-            RedisFuture<String> multiFuture = ((RedisTransactionalAsyncCommands<K, V>) commands).multi();
+        protected List<RedisFuture<?>> write(BaseRedisAsyncCommands<String, String> commands, List<? extends T> items) {
+            RedisFuture<String> multiFuture = ((RedisTransactionalAsyncCommands<String, String>) commands).multi();
             List<RedisFuture<?>> futures = super.write(commands, items);
-            RedisFuture<TransactionResult> execFuture = ((RedisTransactionalAsyncCommands<K, V>) commands).exec();
+            RedisFuture<TransactionResult> execFuture = ((RedisTransactionalAsyncCommands<String, String>) commands).exec();
             List<RedisFuture<?>> allFutures = new ArrayList<>(futures.size() + 2);
             allFutures.add(multiFuture);
             allFutures.addAll(futures);
@@ -67,15 +67,21 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
 
     }
 
-    public static <T> OperationItemWriterBuilder<T> operation(RedisOperation<String, String, T> operation) {
+    public interface RedisOperation<T> {
+
+        RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item);
+
+    }
+
+    public static <T> OperationItemWriterBuilder<T> operation(RedisOperation<T> operation) {
         return new OperationItemWriterBuilder<>(operation);
     }
 
     public static class OperationItemWriterBuilder<T> {
 
-        private final RedisOperation<String, String, T> operation;
+        private final RedisOperation<T> operation;
 
-        public OperationItemWriterBuilder(RedisOperation<String, String, T> operation) {
+        public OperationItemWriterBuilder(RedisOperation<T> operation) {
             this.operation = operation;
         }
 
@@ -94,20 +100,20 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
     @Accessors(fluent = true)
     public static class CommandOperationItemWriterBuilder<T> extends CommandBuilder<CommandOperationItemWriterBuilder<T>> {
 
-        private final RedisOperation<String, String, T> operation;
+        private final RedisOperation<T> operation;
         private boolean transactional;
 
-        public CommandOperationItemWriterBuilder(RedisClient client, RedisOperation<String, String, T> operation) {
+        public CommandOperationItemWriterBuilder(RedisClient client, RedisOperation<T> operation) {
             super(client);
             this.operation = operation;
         }
 
-        public CommandOperationItemWriterBuilder(RedisClusterClient client, RedisOperation<String, String, T> operation) {
+        public CommandOperationItemWriterBuilder(RedisClusterClient client, RedisOperation<T> operation) {
             super(client);
             this.operation = operation;
         }
 
-        public OperationItemWriter<String, String, T> build() {
+        public OperationItemWriter<T> build() {
             if (transactional) {
                 return new TransactionItemWriter<>(connectionSupplier, poolConfig, async, operation);
             }

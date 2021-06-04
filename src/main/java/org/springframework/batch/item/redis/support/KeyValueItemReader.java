@@ -25,10 +25,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 @Slf4j
-public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemStreamItemReader<T> {
+public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStreamItemReader<T> {
 
-    private final ItemReader<K> keyReader;
-    private final ItemProcessor<List<? extends K>, List<T>> valueReader;
+    private final ItemReader<String> keyReader;
+    private final ItemProcessor<List<? extends String>, List<T>> valueReader;
     private final int threads;
     private final int chunkSize;
     private final int queueCapacity;
@@ -40,7 +40,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
     private String name;
 
 
-    public KeyValueItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout) {
+    public KeyValueItemReader(ItemReader<String> keyReader, ItemProcessor<List<? extends String>, List<T>> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(keyReader, "A key reader is required");
         Assert.notNull(valueReader, "A value reader is required");
@@ -76,7 +76,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
         queue = new LinkedBlockingDeque<>(queueCapacity);
         pollTimeout = queuePollTimeout.toMillis();
         MetricsUtils.createGaugeCollectionSize("reader.queue.size", queue);
-        ItemWriter<K> writer = new ValueWriter<>(valueReader, queue);
+        ItemWriter<String> writer = new ValueWriter<>(valueReader, queue);
         JobFactory factory = new JobFactory();
         try {
             factory.afterPropertiesSet();
@@ -84,7 +84,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
             throw new ItemStreamException("Failed to initialize the reader", e);
         }
         StepBuilder stepBuilder = factory.getStepBuilderFactory().get(name + "-step");
-        SimpleStepBuilder<K, K> simpleStepBuilder = simpleStepBuilder(stepBuilder);
+        SimpleStepBuilder<String, String> simpleStepBuilder = simpleStepBuilder(stepBuilder);
         simpleStepBuilder.reader(keyReader);
         simpleStepBuilder.writer(writer);
         ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
@@ -109,7 +109,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
         log.debug("Opened {}", name);
     }
 
-    protected SimpleStepBuilder<K, K> simpleStepBuilder(StepBuilder stepBuilder) {
+    protected SimpleStepBuilder<String, String> simpleStepBuilder(StepBuilder stepBuilder) {
         return stepBuilder.chunk(chunkSize);
     }
 
@@ -146,12 +146,12 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
         log.debug("Closed {}", name);
     }
 
-    private static class ValueWriter<K, T extends KeyValue<K, ?>> extends AbstractItemStreamItemWriter<K> {
+    private static class ValueWriter<T extends KeyValue<?>> extends AbstractItemStreamItemWriter<String> {
 
-        private final ItemProcessor<List<? extends K>, List<T>> valueReader;
+        private final ItemProcessor<List<? extends String>, List<T>> valueReader;
         private final BlockingQueue<T> queue;
 
-        private ValueWriter(ItemProcessor<List<? extends K>, List<T>> valueReader, BlockingQueue<T> queue) {
+        private ValueWriter(ItemProcessor<List<? extends String>, List<T>> valueReader, BlockingQueue<T> queue) {
             this.valueReader = valueReader;
             this.queue = queue;
         }
@@ -181,7 +181,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
         }
 
         @Override
-        public void write(List<? extends K> items) throws Exception {
+        public void write(List<? extends String> items) throws Exception {
             for (T value : valueReader.process(items)) {
                 queue.removeIf(v -> v.getKey().equals(value.getKey()));
                 queue.put(value);
@@ -191,7 +191,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
     }
 
     @SuppressWarnings("unchecked")
-    public static class AbstractKeyValueItemReaderBuilder<T extends KeyValue<String, ?>, R extends ItemProcessor<List<? extends String>, List<T>>, B extends AbstractKeyValueItemReaderBuilder<T, R, B>> extends CommandBuilder<B> {
+    public static class AbstractKeyValueItemReaderBuilder<T extends KeyValue<?>, R extends ItemProcessor<List<? extends String>, List<T>>, B extends AbstractKeyValueItemReaderBuilder<T, R, B>> extends CommandBuilder<B> {
 
         public static final int DEFAULT_THREADS = 1;
         public static final int DEFAULT_CHUNK_SIZE = 50;
@@ -249,7 +249,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
 
 
     @SuppressWarnings("unchecked")
-    public static class KeyValueItemReaderBuilder<T extends KeyValue<String, ?>, R extends ItemProcessor<List<? extends String>, List<T>>, B extends KeyValueItemReaderBuilder<T, R, B>> extends AbstractKeyValueItemReaderBuilder<T, R, B> {
+    public static class KeyValueItemReaderBuilder<T extends KeyValue<?>, R extends ItemProcessor<List<? extends String>, List<T>>, B extends KeyValueItemReaderBuilder<T, R, B>> extends AbstractKeyValueItemReaderBuilder<T, R, B> {
 
         public static final String DEFAULT_SCAN_MATCH = "*";
         public static final long DEFAULT_SCAN_COUNT = 1000;
@@ -283,12 +283,12 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
         }
 
         public ItemReader<String> keyReader() {
-            return new ScanKeyItemReader<>(connectionSupplier, sync, scanMatch, scanCount, scanType);
+            return new ScanKeyItemReader(connectionSupplier, sync, scanMatch, scanCount, scanType);
         }
     }
 
     @SuppressWarnings("unchecked")
-    public static class LiveKeyValueItemReaderBuilder<T extends KeyValue<String, ?>, R extends ItemProcessor<List<? extends String>, List<T>>, B extends LiveKeyValueItemReaderBuilder<T, R, B>> extends AbstractKeyValueItemReaderBuilder<T, R, B> {
+    public static class LiveKeyValueItemReaderBuilder<T extends KeyValue<?>, R extends ItemProcessor<List<? extends String>, List<T>>, B extends LiveKeyValueItemReaderBuilder<T, R, B>> extends AbstractKeyValueItemReaderBuilder<T, R, B> {
 
         public static final int DEFAULT_QUEUE_CAPACITY = 1000;
         public static final int DEFAULT_DATABASE = 0;
@@ -340,6 +340,7 @@ public class KeyValueItemReader<K, T extends KeyValue<K, ?>> extends AbstractIte
             return String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern);
         }
 
+        @SuppressWarnings("rawtypes")
         public PollableItemReader<String> keyReader() {
             if (client instanceof RedisClusterClient) {
                 return new RedisClusterKeyspaceNotificationItemReader((Supplier) pubSubConnectionSupplier, pubSubPattern(database, keyPattern), queueCapacity);
