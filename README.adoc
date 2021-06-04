@@ -17,12 +17,12 @@ endif::[]
 ItemReader and ItemWriter implementations for Redis based on https://lettuce.io[Lettuce].
 
 == Data Types
-Spring Batch Redis supports two data types: key dumps and key values.
+Spring Batch Redis supports two data types: key dumps (bytes) and key values (data structure-specific objects).
 
-=== `KeyDump`
-A `KeyDump` object stores a key, its TTL in milliseconds, and its binary representation (byte array).
+=== Key Dumps
+A key dump object stores a key, its TTL in milliseconds, and its binary representation (byte array).
 
-=== `DataStructure`
+=== Data Structures
 A `DataStructure` object stores a key, its TTL in seconds, the type of data structure (hash, list, ...), and its Java representation.
 
 * Hash: `HGETALL` -> `Map<String,String>`
