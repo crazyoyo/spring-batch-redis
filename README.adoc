@@ -1,20 +1,40 @@
 = Spring Batch Redis
-ifdef::env-github[]
-:badges:
-:tag: master
-:!toc-title:
-endif::[]
+:linkattrs:
+:project-owner:   redis-developer
+:project-name:    spring-batch-redis
+:project-group:   com.redislabs
+:project-version: 2.13.1
 
-// Badges
-ifdef::badges[]
-image:https://img.shields.io/github/license/redis-developer/spring-batch-redis.svg["License", link="https://github.com/redis-developer/spring-batch-redis"]
-image:https://img.shields.io/github/release/redis-developer/spring-batch-redis.svg["Latest", link="https://github.com/redis-developer/spring-batch-redis/releases/latest"]
-image:https://github.com/redis-developer/spring-batch-redis/actions/workflows/gradle.yml/badge.svg["Build", link="https://github.com/redis-developer/spring-batch-redis/actions/workflows/gradle.yml"]
-image:https://codecov.io/gh/redis-developer/spring-batch-redis/branch/master/graph/badge.svg?token=5PXEW410OP["Coverage", link="https://codecov.io/gh/redis-developer/spring-batch-redis"]
-endif::[]
+image:https://github.com/{project-owner}/{project-name}/actions/workflows/gradle.yml/badge.svg["Build Status", link="https://github.com/{project-owner}/{project-name}/actions"]
+image:https://codecov.io/gh/{project-owner}/{project-name}/branch/master/graph/badge.svg["Coverage", link="https://codecov.io/gh/{project-owner}/{project-name}"]
+image:https://img.shields.io/maven-central/v/{project-group}/{project-name}.svg[Download, link="https://search.maven.org/#search|ga|1|{project-name}"]
+image:https://img.shields.io/github/downloads/{project-owner}/{project-name}/total[GitHub all releases]
 
+---
 
 ItemReader and ItemWriter implementations for Redis based on https://lettuce.io[Lettuce].
+
+== Getting Started
+
+Add Spring Batch Redis to your application dependencies:
+
+=== Maven
+[source,xml]
+----
+<dependency>
+    <groupId>{project-group}</groupId>
+    <artifactId>{project-name}</artifactId>
+    <version>{project-version}</version>
+</dependency>
+----
+
+=== Gradle
+[source,groovy]
+----
+dependencies {
+    implementation '{project-group}:{project-name}:{project-version}'
+}
+----
 
 == Data Types
 Spring Batch Redis supports two data types: key dumps (bytes) and key values (data structure-specific objects).
