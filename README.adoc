@@ -16,10 +16,12 @@ ItemReader and ItemWriter implementations for Redis based on https://lettuce.io[
 
 == Getting Started
 
-Add Spring Batch Redis to your application dependencies:
-
 === Maven
+Add Spring Batch Redis dependency to your POM file:
+
 [source,xml]
+[subs="verbatim,attributes"]
+.pom.xml
 ----
 <dependency>
     <groupId>{project-group}</groupId>
@@ -29,7 +31,11 @@ Add Spring Batch Redis to your application dependencies:
 ----
 
 === Gradle
+Add Spring Batch Redis dependency to your `build.gradle` file
+
 [source,groovy]
+[subs="attributes"]
+.build.gradle
 ----
 dependencies {
     implementation '{project-group}:{project-name}:{project-version}'
