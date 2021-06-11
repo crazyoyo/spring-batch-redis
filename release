@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+
+if [ $# -eq 0 ]
+  then
+    echo "No release version supplied"
+    exit 1
+fi
+
+version="$1"
+sed -i -e "s/^version\=.*/version=${version}/g" gradle.properties
+sed -i -e "s/^\:project-version\:\ .*/:project-version: ${version}/g" README.adoc
+./gradlew clean build publishToMavenLocal publishToSonatype closeAndReleaseSonatypeStagingRepository jreleaserFullRelease
