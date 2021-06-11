@@ -24,6 +24,14 @@ java {
 repositories {
     mavenCentral()
     mavenLocal()
+    maven {
+        name = "GitHubPackages"
+        url = uri("https://maven.pkg.github.com/redis-developer/registry")
+        credentials {
+            username = project.findProperty("github.username") ?: System.getenv("GITHUB_USERNAME")
+            password = project.findProperty("github.token") ?: System.getenv("GITHUB_TOKEN")
+        }
+    }
 }
 
 bootJar {
@@ -52,6 +60,7 @@ dependencies {
     testImplementation 'org.springframework.batch:spring-batch-test'
     testImplementation 'org.hsqldb:hsqldb'
     testImplementation 'com.redislabs:testcontainers-redis:1.1.6'
+    testImplementation 'org.testcontainers:junit-jupiter:1.15.3-REDISLABS'
     testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv'
 }
 
