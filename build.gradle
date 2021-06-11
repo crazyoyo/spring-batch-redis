@@ -50,9 +50,8 @@ dependencies {
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     api 'io.lettuce:lettuce-core:6.1.2.RELEASE'
     api 'org.apache.commons:commons-pool2'
-    api ('org.springframework.boot:spring-boot-starter-batch') {
-        exclude group: 'io.lettuce', module: 'lettuce-core'
-    }
+    api 'org.springframework.batch:spring-batch-core'
+    implementation 'org.slf4j:slf4j-api'
     testImplementation 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
     testImplementation 'io.micrometer:micrometer-core'
