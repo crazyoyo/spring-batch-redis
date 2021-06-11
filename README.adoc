@@ -3,7 +3,7 @@
 :project-owner:   redis-developer
 :project-name:    spring-batch-redis
 :project-group:   com.redislabs
-:project-version: 2.13.1
+:project-version: 2.13.2
 
 image:https://github.com/{project-owner}/{project-name}/actions/workflows/gradle.yml/badge.svg["Build Status", link="https://github.com/{project-owner}/{project-name}/actions"]
 image:https://codecov.io/gh/{project-owner}/{project-name}/branch/master/graph/badge.svg["Coverage", link="https://codecov.io/gh/{project-owner}/{project-name}"]
