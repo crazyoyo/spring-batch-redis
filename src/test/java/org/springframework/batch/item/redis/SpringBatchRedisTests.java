@@ -12,6 +12,7 @@ import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import io.lettuce.core.api.sync.*;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
+import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
 import io.micrometer.core.instrument.Clock;
@@ -417,7 +418,7 @@ public class SpringBatchRedisTests {
             messages.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-        OperationItemWriter<Map<String, String>> writer = operationWriter(redisServer, new Xadd<>(stream, i -> i));
+        OperationItemWriter<String, String, Map<String, String>> writer = operationWriter(redisServer, new Xadd<>(stream, i -> i));
         execute(redisServer, "stream-writer", reader, writer);
         RedisStreamCommands<String, String> sync = sync(redisServer);
         Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -452,7 +453,7 @@ public class SpringBatchRedisTests {
             messages.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-        OperationItemWriter<Map<String, String>> writer = OperationItemWriter.operation(new Xadd(stream, i -> i)).client(redisClient(REDIS)).transactional(true).build();
+        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.operation(new Xadd(stream, i -> i)).codec(StringCodec.UTF8).client(redisClient(REDIS)).transactional(true).build();
         execute(REDIS, "stream-tx-writer", reader, writer);
         RedisStreamCommands<String, String> sync = sync(REDIS);
         Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -477,7 +478,7 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
         KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash").converters(h -> h.remove("id")).build();
-        OperationItemWriter<Map<String, String>> writer = operationWriter(server, new Hset<>(keyConverter, m -> m));
+        OperationItemWriter<String, String, Map<String, String>> writer = operationWriter(server, new Hset<>(keyConverter, m -> m));
         execute(server, "hash-writer", reader, writer);
         RedisKeyCommands<String, String> sync = sync(server);
         Assertions.assertEquals(maps.size(), sync.keys("hash:*").size());
@@ -505,17 +506,17 @@ public class SpringBatchRedisTests {
         RedisKeyCommands<String, String> sync = sync(server);
         ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
         KeyMaker<Map.Entry<String, Map<String, String>>> keyConverter = KeyMaker.<Map.Entry<String, Map<String, String>>>builder().prefix("hash").converters(Map.Entry::getKey).build();
-        OperationItemWriter<Map.Entry<String, Map<String, String>>> writer = operationWriter(server, new Hset<>(keyConverter, Map.Entry::getValue, new NullValuePredicate<>(Map.Entry::getValue)));
+        OperationItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = operationWriter(server, new Hset<>(keyConverter, Map.Entry::getValue, new NullValuePredicate<>(Map.Entry::getValue)));
         execute(server, "hash-del-writer", reader, writer);
         Assertions.assertEquals(50, sync.keys("hash:*").size());
         Assertions.assertEquals(2, commands.hgetall("hash:50").size());
     }
 
-    private <T> OperationItemWriter<T> operationWriter(RedisServer server, OperationItemWriter.RedisOperation<T> operation) {
+    private <T> OperationItemWriter<String, String, T> operationWriter(RedisServer server, OperationItemWriter.RedisOperation<String, String, T> operation) {
         if (server.isCluster()) {
-            return OperationItemWriter.operation(operation).client(redisClusterClient(server)).build();
+            return OperationItemWriter.operation(operation).codec(StringCodec.UTF8).client(redisClusterClient(server)).build();
         }
-        return OperationItemWriter.operation(operation).client(redisClient(server)).build();
+        return OperationItemWriter.operation(operation).codec(StringCodec.UTF8).client(redisClient(server)).build();
     }
 
     @ParameterizedTest
@@ -527,7 +528,7 @@ public class SpringBatchRedisTests {
         }
         ListItemReader<ScoredValue<String>> reader = new ListItemReader<>(values);
         KeyMaker<ScoredValue<String>> keyConverter = KeyMaker.<ScoredValue<String>>builder().prefix("zset").build();
-        OperationItemWriter<ScoredValue<String>> writer = operationWriter(server, new Zadd<>("zset", Value::getValue, ScoredValue::getScore));
+        OperationItemWriter<String, String, ScoredValue<String>> writer = operationWriter(server, new Zadd<>("zset", Value::getValue, ScoredValue::getScore));
         execute(server, "sorted-set-writer", reader, writer);
         RedisServerCommands<String, String> sync = sync(server);
         Assertions.assertEquals(1, sync.dbsize());
@@ -630,7 +631,7 @@ public class SpringBatchRedisTests {
     public void testReplication(RedisServer redisServer) throws Throwable {
         dataGenerator(redisServer).end(10000).build().call();
         KeyValueItemReader reader = keyDumpReader(redisServer);
-        OperationItemWriter<KeyValue<byte[]>> writer = keyDumpWriter(REDIS_REPLICA);
+        OperationItemWriter<String, String, KeyValue<byte[]>> writer = keyDumpWriter(REDIS_REPLICA);
         execute(redisServer, "replication", reader, writer);
         compare(redisServer, "replication");
     }
@@ -641,12 +642,12 @@ public class SpringBatchRedisTests {
         dataGenerator(redisServer).end(10000).build().call();
         KeyValueItemReader reader = keyDumpReader(redisServer);
         reader.setName("reader");
-        OperationItemWriter< KeyValue<byte[]>> writer = keyDumpWriter(REDIS_REPLICA);
+        OperationItemWriter<String, String, KeyValue<byte[]>> writer = keyDumpWriter(REDIS_REPLICA);
         writer.setName("writer");
         TaskletStep replicationStep = step("replication", reader, writer).build();
         LiveKeyValueItemReader liveReader = liveKeyDumpReader(redisServer);
         liveReader.setName("live-reader");
-        OperationItemWriter< KeyValue< byte[]>> liveWriter = keyDumpWriter(REDIS_REPLICA);
+        OperationItemWriter<String, String, KeyValue<byte[]>> liveWriter = keyDumpWriter(REDIS_REPLICA);
         liveWriter.setName("live-writer");
         TaskletStep liveReplicationStep = flushing(step("live-replication", liveReader, liveWriter)).build();
         SimpleFlow replicationFlow = new FlowBuilder<SimpleFlow>("replication-flow").start(replicationStep).build();

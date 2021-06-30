@@ -4,6 +4,7 @@ import io.lettuce.core.*;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.*;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.codec.StringCodec;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.AbstractPipelineItemWriter;
 import org.springframework.batch.item.redis.support.CommandBuilder;
@@ -19,7 +20,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 @SuppressWarnings("unchecked")
-public class DataStructureItemWriter<T> extends AbstractPipelineItemWriter<T> {
+public class DataStructureItemWriter<T> extends AbstractPipelineItemWriter<String, String, T> {
 
     private final Converter<T, String> key;
     private final Converter<T, Object> value;
@@ -95,14 +96,14 @@ public class DataStructureItemWriter<T> extends AbstractPipelineItemWriter<T> {
         return new DataStructureItemWriterBuilder(client);
     }
 
-    public static class DataStructureItemWriterBuilder extends CommandBuilder<DataStructureItemWriterBuilder> {
+    public static class DataStructureItemWriterBuilder extends CommandBuilder<String,String,DataStructureItemWriterBuilder> {
 
         public DataStructureItemWriterBuilder(RedisClusterClient client) {
-            super(client);
+            super(client, StringCodec.UTF8);
         }
 
         public DataStructureItemWriterBuilder(RedisClient client) {
-            super(client);
+            super(client, StringCodec.UTF8);
         }
 
         public DataStructureItemWriter<DataStructure> build() {

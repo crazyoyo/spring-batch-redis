@@ -8,19 +8,19 @@ import org.springframework.util.Assert;
 
 import java.util.function.Predicate;
 
-public class Zadd<T> extends AbstractCollectionOperation<T> {
+public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
     private final Converter<T, Double> score;
 
-    public Zadd(String key, Converter<T, String> member, Converter<T, Double> score) {
+    public Zadd(K key, Converter<T, V> member, Converter<T, Double> score) {
         this(new ConstantConverter<>(key), member, score);
     }
 
-    public Zadd(Converter<T, String> key, Converter<T, String> member, Converter<T, Double> score) {
+    public Zadd(Converter<T, K> key, Converter<T, V> member, Converter<T, Double> score) {
         this(key, member, new ConstantPredicate<>(false), new NullValuePredicate<>(score), score);
     }
 
-    public Zadd(Converter<T, String> key, Converter<T, String> member, Predicate<T> delete, Predicate<T> remove, Converter<T, Double> score) {
+    public Zadd(Converter<T, K> key, Converter<T, V> member, Predicate<T> delete, Predicate<T> remove, Converter<T, Double> score) {
         super(key, member, delete, remove);
         Assert.notNull(score, "A score converter is required");
         this.score = score;
@@ -28,17 +28,17 @@ public class Zadd<T> extends AbstractCollectionOperation<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> add(BaseRedisAsyncCommands<String, String> commands, T item, String key, String member) {
+    protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         Double scoreValue = score.convert(item);
         if (scoreValue == null) {
             return null;
         }
-        return ((RedisSortedSetAsyncCommands<String, String>) commands).zadd(key, scoreValue, member);
+        return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key, scoreValue, member);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> remove(BaseRedisAsyncCommands<String, String> commands, String key, String member) {
-        return ((RedisSortedSetAsyncCommands<String, String>) commands).zrem(key, member);
+    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, K key, V member) {
+        return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, member);
     }
 }

@@ -6,6 +6,7 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.codec.StringCodec;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
 import java.util.ArrayList;
@@ -50,14 +51,14 @@ public class KeyDumpValueReader extends AbstractKeyValueReader<KeyValue<byte[]>>
         return new KeyDumpValueReaderBuilder(client);
     }
 
-    public static class KeyDumpValueReaderBuilder extends CommandBuilder<KeyDumpValueReaderBuilder> {
+    public static class KeyDumpValueReaderBuilder extends CommandBuilder<String,String,KeyDumpValueReaderBuilder> {
 
         public KeyDumpValueReaderBuilder(RedisClusterClient client) {
-            super(client);
+            super(client, StringCodec.UTF8);
         }
 
         public KeyDumpValueReaderBuilder(RedisClient client) {
-            super(client);
+            super(client, StringCodec.UTF8);
         }
 
         public KeyDumpValueReader build() {

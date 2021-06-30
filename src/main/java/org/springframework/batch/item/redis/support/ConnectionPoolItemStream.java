@@ -11,13 +11,13 @@ import org.springframework.util.Assert;
 
 import java.util.function.Supplier;
 
-public class ConnectionPoolItemStream extends ItemStreamSupport {
+public class ConnectionPoolItemStream<K, V> extends ItemStreamSupport {
 
-    private final Supplier<StatefulConnection<String, String>> connectionSupplier;
-    private final GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig;
-    protected GenericObjectPool<StatefulConnection<String, String>> pool;
+    private final Supplier<StatefulConnection<K, V>> connectionSupplier;
+    private final GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig;
+    protected GenericObjectPool<StatefulConnection<K, V>> pool;
 
-    protected ConnectionPoolItemStream(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig) {
+    protected ConnectionPoolItemStream(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig) {
         Assert.notNull(connectionSupplier, "A connection supplier is required");
         Assert.notNull(poolConfig, "A connection pool config is required");
         this.connectionSupplier = connectionSupplier;

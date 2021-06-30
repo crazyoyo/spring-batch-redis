@@ -7,16 +7,16 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-public class Restore<T> extends AbstractKeyOperation<T, byte[]> {
+public class Restore<K, V, T> extends AbstractKeyOperation<K, V, T, byte[]> {
 
     private final Converter<T, Long> absoluteTTL;
     private final boolean replace;
 
-    public Restore(Converter<T, String> key, Converter<T, byte[]> value, Converter<T, Long> absoluteTTL) {
+    public Restore(Converter<T, K> key, Converter<T, byte[]> value, Converter<T, Long> absoluteTTL) {
         this(key, value, absoluteTTL, true);
     }
 
-    public Restore(Converter<T, String> key, Converter<T, byte[]> value, Converter<T, Long> absoluteTTL, boolean replace) {
+    public Restore(Converter<T, K> key, Converter<T, byte[]> value, Converter<T, Long> absoluteTTL, boolean replace) {
         super(key, value, new NonexistentKeyPredicate<>(absoluteTTL));
         Assert.notNull(absoluteTTL, "A TTL converter is required");
         this.absoluteTTL = absoluteTTL;
@@ -25,7 +25,7 @@ public class Restore<T> extends AbstractKeyOperation<T, byte[]> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item, String key, byte[] value) {
+    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, byte[] value) {
         Long ttl = this.absoluteTTL.convert(item);
         RestoreArgs restoreArgs = new RestoreArgs();
         restoreArgs.replace(replace);
@@ -33,7 +33,7 @@ public class Restore<T> extends AbstractKeyOperation<T, byte[]> {
             restoreArgs.absttl();
             restoreArgs.ttl(ttl);
         }
-        return ((RedisKeyAsyncCommands<String, String>) commands).restore(key, value, restoreArgs);
+        return ((RedisKeyAsyncCommands<K, V>) commands).restore(key, value, restoreArgs);
     }
 
 }

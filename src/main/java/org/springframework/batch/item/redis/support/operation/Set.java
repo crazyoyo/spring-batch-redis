@@ -7,20 +7,20 @@ import org.springframework.core.convert.converter.Converter;
 
 import java.util.function.Predicate;
 
-public class Set<T> extends AbstractKeyOperation<T, String> {
+public class Set<K, V, T> extends AbstractKeyOperation<K, V, T, V> {
 
-    public Set(Converter<T, String> key, Converter<T, String> value) {
+    public Set(Converter<T, K> key, Converter<T, V> value) {
         this(key, value, new NullValuePredicate<>(value));
     }
 
-    public Set(Converter<T, String> key, Converter<T, String> value, Predicate<T> delete) {
+    public Set(Converter<T, K> key, Converter<T, V> value, Predicate<T> delete) {
         super(key, value, delete);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item, String key, String value) {
-        return ((RedisStringAsyncCommands<String, String>) commands).set(key, value);
+    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, V value) {
+        return ((RedisStringAsyncCommands<K, V>) commands).set(key, value);
     }
 
 }

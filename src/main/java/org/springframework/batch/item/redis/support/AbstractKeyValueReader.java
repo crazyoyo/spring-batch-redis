@@ -7,6 +7,7 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.codec.StringCodec;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
@@ -20,7 +21,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public abstract class AbstractKeyValueReader<T extends KeyValue<?>> extends ConnectionPoolItemStream implements ItemProcessor<List<? extends String>, List<T>> {
+public abstract class AbstractKeyValueReader<T extends KeyValue<?>> extends ConnectionPoolItemStream<String, String> implements ItemProcessor<List<? extends String>, List<T>> {
 
     private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
     private String digest;
@@ -67,14 +68,14 @@ public abstract class AbstractKeyValueReader<T extends KeyValue<?>> extends Conn
 
     protected abstract List<T> read(BaseRedisAsyncCommands<String, String> commands, long timeout, List<? extends String> keys) throws InterruptedException, ExecutionException, TimeoutException;
 
-    public static abstract class AbstractKeyValueReaderBuilder<T extends KeyValue<?>> extends CommandBuilder<AbstractKeyValueReaderBuilder<T>> {
+    public static abstract class AbstractKeyValueReaderBuilder<T extends KeyValue<?>> extends CommandBuilder<String, String, AbstractKeyValueReaderBuilder<T>> {
 
         public AbstractKeyValueReaderBuilder(RedisClient client) {
-            super(client);
+            super(client, StringCodec.UTF8);
         }
 
         public AbstractKeyValueReaderBuilder(RedisClusterClient client) {
-            super(client);
+            super(client, StringCodec.UTF8);
         }
 
         public abstract AbstractKeyValueReader<T> build();

@@ -8,14 +8,14 @@ import org.springframework.batch.item.redis.OperationItemWriter;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-public class Eval<T> implements OperationItemWriter.RedisOperation<T> {
+public class Eval<K, V, T> implements OperationItemWriter.RedisOperation<K, V, T> {
 
     private final String sha;
     private final ScriptOutputType output;
-    private final Converter<T, String[]> keys;
-    private final Converter<T, String[]> args;
+    private final Converter<T, K[]> keys;
+    private final Converter<T, V[]> args;
 
-    public Eval(String sha, ScriptOutputType output, Converter<T, String[]> keys, Converter<T, String[]> args) {
+    public Eval(String sha, ScriptOutputType output, Converter<T, K[]> keys, Converter<T, V[]> args) {
         Assert.notNull(sha, "A SHA digest is required");
         Assert.notNull(output, "A script output type is required");
         Assert.notNull(keys, "A keys converter is required");
@@ -28,8 +28,8 @@ public class Eval<T> implements OperationItemWriter.RedisOperation<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public RedisFuture<?> execute(BaseRedisAsyncCommands<String, String> commands, T item) {
-        return ((RedisScriptingAsyncCommands<String, String>) commands).evalsha(sha, output, keys.convert(item), args.convert(item));
+    public RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
+        return ((RedisScriptingAsyncCommands<K, V>) commands).evalsha(sha, output, keys.convert(item), args.convert(item));
     }
 
 }

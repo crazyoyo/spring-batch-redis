@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis.support;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.codec.StringCodec;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
@@ -191,7 +192,7 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
     }
 
     @SuppressWarnings("unchecked")
-    public static class AbstractKeyValueItemReaderBuilder<T extends KeyValue<?>, R extends ItemProcessor<List<? extends String>, List<T>>, B extends AbstractKeyValueItemReaderBuilder<T, R, B>> extends CommandBuilder<B> {
+    public static class AbstractKeyValueItemReaderBuilder<T extends KeyValue<?>, R extends ItemProcessor<List<? extends String>, List<T>>, B extends AbstractKeyValueItemReaderBuilder<T, R, B>> extends CommandBuilder<String, String, B> {
 
         public static final int DEFAULT_THREADS = 1;
         public static final int DEFAULT_CHUNK_SIZE = 50;
@@ -208,13 +209,13 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
 
 
         public AbstractKeyValueItemReaderBuilder(RedisClient client, R valueReader) {
-            super(client);
+            super(client, StringCodec.UTF8);
             this.client = client;
             this.valueReader = valueReader;
         }
 
         public AbstractKeyValueItemReaderBuilder(RedisClusterClient client, R valueReader) {
-            super(client);
+            super(client, StringCodec.UTF8);
             this.client = client;
             this.valueReader = valueReader;
         }

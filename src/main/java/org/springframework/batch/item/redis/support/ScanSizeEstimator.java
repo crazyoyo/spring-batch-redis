@@ -7,6 +7,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.api.async.RedisServerAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.codec.StringCodec;
 import lombok.Builder;
 import lombok.Data;
 import org.springframework.util.Assert;
@@ -90,14 +91,14 @@ public class ScanSizeEstimator {
         return new ScanSizeEstimatorBuilder(client);
     }
 
-    public static class ScanSizeEstimatorBuilder extends CommandBuilder<ScanSizeEstimatorBuilder> {
+    public static class ScanSizeEstimatorBuilder extends CommandBuilder<String, String, ScanSizeEstimatorBuilder> {
 
         public ScanSizeEstimatorBuilder(RedisClusterClient client) {
-            super(client);
+            super(client, StringCodec.UTF8);
         }
 
         public ScanSizeEstimatorBuilder(RedisClient client) {
-            super(client);
+            super(client, StringCodec.UTF8);
         }
 
         public ScanSizeEstimator build() {

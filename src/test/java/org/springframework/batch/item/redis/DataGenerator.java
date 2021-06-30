@@ -13,6 +13,7 @@ import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
@@ -156,7 +157,7 @@ public class DataGenerator implements Callable<Long> {
 
     @Setter
     @Accessors(fluent = true)
-    public static class DataGeneratorBuilder extends CommandBuilder<DataGeneratorBuilder> {
+    public static class DataGeneratorBuilder extends CommandBuilder<String, String, DataGeneratorBuilder> {
 
         private static final int DEFAULT_START = 0;
         private static final int DEFAULT_END = 1000;
@@ -174,11 +175,11 @@ public class DataGenerator implements Callable<Long> {
         private Set<String> dataTypes = new HashSet<>(Arrays.asList(DataStructure.HASH, DataStructure.LIST, DataStructure.STRING, DataStructure.STREAM, DataStructure.SET, DataStructure.ZSET));
 
         public DataGeneratorBuilder(RedisClusterClient client) {
-            super(client);
+            super(client, StringCodec.UTF8);
         }
 
         public DataGeneratorBuilder(RedisClient client) {
-            super(client);
+            super(client, StringCodec.UTF8);
         }
 
         public DataGeneratorBuilder dataTypes(String... dataTypes) {

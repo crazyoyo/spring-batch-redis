@@ -8,6 +8,7 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.codec.StringCodec;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -135,7 +136,7 @@ public class StreamItemReader extends ItemStreamSupport implements PollableItemR
 
     @Setter
     @Accessors(fluent = true)
-    public static class StreamItemReaderBuilder extends CommandBuilder<StreamItemReaderBuilder> {
+    public static class StreamItemReaderBuilder extends CommandBuilder<String, String, StreamItemReaderBuilder> {
 
         private static final Duration DEFAULT_BLOCK = Duration.ofMillis(100);
         private static final long DEFAULT_COUNT = 50;
@@ -145,12 +146,12 @@ public class StreamItemReader extends ItemStreamSupport implements PollableItemR
         private Long count = DEFAULT_COUNT;
 
         public StreamItemReaderBuilder(RedisClient client, StreamOffset<String> offset) {
-            super(client);
+            super(client, StringCodec.UTF8);
             this.offset = offset;
         }
 
         public StreamItemReaderBuilder(RedisClusterClient client, StreamOffset<String> offset) {
-            super(client);
+            super(client, StringCodec.UTF8);
             this.offset = offset;
         }
 
