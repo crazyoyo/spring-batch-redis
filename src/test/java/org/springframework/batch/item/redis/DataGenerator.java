@@ -98,25 +98,21 @@ public class DataGenerator implements Callable<Long> {
                         futures.add(((RedisKeyAsyncCommands<String, String>) commands).pexpireat(stringKey, time));
                     }
                 }
-                Map<String, String> hash = new HashMap<>();
-                hash.put("field1", "value" + index);
-                hash.put("field2", "value" + index);
-                String member = "member:" + index;
                 int collectionIndex = index % 10;
                 if (contains(DataStructure.HASH)) {
-                    futures.add(((RedisHashAsyncCommands<String, String>) commands).hset("hash:" + index, hash));
+                    futures.add(((RedisHashAsyncCommands<String, String>) commands).hset("hash:" + index, hash(index)));
                 }
                 if (contains(DataStructure.SET)) {
-                    futures.add(((RedisSetAsyncCommands<String, String>) commands).sadd("set:" + collectionIndex, member));
+                    futures.add(((RedisSetAsyncCommands<String, String>) commands).sadd("set:" + collectionIndex, member(index)));
                 }
                 if (contains(DataStructure.ZSET)) {
-                    futures.add(((RedisSortedSetAsyncCommands<String, String>) commands).zadd("zset:" + collectionIndex, index % 3, member));
+                    futures.add(((RedisSortedSetAsyncCommands<String, String>) commands).zadd("zset:" + collectionIndex, index % 3, member(index)));
                 }
                 if (contains(DataStructure.STREAM)) {
-                    futures.add(((RedisStreamAsyncCommands<String, String>) commands).xadd("stream:" + collectionIndex, hash));
+                    futures.add(((RedisStreamAsyncCommands<String, String>) commands).xadd("stream:" + collectionIndex, hash(index)));
                 }
                 if (contains(DataStructure.LIST)) {
-                    futures.add(((RedisListAsyncCommands<String, String>) commands).lpush("list:" + collectionIndex, member));
+                    futures.add(((RedisListAsyncCommands<String, String>) commands).lpush("list:" + collectionIndex, member(index)));
                 }
                 if (futures.size() >= batchSize) {
                     count += flush();
@@ -127,6 +123,17 @@ public class DataGenerator implements Callable<Long> {
             }
             count += flush();
             return count;
+        }
+
+        private String member(int index) {
+            return "member:" + index;
+        }
+
+        private Map<String, String> hash(int index) {
+            Map<String, String> hash = new HashMap<>();
+            hash.put("field1", "value" + index);
+            hash.put("field2", "value" + index);
+            return hash;
         }
 
         private int flush() {

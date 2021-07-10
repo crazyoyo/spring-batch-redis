@@ -40,6 +40,7 @@ public class ConnectionPoolItemStream<K, V> extends ItemStreamSupport {
     public synchronized void close() {
         if (pool != null) {
             pool.close();
+            pool = null;
         }
     }
 

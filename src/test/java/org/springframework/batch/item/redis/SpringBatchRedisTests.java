@@ -13,6 +13,7 @@ import io.lettuce.core.api.sync.*;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.codec.StringCodec;
+import io.lettuce.core.models.stream.PendingMessages;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
 import io.micrometer.core.instrument.Clock;
@@ -352,7 +353,7 @@ public class SpringBatchRedisTests {
     @MethodSource("servers")
     void testStreamReader(RedisServer server) throws Throwable {
         dataGenerator(server).dataTypes(DataStructure.STREAM).end(100).build().call();
-        StreamItemReader reader = streamReader(server, XReadArgs.StreamOffset.from("stream:0", "0-0"));
+        StreamItemReader reader = streamReader(server, XReadArgs.StreamOffset.from("stream:0", "0-0"), "consumerGroup", "consumer1");
         ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
         JobExecution execution = executeFlushing(server, "stream-reader", reader, writer);
         awaitJobTermination(execution);
@@ -364,11 +365,45 @@ public class SpringBatchRedisTests {
         }
     }
 
-    private StreamItemReader streamReader(RedisServer server, XReadArgs.StreamOffset<String> offset) {
-        if (server.isCluster()) {
-            return StreamItemReader.client(redisClusterClient(server)).offset(offset).build();
+    @ParameterizedTest
+    @MethodSource("servers")
+    void testMultipleStreamReaders(RedisServer server) throws Throwable {
+        String stream = "stream:0";
+        String consumerGroup = "consumerGroup";
+        dataGenerator(server).dataTypes(DataStructure.STREAM).end(100).build().call();
+        StreamItemReader reader1 = streamReader(server, XReadArgs.StreamOffset.from(stream, "0-0"), consumerGroup, "consumer1");
+        StreamItemReader reader2 = streamReader(server, XReadArgs.StreamOffset.from(stream, "0-0"), consumerGroup, "consumer2");
+        ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
+        JobExecution execution1 = executeFlushing(server, "stream-reader-1", reader1, writer1);
+        ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
+        JobExecution execution2 = executeFlushing(server, "stream-reader-2", reader2, writer2);
+        awaitJobTermination(execution1);
+        awaitJobTermination(execution2);
+        Assertions.assertEquals(10, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
+        for (StreamMessage<String, String> message : writer1.getWrittenItems()) {
+            Assertions.assertTrue(message.getBody().containsKey("field1"));
+            Assertions.assertTrue(message.getBody().containsKey("field2"));
         }
-        return StreamItemReader.client(redisClient(server)).offset(offset).build();
+        for (StreamMessage<String, String> message : writer2.getWrittenItems()) {
+            Assertions.assertTrue(message.getBody().containsKey("field1"));
+            Assertions.assertTrue(message.getBody().containsKey("field2"));
+        }
+        RedisStreamCommands<String, String> sync = sync(server);
+        PendingMessages pendingMessages = sync.xpending(stream, consumerGroup);
+        Assertions.assertEquals(10, pendingMessages.getCount());
+        reader1.open(new ExecutionContext());
+        reader1.ack(writer1.getWrittenItems());
+        reader2.open(new ExecutionContext());
+        reader2.ack(writer2.getWrittenItems());
+        pendingMessages = sync.xpending(stream, consumerGroup);
+        Assertions.assertEquals(0, pendingMessages.getCount());
+    }
+
+    private StreamItemReader streamReader(RedisServer server, XReadArgs.StreamOffset<String> offset, String consumerGroup, String consumer) {
+        if (server.isCluster()) {
+            return StreamItemReader.client(redisClusterClient(server)).offsets(offset).consumerGroup(consumerGroup).consumer(consumer).build();
+        }
+        return StreamItemReader.client(redisClient(server)).offsets(offset).consumerGroup(consumerGroup).consumer(consumer).build();
     }
 
     @ParameterizedTest

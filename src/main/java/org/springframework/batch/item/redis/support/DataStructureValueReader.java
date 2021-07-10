@@ -82,7 +82,7 @@ public class DataStructureValueReader extends AbstractKeyValueReader<DataStructu
         return new DataStructureValueReaderBuilder(client);
     }
 
-    public static class DataStructureValueReaderBuilder extends CommandBuilder<String,String,DataStructureValueReaderBuilder> {
+    public static class DataStructureValueReaderBuilder extends CommandBuilder<String, String, DataStructureValueReaderBuilder> {
 
         public DataStructureValueReaderBuilder(RedisClusterClient client) {
             super(client, StringCodec.UTF8);
