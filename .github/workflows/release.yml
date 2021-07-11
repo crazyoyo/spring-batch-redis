@@ -48,9 +48,9 @@ jobs:
 
       - name: Deploy
         env:
-          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
-          GPG_SECRET_KEY: ${{ secrets.GPG_SECRET_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          ORG_GRADLE_PROJECT_signingKeyId: ${{ secrets.GPG_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.GPG_SECRET_KEY }}
+          ORG_GRADLE_PROJECT_signingKey: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           ./gradlew \
           -PsonatypeUsername=${{ secrets.SONATYPE_USERNAME }} \
