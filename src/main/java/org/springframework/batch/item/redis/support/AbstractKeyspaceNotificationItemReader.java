@@ -9,6 +9,7 @@ import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -18,21 +19,21 @@ public abstract class AbstractKeyspaceNotificationItemReader<C extends StatefulR
 
     private final Supplier<C> connectionSupplier;
     private final BlockingQueue<String> queue;
-    private final String pubSubPattern;
+    private final List<String> pubSubPatterns;
     private C connection;
 
-    protected AbstractKeyspaceNotificationItemReader(Supplier<C> connectionSupplier, String pubSubPattern, int queueCapacity) {
-        this(connectionSupplier, pubSubPattern, new ConcurrentSetBlockingQueue<>(queueCapacity));
+    protected AbstractKeyspaceNotificationItemReader(Supplier<C> connectionSupplier, List<String> pubSubPatterns, int queueCapacity) {
+        this(connectionSupplier, pubSubPatterns, new ConcurrentSetBlockingQueue<>(queueCapacity));
     }
 
-    protected AbstractKeyspaceNotificationItemReader(Supplier<C> connectionSupplier, String pubSubPattern, BlockingQueue<String> queue) {
+    protected AbstractKeyspaceNotificationItemReader(Supplier<C> connectionSupplier, List<String> pubSubPatterns, BlockingQueue<String> queue) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(connectionSupplier, "A pub/sub connection supplier is required");
         Assert.notNull(queue, "A queue is required");
-        Assert.notNull(pubSubPattern, "A pub/sub pattern is required");
+        Assert.notEmpty(pubSubPatterns, "A pub/sub pattern is required");
         this.connectionSupplier = connectionSupplier;
         this.queue = queue;
-        this.pubSubPattern = pubSubPattern;
+        this.pubSubPatterns = pubSubPatterns;
     }
 
     @Override
@@ -46,11 +47,11 @@ public abstract class AbstractKeyspaceNotificationItemReader<C extends StatefulR
             MetricsUtils.createGaugeCollectionSize("reader.notification.queue.size", queue);
             log.debug("Connecting to Redis pub/sub");
             this.connection = connectionSupplier.get();
-            subscribe(connection, pubSubPattern);
+            subscribe(connection, pubSubPatterns);
         }
     }
 
-    protected abstract void subscribe(C connection, String pattern);
+    protected abstract void subscribe(C connection, List<String> patterns);
 
     @Override
     public String poll(long timeout, TimeUnit unit) throws InterruptedException {
@@ -62,12 +63,12 @@ public abstract class AbstractKeyspaceNotificationItemReader<C extends StatefulR
         if (connection == null) {
             return;
         }
-        unsubscribe(connection, pubSubPattern);
+        unsubscribe(connection, pubSubPatterns);
         connection.close();
         connection = null;
     }
 
-    protected abstract void unsubscribe(C connection, String pattern);
+    protected abstract void unsubscribe(C connection, List<String> patterns);
 
     protected void add(String message) {
         if (message == null) {

@@ -18,12 +18,12 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public abstract class AbstractKeyValueReader<T extends KeyValue<?>> extends ConnectionPoolItemStream<String, String> implements ItemProcessor<List<? extends String>, List<T>> {
+public abstract class AbstractValueReader<T extends KeyValue<?>> extends ConnectionPoolItemStream<String, String> implements ItemProcessor<List<? extends String>, List<T>> {
 
     private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
     private String digest;
 
-    protected AbstractKeyValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
+    protected AbstractValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
         super(connectionSupplier, poolConfig);
         this.async = async;
     }

@@ -6,6 +6,7 @@ import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.function.Supplier;
 
@@ -14,16 +15,16 @@ public class RedisClusterKeyspaceNotificationItemReader extends AbstractKeyspace
 
     private RedisClusterPubSubListener<String, String> listener;
 
-    public RedisClusterKeyspaceNotificationItemReader(Supplier<StatefulRedisClusterPubSubConnection<String, String>> connectionSupplier, String pubSubPattern, int queueCapacity) {
-        super(connectionSupplier, pubSubPattern, queueCapacity);
+    public RedisClusterKeyspaceNotificationItemReader(Supplier<StatefulRedisClusterPubSubConnection<String, String>> connectionSupplier, List<String> pubSubPatterns, int queueCapacity) {
+        super(connectionSupplier, pubSubPatterns, queueCapacity);
     }
 
-    public RedisClusterKeyspaceNotificationItemReader(Supplier<StatefulRedisClusterPubSubConnection<String, String>> connectionSupplier, String pubSubPattern, BlockingQueue<String> queue) {
-        super(connectionSupplier, pubSubPattern, queue);
+    public RedisClusterKeyspaceNotificationItemReader(Supplier<StatefulRedisClusterPubSubConnection<String, String>> connectionSupplier, List<String> pubSubPatterns, BlockingQueue<String> queue) {
+        super(connectionSupplier, pubSubPatterns, queue);
     }
 
     @Override
-    protected void subscribe(StatefulRedisClusterPubSubConnection<String, String> connection, String pattern) {
+    protected void subscribe(StatefulRedisClusterPubSubConnection<String, String> connection, List<String> patterns) {
         listener = new RedisClusterPubSubAdapter<String, String>() {
 
             @Override
@@ -40,14 +41,14 @@ public class RedisClusterKeyspaceNotificationItemReader extends AbstractKeyspace
         log.debug("Adding listener");
         connection.addListener(listener);
         connection.setNodeMessagePropagation(true);
-        log.debug("Subscribing to channel pattern '{}'", pattern);
-        connection.sync().upstream().commands().psubscribe(pattern);
+        log.debug("Subscribing to channel patterns {}", patterns);
+        connection.sync().upstream().commands().psubscribe(patterns.toArray(new String[0]));
     }
 
     @Override
-    protected void unsubscribe(StatefulRedisClusterPubSubConnection<String, String> connection, String pattern) {
-        log.debug("Unsubscribing from channel pattern '{}'", pattern);
-        connection.sync().upstream().commands().punsubscribe(pattern);
+    protected void unsubscribe(StatefulRedisClusterPubSubConnection<String, String> connection, List<String> patterns) {
+        log.debug("Unsubscribing from channel patterns {}", patterns);
+        connection.sync().upstream().commands().punsubscribe(patterns.toArray(new String[0]));
         log.debug("Removing listener");
         connection.removeListener(listener);
     }

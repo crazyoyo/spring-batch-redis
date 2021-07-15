@@ -28,7 +28,6 @@ public class DataStructure extends KeyValue<Object> {
         this.type = type;
     }
 
-
     public DataStructure(String key, String type) {
         super(key);
         this.type = type;

@@ -11,7 +11,12 @@ import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
-import org.springframework.batch.item.*;
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStream;
+import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -19,6 +24,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -121,6 +127,12 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
             item = queue.poll(pollTimeout, TimeUnit.MILLISECONDS);
         } while (item == null && jobExecution.isRunning());
         return item;
+    }
+
+    public List<T> read(int maxElements) throws Exception {
+        List<T> items = new ArrayList<>(maxElements);
+        queue.drainTo(items, maxElements);
+        return items;
     }
 
     @SuppressWarnings("BusyWait")
@@ -295,10 +307,10 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         public static final int DEFAULT_DATABASE = 0;
         public static final String DEFAULT_KEY_PATTERN = "*";
         public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
-        public static final String DEFAULT_PUBSUB_PATTERN = pubSubPattern(DEFAULT_DATABASE, DEFAULT_KEY_PATTERN);
+        public static final List<String> DEFAULT_PUBSUB_PATTERNS = pubSubPatterns(DEFAULT_DATABASE, DEFAULT_KEY_PATTERN);
 
         protected int queueCapacity = DEFAULT_QUEUE_CAPACITY;
-        private String keyPattern = DEFAULT_KEY_PATTERN;
+        private String[] keyPatterns = new String[]{DEFAULT_KEY_PATTERN};
         private int database = DEFAULT_DATABASE;
         protected Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
         protected Duration idleTimeout;
@@ -323,8 +335,8 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
             return (B) this;
         }
 
-        public B keyPattern(String keyPattern) {
-            this.keyPattern = keyPattern;
+        public B keyPatterns(String... keyPatterns) {
+            this.keyPatterns = keyPatterns;
             return (B) this;
         }
 
@@ -337,6 +349,14 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
             super(client, valueReader);
         }
 
+        public static List<String> pubSubPatterns(int database, String... keyPatterns) {
+            List<String> patterns = new ArrayList<>();
+            for (String keyPattern : keyPatterns) {
+                patterns.add(pubSubPattern(database, keyPattern));
+            }
+            return patterns;
+        }
+
         public static String pubSubPattern(int database, String keyPattern) {
             return String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern);
         }
@@ -344,9 +364,9 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         @SuppressWarnings("rawtypes")
         public PollableItemReader<String> keyReader() {
             if (client instanceof RedisClusterClient) {
-                return new RedisClusterKeyspaceNotificationItemReader((Supplier) pubSubConnectionSupplier, pubSubPattern(database, keyPattern), queueCapacity);
+                return new RedisClusterKeyspaceNotificationItemReader((Supplier) pubSubConnectionSupplier, pubSubPatterns(database, keyPatterns), queueCapacity);
             }
-            return new RedisKeyspaceNotificationItemReader(pubSubConnectionSupplier, pubSubPattern(database, keyPattern), queueCapacity);
+            return new RedisKeyspaceNotificationItemReader(pubSubConnectionSupplier, pubSubPatterns(database, keyPatterns), queueCapacity);
         }
     }
 

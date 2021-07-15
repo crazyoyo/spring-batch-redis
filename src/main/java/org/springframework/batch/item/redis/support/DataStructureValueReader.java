@@ -17,7 +17,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class DataStructureValueReader extends AbstractKeyValueReader<DataStructure> {
+public class DataStructureValueReader extends AbstractValueReader<DataStructure> {
 
     public DataStructureValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
         super(connectionSupplier, poolConfig, async);

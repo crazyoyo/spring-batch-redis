@@ -17,7 +17,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class KeyDumpValueReader extends AbstractKeyValueReader<KeyValue<byte[]>> {
+public class KeyDumpValueReader extends AbstractValueReader<KeyValue<byte[]>> {
 
     public KeyDumpValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
         super(connectionSupplier, poolConfig, async);
