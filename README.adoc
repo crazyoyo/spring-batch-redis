@@ -5,10 +5,9 @@
 :project-group:   com.redislabs
 :project-version: 2.13.7
 
-image:https://github.com/{project-owner}/{project-name}/actions/workflows/gradle.yml/badge.svg["Build Status", link="https://github.com/{project-owner}/{project-name}/actions"]
-image:https://codecov.io/gh/{project-owner}/{project-name}/branch/master/graph/badge.svg["Coverage", link="https://codecov.io/gh/{project-owner}/{project-name}"]
+image:https://img.shields.io/github/workflow/status/{project-owner}/{project-name}/EarlyAccess?logo=github["Build Status", link="https://github.com/{project-owner}/{project-name}/actions"]
 image:https://img.shields.io/maven-central/v/{project-group}/{project-name}.svg[Download, link="https://search.maven.org/#search|ga|1|{project-name}"]
-image:https://img.shields.io/github/downloads/{project-owner}/{project-name}/total[GitHub all releases]
+image:https://codecov.io/gh/{project-owner}/{project-name}/branch/master/graph/badge.svg["Coverage", link="https://codecov.io/gh/{project-owner}/{project-name}"]
 
 ---
 
