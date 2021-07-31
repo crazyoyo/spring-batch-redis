@@ -49,9 +49,12 @@ jobs:
       - name: Build
         run: |
           ./gradlew -Prelease=true build -S
+        env:
+          GITHUB_USERNAME: jruaux
 
       - name: Deploy
         env:
+          GITHUB_USERNAME: jruaux
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
           GPG_SECRET_KEY: ${{ secrets.GPG_SECRET_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}

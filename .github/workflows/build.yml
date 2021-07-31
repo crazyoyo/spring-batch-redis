@@ -37,6 +37,8 @@ jobs:
 
       - name: Build
         run: ./gradlew build -S
+        env:
+          GITHUB_USERNAME: jruaux
 
       - name: Show Reports
         uses: actions/upload-artifact@v1
