@@ -1,0 +1,17 @@
+bootJar {
+    enabled = false
+}
+
+jar {
+    enabled = true
+    archiveClassifier = ''
+}
+
+description = "Starter for using Spring Batch Redis with the Lettuce client"
+
+dependencies {
+    api project(':spring-batch-redis')
+    api 'org.springframework.boot:spring-boot-starter-batch'
+    api group: 'io.lettuce', name: 'lettuce-core', version: lettuceVersion
+    api 'org.apache.commons:commons-pool2'
+}

@@ -8,7 +8,7 @@ jar {
 }
 
 dependencies {
-    implementation project(':spring-batch-redis')
+    implementation project(':spring-boot-starter-batch-redis')
     implementation 'org.slf4j:slf4j-api'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

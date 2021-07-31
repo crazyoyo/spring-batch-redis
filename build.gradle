@@ -35,6 +35,16 @@ config {
 
 allprojects {
     repositories {
+        gradlePluginPortal()
+        mavenCentral()
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/redis-developer/registry")
+            credentials {
+                username = project.findProperty("github.username") ?: System.getenv("GITHUB_USERNAME")
+                password = project.findProperty("github.token") ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
         mavenLocal()
     }
 }
