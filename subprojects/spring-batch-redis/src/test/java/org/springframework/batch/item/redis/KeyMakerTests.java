@@ -8,7 +8,7 @@ import org.springframework.core.convert.converter.Converter;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TestKeyMaker {
+public class KeyMakerTests {
 
     @SuppressWarnings("unchecked")
     @Test

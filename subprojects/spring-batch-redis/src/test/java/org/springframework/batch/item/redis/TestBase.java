@@ -1,5 +1,7 @@
 package org.springframework.batch.item.redis;
 
+import com.redislabs.testcontainers.RedisClusterContainer;
+import com.redislabs.testcontainers.RedisContainer;
 import com.redislabs.testcontainers.RedisServer;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
@@ -12,12 +14,12 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.runner.RunWith;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.Job;
@@ -35,12 +37,18 @@ import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.separator.DefaultRecordSeparatorPolicy;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
+import org.springframework.batch.item.redis.support.DataStructure;
+import org.springframework.batch.item.redis.support.DataStructureValueReader;
 import org.springframework.batch.item.redis.support.FlushingStepBuilder;
+import org.springframework.batch.item.redis.support.KeyValue;
+import org.springframework.batch.item.redis.support.KeyValueItemReader;
+import org.springframework.batch.item.redis.support.LiveKeyValueItemReader;
 import org.springframework.batch.item.redis.support.PollableItemReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.Resource;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.BufferedReader;
@@ -51,11 +59,27 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
+@Testcontainers
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
 @SuppressWarnings({"unchecked", "unused", "BusyWait", "SingleStatementInBlock", "NullableProblems", "SameParameterValue"})
-public class AbstractSpringBatchRedisTests {
+public class TestBase {
+
+    @Container
+    protected static final RedisContainer REDIS = new RedisContainer().withKeyspaceNotifications();
+    @Container
+    private static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer().withKeyspaceNotifications();
+
+    static Stream<RedisServer> servers() {
+        return Stream.of(REDIS, REDIS_CLUSTER);
+    }
+
+    @BeforeAll
+    public static void setupRedisContainers() {
+        add(REDIS, REDIS_CLUSTER);
+    }
 
     protected static final Map<RedisServer, AbstractRedisClient> CLIENTS = new HashMap<>();
     protected static final Map<RedisServer, GenericObjectPool<? extends StatefulConnection<String, String>>> POOLS = new HashMap<>();
@@ -249,6 +273,50 @@ public class AbstractSpringBatchRedisTests {
             return DataGenerator.client(redisClusterClient(server));
         }
         return DataGenerator.client(redisClient(server));
+    }
+
+    protected LiveKeyValueItemReader<KeyValue<byte[]>> liveKeyDumpReader(RedisServer server) {
+        Duration idleTimeout = Duration.ofMillis(500);
+        if (server.isCluster()) {
+            return KeyDumpItemReader.client(redisClusterClient(server)).live().idleTimeout(idleTimeout).build();
+        }
+        return KeyDumpItemReader.client(redisClient(server)).live().idleTimeout(idleTimeout).build();
+    }
+
+    protected KeyValueItemReader<KeyValue<byte[]>> keyDumpReader(RedisServer server) {
+        if (server.isCluster()) {
+            return KeyDumpItemReader.client(redisClusterClient(server)).build();
+        }
+        return KeyDumpItemReader.client(redisClient(server)).build();
+    }
+
+
+    protected KeyDumpItemWriter keyDumpWriter(RedisServer redis) {
+        if (redis.isCluster()) {
+            return KeyDumpItemWriter.client(redisClusterClient(redis)).build();
+        }
+        return KeyDumpItemWriter.client(redisClient(redis)).build();
+    }
+
+    protected KeyValueItemReader<DataStructure> dataStructureReader(RedisServer server) {
+        if (server.isCluster()) {
+            return DataStructureItemReader.client(redisClusterClient(server)).build();
+        }
+        return DataStructureItemReader.client(redisClient(server)).build();
+    }
+
+    protected DataStructureValueReader dataStructureValueReader(RedisServer server) {
+        if (server.isCluster()) {
+            return DataStructureValueReader.client(redisClusterClient(server)).build();
+        }
+        return DataStructureValueReader.client(redisClient(server)).build();
+    }
+
+    protected DataStructureItemWriter<DataStructure> dataStructureWriter(RedisServer server) {
+        if (server.isCluster()) {
+            return DataStructureItemWriter.client(redisClusterClient(server)).build();
+        }
+        return DataStructureItemWriter.client(redisClient(server)).build();
     }
 
 }

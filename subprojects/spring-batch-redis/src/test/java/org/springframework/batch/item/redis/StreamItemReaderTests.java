@@ -1,43 +1,21 @@
 package org.springframework.batch.item.redis;
 
-import com.redislabs.testcontainers.RedisClusterContainer;
-import com.redislabs.testcontainers.RedisContainer;
 import com.redislabs.testcontainers.RedisServer;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XReadArgs;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.models.stream.PendingMessages;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.redis.support.DataStructure;
 import org.springframework.batch.item.support.ListItemWriter;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
-import java.util.stream.Stream;
 
-@Testcontainers
-public class StreamItemReaderTests extends AbstractSpringBatchRedisTests {
-
-    @Container
-    private static final RedisContainer REDIS = new RedisContainer();
-
-    @Container
-    private static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer();
-
-    @BeforeAll
-    public static void setup() {
-        add(REDIS, REDIS_CLUSTER);
-    }
-
-    static Stream<RedisServer> servers() {
-        return Stream.of(REDIS, REDIS_CLUSTER);
-    }
+public class StreamItemReaderTests extends TestBase {
 
     private void assertMessageBody(List<? extends StreamMessage<String, String>> items) {
         for (StreamMessage<String, String> message : items) {
@@ -69,7 +47,6 @@ public class StreamItemReaderTests extends AbstractSpringBatchRedisTests {
         List<? extends StreamMessage<String, String>> items = writer.getWrittenItems();
         assertMessageBody(items);
     }
-
 
     @ParameterizedTest
     @MethodSource("servers")

@@ -1,223 +1,46 @@
 plugins {
-    id 'java'
     id 'java-library'
-    id 'java-library-distribution'
-    id 'maven-publish'
-    id 'signing'
-    id 'jacoco'
-    id 'org.springframework.boot' version '2.5.2'
-    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
-    id 'io.github.gradle-nexus.publish-plugin' version '1.1.0'
-    id 'org.jreleaser' version '0.5.0'
-    id 'com.github.ben-manes.versions' version '0.39.0'
+    id 'groovy'
+    id 'org.kordamp.gradle.java-project'
 }
 
-group = 'com.redislabs'
-description = 'Spring Batch Redis'
-sourceCompatibility = '1.8'
-targetCompatibility = '1.8'
-
-java {
-    withJavadocJar()
-    withSourcesJar()
-}
-
-repositories {
-    mavenCentral()
-    mavenLocal()
-    maven {
-        name = "GitHubPackages"
-        url = uri("https://maven.pkg.github.com/redis-developer/registry")
-        credentials {
-            username = project.findProperty("github.username") ?: System.getenv("GITHUB_USERNAME")
-            password = project.findProperty("github.token") ?: System.getenv("GITHUB_TOKEN")
+config {
+    info {
+        name = 'Spring Batch Redis'
+        description = 'ItemReaders and ItemWriters for Redis'
+        inceptionYear = '2020'
+        tags = ['spring', 'batch', 'redis']
+        specification {
+            enabled = true
+        }
+        implementation {
+            enabled = true
         }
     }
-}
-
-bootJar {
-    enabled = false
-}
-
-jar {
-    enabled = true
-    archiveClassifier = ''
-}
-
-dependencies {
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-    compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
-    api 'io.lettuce:lettuce-core:6.1.3.RELEASE'
-    api 'org.apache.commons:commons-pool2'
-    api 'org.springframework.batch:spring-batch-core'
-    implementation 'org.slf4j:slf4j-api'
-    testImplementation 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
-    testImplementation 'io.micrometer:micrometer-core'
-    testImplementation('org.springframework.boot:spring-boot-starter-test') {
-        exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+    licensing {
+        enabled = false
+        licenses {
+            license {
+                id = 'Apache-2.0'
+            }
+        }
     }
-    testImplementation 'org.springframework.batch:spring-batch-test'
-    testImplementation 'org.hsqldb:hsqldb'
-    testImplementation 'com.redislabs:testcontainers-redis:1.1.6'
-    testImplementation 'org.testcontainers:junit-jupiter:1.15.3-REDISLABS'
-    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv'
-}
-
-test {
-    useJUnitPlatform()
-}
-
-ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            from(components.java)
-            versionMapping {
-                usage('java-api') {
-                    fromResolutionOf('runtimeClasspath')
-                }
-                usage('java-runtime') {
-                    fromResolutionResult()
+    docs {
+        javadoc {
+            options {
+                autoLinks {
+                    enabled = false
                 }
             }
-            pom {
-                name = 'Spring Batch Redis'
-                description = 'Spring Batch reader and writer implementations for Redis'
-                url = 'https://github.com/redis-developer/spring-batch-redis'
-                licenses {
-                    license {
-                        name = 'The Apache License, Version 2.0'
-                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                    }
-                }
-                developers {
-                    developer {
-                        id = 'jruaux'
-                        name = 'Julien Ruaux'
-                    }
-                }
-                scm {
-                    connection = 'scm:git:git://github.com/redis-developer/spring-batch-redis'
-                    developerConnection = 'scm:git:git@github.com:redis-developer/spring-batch-redis'
-                    url = 'https://github.com/redis-developer/spring-batch-redis'
-                }
+            aggregate {
+                enabled = false
             }
         }
     }
 }
 
-signing {
-    def signingKey = findProperty("signingKey")
-    def signingPassword = findProperty("signingPassword")
-    useInMemoryPgpKeys(signingKey, signingPassword)
-    sign publishing.publications.mavenJava
-}
-
-tasks.withType(Sign) {
-    onlyIf { isReleaseVersion }
-}
-
-def isNonStable = { String version ->
-    def nonStableKeyword = ['PREVIEW'].any { it -> version.toUpperCase().contains(it) }
-    def stableKeyword = ['RELEASE', 'FINAL', 'GA', 'JRE8'].any { it -> version.toUpperCase().contains(it) }
-    def regex = /^[0-9,.v-]+([.-]r)?$/
-    return nonStableKeyword || (!stableKeyword && !(version ==~ regex))
-}
-
-tasks.named("dependencyUpdates").configure {
-
-    rejectVersionIf {
-        isNonStable(it.candidate.version) && !isNonStable(it.currentVersion)
-    }
-
-}
-
-jacocoTestReport {
-    reports {
-        xml.enabled true
-        html.enabled false
-    }
-}
-
-check.dependsOn jacocoTestReport
-
-nexusPublishing {
+allprojects {
     repositories {
-        sonatype()
-    }
-}
-
-jreleaser {
-    project {
-        name = 'spring-batch-redis'
-        description = 'Spring Batch Redis'
-        longDescription = 'Spring Batch item readers and writers for Redis'
-        website = 'https://github.com/redis-developer/spring-batch-redis'
-        authors = ['Julien Ruaux']
-        tags = ['redis', 'spring', 'batch']
-        license = 'Apache-2.0'
-        copyright = '2021 Julien Ruaux'
-    }
-    release {
-        github {
-            username = 'jruaux'
-            owner = 'redis-developer'
-            overwrite = true
-            changelog {
-                enabled = true
-                formatted = 'ALWAYS'
-                change = '- {{commitShortHash}} {{commitTitle}}'
-                labeler {
-                    label = 'feature'
-                    title = 'Resolves #'
-                    body = 'Resolves #'
-                }
-                labeler {
-                    label = 'issue'
-                    title = 'Fixes #'
-                    body = 'Fixes #'
-                }
-                labeler {
-                    label = 'issue'
-                    title = 'Relates to #'
-                    body = 'Relates to #'
-                }
-                labeler {
-                    label = 'task'
-                    title = '[chore]'
-                }
-                labeler {
-                    label = 'dependencies'
-                    title = '[deps]'
-                }
-                category {
-                    title = '🚀 Features'
-                    labels = ['feature']
-                }
-                category {
-                    title = '✅ Issues'
-                    labels = ['issue']
-                }
-                category {
-                    title = '🧰 Tasks'
-                    labels = ['task']
-                }
-                category {
-                    title = '⚙️ Dependencies'
-                    labels = ['dependencies']
-                }
-                replacer {
-                    search = '\\[chore\\]\\s'
-                    replace = ''
-                }
-                replacer {
-                    search = '\\[deps\\]\\s'
-                    replace = ''
-                }
-            }
-        }
+        mavenLocal()
     }
 }
