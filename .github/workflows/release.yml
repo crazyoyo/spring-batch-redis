@@ -37,9 +37,9 @@ jobs:
       - name: Set release version
         run: |
           VERSION=${{ github.event.inputs.version }}
-          sed -i -e "s/^version\=.*/version=$VERSION/g" gradle.properties
+          echo $VERSION > VERSION
           sed -i -e "s/^\:project-version\:\ .*/:project-version: $VERSION/g" README.adoc
-          git add gradle.properties
+          git add VERSION
           git add README.adoc
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --global user.name "GitHub Action"

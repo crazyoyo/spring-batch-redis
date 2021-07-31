@@ -54,3 +54,7 @@ release:
           replace: ''
         - search: '\[deps\] '
           replace: ''
+
+files:
+  artifacts:
+    - path: VERSION

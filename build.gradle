@@ -1,16 +1,30 @@
 config {
     info {
-        name = 'Spring Batch Redis'
         description = 'ItemReaders and ItemWriters for Redis'
         inceptionYear = '2020'
         tags = ['spring', 'batch', 'redis']
+
+        links {
+            website      = "https://github.com/redis-developer/${project.rootProject.name}"
+            issueTracker = "https://github.com/redis-developer/${project.rootProject.name}/issues"
+            scm          = "https://github.com/redis-developer/${project.rootProject.name}.git"
+        }
+
+        scm {
+            url                 = "https://github.com/redis-developer/${project.rootProject.name}"
+            connection          = "scm:git:https://github.com/redis-developer/${project.rootProject.name}.git"
+            developerConnection = "scm:git:git@github.com:jreleaser/${project.rootProject.name}.git"
+        }
+
         specification {
             enabled = true
         }
+        
         implementation {
             enabled = true
         }
     }
+
     licensing {
         enabled = false
         licenses {
@@ -19,6 +33,7 @@ config {
             }
         }
     }
+
     docs {
         javadoc {
             options {
@@ -46,5 +61,20 @@ allprojects {
             }
         }
         mavenLocal()
+    }
+
+    tasks.withType(GenerateModuleMetadata) {
+        enabled = false
+    }
+}
+
+subprojects {
+    config {
+        info {
+            description = project.project_description
+        }
+    }
+    test {
+        useJUnitPlatform()
     }
 }
