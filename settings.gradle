@@ -14,7 +14,7 @@ buildscript {
 
 apply plugin: 'org.kordamp.gradle.kordamp-parentbuild'
 
-rootProject.name = 'spring-batch-redis-parent'
+rootProject.name = 'spring-batch-redis'
 
 projects {
     directories = ['subprojects']
