@@ -38,6 +38,7 @@ jobs:
         run: ./gradlew -Prelease=true build -S
         env:
           GITHUB_USERNAME: jruaux
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Version
         id: vars
