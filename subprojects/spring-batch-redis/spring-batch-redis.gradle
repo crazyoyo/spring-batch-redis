@@ -1,9 +1,3 @@
-plugins {
-    id 'java-library'
-    id 'org.springframework.boot'
-    id 'io.spring.dependency-management'
-}
-
 bootJar {
     enabled = false
 }
@@ -21,19 +15,4 @@ dependencies {
     api 'org.apache.commons:commons-pool2'
     api 'org.springframework.batch:spring-batch-core'
     implementation 'org.slf4j:slf4j-api'
-    testImplementation 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
-    testImplementation 'io.micrometer:micrometer-core'
-    testImplementation('org.springframework.boot:spring-boot-starter-test') {
-        exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
-    }
-    testImplementation 'org.springframework.batch:spring-batch-test'
-    testImplementation 'org.hsqldb:hsqldb'
-    testImplementation 'com.redislabs:testcontainers-redis:1.1.6'
-    testImplementation 'org.testcontainers:junit-jupiter:1.15.3-REDISLABS'
-    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv'
-}
-
-test {
-    useJUnitPlatform()
 }

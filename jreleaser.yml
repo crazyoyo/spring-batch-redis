@@ -1,18 +1,25 @@
 project:
   name: spring-batch-redis
   description: 'Spring Batch Redis'
-  longDescription: |
-    ItemReader and ItemWriter implementations for Redis.
+  longDescription: ItemReader and ItemWriter implementations for Redis.
   website: https://github.com/redis-developer/spring-batch-redis
   authors:
     - Julien Ruaux
   license: Apache-2.0
+  java:
+    groupId: com.redislabs
+    version: 8
+    multiProject: true
+  extraProperties:
+    inceptionYear: 2020
 
 release:
   github:
+    branch: master
     username: jruaux
     overwrite: true
     changelog:
+      sort: DESC
       formatted: ALWAYS
       change: '- {{commitShortHash}} {{commitTitle}}'
       labelers:

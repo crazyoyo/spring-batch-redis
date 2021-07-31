@@ -1,9 +1,3 @@
-plugins {
-    id 'java-library'
-    id 'groovy'
-    id 'org.kordamp.gradle.java-project'
-}
-
 config {
     info {
         name = 'Spring Batch Redis'
