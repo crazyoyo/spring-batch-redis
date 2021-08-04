@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("unchecked")
 @Slf4j
-public class ReplicationTests extends TestBase {
+public class ReplicationTests extends RedisTestBase {
 
     @Container
     private static final RedisContainer REDIS_REPLICA = new RedisContainer();
@@ -50,27 +50,27 @@ public class ReplicationTests extends TestBase {
 
     @ParameterizedTest
     @MethodSource("servers")
-    public void testDataStructureReplication(RedisServer server) throws Throwable {
-        dataGenerator(server).end(10000).build().call();
-        KeyValueItemReader<DataStructure> reader = dataStructureReader(server);
+    public void testDataStructureReplication(RedisServer redis) throws Exception {
+        dataGenerator(redis).end(10000).build().call();
+        KeyValueItemReader<DataStructure> reader = dataStructureReader(redis);
         DataStructureItemWriter<DataStructure> writer = dataStructureWriter(REDIS_REPLICA);
-        execute(server, "ds-replication", reader, writer);
-        compare(server, "ds-replication");
+        execute(name(redis, "ds-replication"), reader, writer);
+        compare(redis, "ds-replication");
     }
 
     @ParameterizedTest
     @MethodSource("servers")
-    public void testReplication(RedisServer redisServer) throws Throwable {
+    public void testReplication(RedisServer redisServer) throws Exception {
         dataGenerator(redisServer).end(10000).build().call();
         KeyValueItemReader<KeyValue<byte[]>> reader = keyDumpReader(redisServer);
         OperationItemWriter<String, String, KeyValue<byte[]>> writer = keyDumpWriter(REDIS_REPLICA);
-        execute(redisServer, "replication", reader, writer);
+        execute(name(redisServer, "replication"), reader, writer);
         compare(redisServer, "replication");
     }
 
     @ParameterizedTest
     @MethodSource("servers")
-    public void testLiveReplication(RedisServer redisServer) throws Throwable {
+    public void testLiveReplication(RedisServer redisServer) throws Exception {
         dataGenerator(redisServer).end(10000).build().call();
         KeyValueItemReader<KeyValue<byte[]>> reader = keyDumpReader(redisServer);
         reader.setName("reader");
@@ -92,7 +92,7 @@ public class ReplicationTests extends TestBase {
         compare(redisServer, "live-replication");
     }
 
-    private void compare(RedisServer server, String name) throws Throwable {
+    private void compare(RedisServer server, String name) throws Exception {
         RedisServerCommands<String, String> sourceSync = sync(server);
         RedisServerCommands<String, String> targetSync = sync(REDIS_REPLICA);
         Assertions.assertEquals(sourceSync.dbsize(), targetSync.dbsize());
@@ -100,14 +100,14 @@ public class ReplicationTests extends TestBase {
         DataStructureValueReader right = dataStructureValueReader(REDIS_REPLICA);
         KeyComparisonResultCounter counter = new KeyComparisonResultCounter();
         KeyComparisonItemWriter writer = KeyComparisonItemWriter.valueReader(right).resultHandler(counter).ttlTolerance(Duration.ofMillis(500)).build();
-        execute(server, name + "-compare", left, writer);
+        execute(name(server, name + "-compare"), left, writer);
         Assertions.assertEquals(sourceSync.dbsize(), counter.get(KeyComparisonItemWriter.Result.OK));
         Assertions.assertTrue(counter.isOK());
     }
 
     @ParameterizedTest
     @MethodSource("servers")
-    public void testComparisonWriter(RedisServer server) throws Throwable {
+    public void testComparisonWriter(RedisServer server) throws Exception {
         BaseRedisAsyncCommands<String, String> source = async(server);
         source.setAutoFlushCommands(false);
         BaseRedisAsyncCommands<String, String> target = async(REDIS_REPLICA);
@@ -130,13 +130,13 @@ public class ReplicationTests extends TestBase {
         DataStructureValueReader right = dataStructureValueReader(REDIS_REPLICA);
         KeyComparisonResultCounter counter = new KeyComparisonResultCounter();
         KeyComparisonItemWriter writer = KeyComparisonItemWriter.valueReader(right).resultHandler(counter).ttlTolerance(Duration.ofMillis(500)).build();
-        execute(server, "test-comparison-writer-compare", left, writer);
+        execute(name(server, "test-comparison-writer-compare"), left, writer);
         Assertions.assertFalse(counter.isOK());
     }
 
     @ParameterizedTest
     @MethodSource("servers")
-    public void testScanSizeEstimator(RedisServer server) throws Throwable {
+    public void testScanSizeEstimator(RedisServer server) throws Exception {
         dataGenerator(server).end(12345).dataTypes(DataStructure.HASH).build().call();
         ScanSizeEstimator estimator = sizeEstimator(server);
         long matchSize = estimator.estimate(ScanSizeEstimator.EstimateOptions.builder().sampleSize(100).match("hash:*").build());

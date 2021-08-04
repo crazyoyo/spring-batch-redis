@@ -15,7 +15,7 @@ import org.springframework.batch.item.support.ListItemWriter;
 
 import java.util.List;
 
-public class StreamItemReaderTests extends TestBase {
+public class StreamItemReaderTests extends RedisTestBase {
 
     private void assertMessageBody(List<? extends StreamMessage<String, String>> items) {
         for (StreamMessage<String, String> message : items) {
@@ -26,7 +26,7 @@ public class StreamItemReaderTests extends TestBase {
 
     @ParameterizedTest
     @MethodSource("servers")
-    void testStreamReader(RedisServer server) throws Throwable {
+    void testStreamReader(RedisServer server) throws Exception {
         dataGenerator(server).dataTypes(DataStructure.STREAM).end(100).build().call();
         StreamItemReader reader = streamReader(server, XReadArgs.StreamOffset.from("stream:0", "0-0")).build();
         reader.open(new ExecutionContext());
@@ -37,11 +37,11 @@ public class StreamItemReaderTests extends TestBase {
 
     @ParameterizedTest
     @MethodSource("servers")
-    void testStreamReaderJob(RedisServer server) throws Throwable {
-        dataGenerator(server).dataTypes(DataStructure.STREAM).end(100).build().call();
-        StreamItemReader reader = streamReader(server, XReadArgs.StreamOffset.from("stream:0", "0-0")).build();
+    void testStreamReaderJob(RedisServer redis) throws Exception {
+        dataGenerator(redis).dataTypes(DataStructure.STREAM).end(100).build().call();
+        StreamItemReader reader = streamReader(redis, XReadArgs.StreamOffset.from("stream:0", "0-0")).build();
         ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
-        JobExecution execution = executeFlushing(server, "stream-reader", reader, writer);
+        JobExecution execution = executeFlushing(name(redis, "stream-reader"), reader, writer);
         awaitJobTermination(execution);
         Assertions.assertEquals(10, writer.getWrittenItems().size());
         List<? extends StreamMessage<String, String>> items = writer.getWrittenItems();
@@ -50,22 +50,22 @@ public class StreamItemReaderTests extends TestBase {
 
     @ParameterizedTest
     @MethodSource("servers")
-    void testMultipleStreamReaders(RedisServer server) throws Throwable {
+    void testMultipleStreamReaders(RedisServer redis) throws Exception {
         String stream = "stream:0";
         String consumerGroup = "consumerGroup";
-        dataGenerator(server).dataTypes(DataStructure.STREAM).end(100).build().call();
-        StreamItemReader reader1 = streamReader(server, XReadArgs.StreamOffset.from(stream, "0-0")).consumerGroup(consumerGroup).consumer("consumer1").ackPolicy(StreamItemReader.AckPolicy.MANUAL).build();
-        StreamItemReader reader2 = streamReader(server, XReadArgs.StreamOffset.from(stream, "0-0")).consumerGroup(consumerGroup).consumer("consumer2").ackPolicy(StreamItemReader.AckPolicy.MANUAL).build();
+        dataGenerator(redis).dataTypes(DataStructure.STREAM).end(100).build().call();
+        StreamItemReader reader1 = streamReader(redis, XReadArgs.StreamOffset.from(stream, "0-0")).consumerGroup(consumerGroup).consumer("consumer1").ackPolicy(StreamItemReader.AckPolicy.MANUAL).build();
+        StreamItemReader reader2 = streamReader(redis, XReadArgs.StreamOffset.from(stream, "0-0")).consumerGroup(consumerGroup).consumer("consumer2").ackPolicy(StreamItemReader.AckPolicy.MANUAL).build();
         ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
-        JobExecution execution1 = executeFlushing(server, "stream-reader-1", reader1, writer1);
+        JobExecution execution1 = executeFlushing(name(redis, "stream-reader-1"), reader1, writer1);
         ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
-        JobExecution execution2 = executeFlushing(server, "stream-reader-2", reader2, writer2);
+        JobExecution execution2 = executeFlushing(name(redis, "stream-reader-2"), reader2, writer2);
         awaitJobTermination(execution1);
         awaitJobTermination(execution2);
         Assertions.assertEquals(10, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
         assertMessageBody(writer1.getWrittenItems());
         assertMessageBody(writer2.getWrittenItems());
-        RedisStreamCommands<String, String> sync = sync(server);
+        RedisStreamCommands<String, String> sync = sync(redis);
         PendingMessages pendingMessages = sync.xpending(stream, consumerGroup);
         Assertions.assertEquals(10, pendingMessages.getCount());
         reader1.open(new ExecutionContext());
