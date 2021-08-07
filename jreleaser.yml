@@ -1,6 +1,6 @@
 project:
   name: spring-batch-redis
-  description: 'Spring Batch Redis'
+  description: Spring Batch Redis
   longDescription: ItemReader and ItemWriter implementations for Redis.
   website: https://github.com/redis-developer/spring-batch-redis
   authors:
