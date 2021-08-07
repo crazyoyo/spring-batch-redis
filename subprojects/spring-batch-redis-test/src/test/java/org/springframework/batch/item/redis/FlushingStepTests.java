@@ -13,7 +13,6 @@ import org.springframework.batch.item.support.AbstractItemCountingItemStreamItem
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
-import org.springframework.retry.policy.NeverRetryPolicy;
 import org.springframework.util.ClassUtils;
 
 import java.time.Duration;
@@ -25,64 +24,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class FlushingStepTests extends TestBase {
-
-    static class DelegatingPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T> implements PollableItemReader<T> {
-
-        private final ItemReader<T> delegate;
-        private final Supplier<Exception> exceptionSupplier;
-        private final long interval;
-
-        public DelegatingPollableItemReader(ItemReader<T> delegate, Supplier<Exception> exceptionSupplier, long interval) {
-            setName(ClassUtils.getShortName(DelegatingPollableItemReader.class));
-            this.delegate = delegate;
-            this.exceptionSupplier = exceptionSupplier;
-            this.interval = interval;
-        }
-
-        @Override
-        public T poll(long timeout, TimeUnit unit) throws Exception {
-            return read();
-        }
-
-        @Override
-        protected T doRead() throws Exception {
-            T result = delegate.read();
-            if (getCurrentItemCount() % interval == 0) {
-                throw exceptionSupplier.get();
-            }
-            return result;
-        }
-
-        @Override
-        protected void doOpen() {
-        }
-
-        @Override
-        protected void doClose() {
-        }
-
-    }
-
-    class ThrowingItemWriter<T> extends AbstractItemStreamItemWriter<T> {
-
-        private final Supplier<Exception> exceptionSupplier;
-        private final long interval;
-        private final AtomicLong index = new AtomicLong();
-
-        public ThrowingItemWriter(Supplier<Exception> exceptionSupplier, long interval) {
-            this.exceptionSupplier = exceptionSupplier;
-            this.interval = interval;
-        }
-
-        @Override
-        public void write(List<? extends T> items) throws Exception {
-            if (index.getAndIncrement() % interval == 0) {
-                throw exceptionSupplier.get();
-            }
-        }
-
-    }
+public class FlushingStepTests extends AbstractTestBase {
 
     @Test
     public void testReaderSkipPolicy() throws Exception {

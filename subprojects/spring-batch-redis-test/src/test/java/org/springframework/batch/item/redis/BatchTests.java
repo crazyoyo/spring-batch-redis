@@ -34,10 +34,12 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.redis.support.AbstractKeyspaceNotificationItemReader;
 import org.springframework.batch.item.redis.support.DataStructure;
+import org.springframework.batch.item.redis.support.DataStructureValueReader;
 import org.springframework.batch.item.redis.support.KeyMaker;
 import org.springframework.batch.item.redis.support.KeyValue;
 import org.springframework.batch.item.redis.support.KeyValueItemReader;
@@ -65,10 +67,13 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Slf4j
 @SuppressWarnings("unchecked")
-public class BatchTests extends RedisTestBase {
+public class BatchTests extends AbstractRedisTestBase {
 
     @ParameterizedTest
     @MethodSource("servers")
@@ -376,6 +381,19 @@ public class BatchTests extends RedisTestBase {
         awaitJobTermination(execution);
         RedisServerCommands<String, String> sync = sync(redis);
         Assertions.assertEquals(sync.dbsize(), writer.getWrittenItems().size());
+    }
+
+    @ParameterizedTest
+    @MethodSource("servers")
+    public void testKeyValueItemReaderFaultTolerance(RedisServer redis) throws Exception {
+        dataGenerator(redis).end(1000).dataTypes(DataStructure.STRING).build().call();
+        List<String> keys = IntStream.range(0, 100).boxed().map(DataGenerator::stringKey).collect(Collectors.toList());
+        DelegatingPollableItemReader<String> keyReader = DelegatingPollableItemReader.<String>builder().delegate(new ListItemReader<>(keys)).exceptionSupplier(TimeoutException::new).interval(2).build();
+        DataStructureValueReader valueReader = dataStructureValueReader(redis);
+        KeyValueItemReader<DataStructure> reader = new KeyValueItemReader<>(keyReader, valueReader, 1, 1, 1000, Duration.ofMillis(100));
+        ListItemWriter<DataStructure> writer = new ListItemWriter<>();
+        execute(name(redis, "reader-ft"), reader, writer);
+        Assertions.assertEquals(50, writer.getWrittenItems().size());
     }
 
 }

@@ -1,7 +1,7 @@
 package org.springframework.batch.item.redis.support;
 
+import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.util.Assert;
 
@@ -29,10 +29,8 @@ public class LiveKeyValueItemReader<T extends KeyValue<?>> extends KeyValueItemR
     }
 
     @Override
-    protected SimpleStepBuilder<String, String> simpleStepBuilder(StepBuilder stepBuilder) {
-        SimpleStepBuilder<String, String> simpleStepBuilder = super.simpleStepBuilder(stepBuilder);
-        return new FlushingStepBuilder<>(simpleStepBuilder).flushingInterval(flushingInterval).idleTimeout(idleTimeout);
+    protected FaultTolerantStepBuilder<String, String> faultTolerantStepBuilder(SimpleStepBuilder<String, String> stepBuilder) {
+        return new FlushingStepBuilder<>(stepBuilder).flushingInterval(flushingInterval).idleTimeout(idleTimeout);
     }
-
 
 }

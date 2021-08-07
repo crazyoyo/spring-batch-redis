@@ -34,7 +34,7 @@ import java.util.stream.Stream;
 
 @Testcontainers
 @SuppressWarnings({"unchecked", "unused", "BusyWait", "SingleStatementInBlock", "SameParameterValue"})
-public class RedisTestBase extends TestBase {
+public abstract class AbstractRedisTestBase extends AbstractTestBase {
 
     @Container
     protected static final RedisContainer REDIS = new RedisContainer().withKeyspaceNotifications();

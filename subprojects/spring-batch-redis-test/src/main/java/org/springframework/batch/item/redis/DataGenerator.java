@@ -91,28 +91,27 @@ public class DataGenerator implements Callable<Long> {
             long count = 0;
             for (int index = start; index < end; index++) {
                 if (contains(DataStructure.STRING)) {
-                    String stringKey = "string:" + index;
-                    futures.add(((RedisStringAsyncCommands<String, String>) commands).set(stringKey, "value:" + index));
+                    String stringKey = stringKey(index);
+                    futures.add(((RedisStringAsyncCommands<String, String>) commands).set(stringKey, stringValue(index)));
                     if (!maxExpire.isZero()) {
                         long time = System.currentTimeMillis() + minExpire.toMillis() + random.nextInt(Math.toIntExact(maxExpire.toMillis()));
                         futures.add(((RedisKeyAsyncCommands<String, String>) commands).pexpireat(stringKey, time));
                     }
                 }
-                int collectionIndex = index % 10;
                 if (contains(DataStructure.HASH)) {
-                    futures.add(((RedisHashAsyncCommands<String, String>) commands).hset("hash:" + index, hash(index)));
+                    futures.add(((RedisHashAsyncCommands<String, String>) commands).hset(hashKey(index), hash(index)));
                 }
                 if (contains(DataStructure.SET)) {
-                    futures.add(((RedisSetAsyncCommands<String, String>) commands).sadd("set:" + collectionIndex, member(index)));
+                    futures.add(((RedisSetAsyncCommands<String, String>) commands).sadd(setKey(index), member(index)));
                 }
                 if (contains(DataStructure.ZSET)) {
-                    futures.add(((RedisSortedSetAsyncCommands<String, String>) commands).zadd("zset:" + collectionIndex, index % 3, member(index)));
+                    futures.add(((RedisSortedSetAsyncCommands<String, String>) commands).zadd(zsetKey(index), index % 3, member(index)));
                 }
                 if (contains(DataStructure.STREAM)) {
-                    futures.add(((RedisStreamAsyncCommands<String, String>) commands).xadd("stream:" + collectionIndex, hash(index)));
+                    futures.add(((RedisStreamAsyncCommands<String, String>) commands).xadd(streamKey(index), hash(index)));
                 }
                 if (contains(DataStructure.LIST)) {
-                    futures.add(((RedisListAsyncCommands<String, String>) commands).lpush("list:" + collectionIndex, member(index)));
+                    futures.add(((RedisListAsyncCommands<String, String>) commands).lpush(listKey(index), member(index)));
                 }
                 if (futures.size() >= batchSize) {
                     count += flush();
@@ -145,6 +144,38 @@ public class DataGenerator implements Callable<Long> {
                 futures.clear();
             }
         }
+    }
+
+    public static String listKey(int index) {
+        return "list:" + collectionIndex(index);
+    }
+
+    public static String streamKey(int index) {
+        return "stream:" + collectionIndex(index);
+    }
+
+    public static String zsetKey(int index) {
+        return"zset:" + collectionIndex(index);
+    }
+
+    public static String setKey(int index) {
+        return "set:" + collectionIndex(index);
+    }
+
+    public static int collectionIndex(int index) {
+        return index % 10;
+    }
+
+    private String hashKey(int index) {
+        return "hash:" + index;
+    }
+
+    public static String stringValue(int index) {
+        return "value:" + index;
+    }
+
+    public static String stringKey(int index) {
+        return "string:" + index;
     }
 
     private boolean contains(String type) {

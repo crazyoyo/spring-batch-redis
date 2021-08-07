@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("unchecked")
 @Slf4j
-public class ReplicationTests extends RedisTestBase {
+public class ReplicationTests extends AbstractRedisTestBase {
 
     @Container
     private static final RedisContainer REDIS_REPLICA = new RedisContainer();

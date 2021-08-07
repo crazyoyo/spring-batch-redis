@@ -2,14 +2,16 @@ package org.springframework.batch.item.redis.support;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.RedisException;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -90,16 +93,17 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         } catch (Exception e) {
             throw new ItemStreamException("Failed to initialize the reader", e);
         }
-        StepBuilder stepBuilder = factory.getStepBuilderFactory().get(name + "-step");
-        SimpleStepBuilder<String, String> simpleStepBuilder = simpleStepBuilder(stepBuilder);
-        simpleStepBuilder.reader(keyReader);
-        simpleStepBuilder.writer(writer);
-        ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-        taskExecutor.setMaxPoolSize(threads);
-        taskExecutor.setCorePoolSize(threads);
-        taskExecutor.afterPropertiesSet();
-        TaskletStep step = simpleStepBuilder.taskExecutor(taskExecutor).throttleLimit(threads).build();
-        Job job = factory.getJobBuilderFactory().get(name + "-job").start(step).build();
+        FaultTolerantStepBuilder<String, String> stepBuilder = faultTolerantStepBuilder(factory.getStepBuilderFactory().get(name + "-step").chunk(chunkSize));
+        stepBuilder.skipPolicy(new AlwaysSkipItemSkipPolicy()).skip(RedisException.class).skip(TimeoutException.class);
+        stepBuilder.reader(keyReader).writer(writer);
+        if (threads > 1) {
+            ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+            taskExecutor.setMaxPoolSize(threads);
+            taskExecutor.setCorePoolSize(threads);
+            taskExecutor.afterPropertiesSet();
+            stepBuilder.taskExecutor(taskExecutor).throttleLimit(threads);
+        }
+        Job job = factory.getJobBuilderFactory().get(name + "-job").start(stepBuilder.build()).build();
         try {
             this.jobExecution = factory.getAsyncLauncher().run(job, new JobParameters());
         } catch (Exception e) {
@@ -116,8 +120,8 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         log.debug("Opened {}", name);
     }
 
-    protected SimpleStepBuilder<String, String> simpleStepBuilder(StepBuilder stepBuilder) {
-        return stepBuilder.chunk(chunkSize);
+    protected FaultTolerantStepBuilder<String, String> faultTolerantStepBuilder(SimpleStepBuilder<String, String> stepBuilder) {
+        return stepBuilder.faultTolerant();
     }
 
     @Override

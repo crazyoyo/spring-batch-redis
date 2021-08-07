@@ -15,7 +15,7 @@ import org.springframework.batch.item.support.ListItemWriter;
 
 import java.util.List;
 
-public class StreamItemReaderTests extends RedisTestBase {
+public class StreamItemReaderTests extends AbstractRedisTestBase {
 
     private void assertMessageBody(List<? extends StreamMessage<String, String>> items) {
         for (StreamMessage<String, String> message : items) {

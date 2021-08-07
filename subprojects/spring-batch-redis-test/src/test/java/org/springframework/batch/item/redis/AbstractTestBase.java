@@ -16,8 +16,10 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.DefaultBufferedReaderFactory;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.batch.item.file.mapping.FieldSetMapper;
 import org.springframework.batch.item.file.separator.DefaultRecordSeparatorPolicy;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
+import org.springframework.batch.item.file.transform.FieldSet;
 import org.springframework.batch.item.redis.support.FlushingStepBuilder;
 import org.springframework.batch.item.redis.support.PollableItemReader;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,13 +32,14 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
 @SuppressWarnings({"unused", "BusyWait", "SingleStatementInBlock", "NullableProblems", "SameParameterValue"})
-public class TestBase {
+public abstract class AbstractTestBase {
 
     @Autowired
     protected JobLauncher jobLauncher;
@@ -80,6 +83,25 @@ public class TestBase {
 
     protected <I, O> FlushingStepBuilder<I, O> flushing(SimpleStepBuilder<I, O> step) {
         return new FlushingStepBuilder<>(step).idleTimeout(Duration.ofMillis(500));
+    }
+
+    private static class MapFieldSetMapper implements FieldSetMapper<Map<String, String>> {
+
+        @Override
+        public Map<String, String> mapFieldSet(FieldSet fieldSet) {
+            Map<String, String> fields = new HashMap<>();
+            String[] names = fieldSet.getNames();
+            for (int index = 0; index < names.length; index++) {
+                String name = names[index];
+                String value = fieldSet.readString(index);
+                if (value == null || value.length() == 0) {
+                    continue;
+                }
+                fields.put(name, value);
+            }
+            return fields;
+        }
+
     }
 
     protected FlatFileItemReader<Map<String, String>> fileReader(Resource resource) throws IOException {
