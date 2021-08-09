@@ -49,9 +49,6 @@ jobs:
       - name: Build
         run: |
           ./gradlew -Prelease=true build -S
-        env:
-          GITHUB_USERNAME: jruaux
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy
         env:
