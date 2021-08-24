@@ -15,7 +15,6 @@ project:
 
 release:
   github:
-    branch: master
     username: jruaux
     overwrite: true
     changelog:
