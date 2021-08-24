@@ -57,3 +57,9 @@ release:
 files:
   artifacts:
     - path: VERSION
+    - path: subprojects/spring-batch-redis/build/distributions/spring-batch-redis-{{projectVersion}}.zip
+      transform: spring-batch-redis-{{projectEffectiveVersion}}.zip
+    - path: subprojects/spring-batch-redis-test/build/distributions/spring-batch-redis-test-{{projectVersion}}.zip
+      transform: spring-batch-redis-test-{{projectEffectiveVersion}}.zip
+    - path: subprojects/spring-boot-starter-batch-redis/build/distributions/spring-boot-starter-batch-redis-{{projectVersion}}.zip
+      transform: spring-boot-starter-batch-redis-{{projectEffectiveVersion}}.zip
