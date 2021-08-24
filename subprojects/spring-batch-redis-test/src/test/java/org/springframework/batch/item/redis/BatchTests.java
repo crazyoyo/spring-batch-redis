@@ -1,6 +1,6 @@
 package org.springframework.batch.item.redis;
 
-import com.redislabs.testcontainers.RedisServer;
+import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisClient;

@@ -6,13 +6,14 @@ buildscript {
     }
     dependencies {
         classpath "org.kordamp.gradle:java-project-gradle-plugin:$kordampPluginVersion"
-        classpath "com.redislabs.gradle:redislabs-parentbuild:$redislabsBuildVersion"
+        classpath "com.redis.gradle:redis-parentbuild:$redisBuildVersion"
         classpath "org.springframework.boot:spring-boot-gradle-plugin:$bootPluginVersion"
         classpath "io.spring.gradle:dependency-management-plugin:$dependencyPluginVersion"
+        classpath "io.freefair.gradle:lombok-plugin:$lombokPluginVersion"
     }
 }
 
-apply plugin: 'com.redislabs.gradle.redislabs-parentbuild'
+apply plugin: 'com.redis.gradle.redis-parentbuild'
 
 rootProject.name = 'spring-batch-redis'
 
@@ -31,6 +32,7 @@ projects {
             id 'java-library-distribution'
             id 'org.springframework.boot'
             id 'io.spring.dependency-management'
+            id 'io.freefair.lombok'
         }
     }
 }

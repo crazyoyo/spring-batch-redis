@@ -1,7 +1,7 @@
 package org.springframework.batch.item.redis;
 
-import com.redislabs.testcontainers.RedisContainer;
-import com.redislabs.testcontainers.RedisServer;
+import com.redis.testcontainers.RedisContainer;
+import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;

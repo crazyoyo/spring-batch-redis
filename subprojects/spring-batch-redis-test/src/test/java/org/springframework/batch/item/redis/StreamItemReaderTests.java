@@ -1,6 +1,6 @@
 package org.springframework.batch.item.redis;
 
-import com.redislabs.testcontainers.RedisServer;
+import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XReadArgs;
 import io.lettuce.core.api.sync.RedisStreamCommands;

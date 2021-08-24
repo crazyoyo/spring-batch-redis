@@ -1,17 +1,6 @@
-bootJar {
-    enabled = false
-}
-
-jar {
-    enabled = true
-    archiveClassifier = ''
-}
-
 dependencies {
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
-    implementation group: 'io.lettuce', name: 'lettuce-core', version: lettuceVersion
+    implementation group: 'com.redislabs', name: 'lettucemod', version: lettucemodVersion
     implementation 'org.apache.commons:commons-pool2'
     implementation 'org.springframework.batch:spring-batch-core'
     implementation 'org.slf4j:slf4j-api'

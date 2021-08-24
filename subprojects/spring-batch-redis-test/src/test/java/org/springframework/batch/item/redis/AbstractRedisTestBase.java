@@ -1,8 +1,8 @@
 package org.springframework.batch.item.redis;
 
-import com.redislabs.testcontainers.RedisClusterContainer;
-import com.redislabs.testcontainers.RedisContainer;
-import com.redislabs.testcontainers.RedisServer;
+import com.redis.testcontainers.RedisClusterContainer;
+import com.redis.testcontainers.RedisContainer;
+import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulConnection;
@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 @Testcontainers
-@SuppressWarnings({"unchecked", "unused", "BusyWait", "SingleStatementInBlock", "SameParameterValue"})
+@SuppressWarnings({"unchecked", "unused", "SingleStatementInBlock", "SameParameterValue"})
 public abstract class AbstractRedisTestBase extends AbstractTestBase {
 
     @Container
