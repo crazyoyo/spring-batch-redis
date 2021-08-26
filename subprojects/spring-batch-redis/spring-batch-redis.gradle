@@ -1,6 +1,6 @@
 dependencies {
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
-    implementation group: 'com.redislabs', name: 'lettucemod', version: lettucemodVersion
+    implementation group: 'com.redis', name: 'lettucemod', version: lettucemodVersion
     implementation 'org.apache.commons:commons-pool2'
     implementation 'org.springframework.batch:spring-batch-core'
     implementation 'org.slf4j:slf4j-api'

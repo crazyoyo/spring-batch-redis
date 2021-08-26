@@ -2,7 +2,7 @@
 :linkattrs:
 :project-owner:   redis-developer
 :project-name:    spring-batch-redis
-:project-group:   com.redislabs
+:project-group:   com.redis
 :project-version: 2.16.0
 
 image:https://github.com/{project-owner}/{project-name}/actions/workflows/early-access.yml/badge.svg["Build Status", link="https://github.com/{project-owner}/{project-name}/actions/workflows/early-access.yml"]
