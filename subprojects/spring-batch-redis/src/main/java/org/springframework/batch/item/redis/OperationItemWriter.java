@@ -9,6 +9,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
@@ -24,9 +25,9 @@ import java.util.function.Supplier;
 
 public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, V, T> {
 
-    private final RedisOperation<K, V, T> operation;
+    private final RedisOperation<T> operation;
 
-    public OperationItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, RedisOperation<K, V, T> operation) {
+    public OperationItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, RedisOperation<T> operation) {
         super(connectionSupplier, poolConfig, async);
         Assert.notNull(operation, "A Redis operation is required");
         this.operation = operation;
@@ -49,7 +50,7 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
 
     public static class TransactionItemWriter<K, V, T> extends OperationItemWriter<K, V, T> {
 
-        public TransactionItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, RedisOperation<K, V, T> operation) {
+        public TransactionItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, RedisOperation<T> operation) {
             super(connectionSupplier, poolConfig, async, operation);
         }
 
@@ -68,44 +69,37 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
 
     }
 
-    public interface RedisOperation<K, V, T> {
+    public interface RedisOperation<T> {
 
-        RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item);
+        <K, V> RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item);
 
     }
 
-    public static <K, V, T> CodecOperationItemWriterBuilder<K, V, T> operation(RedisOperation<K, V, T> operation) {
-        return new CodecOperationItemWriterBuilder<>(operation);
-    }
-
-    public static class CodecOperationItemWriterBuilder<K, V, T> {
-
-        private final RedisOperation<K, V, T> operation;
-
-        public CodecOperationItemWriterBuilder(RedisOperation<K, V, T> operation) {
-            this.operation = operation;
-        }
-
-        public OperationItemWriterBuilder<K, V, T> codec(RedisCodec<K, V> codec) {
-            return new OperationItemWriterBuilder<>(operation, codec);
-        }
+    public static <K, V, T> OperationItemWriterBuilder<K, V, T> operation(RedisOperation<T> operation) {
+        return new OperationItemWriterBuilder<>(operation);
     }
 
     public static class OperationItemWriterBuilder<K, V, T> {
 
-        private final RedisOperation<K, V, T> operation;
-        private final RedisCodec<K, V> codec;
+        private final RedisOperation<T> operation;
 
-        public OperationItemWriterBuilder(RedisOperation<K, V, T> operation, RedisCodec<K, V> codec) {
+        public OperationItemWriterBuilder(RedisOperation<T> operation) {
             this.operation = operation;
-            this.codec = codec;
         }
 
-        public CommandOperationItemWriterBuilder<K, V, T> client(RedisClient client) {
+        public CommandOperationItemWriterBuilder<String, String, T> client(RedisClient client) {
+            return new CommandOperationItemWriterBuilder<>(client, StringCodec.UTF8, operation);
+        }
+
+        public CommandOperationItemWriterBuilder<String, String, T> client(RedisClusterClient client) {
+            return new CommandOperationItemWriterBuilder<>(client, StringCodec.UTF8, operation);
+        }
+
+        public CommandOperationItemWriterBuilder<K, V, T> client(RedisClient client, RedisCodec<K, V> codec) {
             return new CommandOperationItemWriterBuilder<>(client, codec, operation);
         }
 
-        public CommandOperationItemWriterBuilder<K, V, T> client(RedisClusterClient client) {
+        public CommandOperationItemWriterBuilder<K, V, T> client(RedisClusterClient client, RedisCodec<K, V> codec) {
             return new CommandOperationItemWriterBuilder<>(client, codec, operation);
         }
 
@@ -115,15 +109,15 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
     @Accessors(fluent = true)
     public static class CommandOperationItemWriterBuilder<K, V, T> extends CommandBuilder<K, V, CommandOperationItemWriterBuilder<K, V, T>> {
 
-        private final RedisOperation<K, V, T> operation;
+        private final RedisOperation<T> operation;
         private boolean transactional;
 
-        public CommandOperationItemWriterBuilder(RedisClient client, RedisCodec<K, V> codec, RedisOperation<K, V, T> operation) {
+        public CommandOperationItemWriterBuilder(RedisClient client, RedisCodec<K, V> codec, RedisOperation<T> operation) {
             super(client, codec);
             this.operation = operation;
         }
 
-        public CommandOperationItemWriterBuilder(RedisClusterClient client, RedisCodec<K, V> codec, RedisOperation<K, V, T> operation) {
+        public CommandOperationItemWriterBuilder(RedisClusterClient client, RedisCodec<K, V> codec, RedisOperation<T> operation) {
             super(client, codec);
             this.operation = operation;
         }

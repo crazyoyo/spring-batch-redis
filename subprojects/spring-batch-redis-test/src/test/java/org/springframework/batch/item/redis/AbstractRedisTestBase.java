@@ -24,6 +24,7 @@ import org.springframework.batch.item.redis.support.DataStructureValueReader;
 import org.springframework.batch.item.redis.support.KeyValue;
 import org.springframework.batch.item.redis.support.KeyValueItemReader;
 import org.springframework.batch.item.redis.support.LiveKeyValueItemReader;
+import org.springframework.batch.item.redis.test.DataGenerator;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 

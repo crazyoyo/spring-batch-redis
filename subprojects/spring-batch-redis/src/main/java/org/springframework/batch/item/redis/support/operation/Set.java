@@ -4,23 +4,28 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.util.Assert;
 
 import java.util.function.Predicate;
 
-public class Set<K, V, T> extends AbstractKeyOperation<K, V, T, V> {
+public class Set<T> extends AbstractKeyOperation<T> {
 
-    public Set(Converter<T, K> key, Converter<T, V> value) {
-        this(key, value, new NullValuePredicate<>(value));
+    private final Converter<T, Object> value;
+
+    public Set(Converter<T, Object> key, Converter<T, Object> value) {
+        this(key, new NullValuePredicate<>(value), value);
     }
 
-    public Set(Converter<T, K> key, Converter<T, V> value, Predicate<T> delete) {
-        super(key, value, delete);
+    public Set(Converter<T, Object> key, Predicate<T> delete, Converter<T, Object> value) {
+        super(key, delete);
+        Assert.notNull(value, "A value converter is required");
+        this.value = value;
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, V value) {
-        return ((RedisStringAsyncCommands<K, V>) commands).set(key, value);
+    protected <K, V> RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        return ((RedisStringAsyncCommands<K, V>) commands).set(key, (V) value.convert(item));
     }
 
 }

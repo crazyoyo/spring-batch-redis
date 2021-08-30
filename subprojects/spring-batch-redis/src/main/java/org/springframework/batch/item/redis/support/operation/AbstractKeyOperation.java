@@ -9,32 +9,34 @@ import org.springframework.util.Assert;
 
 import java.util.function.Predicate;
 
-public abstract class AbstractKeyOperation<K, V, S, T> implements OperationItemWriter.RedisOperation<K, V, S> {
+public abstract class AbstractKeyOperation<S> implements OperationItemWriter.RedisOperation<S> {
 
-    private final Converter<S, K> key;
-    private final Converter<S, T> value;
+    private final Converter<S, Object> key;
     private final Predicate<S> delete;
 
-    protected AbstractKeyOperation(Converter<S, K> key, Converter<S, T> value, Predicate<S> delete) {
+    protected AbstractKeyOperation(Converter<S, Object> key, Predicate<S> delete) {
         Assert.notNull(key, "A key converter is required");
-        Assert.notNull(value, "A value converter is required");
         Assert.notNull(delete, "A delete predicate is required");
         this.key = key;
-        this.value = value;
         this.delete = delete;
     }
 
-    @Override
     @SuppressWarnings("unchecked")
-    public RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, S item) {
-        K key = this.key.convert(item);
+    @Override
+    public <K, V> RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, S item) {
+        K key = (K) this.key.convert(item);
         if (delete.test(item)) {
-            return ((RedisKeyAsyncCommands<K, V>) commands).del(key);
+            return delete(commands, item, key);
         }
-        T value = this.value.convert(item);
-        return execute(commands, item, key, value);
+        return doExecute(commands, item, key);
     }
 
-    protected abstract RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, S item, K key, T value);
+    @SuppressWarnings({"unchecked", "unused"})
+    protected <K, V> RedisFuture<?> delete(BaseRedisAsyncCommands<K, V> commands, S item, K key) {
+        return ((RedisKeyAsyncCommands<K, V>) commands).del(key);
+    }
+
+    protected abstract <K, V> RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, S item, K key);
+
 
 }

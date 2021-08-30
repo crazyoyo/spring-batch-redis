@@ -9,21 +9,17 @@ import org.springframework.util.Assert;
 
 import java.util.function.Predicate;
 
-public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
+public class Geoadd<T> extends AbstractCollectionOperation<T> {
 
     private final Converter<T, Double> longitude;
     private final Converter<T, Double> latitude;
 
-    public Geoadd(K key, Converter<T, V> member, Converter<T, Double> longitude, Converter<T, Double> latitude) {
-        this(new ConstantConverter<>(key), member, longitude, latitude);
+    public Geoadd(Converter<T, Object> key, Converter<T, Object> member, Converter<T, Double> longitude, Converter<T, Double> latitude) {
+        this(key, t -> false, member, new NullValuePredicate<>(longitude), longitude, latitude);
     }
 
-    public Geoadd(Converter<T, K> key, Converter<T, V> member, Converter<T, Double> longitude, Converter<T, Double> latitude) {
-        this(key, member, new ConstantPredicate<>(false), new NullValuePredicate<>(longitude), longitude, latitude);
-    }
-
-    public Geoadd(Converter<T, K> key, Converter<T, V> member, Predicate<T> delete, Predicate<T> remove, Converter<T, Double> longitude, Converter<T, Double> latitude) {
-        super(key, member, delete, remove);
+    public Geoadd(Converter<T, Object> key, Predicate<T> delete, Converter<T, Object> member, Predicate<T> remove, Converter<T, Double> longitude, Converter<T, Double> latitude) {
+        super(key, delete, member, remove);
         Assert.notNull(longitude, "A longitude converter is required");
         Assert.notNull(latitude, "A latitude converter is required");
         this.longitude = longitude;
@@ -32,7 +28,7 @@ public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
+    protected <K, V> RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         Double lon = longitude.convert(item);
         if (lon == null) {
             return null;
@@ -46,7 +42,7 @@ public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, K key, V member) {
+    protected <K, V> RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, member);
     }
 

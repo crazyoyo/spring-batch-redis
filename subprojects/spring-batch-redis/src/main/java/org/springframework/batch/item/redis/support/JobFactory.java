@@ -22,6 +22,7 @@ public class JobFactory implements InitializingBean {
     @Getter
     private SimpleJobLauncher asyncLauncher;
 
+    @SuppressWarnings("ConstantConditions")
     @Override
     public void afterPropertiesSet() throws Exception {
         MapJobRepositoryFactoryBean jobRepositoryFactoryBean = new MapJobRepositoryFactoryBean();

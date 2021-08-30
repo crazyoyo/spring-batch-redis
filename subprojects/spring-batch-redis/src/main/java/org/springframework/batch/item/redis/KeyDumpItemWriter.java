@@ -16,11 +16,7 @@ import java.util.function.Supplier;
 public class KeyDumpItemWriter extends OperationItemWriter<String, String, KeyValue<byte[]>> {
 
     public KeyDumpItemWriter(Supplier<StatefulConnection<String, String>> statefulConnectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
-        super(statefulConnectionSupplier, poolConfig, async, restoreOperation());
-    }
-
-    private static RedisOperation<String, String, KeyValue<byte[]>> restoreOperation() {
-        return new Restore<>(KeyValue::getKey, KeyValue::getValue, KeyValue::getAbsoluteTTL);
+        super(statefulConnectionSupplier, poolConfig, async, new Restore<>(KeyValue::getKey, KeyValue::getValue, KeyValue::getAbsoluteTTL));
     }
 
     public static KeyDumpItemWriterBuilder client(RedisClient client) {

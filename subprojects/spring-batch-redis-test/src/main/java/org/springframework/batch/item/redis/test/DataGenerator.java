@@ -1,4 +1,4 @@
-package org.springframework.batch.item.redis;
+package org.springframework.batch.item.redis.test;
 
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisClient;

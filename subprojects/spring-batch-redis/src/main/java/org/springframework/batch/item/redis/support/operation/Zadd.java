@@ -8,27 +8,23 @@ import org.springframework.util.Assert;
 
 import java.util.function.Predicate;
 
-public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
+public class Zadd<T> extends AbstractCollectionOperation<T> {
 
     private final Converter<T, Double> score;
 
-    public Zadd(K key, Converter<T, V> member, Converter<T, Double> score) {
-        this(new ConstantConverter<>(key), member, score);
+    public Zadd(Converter<T, Object> key, Converter<T, Double> score, Converter<T, Object> member) {
+        this(key, new ConstantPredicate<>(false), member, new NullValuePredicate<>(score), score);
     }
 
-    public Zadd(Converter<T, K> key, Converter<T, V> member, Converter<T, Double> score) {
-        this(key, member, new ConstantPredicate<>(false), new NullValuePredicate<>(score), score);
-    }
-
-    public Zadd(Converter<T, K> key, Converter<T, V> member, Predicate<T> delete, Predicate<T> remove, Converter<T, Double> score) {
-        super(key, member, delete, remove);
+    public Zadd(Converter<T, Object> key, Predicate<T> delete, Converter<T, Object> member, Predicate<T> remove, Converter<T, Double> score) {
+        super(key, delete, member, remove);
         Assert.notNull(score, "A score converter is required");
         this.score = score;
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
+    protected <K, V> RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         Double scoreValue = score.convert(item);
         if (scoreValue == null) {
             return null;
@@ -38,7 +34,7 @@ public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, K key, V member) {
+    protected <K, V> RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, member);
     }
 }

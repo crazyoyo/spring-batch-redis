@@ -7,28 +7,25 @@ import org.springframework.core.convert.converter.Converter;
 
 import java.util.function.Predicate;
 
-public class Lpush<K,V,T> extends AbstractCollectionOperation<K,V,T> {
+public class Lpush<T> extends AbstractCollectionOperation<T> {
 
-    public Lpush(K key, Converter<T, V> member) {
-        this(new ConstantConverter<>(key), member);
+    public Lpush(Converter<T, Object> key, Converter<T, Object> member) {
+        this(key, new ConstantPredicate<>(false), member, new ConstantPredicate<>(false));
     }
 
-    public Lpush(Converter<T, K> key, Converter<T, V> member) {
-        this(key, member, new ConstantPredicate<>(false), new ConstantPredicate<>(false));
-    }
-
-    public Lpush(Converter<T, K> key, Converter<T, V> member, Predicate<T> delete, Predicate<T> remove) {
-        super(key, member, delete, remove);
+    public Lpush(Converter<T, Object> key, Predicate<T> delete, Converter<T, Object> member, Predicate<T> remove) {
+        super(key, delete, member, remove);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
+    protected <K, V> RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         return ((RedisListAsyncCommands<K, V>) commands).lpush(key, member);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, K key, V member) {
+    protected <K, V> RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         return ((RedisListAsyncCommands<K, V>) commands).lrem(key, 1, member);
     }
 }

@@ -51,7 +51,7 @@ public class KeyDumpValueReader extends AbstractValueReader<KeyValue<byte[]>> {
         return new KeyDumpValueReaderBuilder(client);
     }
 
-    public static class KeyDumpValueReaderBuilder extends CommandBuilder<String,String,KeyDumpValueReaderBuilder> {
+    public static class KeyDumpValueReaderBuilder extends CommandBuilder<String, String, KeyDumpValueReaderBuilder> {
 
         public KeyDumpValueReaderBuilder(RedisClusterClient client) {
             super(client, StringCodec.UTF8);

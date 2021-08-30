@@ -7,29 +7,25 @@ import org.springframework.core.convert.converter.Converter;
 
 import java.util.function.Predicate;
 
-public class Sadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
+public class Sadd<T> extends AbstractCollectionOperation<T> {
 
-    public Sadd(K key, Converter<T, V> member) {
-        this(new ConstantConverter<>(key), member);
+    public Sadd(Converter<T, Object> key, Converter<T, Object> member) {
+        this(key, t -> false, member, t -> false);
     }
 
-    public Sadd(Converter<T, K> key, Converter<T, V> member) {
-        this(key, member, new ConstantPredicate<>(false), new ConstantPredicate<>(false));
-    }
-
-    public Sadd(Converter<T, K> key, Converter<T, V> member, Predicate<T> delete, Predicate<T> remove) {
-        super(key, member, delete, remove);
+    public Sadd(Converter<T, Object> key, Predicate<T> delete, Converter<T, Object> member, Predicate<T> remove) {
+        super(key, delete, member, remove);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
+    protected <K, V> RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         return ((RedisSetAsyncCommands<K, V>) commands).sadd(key, member);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, K key, V member) {
+    protected <K, V> RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         return ((RedisSetAsyncCommands<K, V>) commands).srem(key, member);
     }
 

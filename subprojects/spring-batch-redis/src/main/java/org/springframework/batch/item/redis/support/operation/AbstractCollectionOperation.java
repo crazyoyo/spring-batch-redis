@@ -6,26 +6,28 @@ import org.springframework.core.convert.converter.Converter;
 
 import java.util.function.Predicate;
 
-public abstract class AbstractCollectionOperation<K, V, S> extends AbstractKeyOperation<K, V, S, V> {
+public abstract class AbstractCollectionOperation<T> extends AbstractKeyOperation<T> {
 
-    private final Predicate<S> remove;
+    private final Converter<T, Object> member;
+    private final Predicate<T> remove;
 
-    protected AbstractCollectionOperation(Converter<S, K> key, Converter<S, V> member, Predicate<S> delete, Predicate<S> remove) {
-        super(key, member, delete);
+    protected AbstractCollectionOperation(Converter<T, Object> key, Predicate<T> delete, Converter<T, Object> member, Predicate<T> remove) {
+        super(key, delete);
+        this.member = member;
         this.remove = remove;
     }
 
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, S item, K key, V member) {
+    protected <K, V> RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        V member = (V) this.member.convert(item);
         if (remove.test(item)) {
-            return remove(commands, key, member);
+            return remove(commands, item, key, member);
         }
         return add(commands, item, key, member);
     }
 
-    protected abstract RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, K key, V member);
+    protected abstract <K, V> RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member);
 
-    protected abstract RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, S item, K key, V member);
-
+    protected abstract <K, V> RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member);
 
 }
