@@ -1,4 +1,4 @@
-package org.springframework.batch.item.redis.support;
+package org.springframework.batch.item.redis.support.convert;
 
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;

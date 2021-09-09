@@ -226,7 +226,7 @@ public class DataGenerator implements Callable<Long> {
         }
 
         public DataGenerator build() {
-            return new DataGenerator(connectionSupplier, async, start, end, sleep, minExpire, maxExpire, batchSize, new HashSet<>(dataTypes));
+            return new DataGenerator(connectionSupplier(), async(), start, end, sleep, minExpire, maxExpire, batchSize, new HashSet<>(dataTypes));
         }
     }
 

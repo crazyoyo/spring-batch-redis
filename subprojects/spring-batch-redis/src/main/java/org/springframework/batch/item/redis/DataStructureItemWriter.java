@@ -107,7 +107,7 @@ public class DataStructureItemWriter<T> extends AbstractPipelineItemWriter<Strin
         }
 
         public DataStructureItemWriter<DataStructure> build() {
-            return new DataStructureItemWriter<>(connectionSupplier, poolConfig, async, DataStructure::getKey, DataStructure::getValue, DataStructure::getType, DataStructure::getAbsoluteTTL);
+            return new DataStructureItemWriter<>(connectionSupplier(), poolConfig, async(), DataStructure::getKey, DataStructure::getValue, DataStructure::getType, DataStructure::getAbsoluteTTL);
         }
 
     }

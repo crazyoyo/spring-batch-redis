@@ -8,15 +8,11 @@ import org.springframework.util.Assert;
 
 import java.util.function.Predicate;
 
-public class Expire<T> extends AbstractKeyOperation<T> {
+public class Expire<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
     private final Converter<T, Long> milliseconds;
 
-    public Expire(Converter<T, Object> key, Converter<T, Long> millis) {
-        this(key, new NonexistentKeyPredicate<>(millis), millis);
-    }
-
-    public Expire(Converter<T, Object> key, Predicate<T> delete, Converter<T, Long> millis) {
+    public Expire(Converter<T, K> key, Predicate<T> delete, Converter<T, Long> millis) {
         super(key, delete);
         Assert.notNull(millis, "A milliseconds converter is required");
         this.milliseconds = millis;
@@ -24,7 +20,7 @@ public class Expire<T> extends AbstractKeyOperation<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected <K, V> RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         Long millis = milliseconds.convert(item);
         if (millis == null) {
             return null;

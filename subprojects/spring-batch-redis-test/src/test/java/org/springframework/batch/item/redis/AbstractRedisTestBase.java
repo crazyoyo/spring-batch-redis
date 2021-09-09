@@ -112,12 +112,16 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
         CLIENTS.clear();
     }
 
+    protected static <T extends AbstractRedisClient> T client(RedisServer redis) {
+        return (T) CLIENTS.get(redis);
+    }
+
     protected static RedisClient redisClient(RedisServer redis) {
-        return (RedisClient) CLIENTS.get(redis);
+        return client(redis);
     }
 
     protected static RedisClusterClient redisClusterClient(RedisServer redis) {
-        return (RedisClusterClient) CLIENTS.get(redis);
+        return client(redis);
     }
 
     protected static <T> T sync(RedisServer server) {

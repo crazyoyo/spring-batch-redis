@@ -1,20 +1,20 @@
 package org.springframework.batch.item.redis.support.operation;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-import com.redis.lettucemod.search.SugaddOptions;
+import com.redis.lettucemod.api.search.SugaddOptions;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-public class Sugadd<T> extends AbstractKeyOperation<T> {
+public class Sugadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
     private final Converter<T, Double> score;
     private final Converter<T, String> payload;
     private final boolean increment;
     private final Converter<T, String> string;
 
-    public Sugadd(Converter<T, Object> key, Converter<T, String> string, Converter<T, Double> score, Converter<T, String> payload, boolean increment) {
+    public Sugadd(Converter<T, K> key, Converter<T, String> string, Converter<T, Double> score, Converter<T, String> payload, boolean increment) {
         super(key, t -> false);
         Assert.notNull(string, "A string converter is required");
         Assert.notNull(score, "A score converter is required");
@@ -26,7 +26,7 @@ public class Sugadd<T> extends AbstractKeyOperation<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected <K, V> RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         Double score = this.score.convert(item);
         if (score == null) {
             return null;

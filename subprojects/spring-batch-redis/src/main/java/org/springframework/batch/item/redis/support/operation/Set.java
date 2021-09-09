@@ -8,15 +8,11 @@ import org.springframework.util.Assert;
 
 import java.util.function.Predicate;
 
-public class Set<T> extends AbstractKeyOperation<T> {
+public class Set<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
-    private final Converter<T, Object> value;
+    private final Converter<T, V> value;
 
-    public Set(Converter<T, Object> key, Converter<T, Object> value) {
-        this(key, new NullValuePredicate<>(value), value);
-    }
-
-    public Set(Converter<T, Object> key, Predicate<T> delete, Converter<T, Object> value) {
+    public Set(Converter<T, K> key, Predicate<T> delete, Converter<T, V> value) {
         super(key, delete);
         Assert.notNull(value, "A value converter is required");
         this.value = value;
@@ -24,7 +20,7 @@ public class Set<T> extends AbstractKeyOperation<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected <K, V> RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         return ((RedisStringAsyncCommands<K, V>) commands).set(key, (V) value.convert(item));
     }
 

@@ -7,21 +7,21 @@ import org.springframework.core.convert.converter.Converter;
 
 import java.util.function.Predicate;
 
-public class Rpush<T> extends AbstractCollectionOperation<T> {
+public class Rpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
-    public Rpush(Converter<T, Object> key, Predicate<T> delete, Converter<T, Object> member, Predicate<T> remove) {
+    public Rpush(Converter<T, K> key, Predicate<T> delete, Converter<T, V> member, Predicate<T> remove) {
         super(key, delete, member, remove);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected <K, V> RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
+    protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         return ((RedisListAsyncCommands<K, V>) commands).rpush(key, member);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected <K, V> RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
+    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         return ((RedisListAsyncCommands<K, V>) commands).lrem(key, -1, member);
     }
 }

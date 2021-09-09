@@ -9,12 +9,12 @@ import org.springframework.util.Assert;
 import java.util.function.Predicate;
 
 @SuppressWarnings("unchecked")
-public class TsAdd<T> extends AbstractKeyOperation<T> {
+public class TsAdd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
     private final Converter<T, Long> timestamp;
     private final Converter<T, Double> value;
 
-    public TsAdd(Converter<T, Object> key, Predicate<T> delete, Converter<T, Long> timestamp, Converter<T, Double> value) {
+    public TsAdd(Converter<T, K> key, Predicate<T> delete, Converter<T, Long> timestamp, Converter<T, Double> value) {
         super(key, delete);
         Assert.notNull(timestamp, "A timestamp converter is required");
         Assert.notNull(value, "A value converter is required");
@@ -23,7 +23,7 @@ public class TsAdd<T> extends AbstractKeyOperation<T> {
     }
 
     @Override
-    protected <K, V> RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         Long timestamp = this.timestamp.convert(item);
         if (timestamp == null) {
             return null;

@@ -1,7 +1,6 @@
 dependencies {
     implementation project(':spring-boot-starter-batch-redis')
     implementation 'org.slf4j:slf4j-api'
-    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv'
     testImplementation 'io.micrometer:micrometer-core'
     testImplementation('org.springframework.boot:spring-boot-starter-test') {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'

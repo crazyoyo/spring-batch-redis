@@ -93,7 +93,7 @@ public class DataStructureValueReader extends AbstractValueReader<DataStructure>
         }
 
         public DataStructureValueReader build() {
-            return new DataStructureValueReader(connectionSupplier, poolConfig, async);
+            return new DataStructureValueReader(connectionSupplier(), poolConfig, async());
         }
     }
 

@@ -11,20 +11,12 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 @SuppressWarnings("unchecked")
-public class Xadd<T> extends AbstractKeyOperation<T> {
+public class Xadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
     private final Converter<T, XAddArgs> args;
-    private final Converter<T, Object> body;
+    private final Converter<T, Map<K, V>> body;
 
-    public Xadd(Converter<T, Object> key, Converter<T, Object> body) {
-        this(key, body, null);
-    }
-
-    public Xadd(Converter<T, Object> key, Converter<T, Object> body, XAddArgs args) {
-        this(key, t -> false, body, t -> args);
-    }
-
-    public Xadd(Converter<T, Object> key, Predicate<T> delete, Converter<T, Object> body, Converter<T, XAddArgs> args) {
+    public Xadd(Converter<T, K> key, Predicate<T> delete, Converter<T, Map<K, V>> body, Converter<T, XAddArgs> args) {
         super(key, delete);
         Assert.notNull(args, "A XAddArgs converter is required");
         this.body = body;
@@ -32,8 +24,8 @@ public class Xadd<T> extends AbstractKeyOperation<T> {
     }
 
     @Override
-    protected <K, V> RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.convert(item), (Map<K, V>) body.convert(item));
+    protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.convert(item), body.convert(item));
     }
 
 }

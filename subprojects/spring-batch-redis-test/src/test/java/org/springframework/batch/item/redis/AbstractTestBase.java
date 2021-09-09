@@ -11,6 +11,7 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.DefaultBufferedReaderFactory;
@@ -55,7 +56,11 @@ public abstract class AbstractTestBase {
     }
 
     protected <I, O> JobExecution execute(String name, ItemReader<? extends I> reader, ItemWriter<O> writer) throws Exception {
-        return execute(name, step(name, reader, writer).build());
+        return execute(name, reader, null, writer);
+    }
+
+    protected <I, O> JobExecution execute(String name, ItemReader<? extends I> reader, ItemProcessor<I, O> processor, ItemWriter<O> writer) throws Exception {
+        return execute(name, step(name, reader, processor, writer).build());
     }
 
     protected JobExecution execute(String name, TaskletStep step) throws Exception {
@@ -70,7 +75,11 @@ public abstract class AbstractTestBase {
     }
 
     protected <I, O> JobExecution executeFlushing(String name, PollableItemReader<? extends I> reader, ItemWriter<O> writer) throws Exception {
-        TaskletStep step = flushing(step(name, reader, writer)).build();
+        return executeFlushing(name, reader, null, writer);
+    }
+
+    protected <I, O> JobExecution executeFlushing(String name, PollableItemReader<? extends I> reader, ItemProcessor<I,O> processor, ItemWriter<O> writer) throws Exception {
+        TaskletStep step = flushing(step(name, reader,processor, writer)).build();
         JobExecution execution = asyncJobLauncher.run(job(name, step), new JobParameters());
         awaitRunning(execution);
         Thread.sleep(200);
@@ -78,7 +87,11 @@ public abstract class AbstractTestBase {
     }
 
     protected <I, O> SimpleStepBuilder<I, O> step(String name, ItemReader<? extends I> reader, ItemWriter<O> writer) {
-        return steps.get(name + "-step").<I, O>chunk(50).reader(reader).writer(writer);
+        return step(name, reader, null, writer);
+    }
+
+    protected <I, O> SimpleStepBuilder<I, O> step(String name, ItemReader<? extends I> reader, ItemProcessor<I,O> processor, ItemWriter<O> writer) {
+        return steps.get(name + "-step").<I, O>chunk(50).reader(reader).processor(processor).writer(writer);
     }
 
     protected <I, O> FlushingStepBuilder<I, O> flushing(SimpleStepBuilder<I, O> step) {

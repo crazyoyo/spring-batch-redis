@@ -10,6 +10,7 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 import lombok.Builder;
 import lombok.Data;
+import org.springframework.batch.item.redis.support.convert.GlobToRegexConverter;
 import org.springframework.util.Assert;
 
 import java.util.ArrayList;
@@ -102,7 +103,7 @@ public class ScanSizeEstimator {
         }
 
         public ScanSizeEstimator build() {
-            return new ScanSizeEstimator(connectionSupplier, async);
+            return new ScanSizeEstimator(connectionSupplier(), async());
         }
 
     }

@@ -4,27 +4,27 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import org.springframework.batch.item.redis.OperationItemWriter;
+import org.springframework.batch.item.redis.support.RedisOperation;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
 import java.util.function.Predicate;
 
-public abstract class AbstractKeyOperation<S> implements OperationItemWriter.RedisOperation<S> {
+public abstract class AbstractKeyOperation<K, V, T> implements RedisOperation<K, V, T> {
 
-    private final Converter<S, Object> key;
-    private final Predicate<S> delete;
+    private final Converter<T, K> key;
+    private final Predicate<T> delete;
 
-    protected AbstractKeyOperation(Converter<S, Object> key, Predicate<S> delete) {
+    protected AbstractKeyOperation(Converter<T, K> key, Predicate<T> delete) {
         Assert.notNull(key, "A key converter is required");
         Assert.notNull(delete, "A delete predicate is required");
         this.key = key;
         this.delete = delete;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public <K, V> RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, S item) {
-        K key = (K) this.key.convert(item);
+    public RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
+        K key = this.key.convert(item);
         if (delete.test(item)) {
             return delete(commands, item, key);
         }
@@ -32,11 +32,11 @@ public abstract class AbstractKeyOperation<S> implements OperationItemWriter.Red
     }
 
     @SuppressWarnings({"unchecked", "unused"})
-    protected <K, V> RedisFuture<?> delete(BaseRedisAsyncCommands<K, V> commands, S item, K key) {
+    protected RedisFuture<?> delete(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         return ((RedisKeyAsyncCommands<K, V>) commands).del(key);
     }
 
-    protected abstract <K, V> RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, S item, K key);
+    protected abstract RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key);
 
 
 }

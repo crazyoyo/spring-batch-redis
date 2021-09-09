@@ -1,5 +1,6 @@
 package org.springframework.batch.item.redis.support;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -16,30 +17,47 @@ import java.util.function.Supplier;
 
 public class CommandBuilder<K, V, B extends CommandBuilder<K, V, B>> {
 
+    private final AbstractRedisClient client;
+    private final RedisCodec<K, V> codec;
     protected GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig = new GenericObjectPoolConfig<>();
-    protected final Supplier<StatefulConnection<K, V>> connectionSupplier;
-    protected final Supplier<StatefulRedisPubSubConnection<K, V>> pubSubConnectionSupplier;
-    protected final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync;
-    protected final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
 
-    public CommandBuilder(RedisClient client, RedisCodec<K, V> codec) {
-        this.connectionSupplier = () -> client.connect(codec);
-        this.pubSubConnectionSupplier = () -> client.connectPubSub(codec);
-        this.async = c -> ((StatefulRedisConnection<K, V>) c).async();
-        this.sync = c -> ((StatefulRedisConnection<K, V>) c).sync();
-    }
-
-    public CommandBuilder(RedisClusterClient client, RedisCodec<K, V> codec) {
-        this.connectionSupplier = () -> client.connect(codec);
-        this.pubSubConnectionSupplier = () -> client.connectPubSub(codec);
-        this.async = c -> ((StatefulRedisClusterConnection<K, V>) c).async();
-        this.sync = c -> ((StatefulRedisClusterConnection<K, V>) c).sync();
+    public CommandBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        this.client = client;
+        this.codec = codec;
     }
 
     @SuppressWarnings("unchecked")
     public B poolConfig(GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig) {
         this.poolConfig = poolConfig;
         return (B) this;
+    }
+
+    protected Supplier<StatefulConnection<K, V>> connectionSupplier() {
+        if (client instanceof RedisClusterClient) {
+            return () -> ((RedisClusterClient) client).connect(codec);
+        }
+        return () -> ((RedisClient) client).connect(codec);
+    }
+
+    protected Supplier<StatefulRedisPubSubConnection<K, V>> pubSubConnectionSupplier() {
+        if (client instanceof RedisClusterClient) {
+            return () -> ((RedisClusterClient) client).connectPubSub(codec);
+        }
+        return () -> ((RedisClient) client).connectPubSub(codec);
+    }
+
+    protected Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync() {
+        if (client instanceof RedisClusterClient) {
+            return c -> ((StatefulRedisClusterConnection<K, V>) c).sync();
+        }
+        return c -> ((StatefulRedisConnection<K, V>) c).sync();
+    }
+
+    protected Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async() {
+        if (client instanceof RedisClusterClient) {
+            return c -> ((StatefulRedisClusterConnection<K, V>) c).async();
+        }
+        return c -> ((StatefulRedisConnection<K, V>) c).async();
     }
 
 }

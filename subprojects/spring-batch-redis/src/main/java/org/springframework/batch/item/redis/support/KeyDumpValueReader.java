@@ -62,7 +62,7 @@ public class KeyDumpValueReader extends AbstractValueReader<KeyValue<byte[]>> {
         }
 
         public KeyDumpValueReader build() {
-            return new KeyDumpValueReader(connectionSupplier, poolConfig, async);
+            return new KeyDumpValueReader(connectionSupplier(), poolConfig, async());
         }
     }
 

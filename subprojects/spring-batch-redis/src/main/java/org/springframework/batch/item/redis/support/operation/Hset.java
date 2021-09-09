@@ -9,15 +9,11 @@ import org.springframework.util.Assert;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class Hset<T> extends AbstractKeyOperation<T> {
+public class Hset<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
-    private final Converter<T, Map> map;
+    private final Converter<T, Map<K, V>> map;
 
-    public Hset(Converter<T, Object> key, Converter<T, Map> map) {
-        this(key, new NullValuePredicate<>(map), map);
-    }
-
-    public Hset(Converter<T, Object> key, Predicate<T> delete, Converter<T, Map> map) {
+    public Hset(Converter<T, K> key, Predicate<T> delete, Converter<T, Map<K, V>> map) {
         super(key, delete);
         Assert.notNull(map, "A map converter is required");
         this.map = map;
@@ -25,8 +21,8 @@ public class Hset<T> extends AbstractKeyOperation<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected <K, V> RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisHashAsyncCommands<K, V>) commands).hset(key, (Map<K, V>) map.convert(item));
+    protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        return ((RedisHashAsyncCommands<K, V>) commands).hset(key, map.convert(item));
     }
 
 }

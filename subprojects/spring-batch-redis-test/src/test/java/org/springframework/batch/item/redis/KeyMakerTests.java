@@ -2,7 +2,7 @@ package org.springframework.batch.item.redis;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.springframework.batch.item.redis.support.KeyMaker;
+import org.springframework.batch.item.redis.support.convert.KeyMaker;
 import org.springframework.core.convert.converter.Converter;
 
 import java.util.HashMap;

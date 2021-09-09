@@ -5,21 +5,21 @@ config {
         tags = ['spring', 'batch', 'redis']
 
         links {
-            website      = "https://github.com/redis-developer/${project.rootProject.name}"
+            website = "https://github.com/redis-developer/${project.rootProject.name}"
             issueTracker = "https://github.com/redis-developer/${project.rootProject.name}/issues"
-            scm          = "https://github.com/redis-developer/${project.rootProject.name}.git"
+            scm = "https://github.com/redis-developer/${project.rootProject.name}.git"
         }
 
         scm {
-            url                 = "https://github.com/redis-developer/${project.rootProject.name}"
-            connection          = "scm:git:https://github.com/redis-developer/${project.rootProject.name}.git"
+            url = "https://github.com/redis-developer/${project.rootProject.name}"
+            connection = "scm:git:https://github.com/redis-developer/${project.rootProject.name}.git"
             developerConnection = "scm:git:git@github.com:jreleaser/${project.rootProject.name}.git"
         }
 
         specification {
             enabled = true
         }
-        
+
         implementation {
             enabled = true
         }

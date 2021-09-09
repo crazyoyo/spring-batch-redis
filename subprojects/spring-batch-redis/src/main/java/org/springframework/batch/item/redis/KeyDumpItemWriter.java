@@ -8,7 +8,7 @@ import io.lettuce.core.codec.StringCodec;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.CommandBuilder;
 import org.springframework.batch.item.redis.support.KeyValue;
-import org.springframework.batch.item.redis.support.operation.Restore;
+import org.springframework.batch.item.redis.support.operation.RestoreReplace;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -16,7 +16,7 @@ import java.util.function.Supplier;
 public class KeyDumpItemWriter extends OperationItemWriter<String, String, KeyValue<byte[]>> {
 
     public KeyDumpItemWriter(Supplier<StatefulConnection<String, String>> statefulConnectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
-        super(statefulConnectionSupplier, poolConfig, async, new Restore<>(KeyValue::getKey, KeyValue::getValue, KeyValue::getAbsoluteTTL));
+        super(statefulConnectionSupplier, poolConfig, async, new RestoreReplace<>(KeyValue::getKey, KeyValue::getValue, KeyValue::getAbsoluteTTL));
     }
 
     public static KeyDumpItemWriterBuilder client(RedisClient client) {
@@ -38,7 +38,7 @@ public class KeyDumpItemWriter extends OperationItemWriter<String, String, KeyVa
         }
 
         public KeyDumpItemWriter build() {
-            return new KeyDumpItemWriter(connectionSupplier, poolConfig, async);
+            return new KeyDumpItemWriter(connectionSupplier(), poolConfig, async());
         }
 
     }

@@ -9,16 +9,12 @@ import org.springframework.util.Assert;
 
 import java.util.function.Predicate;
 
-public class Geoadd<T> extends AbstractCollectionOperation<T> {
+public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
     private final Converter<T, Double> longitude;
     private final Converter<T, Double> latitude;
 
-    public Geoadd(Converter<T, Object> key, Converter<T, Object> member, Converter<T, Double> longitude, Converter<T, Double> latitude) {
-        this(key, t -> false, member, new NullValuePredicate<>(longitude), longitude, latitude);
-    }
-
-    public Geoadd(Converter<T, Object> key, Predicate<T> delete, Converter<T, Object> member, Predicate<T> remove, Converter<T, Double> longitude, Converter<T, Double> latitude) {
+    public Geoadd(Converter<T, K> key, Predicate<T> delete, Converter<T, V> member, Predicate<T> remove, Converter<T, Double> longitude, Converter<T, Double> latitude) {
         super(key, delete, member, remove);
         Assert.notNull(longitude, "A longitude converter is required");
         Assert.notNull(latitude, "A latitude converter is required");
@@ -28,7 +24,7 @@ public class Geoadd<T> extends AbstractCollectionOperation<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected <K, V> RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
+    protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         Double lon = longitude.convert(item);
         if (lon == null) {
             return null;
@@ -42,7 +38,7 @@ public class Geoadd<T> extends AbstractCollectionOperation<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected <K, V> RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
+    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key, V member) {
         return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, member);
     }
 

@@ -300,7 +300,7 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         }
 
         public ItemReader<String> keyReader() {
-            return new ScanKeyItemReader(connectionSupplier, sync, scanMatch, scanCount, scanType);
+            return new ScanKeyItemReader(connectionSupplier(), sync(), scanMatch, scanCount, scanType);
         }
     }
 
@@ -368,9 +368,9 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         @SuppressWarnings("rawtypes")
         public PollableItemReader<String> keyReader() {
             if (client instanceof RedisClusterClient) {
-                return new RedisClusterKeyspaceNotificationItemReader((Supplier) pubSubConnectionSupplier, pubSubPatterns(database, keyPatterns), queueCapacity);
+                return new RedisClusterKeyspaceNotificationItemReader((Supplier) pubSubConnectionSupplier(), pubSubPatterns(database, keyPatterns), queueCapacity);
             }
-            return new RedisKeyspaceNotificationItemReader(pubSubConnectionSupplier, pubSubPatterns(database, keyPatterns), queueCapacity);
+            return new RedisKeyspaceNotificationItemReader(pubSubConnectionSupplier(), pubSubPatterns(database, keyPatterns), queueCapacity);
         }
     }
 

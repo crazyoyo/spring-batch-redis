@@ -198,7 +198,7 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
         }
 
         public StreamItemReader build() {
-            return new StreamItemReader(connectionSupplier, poolConfig, sync, count, block, consumerGroup, consumer, offset, ackPolicy);
+            return new StreamItemReader(connectionSupplier(), poolConfig, sync(), count, block, consumerGroup, consumer, offset, ackPolicy);
         }
     }
 
