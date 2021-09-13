@@ -17,8 +17,8 @@ import java.util.function.Supplier;
 
 public class CommandBuilder<K, V, B extends CommandBuilder<K, V, B>> {
 
-    private final AbstractRedisClient client;
-    private final RedisCodec<K, V> codec;
+    protected final AbstractRedisClient client;
+    protected final RedisCodec<K, V> codec;
     protected GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig = new GenericObjectPoolConfig<>();
 
     public CommandBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {

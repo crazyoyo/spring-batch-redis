@@ -1,46 +1,89 @@
 package org.springframework.batch.item.redis.support.operation;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-import com.redis.lettucemod.api.search.SugaddOptions;
+import com.redis.lettucemod.api.search.Suggestion;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-public class Sugadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
+import java.util.function.Predicate;
 
-    private final Converter<T, Double> score;
-    private final Converter<T, String> payload;
-    private final boolean increment;
-    private final Converter<T, String> string;
+public class Sugadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
-    public Sugadd(Converter<T, K> key, Converter<T, String> string, Converter<T, Double> score, Converter<T, String> payload, boolean increment) {
-        super(key, t -> false);
-        Assert.notNull(string, "A string converter is required");
-        Assert.notNull(score, "A score converter is required");
-        this.string = string;
-        this.score = score;
-        this.payload = payload;
-        this.increment = increment;
+    protected final Converter<T, Suggestion<V>> suggestion;
+    private final boolean incr;
+
+    public Sugadd(Converter<T, K> key, Predicate<T> remove, Converter<T, Suggestion<V>> suggestion, boolean incr) {
+        super(key, t -> false, remove);
+        Assert.notNull(suggestion, "A suggestion converter is required");
+        this.suggestion = suggestion;
+        this.incr = incr;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        Double score = this.score.convert(item);
-        if (score == null) {
+    protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        Suggestion<V> suggestion = this.suggestion.convert(item);
+        if (incr) {
+            return ((RedisModulesAsyncCommands<K, V>) commands).sugaddIncr(key, suggestion);
+        }
+        return ((RedisModulesAsyncCommands<K, V>) commands).sugadd(key, suggestion);
+    }
+
+    @Override
+    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        Suggestion<V> suggestion = this.suggestion.convert(item);
+        if (suggestion == null) {
             return null;
         }
-        V string = (V) this.string.convert(item);
-        if (payload == null && !increment) {
-            return ((RedisModulesAsyncCommands<K, V>) commands).sugadd(key, string, score);
+        return ((RedisModulesAsyncCommands<K, V>) commands).sugdel(key, suggestion.getString());
+    }
+
+    public static <T> SugaddSuggestionBuilder<String, T> key(String key) {
+        return new SugaddSuggestionBuilder<>(t -> key);
+    }
+
+    public static <K, T> SugaddSuggestionBuilder<K, T> key(K key) {
+        return new SugaddSuggestionBuilder<>(t -> key);
+    }
+
+    public static <K, T> SugaddSuggestionBuilder<K, T> key(Converter<T, K> key) {
+        return new SugaddSuggestionBuilder<>(key);
+    }
+
+    public static class SugaddSuggestionBuilder<K, T> {
+
+        private final Converter<T, K> key;
+
+        public SugaddSuggestionBuilder(Converter<T, K> key) {
+            this.key = key;
         }
-        SugaddOptions.SugaddOptionsBuilder<K, V> options = SugaddOptions.builder();
-        options.increment(increment);
-        if (payload != null) {
-            options.payload((V) payload.convert(item));
+
+        public <V> SugaddBuilder<K, V, T> suggestion(Converter<T, Suggestion<V>> suggestion) {
+            return new SugaddBuilder<>(key, suggestion);
         }
-        return ((RedisModulesAsyncCommands<K, V>) commands).sugadd(key, string, score, options.build());
+    }
+
+    @Setter
+    @Accessors(fluent = true)
+    public static class SugaddBuilder<K, V, T> extends DelBuilder<K, V, T, SugaddBuilder<K, V, T>> {
+
+        private final Converter<T, K> key;
+        private final Converter<T, Suggestion<V>> suggestion;
+        private boolean increment;
+
+        public SugaddBuilder(Converter<T, K> key, Converter<T, Suggestion<V>> suggestion) {
+            super(suggestion);
+            this.key = key;
+            this.suggestion = suggestion;
+        }
+
+        @Override
+        public Sugadd<K, V, T> build() {
+            return new Sugadd<>(key, del, suggestion, increment);
+        }
     }
 
 }

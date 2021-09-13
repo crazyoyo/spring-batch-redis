@@ -1,15 +1,18 @@
 package org.springframework.batch.item.redis;
 
 import com.redis.testcontainers.RedisServer;
+import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.GeoArgs;
+import io.lettuce.core.GeoValue;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
-import io.lettuce.core.Value;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
+import io.lettuce.core.api.sync.RedisGeoCommands;
 import io.lettuce.core.api.sync.RedisHashCommands;
 import io.lettuce.core.api.sync.RedisKeyCommands;
 import io.lettuce.core.api.sync.RedisServerCommands;
@@ -44,6 +47,10 @@ import org.springframework.batch.item.redis.support.RedisClusterKeyspaceNotifica
 import org.springframework.batch.item.redis.support.RedisKeyspaceNotificationItemReader;
 import org.springframework.batch.item.redis.support.convert.KeyMaker;
 import org.springframework.batch.item.redis.support.convert.MapFlattener;
+import org.springframework.batch.item.redis.support.operation.Geoadd;
+import org.springframework.batch.item.redis.support.operation.Hset;
+import org.springframework.batch.item.redis.support.operation.Xadd;
+import org.springframework.batch.item.redis.support.operation.Zadd;
 import org.springframework.batch.item.redis.test.Beer;
 import org.springframework.batch.item.redis.test.DataGenerator;
 import org.springframework.batch.item.support.ListItemReader;
@@ -54,10 +61,12 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -175,7 +184,7 @@ public class BatchTests extends AbstractRedisTestBase {
 
     private void populateSource(String name, RedisServer server) throws Exception {
         JsonItemReader<Map<String, Object>> reader = Beer.mapReader();
-        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.<Map<String, String>>hset().key(t -> t.get("id")).map(t -> t).client(client(server)).build();
+        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.client(client(server)).operation(Hset.<String, Map<String, String>>key(t -> t.get("id")).map(t -> t).build()).build();
         execute(name(server, name), reader, new MapFlattener(), writer);
     }
 
@@ -227,7 +236,7 @@ public class BatchTests extends AbstractRedisTestBase {
             messages.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.<Map<String, String>>xadd().key(stream).body(t -> t).client(client(redis)).build();
+        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.client(client(redis)).operation(Xadd.<String, Map<String, String>>key(stream).body(t -> t).build()).build();
         execute(name(redis, "stream-writer"), reader, writer);
         RedisStreamCommands<String, String> sync = sync(redis);
         Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -249,7 +258,7 @@ public class BatchTests extends AbstractRedisTestBase {
             messages.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.<Map<String, String>>xadd().key(stream).body(t -> t).client(client(REDIS)).transactional().build();
+        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.client(client(REDIS)).operation(Xadd.<String, Map<String, String>>key(stream).body(t -> t).build()).transactional().build();
         execute(name(REDIS, "stream-tx-writer"), reader, writer);
         RedisStreamCommands<String, String> sync = sync(REDIS);
         Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -274,7 +283,7 @@ public class BatchTests extends AbstractRedisTestBase {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
         KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash").converters(h -> h.remove("id")).build();
-        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.<Map<String, String>>hset().key(keyConverter).map(m -> m).client(client(server)).build();
+        OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.client(client(server)).operation(Hset.key(keyConverter).map(m -> m).build()).build();
         execute(name(server, "hash-writer"), reader, writer);
         RedisKeyCommands<String, String> sync = sync(server);
         Assertions.assertEquals(maps.size(), sync.keys("hash:*").size());
@@ -283,6 +292,19 @@ public class BatchTests extends AbstractRedisTestBase {
             Map<String, String> hash = hashCommands.hgetall("hash:" + index);
             Assertions.assertEquals(maps.get(index), hash);
         }
+    }
+
+    @ParameterizedTest
+    @MethodSource("servers")
+    public void testGeoaddWriter(RedisServer redis) throws Exception {
+        AbstractRedisClient client = client(redis);
+        ListItemReader<GeoValue<String>> reader = new ListItemReader<>(Arrays.asList(GeoValue.just(-118.476056, 33.985728, "Venice Breakwater"), GeoValue.just(-73.667022, 40.582739, "Long Beach National")));
+        OperationItemWriter<String, String, GeoValue<String>> writer = OperationItemWriter.client(client).operation(Geoadd.<GeoValue<String>>key("geoset").value(v -> v).build()).build();
+        execute(name(redis, "geoadd-writer"), reader, writer);
+        RedisGeoCommands<String, String> sync = sync(redis);
+        Set<String> radius1 = sync.georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
+        Assertions.assertEquals(1, radius1.size());
+        Assertions.assertTrue(radius1.contains("Venice Breakwater"));
     }
 
     @ParameterizedTest
@@ -302,7 +324,7 @@ public class BatchTests extends AbstractRedisTestBase {
         RedisKeyCommands<String, String> sync = sync(server);
         ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
         KeyMaker<Map.Entry<String, Map<String, String>>> keyConverter = KeyMaker.<Map.Entry<String, Map<String, String>>>builder().prefix("hash").converters(Map.Entry::getKey).build();
-        OperationItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = OperationItemWriter.<Map.Entry<String, Map<String, String>>>hset().key(keyConverter).map(Map.Entry::getValue).client(client(server)).build();
+        OperationItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = OperationItemWriter.client(client(server)).operation(Hset.key(keyConverter).map(Map.Entry::getValue).build()).build();
         execute(name(server, "hash-del-writer"), reader, writer);
         Assertions.assertEquals(50, sync.keys("hash:*").size());
         Assertions.assertEquals(2, commands.hgetall("hash:50").size());
@@ -316,7 +338,7 @@ public class BatchTests extends AbstractRedisTestBase {
             values.add((ScoredValue<String>) ScoredValue.fromNullable(index % 10, String.valueOf(index)));
         }
         ListItemReader<ScoredValue<String>> reader = new ListItemReader<>(values);
-        OperationItemWriter<String, String, ScoredValue<String>> writer = OperationItemWriter.<ScoredValue<String>>zadd().key("zset").score(ScoredValue::getScore).member(Value::getValue).client(client(server)).build();
+        OperationItemWriter<String, String, ScoredValue<String>> writer = OperationItemWriter.client(client(server)).operation(Zadd.<ScoredValue<String>>key("zset").value(v -> v).build()).build();
         execute(name(server, "sorted-set-writer"), reader, writer);
         RedisServerCommands<String, String> sync = sync(server);
         Assertions.assertEquals(1, sync.dbsize());
@@ -373,5 +395,6 @@ public class BatchTests extends AbstractRedisTestBase {
         execute(name(redis, "reader-ft"), reader, writer);
         Assertions.assertEquals(50, writer.getWrittenItems().size());
     }
+
 
 }
