@@ -3,7 +3,6 @@ package org.springframework.batch.item.redis;
 import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.GeoArgs;
-import io.lettuce.core.GeoValue;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisClient;
@@ -24,6 +23,8 @@ import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.search.Search;
 import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import lombok.Builder;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,7 @@ import org.springframework.batch.item.redis.support.LiveKeyValueItemReader;
 import org.springframework.batch.item.redis.support.PollableItemReader;
 import org.springframework.batch.item.redis.support.RedisClusterKeyspaceNotificationItemReader;
 import org.springframework.batch.item.redis.support.RedisKeyspaceNotificationItemReader;
+import org.springframework.batch.item.redis.support.convert.GeoValueConverter;
 import org.springframework.batch.item.redis.support.convert.KeyMaker;
 import org.springframework.batch.item.redis.support.convert.MapFlattener;
 import org.springframework.batch.item.redis.support.operation.Geoadd;
@@ -294,12 +296,20 @@ public class BatchTests extends AbstractRedisTestBase {
         }
     }
 
+    @Data
+    @Builder
+    private static class Geo {
+        private final String member;
+        private final double longitude;
+        private final double latitude;
+    }
+
     @ParameterizedTest
     @MethodSource("servers")
     public void testGeoaddWriter(RedisServer redis) throws Exception {
         AbstractRedisClient client = client(redis);
-        ListItemReader<GeoValue<String>> reader = new ListItemReader<>(Arrays.asList(GeoValue.just(-118.476056, 33.985728, "Venice Breakwater"), GeoValue.just(-73.667022, 40.582739, "Long Beach National")));
-        OperationItemWriter<String, String, GeoValue<String>> writer = OperationItemWriter.client(client).operation(Geoadd.<GeoValue<String>>key("geoset").value(v -> v).build()).build();
+        ListItemReader<Geo> reader = new ListItemReader<>(Arrays.asList(Geo.builder().longitude(-118.476056).latitude(33.985728).member("Venice Breakwater").build(), Geo.builder().longitude(-73.667022).latitude(40.582739).member("Long Beach National").build()));
+        OperationItemWriter<String, String, Geo> writer = OperationItemWriter.client(client).operation(Geoadd.<Geo>key("geoset").value(new GeoValueConverter<>(Geo::getMember, Geo::getLongitude, Geo::getLatitude)).build()).build();
         execute(name(redis, "geoadd-writer"), reader, writer);
         RedisGeoCommands<String, String> sync = sync(redis);
         Set<String> radius1 = sync.georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);

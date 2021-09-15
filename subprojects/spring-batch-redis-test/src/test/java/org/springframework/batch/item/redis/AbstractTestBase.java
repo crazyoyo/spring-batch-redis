@@ -55,7 +55,7 @@ public abstract class AbstractTestBase {
         return jobs.get(name + "-job").start(step).build();
     }
 
-    protected <I, O> JobExecution execute(String name, ItemReader<? extends I> reader, ItemWriter<O> writer) throws Exception {
+    protected <T> JobExecution execute(String name, ItemReader<? extends T> reader, ItemWriter<T> writer) throws Exception {
         return execute(name, reader, null, writer);
     }
 
