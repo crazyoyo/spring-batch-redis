@@ -1,5 +1,6 @@
 package org.springframework.batch.item.redis;
 
+import com.redis.testcontainers.RedisClusterContainer;
 import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.AbstractRedisClient;
@@ -38,11 +39,11 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 
     @Container
     protected static final RedisContainer REDIS = new RedisContainer().withKeyspaceNotifications();
-//    @Container
-//    private static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer().withKeyspaceNotifications();
+    @Container
+    private static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer().withKeyspaceNotifications();
 
     static Stream<RedisServer> servers() {
-        return Stream.of(REDIS);//, REDIS_CLUSTER);
+        return Stream.of(REDIS, REDIS_CLUSTER);
     }
 
     @BeforeAll

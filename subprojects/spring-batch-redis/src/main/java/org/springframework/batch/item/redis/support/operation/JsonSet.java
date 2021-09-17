@@ -21,7 +21,7 @@ public class JsonSet<K, V, T> extends AbstractKeyOperation<K, V, T> {
     @SuppressWarnings("unchecked")
     @Override
     protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisJSONAsyncCommands<K, V>) commands).set(key, path.convert(item), value.convert(item));
+        return ((RedisJSONAsyncCommands<K, V>) commands).jsonSet(key, path.convert(item), value.convert(item));
     }
 
     @SuppressWarnings("unchecked")
