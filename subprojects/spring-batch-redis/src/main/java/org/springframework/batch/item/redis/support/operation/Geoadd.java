@@ -1,14 +1,11 @@
 package org.springframework.batch.item.redis.support.operation;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.GeoAddArgs;
 import io.lettuce.core.GeoValue;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisGeoAsyncCommands;
-import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
-import org.springframework.batch.item.redis.support.RedisOperation;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
@@ -28,18 +25,18 @@ public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args, value.convert(item));
+    protected RedisFuture<?> add(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+        return commands.geoadd(key, args, value.convert(item));
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<?> remove(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
         GeoValue<V> value = this.value.convert(item);
         if (value == null) {
             return null;
         }
-        return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, value.getValue());
+        return commands.zrem(key, value.getValue());
     }
 
     public static <T> GeoaddValueBuilder<String, T> key(String key) {

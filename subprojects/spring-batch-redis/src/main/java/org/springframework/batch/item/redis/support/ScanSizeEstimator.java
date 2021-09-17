@@ -1,12 +1,10 @@
 package org.springframework.batch.item.redis.support;
 
-import io.lettuce.core.RedisClient;
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import io.lettuce.core.api.async.RedisServerAsyncCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 import lombok.Builder;
 import lombok.Data;
@@ -26,19 +24,18 @@ import java.util.regex.Pattern;
 public class ScanSizeEstimator {
 
     private final Supplier<StatefulConnection<String, String>> connectionSupplier;
-    private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
+    private final Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async;
 
-    public ScanSizeEstimator(Supplier<StatefulConnection<String, String>> connectionSupplier, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
+    public ScanSizeEstimator(Supplier<StatefulConnection<String, String>> connectionSupplier, Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async) {
         this.connectionSupplier = connectionSupplier;
         this.async = async;
     }
 
-    @SuppressWarnings("unchecked")
     public long estimate(EstimateOptions options) throws Exception {
         Assert.isTrue(options.getSampleSize() > 0, "Sample size must be greater than zero");
         try (StatefulConnection<String, String> connection = connectionSupplier.get()) {
-            BaseRedisAsyncCommands<String, String> commands = async.apply(connection);
-            Long dbsize = ((RedisServerAsyncCommands<String, String>) commands).dbsize().get();
+            RedisModulesAsyncCommands<String, String> commands = async.apply(connection);
+            Long dbsize = commands.dbsize().get();
             if (dbsize == null) {
                 throw new Exception("Could not get DB size");
             }
@@ -49,7 +46,7 @@ public class ScanSizeEstimator {
             List<RedisFuture<String>> keyFutures = new ArrayList<>(options.getSampleSize());
             // rough estimate of keys matching pattern
             for (int index = 0; index < options.getSampleSize(); index++) {
-                keyFutures.add(((RedisKeyAsyncCommands<String, String>) commands).randomkey());
+                keyFutures.add(commands.randomkey());
             }
             commands.flushCommands();
             long commandTimeout = connection.getTimeout().toMillis();
@@ -60,7 +57,7 @@ public class ScanSizeEstimator {
                 if (key == null) {
                     continue;
                 }
-                keyTypeFutures.put(key, options.getType() == null ? null : ((RedisKeyAsyncCommands<String, String>) commands).type(key));
+                keyTypeFutures.put(key, options.getType() == null ? null : commands.type(key));
             }
             commands.flushCommands();
             Predicate<String> matchPredicate = predicate(options.getMatch());
@@ -84,21 +81,21 @@ public class ScanSizeEstimator {
         return k -> pattern.matcher(k).matches();
     }
 
-    public static ScanSizeEstimatorBuilder client(RedisClient client) {
+    public static ScanSizeEstimatorBuilder client(RedisModulesClient client) {
         return new ScanSizeEstimatorBuilder(client);
     }
 
-    public static ScanSizeEstimatorBuilder client(RedisClusterClient client) {
+    public static ScanSizeEstimatorBuilder client(RedisModulesClusterClient client) {
         return new ScanSizeEstimatorBuilder(client);
     }
 
     public static class ScanSizeEstimatorBuilder extends CommandBuilder<String, String, ScanSizeEstimatorBuilder> {
 
-        public ScanSizeEstimatorBuilder(RedisClusterClient client) {
+        public ScanSizeEstimatorBuilder(RedisModulesClient client) {
             super(client, StringCodec.UTF8);
         }
 
-        public ScanSizeEstimatorBuilder(RedisClient client) {
+        public ScanSizeEstimatorBuilder(RedisModulesClusterClient client) {
             super(client, StringCodec.UTF8);
         }
 

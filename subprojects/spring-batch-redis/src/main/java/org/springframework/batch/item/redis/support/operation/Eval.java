@@ -1,9 +1,8 @@
 package org.springframework.batch.item.redis.support.operation;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScriptOutputType;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 import org.springframework.batch.item.redis.support.RedisOperation;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
@@ -26,10 +25,9 @@ public class Eval<K, V, T> implements RedisOperation<K, V, T> {
         this.args = args;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
-        return ((RedisScriptingAsyncCommands<K, V>) commands).evalsha(sha, output, keys.convert(item), args.convert(item));
+    public RedisFuture<?> execute(RedisModulesAsyncCommands<K, V> commands, T item) {
+        return commands.evalsha(sha, output, keys.convert(item), args.convert(item));
     }
 
 }

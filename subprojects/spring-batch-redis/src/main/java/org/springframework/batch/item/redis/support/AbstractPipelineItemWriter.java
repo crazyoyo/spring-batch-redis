@@ -1,7 +1,7 @@
 package org.springframework.batch.item.redis.support;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ItemWriter;
 
@@ -11,9 +11,9 @@ import java.util.function.Supplier;
 
 public abstract class AbstractPipelineItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> implements ItemWriter<T> {
 
-    private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
+    private final Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async;
 
-    protected AbstractPipelineItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
+    protected AbstractPipelineItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async) {
         super(connectionSupplier, poolConfig);
         this.async = async;
     }
@@ -21,7 +21,7 @@ public abstract class AbstractPipelineItemWriter<K, V, T> extends ConnectionPool
     @Override
     public void write(List<? extends T> items) throws Exception {
         try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-            BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
+            RedisModulesAsyncCommands<K, V> commands = async.apply(connection);
             commands.setAutoFlushCommands(false);
             try {
                 write(commands, connection.getTimeout().toMillis(), items);
@@ -31,7 +31,7 @@ public abstract class AbstractPipelineItemWriter<K, V, T> extends ConnectionPool
         }
     }
 
-    protected abstract void write(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends T> items);
+    protected abstract void write(RedisModulesAsyncCommands<K, V> commands, long timeout, List<? extends T> items);
 
 
 }

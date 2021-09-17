@@ -33,7 +33,7 @@ public class FlushingStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 
         SkipPolicy readSkipPolicy = createSkipPolicy();
         readSkipPolicy = getFatalExceptionAwareProxy(readSkipPolicy);
-        FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<I>(getReader(), createChunkOperations());
+        FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>(getReader(), createChunkOperations());
         chunkProvider.setMaxSkipsOnRead(Math.max(getChunkSize(), FaultTolerantChunkProvider.DEFAULT_MAX_SKIPS_ON_READ));
         chunkProvider.setSkipPolicy(readSkipPolicy);
         chunkProvider.setRollbackClassifier(getRollbackClassifier());

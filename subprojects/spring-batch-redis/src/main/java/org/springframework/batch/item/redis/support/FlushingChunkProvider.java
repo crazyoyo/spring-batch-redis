@@ -135,7 +135,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
         return inputs;
     }
 
-    protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) throws Exception {
+    protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) {
         while (true) {
             try {
                 return doRead(timeout);
@@ -163,6 +163,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected final I doRead(long timeout) throws Exception {
         try {
             getListener().beforeRead();

@@ -1,14 +1,14 @@
 package org.springframework.batch.item.redis.support.operation;
 
-import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import org.springframework.batch.item.redis.OperationItemWriter;
+import java.util.function.Predicate;
+
 import org.springframework.batch.item.redis.support.RedisOperation;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import java.util.function.Predicate;
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+
+import io.lettuce.core.RedisFuture;
 
 public abstract class AbstractKeyOperation<K, V, T> implements RedisOperation<K, V, T> {
 
@@ -23,7 +23,7 @@ public abstract class AbstractKeyOperation<K, V, T> implements RedisOperation<K,
     }
 
     @Override
-    public RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
+    public RedisFuture<?> execute(RedisModulesAsyncCommands<K, V> commands, T item) {
         K key = this.key.convert(item);
         if (delete.test(item)) {
             return delete(commands, item, key);
@@ -31,12 +31,12 @@ public abstract class AbstractKeyOperation<K, V, T> implements RedisOperation<K,
         return doExecute(commands, item, key);
     }
 
-    @SuppressWarnings({"unchecked", "unused"})
-    protected RedisFuture<?> delete(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisKeyAsyncCommands<K, V>) commands).del(key);
+    @SuppressWarnings("unchecked")
+    protected RedisFuture<?> delete(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+        return commands.del(key);
     }
 
-    protected abstract RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key);
+    protected abstract RedisFuture<?> doExecute(RedisModulesAsyncCommands<K, V> commands, T item, K key);
 
 
 }

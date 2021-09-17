@@ -1,9 +1,9 @@
 package org.springframework.batch.item.redis.support;
 
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisException;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
@@ -12,7 +12,6 @@ import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
-import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
@@ -133,7 +132,7 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         return item;
     }
 
-    public List<T> read(int maxElements) throws Exception {
+    public List<T> read(int maxElements) {
         List<T> items = new ArrayList<>(maxElements);
         queue.drainTo(items, maxElements);
         return items;
@@ -199,7 +198,11 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
 
         @Override
         public void write(List<? extends String> items) throws Exception {
-            for (T value : valueReader.process(items)) {
+            List<T> values = valueReader.process(items);
+            if (values == null) {
+                return;
+            }
+            for (T value : values) {
                 queue.removeIf(v -> v.getKey().equals(value.getKey()));
                 queue.put(value);
             }
@@ -224,13 +227,13 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         protected Duration queuePollTimeout = DEFAULT_QUEUE_POLL_TIMEOUT;
 
 
-        public AbstractKeyValueItemReaderBuilder(RedisClient client, R valueReader) {
+        public AbstractKeyValueItemReaderBuilder(RedisModulesClient client, R valueReader) {
             super(client, StringCodec.UTF8);
             this.client = client;
             this.valueReader = valueReader;
         }
 
-        public AbstractKeyValueItemReaderBuilder(RedisClusterClient client, R valueReader) {
+        public AbstractKeyValueItemReaderBuilder(RedisModulesClusterClient client, R valueReader) {
             super(client, StringCodec.UTF8);
             this.client = client;
             this.valueReader = valueReader;
@@ -291,11 +294,11 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         }
 
 
-        protected KeyValueItemReaderBuilder(RedisClient client, R valueReader) {
+        protected KeyValueItemReaderBuilder(RedisModulesClient client, R valueReader) {
             super(client, valueReader);
         }
 
-        protected KeyValueItemReaderBuilder(RedisClusterClient client, R valueReader) {
+        protected KeyValueItemReaderBuilder(RedisModulesClusterClient client, R valueReader) {
             super(client, valueReader);
         }
 
@@ -345,11 +348,11 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         }
 
 
-        protected LiveKeyValueItemReaderBuilder(RedisClient client, R valueReader) {
+        protected LiveKeyValueItemReaderBuilder(RedisModulesClient client, R valueReader) {
             super(client, valueReader);
         }
 
-        protected LiveKeyValueItemReaderBuilder(RedisClusterClient client, R valueReader) {
+        protected LiveKeyValueItemReaderBuilder(RedisModulesClusterClient client, R valueReader) {
             super(client, valueReader);
         }
 
@@ -367,7 +370,7 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
 
         @SuppressWarnings("rawtypes")
         public PollableItemReader<String> keyReader() {
-            if (client instanceof RedisClusterClient) {
+            if (client instanceof RedisModulesClusterClient) {
                 return new RedisClusterKeyspaceNotificationItemReader((Supplier) pubSubConnectionSupplier(), pubSubPatterns(database, keyPatterns), queueCapacity);
             }
             return new RedisKeyspaceNotificationItemReader(pubSubConnectionSupplier(), pubSubPatterns(database, keyPatterns), queueCapacity);

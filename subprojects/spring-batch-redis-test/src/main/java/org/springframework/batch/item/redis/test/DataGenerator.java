@@ -1,7 +1,9 @@
 package org.springframework.batch.item.redis.test;
 
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import io.lettuce.core.LettuceFutures;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -12,7 +14,6 @@ import io.lettuce.core.api.async.RedisSetAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -38,7 +39,7 @@ import java.util.function.Supplier;
 public class DataGenerator implements Callable<Long> {
 
     private final Supplier<StatefulConnection<String, String>> connectionSupplier;
-    private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
+    private final Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async;
     private final int start;
     private final int end;
     private final long sleep;
@@ -47,7 +48,7 @@ public class DataGenerator implements Callable<Long> {
     private final int batchSize;
     private final Set<String> dataTypes;
 
-    public DataGenerator(Supplier<StatefulConnection<String, String>> connectionSupplier, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async, int start, int end, long sleep, Duration minExpire, Duration maxExpire, int batchSize, Set<String> dataTypes) {
+    public DataGenerator(Supplier<StatefulConnection<String, String>> connectionSupplier, Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async, int start, int end, long sleep, Duration minExpire, Duration maxExpire, int batchSize, Set<String> dataTypes) {
         this.connectionSupplier = connectionSupplier;
         this.async = async;
         this.start = start;
@@ -185,11 +186,11 @@ public class DataGenerator implements Callable<Long> {
         return dataTypes.contains(type);
     }
 
-    public static DataGeneratorBuilder client(RedisClient client) {
+    public static DataGeneratorBuilder client(RedisModulesClient client) {
         return new DataGeneratorBuilder(client);
     }
 
-    public static DataGeneratorBuilder client(RedisClusterClient client) {
+    public static DataGeneratorBuilder client(RedisModulesClusterClient client) {
         return new DataGeneratorBuilder(client);
     }
 
@@ -212,11 +213,11 @@ public class DataGenerator implements Callable<Long> {
         private int batchSize = DEFAULT_BATCH_SIZE;
         private Set<String> dataTypes = new HashSet<>(Arrays.asList(DataStructure.HASH, DataStructure.LIST, DataStructure.STRING, DataStructure.STREAM, DataStructure.SET, DataStructure.ZSET));
 
-        public DataGeneratorBuilder(RedisClusterClient client) {
+        public DataGeneratorBuilder(RedisModulesClusterClient client) {
             super(client, StringCodec.UTF8);
         }
 
-        public DataGeneratorBuilder(RedisClient client) {
+        public DataGeneratorBuilder(RedisModulesClient client) {
             super(client, StringCodec.UTF8);
         }
 

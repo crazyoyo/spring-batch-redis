@@ -1,8 +1,7 @@
 package org.springframework.batch.item.redis.support.operation;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisSetAsyncCommands;
 import org.springframework.core.convert.converter.Converter;
 
 import java.util.function.Predicate;
@@ -18,14 +17,14 @@ public class Sadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisSetAsyncCommands<K, V>) commands).sadd(key, member.convert(item));
+    protected RedisFuture<?> add(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+        return commands.sadd(key, member.convert(item));
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisSetAsyncCommands<K, V>) commands).srem(key, member.convert(item));
+    protected RedisFuture<?> remove(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+        return commands.srem(key, member.convert(item));
     }
 
     public static <T> SaddMemberBuilder<String, T> key(String key) {

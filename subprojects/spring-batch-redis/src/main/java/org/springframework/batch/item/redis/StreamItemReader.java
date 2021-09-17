@@ -1,16 +1,16 @@
 package org.springframework.batch.item.redis;
 
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.sync.RedisModulesCommands;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import io.lettuce.core.Consumer;
 import io.lettuce.core.RedisBusyException;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XGroupCreateArgs;
 import io.lettuce.core.XReadArgs;
 import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class StreamItemReader extends ConnectionPoolItemStream<String, String> implements PollableItemReader<StreamMessage<String, String>> {
 
-    private final Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> sync;
+    private final Function<StatefulConnection<String, String>, RedisModulesCommands<String, String>> sync;
     private final Long count;
     private final Duration block;
     private final StreamOffset<String> offset;
@@ -47,7 +47,7 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
     private final AckPolicy ackPolicy;
     private Iterator<StreamMessage<String, String>> iterator = Collections.emptyIterator();
 
-    public StreamItemReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> sync, Long count, Duration block, String consumerGroup, String consumer, StreamOffset<String> offset, AckPolicy ackPolicy) {
+    public StreamItemReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, RedisModulesCommands<String, String>> sync, Long count, Duration block, String consumerGroup, String consumer, StreamOffset<String> offset, AckPolicy ackPolicy) {
         super(connectionSupplier, poolConfig);
         Assert.notNull(sync, "A command provider is required");
         this.sync = sync;
@@ -59,12 +59,11 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
         this.ackPolicy = ackPolicy;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
         try (StatefulConnection<String, String> connection = pool.borrowObject()) {
-            RedisStreamCommands<String, String> commands = (RedisStreamCommands<String, String>) sync.apply(connection);
+            RedisStreamCommands<String, String> commands = sync.apply(connection);
             XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
             try {
                 commands.xgroupCreate(offset, consumerGroup, args);
@@ -105,7 +104,7 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
             args.block(block);
         }
         try (StatefulConnection<String, String> connection = pool.borrowObject()) {
-            RedisStreamCommands<String, String> commands = (RedisStreamCommands<String, String>) sync.apply(connection);
+            RedisStreamCommands<String, String> commands = sync.apply(connection);
             List<StreamMessage<String, String>> messages = commands.xreadgroup(Consumer.from(consumerGroup, consumer), args, StreamOffset.lastConsumed(offset.getName()));
             if (ackPolicy == AckPolicy.AUTO) {
                 ack(messages);
@@ -114,13 +113,12 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void ack(List<? extends StreamMessage<String, String>> messages) throws Exception {
         if (messages.isEmpty()) {
             return;
         }
         try (StatefulConnection<String, String> connection = pool.borrowObject()) {
-            RedisStreamCommands<String, String> commands = (RedisStreamCommands<String, String>) sync.apply(connection);
+            RedisStreamCommands<String, String> commands = sync.apply(connection);
             Map<String, List<StreamMessage<String, String>>> streams = messages.stream().collect(Collectors.groupingBy(StreamMessage::getStream));
             for (Map.Entry<String, List<StreamMessage<String, String>>> entry : streams.entrySet()) {
                 String[] messageIds = entry.getValue().stream().map(StreamMessage::getId).toArray(String[]::new);
@@ -134,19 +132,19 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
         AUTO, MANUAL
     }
 
-    public static RedisClientStreamItemReaderBuilder client(RedisClient client) {
+    public static RedisClientStreamItemReaderBuilder client(RedisModulesClient client) {
         return new RedisClientStreamItemReaderBuilder(client);
     }
 
-    public static RedisClusterClientStreamItemReaderBuilder client(RedisClusterClient client) {
+    public static RedisClusterClientStreamItemReaderBuilder client(RedisModulesClusterClient client) {
         return new RedisClusterClientStreamItemReaderBuilder(client);
     }
 
     public static class RedisClientStreamItemReaderBuilder {
 
-        private final RedisClient client;
+        private final RedisModulesClient client;
 
-        public RedisClientStreamItemReaderBuilder(RedisClient client) {
+        public RedisClientStreamItemReaderBuilder(RedisModulesClient client) {
             this.client = client;
         }
 
@@ -158,9 +156,9 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
 
     public static class RedisClusterClientStreamItemReaderBuilder {
 
-        private final RedisClusterClient client;
+        private final RedisModulesClusterClient client;
 
-        public RedisClusterClientStreamItemReaderBuilder(RedisClusterClient client) {
+        public RedisClusterClientStreamItemReaderBuilder(RedisModulesClusterClient client) {
             this.client = client;
         }
 
@@ -187,12 +185,12 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
         private String consumer = DEFAULT_CONSUMER;
         private AckPolicy ackPolicy = DEFAULT_ACK_POLICY;
 
-        public StreamItemReaderBuilder(RedisClient client, StreamOffset<String> offset) {
+        public StreamItemReaderBuilder(RedisModulesClient client, StreamOffset<String> offset) {
             super(client, StringCodec.UTF8);
             this.offset = offset;
         }
 
-        public StreamItemReaderBuilder(RedisClusterClient client, StreamOffset<String> offset) {
+        public StreamItemReaderBuilder(RedisModulesClusterClient client, StreamOffset<String> offset) {
             super(client, StringCodec.UTF8);
             this.offset = offset;
         }

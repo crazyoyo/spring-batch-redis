@@ -1,8 +1,7 @@
 package org.springframework.batch.item.redis.support.operation;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisListAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.springframework.core.convert.converter.Converter;
@@ -20,14 +19,13 @@ public class Rpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisListAsyncCommands<K, V>) commands).rpush(key, member.convert(item));
+    protected RedisFuture<?> add(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+        return commands.rpush(key, member.convert(item));
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisListAsyncCommands<K, V>) commands).lrem(key, -1, member.convert(item));
+    protected RedisFuture<?> remove(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+        return commands.lrem(key, -1, member.convert(item));
     }
 
     public static <T> RpushMemberBuilder<String, T> key(String key) {

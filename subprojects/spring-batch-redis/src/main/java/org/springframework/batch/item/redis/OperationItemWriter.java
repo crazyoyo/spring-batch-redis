@@ -1,10 +1,10 @@
 package org.springframework.batch.item.redis;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
@@ -24,20 +24,20 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
 
     private final RedisOperation<K, V, T> operation;
 
-    public OperationItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async, RedisOperation<K, V, T> operation) {
+    public OperationItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async, RedisOperation<K, V, T> operation) {
         super(connectionSupplier, poolConfig, async);
         Assert.notNull(operation, "A Redis operation is required");
         this.operation = operation;
     }
 
     @Override
-    protected void write(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends T> items) {
+    protected void write(RedisModulesAsyncCommands<K, V> commands, long timeout, List<? extends T> items) {
         List<RedisFuture<?>> futures = write(commands, items);
         commands.flushCommands();
         LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(new RedisFuture[0]));
     }
 
-    protected List<RedisFuture<?>> write(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
+    protected List<RedisFuture<?>> write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
         List<RedisFuture<?>> futures = new ArrayList<>(items.size());
         for (T item : items) {
             futures.add(operation.execute(commands, item));

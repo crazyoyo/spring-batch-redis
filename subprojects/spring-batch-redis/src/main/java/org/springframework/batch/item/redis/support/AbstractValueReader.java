@@ -1,5 +1,6 @@
 package org.springframework.batch.item.redis.support;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.StatefulConnection;
@@ -20,22 +21,21 @@ import java.util.function.Supplier;
 
 public abstract class AbstractValueReader<T extends KeyValue<?>> extends ConnectionPoolItemStream<String, String> implements ItemProcessor<List<? extends String>, List<T>> {
 
-    private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
+    private final Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async;
     private String digest;
 
-    protected AbstractValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
+    protected AbstractValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async) {
         super(connectionSupplier, poolConfig);
         this.async = async;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
         if (digest == null) {
             try (StatefulConnection<String, String> connection = pool.borrowObject()) {
                 long timeout = connection.getTimeout().toMillis();
-                RedisScriptingAsyncCommands<String, String> commands = (RedisScriptingAsyncCommands<String, String>) async.apply(connection);
+                RedisScriptingAsyncCommands<String, String> commands = async.apply(connection);
                 byte[] bytes = FileCopyUtils.copyToByteArray(getClass().getClassLoader().getResourceAsStream("absttl.lua"));
                 RedisFuture<String> load = commands.scriptLoad(bytes);
                 this.digest = load.get(timeout, TimeUnit.MILLISECONDS);

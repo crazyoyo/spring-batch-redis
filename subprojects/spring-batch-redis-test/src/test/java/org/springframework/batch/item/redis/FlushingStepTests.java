@@ -6,21 +6,13 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
-import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.FlushingStepBuilder;
-import org.springframework.batch.item.redis.support.PollableItemReader;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
-import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
-import org.springframework.util.ClassUtils;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 

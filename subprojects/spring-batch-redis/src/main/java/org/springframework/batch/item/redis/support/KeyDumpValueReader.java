@@ -1,11 +1,12 @@
 package org.springframework.batch.item.redis.support;
 
-import io.lettuce.core.RedisClient;
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
@@ -19,7 +20,7 @@ import java.util.function.Supplier;
 
 public class KeyDumpValueReader extends AbstractValueReader<KeyValue<byte[]>> {
 
-    public KeyDumpValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
+    public KeyDumpValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async) {
         super(connectionSupplier, poolConfig, async);
     }
 
@@ -43,21 +44,21 @@ public class KeyDumpValueReader extends AbstractValueReader<KeyValue<byte[]>> {
         return dumps;
     }
 
-    public static KeyDumpValueReaderBuilder client(RedisClient client) {
+    public static KeyDumpValueReaderBuilder client(RedisModulesClient client) {
         return new KeyDumpValueReaderBuilder(client);
     }
 
-    public static KeyDumpValueReaderBuilder client(RedisClusterClient client) {
+    public static KeyDumpValueReaderBuilder client(RedisModulesClusterClient client) {
         return new KeyDumpValueReaderBuilder(client);
     }
 
     public static class KeyDumpValueReaderBuilder extends CommandBuilder<String, String, KeyDumpValueReaderBuilder> {
 
-        public KeyDumpValueReaderBuilder(RedisClusterClient client) {
+        public KeyDumpValueReaderBuilder(RedisModulesClusterClient client) {
             super(client, StringCodec.UTF8);
         }
 
-        public KeyDumpValueReaderBuilder(RedisClient client) {
+        public KeyDumpValueReaderBuilder(RedisModulesClient client) {
             super(client, StringCodec.UTF8);
         }
 

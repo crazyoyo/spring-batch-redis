@@ -3,7 +3,6 @@ package org.springframework.batch.item.redis.support.operation;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.api.search.Suggestion;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.springframework.core.convert.converter.Converter;
@@ -24,21 +23,21 @@ public class Sugadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
     }
 
     @Override
-    protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<?> add(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
         Suggestion<V> suggestion = this.suggestion.convert(item);
         if (incr) {
-            return ((RedisModulesAsyncCommands<K, V>) commands).sugaddIncr(key, suggestion);
+            return commands.sugaddIncr(key, suggestion);
         }
-        return ((RedisModulesAsyncCommands<K, V>) commands).sugadd(key, suggestion);
+        return commands.sugadd(key, suggestion);
     }
 
     @Override
-    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<?> remove(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
         Suggestion<V> suggestion = this.suggestion.convert(item);
         if (suggestion == null) {
             return null;
         }
-        return ((RedisModulesAsyncCommands<K, V>) commands).sugdel(key, suggestion.getString());
+        return commands.sugdel(key, suggestion.getString());
     }
 
     public static <T> SugaddSuggestionBuilder<String, T> key(String key) {

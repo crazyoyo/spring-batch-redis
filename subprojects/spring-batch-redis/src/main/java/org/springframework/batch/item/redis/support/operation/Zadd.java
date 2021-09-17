@@ -1,13 +1,11 @@
 package org.springframework.batch.item.redis.support.operation;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.ZAddArgs;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
-import org.springframework.batch.item.redis.support.RedisOperation;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
@@ -27,22 +25,22 @@ public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<?> add(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
         ScoredValue<V> scoredValue = value.convert(item);
         if (scoredValue == null) {
             return null;
         }
-        return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key, args, scoredValue);
+        return commands.zadd(key, args, scoredValue);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<?> remove(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
         ScoredValue<V> scoredValue = value.convert(item);
         if (scoredValue == null) {
             return null;
         }
-        return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, scoredValue.getValue());
+        return commands.zrem(key, scoredValue.getValue());
     }
 
     public static <T> ZaddValueBuilder<String, T> key(String key) {

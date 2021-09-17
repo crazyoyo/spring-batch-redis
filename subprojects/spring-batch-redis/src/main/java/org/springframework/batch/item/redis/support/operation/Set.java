@@ -1,9 +1,8 @@
 package org.springframework.batch.item.redis.support.operation;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.SetArgs;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.springframework.core.convert.converter.Converter;
@@ -24,10 +23,9 @@ public class Set<K, V, T> extends AbstractKeyOperation<K, V, T> {
         this.args = args;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisStringAsyncCommands<K, V>) commands).set(key, value.convert(item), args);
+    protected RedisFuture<?> doExecute(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+        return commands.set(key, value.convert(item), args);
     }
 
     public static <T> SetMemberBuilder<String, T> key(String key) {

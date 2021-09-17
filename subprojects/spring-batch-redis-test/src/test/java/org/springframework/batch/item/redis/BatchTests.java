@@ -1,5 +1,6 @@
 package org.springframework.batch.item.redis;
 
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.GeoArgs;
@@ -17,7 +18,6 @@ import io.lettuce.core.api.sync.RedisKeyCommands;
 import io.lettuce.core.api.sync.RedisServerCommands;
 import io.lettuce.core.api.sync.RedisSortedSetCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.search.Search;
@@ -127,7 +127,7 @@ public class BatchTests extends AbstractRedisTestBase {
     private PollableItemReader<String> keyEventReader(RedisServer redis) {
         int queueCapacity = KeyValueItemReader.LiveKeyValueItemReaderBuilder.DEFAULT_QUEUE_CAPACITY;
         if (redis.isCluster()) {
-            RedisClusterClient client = redisClusterClient(redis);
+            RedisModulesClusterClient client = redisClusterClient(redis);
             return new RedisClusterKeyspaceNotificationItemReader(client::connectPubSub, KeyValueItemReader.LiveKeyValueItemReaderBuilder.DEFAULT_PUBSUB_PATTERNS, queueCapacity);
         }
         RedisClient client = redisClient(redis);
@@ -164,7 +164,7 @@ public class BatchTests extends AbstractRedisTestBase {
 
     private AbstractKeyspaceNotificationItemReader<?> keyspaceNotificationReader(RedisServer server, BlockingQueue<String> queue) {
         if (server.isCluster()) {
-            RedisClusterClient client = redisClusterClient(server);
+            RedisModulesClusterClient client = redisClusterClient(server);
             return new RedisClusterKeyspaceNotificationItemReader(client::connectPubSub, KeyValueItemReader.LiveKeyValueItemReaderBuilder.DEFAULT_PUBSUB_PATTERNS, queue);
         }
         RedisClient client = redisClient(server);

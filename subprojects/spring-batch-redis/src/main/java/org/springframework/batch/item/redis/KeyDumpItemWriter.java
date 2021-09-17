@@ -1,9 +1,9 @@
 package org.springframework.batch.item.redis;
 
-import io.lettuce.core.RedisClient;
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.support.CommandBuilder;
@@ -15,25 +15,25 @@ import java.util.function.Supplier;
 
 public class KeyDumpItemWriter extends OperationItemWriter<String, String, KeyValue<byte[]>> {
 
-    public KeyDumpItemWriter(Supplier<StatefulConnection<String, String>> statefulConnectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
-        super(statefulConnectionSupplier, poolConfig, async, new RestoreReplace<>(KeyValue::getKey, KeyValue::getValue, KeyValue::getAbsoluteTTL));
+    public KeyDumpItemWriter(Supplier<StatefulConnection<String, String>> statefulConnectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async) {
+        super(statefulConnectionSupplier, poolConfig, async, new RestoreReplace<>(KeyValue::getKey, KeyValue<byte[]>::getValue, KeyValue::getAbsoluteTTL));
     }
 
-    public static KeyDumpItemWriterBuilder client(RedisClient client) {
+    public static KeyDumpItemWriterBuilder client(RedisModulesClient client) {
         return new KeyDumpItemWriterBuilder(client);
     }
 
-    public static KeyDumpItemWriterBuilder client(RedisClusterClient client) {
+    public static KeyDumpItemWriterBuilder client(RedisModulesClusterClient client) {
         return new KeyDumpItemWriterBuilder(client);
     }
 
-    public static class KeyDumpItemWriterBuilder extends CommandBuilder<String,String,KeyDumpItemWriterBuilder> {
+    public static class KeyDumpItemWriterBuilder extends CommandBuilder<String, String, KeyDumpItemWriterBuilder> {
 
-        public KeyDumpItemWriterBuilder(RedisClusterClient client) {
+        public KeyDumpItemWriterBuilder(RedisModulesClusterClient client) {
             super(client, StringCodec.UTF8);
         }
 
-        public KeyDumpItemWriterBuilder(RedisClient client) {
+        public KeyDumpItemWriterBuilder(RedisModulesClient client) {
             super(client, StringCodec.UTF8);
         }
 
@@ -42,4 +42,5 @@ public class KeyDumpItemWriter extends OperationItemWriter<String, String, KeyVa
         }
 
     }
+
 }

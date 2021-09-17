@@ -1,9 +1,8 @@
 package org.springframework.batch.item.redis.support.operation;
 
-import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.api.timeseries.Sample;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.springframework.core.convert.converter.Converter;
@@ -11,7 +10,6 @@ import org.springframework.util.Assert;
 
 import java.util.function.Predicate;
 
-@SuppressWarnings("unchecked")
 public class TsAdd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
     protected final Converter<T, Sample> sample;
@@ -23,8 +21,8 @@ public class TsAdd<K, V, T> extends AbstractKeyOperation<K, V, T> {
     }
 
     @Override
-    protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisTimeSeriesAsyncCommands<K, V>) commands).add(key, sample.convert(item));
+    protected RedisFuture<?> doExecute(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+        return commands.add(key, sample.convert(item));
     }
 
     public static <T> TsAddSampleBuilder<String, T> key(String key) {

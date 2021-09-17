@@ -1,10 +1,9 @@
 package org.springframework.batch.item.redis.support;
 
+import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.sync.BaseRedisCommands;
-import io.lettuce.core.api.sync.RedisKeyCommands;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 
@@ -14,7 +13,7 @@ import java.util.function.Supplier;
 public class ScanKeyItemReader extends AbstractItemStreamItemReader<String> {
 
     private final Supplier<StatefulConnection<String, String>> connectionSupplier;
-    private final Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> sync;
+    private final Function<StatefulConnection<String, String>, RedisModulesCommands<String, String>> sync;
     private final String match;
     private final long count;
     private final String type;
@@ -22,7 +21,7 @@ public class ScanKeyItemReader extends AbstractItemStreamItemReader<String> {
     private StatefulConnection<String, String> connection;
     private ScanIterator<String> scanIterator;
 
-    public ScanKeyItemReader(Supplier<StatefulConnection<String, String>> connectionSupplier, Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> sync, String match, long count, String type) {
+    public ScanKeyItemReader(Supplier<StatefulConnection<String, String>> connectionSupplier, Function<StatefulConnection<String, String>, RedisModulesCommands<String, String>> sync, String match, long count, String type) {
         this.connectionSupplier = connectionSupplier;
         this.sync = sync;
         this.match = match;
@@ -30,7 +29,6 @@ public class ScanKeyItemReader extends AbstractItemStreamItemReader<String> {
         this.type = type;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
@@ -45,7 +43,7 @@ public class ScanKeyItemReader extends AbstractItemStreamItemReader<String> {
             if (type != null) {
                 args.type(type);
             }
-            scanIterator = ScanIterator.scan((RedisKeyCommands<String, String>) sync.apply(connection), args);
+            scanIterator = ScanIterator.scan(sync.apply(connection), args);
         }
     }
 

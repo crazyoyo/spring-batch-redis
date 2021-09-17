@@ -7,10 +7,12 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("rawtypes")
 public class KeyComparisonResultKeys implements KeyComparisonItemWriter.KeyComparisonResultHandler {
 
     private final Map<KeyComparisonItemWriter.Result, List> keyLists = Arrays.stream(KeyComparisonItemWriter.Result.values()).collect(Collectors.toMap(Function.identity(), r -> new ArrayList<>()));
 
+    @SuppressWarnings("unchecked")
     @Override
     public void accept(DataStructure source, DataStructure target, KeyComparisonItemWriter.Result result) {
         keyLists.get(result).add(source.getKey());

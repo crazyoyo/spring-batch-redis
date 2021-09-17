@@ -1,11 +1,9 @@
 package org.springframework.batch.item.redis.support.operation;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisHashAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
-import org.springframework.batch.item.redis.support.RedisOperation;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
@@ -22,10 +20,9 @@ public class Hset<K, V, T> extends AbstractKeyOperation<K, V, T> {
         this.map = map;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisHashAsyncCommands<K, V>) commands).hset(key, map.convert(item));
+    protected RedisFuture<?> doExecute(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+        return commands.hset(key, map.convert(item));
     }
 
     public static <K, T> HsetMapBuilder<K, T> key(Converter<T, K> key) {

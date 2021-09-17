@@ -1,7 +1,7 @@
 package org.springframework.batch.item.redis.support;
 
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
@@ -9,7 +9,7 @@ import java.util.function.Predicate;
 
 public interface RedisOperation<K, V, T> {
 
-    RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item);
+    RedisFuture<?> execute(RedisModulesAsyncCommands<K, V> commands, T item);
 
     interface RedisOperationBuilder<K, V, T> {
 

@@ -1,11 +1,19 @@
 package org.springframework.batch.item.redis.support;
 
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import io.lettuce.core.Range;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.*;
-import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisHashAsyncCommands;
+import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import io.lettuce.core.api.async.RedisListAsyncCommands;
+import io.lettuce.core.api.async.RedisSetAsyncCommands;
+import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
+import io.lettuce.core.api.async.RedisStreamAsyncCommands;
+import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import io.lettuce.core.codec.StringCodec;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
@@ -19,7 +27,7 @@ import java.util.function.Supplier;
 
 public class DataStructureValueReader extends AbstractValueReader<DataStructure> {
 
-    public DataStructureValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
+    public DataStructureValueReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async) {
         super(connectionSupplier, poolConfig, async);
     }
 
@@ -74,21 +82,21 @@ public class DataStructureValueReader extends AbstractValueReader<DataStructure>
         }
     }
 
-    public static DataStructureValueReaderBuilder client(RedisClient client) {
+    public static DataStructureValueReaderBuilder client(RedisModulesClient client) {
         return new DataStructureValueReaderBuilder(client);
     }
 
-    public static DataStructureValueReaderBuilder client(RedisClusterClient client) {
+    public static DataStructureValueReaderBuilder client(RedisModulesClusterClient client) {
         return new DataStructureValueReaderBuilder(client);
     }
 
     public static class DataStructureValueReaderBuilder extends CommandBuilder<String, String, DataStructureValueReaderBuilder> {
 
-        public DataStructureValueReaderBuilder(RedisClusterClient client) {
+        public DataStructureValueReaderBuilder(RedisModulesClusterClient client) {
             super(client, StringCodec.UTF8);
         }
 
-        public DataStructureValueReaderBuilder(RedisClient client) {
+        public DataStructureValueReaderBuilder(RedisModulesClient client) {
             super(client, StringCodec.UTF8);
         }
 

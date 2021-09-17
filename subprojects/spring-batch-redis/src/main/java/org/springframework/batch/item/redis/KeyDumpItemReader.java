@@ -1,9 +1,12 @@
 package org.springframework.batch.item.redis;
 
-import io.lettuce.core.RedisClient;
-import io.lettuce.core.cluster.RedisClusterClient;
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.redis.support.*;
+import org.springframework.batch.item.redis.support.KeyDumpValueReader;
+import org.springframework.batch.item.redis.support.KeyValue;
+import org.springframework.batch.item.redis.support.KeyValueItemReader;
+import org.springframework.batch.item.redis.support.LiveKeyValueItemReader;
 
 import java.time.Duration;
 
@@ -13,21 +16,21 @@ public class KeyDumpItemReader extends KeyValueItemReader<KeyValue<byte[]>> {
         super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout);
     }
 
-    public static KeyDumpItemReaderBuilder client(RedisClient client) {
+    public static KeyDumpItemReaderBuilder client(RedisModulesClient client) {
         return new KeyDumpItemReaderBuilder(client, KeyDumpValueReader.client(client).build());
     }
 
-    public static KeyDumpItemReaderBuilder client(RedisClusterClient client) {
+    public static KeyDumpItemReaderBuilder client(RedisModulesClusterClient client) {
         return new KeyDumpItemReaderBuilder(client, KeyDumpValueReader.client(client).build());
     }
 
     public static class KeyDumpItemReaderBuilder extends KeyValueItemReaderBuilder<KeyValue<byte[]>, KeyDumpValueReader, KeyDumpItemReaderBuilder> {
 
-        public KeyDumpItemReaderBuilder(RedisClient client, KeyDumpValueReader valueReader) {
+        public KeyDumpItemReaderBuilder(RedisModulesClient client, KeyDumpValueReader valueReader) {
             super(client, valueReader);
         }
 
-        public KeyDumpItemReaderBuilder(RedisClusterClient client, KeyDumpValueReader valueReader) {
+        public KeyDumpItemReaderBuilder(RedisModulesClusterClient client, KeyDumpValueReader valueReader) {
             super(client, valueReader);
         }
 
@@ -36,10 +39,10 @@ public class KeyDumpItemReader extends KeyValueItemReader<KeyValue<byte[]>> {
         }
 
         public LiveKeyDumpItemReaderBuilder live() {
-            if (client instanceof RedisClusterClient) {
-                return new LiveKeyDumpItemReaderBuilder((RedisClusterClient) client, valueReader);
+            if (client instanceof RedisModulesClusterClient) {
+                return new LiveKeyDumpItemReaderBuilder((RedisModulesClusterClient) client, valueReader);
             }
-            return new LiveKeyDumpItemReaderBuilder((RedisClient) client, valueReader);
+            return new LiveKeyDumpItemReaderBuilder((RedisModulesClient) client, valueReader);
         }
 
     }
@@ -47,11 +50,11 @@ public class KeyDumpItemReader extends KeyValueItemReader<KeyValue<byte[]>> {
     public static class LiveKeyDumpItemReaderBuilder extends LiveKeyValueItemReaderBuilder<KeyValue<byte[]>, KeyDumpValueReader, LiveKeyDumpItemReaderBuilder> {
 
 
-        public LiveKeyDumpItemReaderBuilder(RedisClient client, KeyDumpValueReader valueReader) {
+        public LiveKeyDumpItemReaderBuilder(RedisModulesClient client, KeyDumpValueReader valueReader) {
             super(client, valueReader);
         }
 
-        protected LiveKeyDumpItemReaderBuilder(RedisClusterClient client, KeyDumpValueReader valueReader) {
+        protected LiveKeyDumpItemReaderBuilder(RedisModulesClusterClient client, KeyDumpValueReader valueReader) {
             super(client, valueReader);
         }
 

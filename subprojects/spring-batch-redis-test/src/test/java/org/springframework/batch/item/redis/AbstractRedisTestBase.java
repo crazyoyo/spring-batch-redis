@@ -1,16 +1,16 @@
 package org.springframework.batch.item.redis;
 
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.testcontainers.RedisClusterContainer;
 import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisServerCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
@@ -61,7 +61,7 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
     protected static void add(RedisServer... servers) {
         for (RedisServer server : servers) {
             if (server.isCluster()) {
-                RedisClusterClient client = RedisClusterClient.create(server.getRedisURI());
+                RedisModulesClusterClient client = RedisModulesClusterClient.create(server.getRedisURI());
                 CLIENTS.put(server, client);
                 StatefulRedisClusterConnection<String, String> connection = client.connect();
                 CONNECTIONS.put(server, connection);
@@ -70,7 +70,7 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
                 PUBSUB_CONNECTIONS.put(server, client.connectPubSub());
                 POOLS.put(server, ConnectionPoolSupport.createGenericObjectPool(client::connect, new GenericObjectPoolConfig<>()));
             } else {
-                RedisClient client = RedisClient.create(server.getRedisURI());
+                RedisModulesClient client = RedisModulesClient.create(server.getRedisURI());
                 CLIENTS.put(server, client);
                 StatefulRedisConnection<String, String> connection = client.connect();
                 CONNECTIONS.put(server, connection);
@@ -116,11 +116,11 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
         return (T) CLIENTS.get(redis);
     }
 
-    protected static RedisClient redisClient(RedisServer redis) {
+    protected static RedisModulesClient redisClient(RedisServer redis) {
         return client(redis);
     }
 
-    protected static RedisClusterClient redisClusterClient(RedisServer redis) {
+    protected static RedisModulesClusterClient redisClusterClient(RedisServer redis) {
         return client(redis);
     }
 
