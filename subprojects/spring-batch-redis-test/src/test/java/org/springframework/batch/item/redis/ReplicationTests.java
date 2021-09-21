@@ -189,7 +189,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         KeyComparisonItemWriter writer = KeyComparisonItemWriter.valueReader(right).resultHandler(counter).resultHandler(new KeyComparisonMismatchPrinter()).ttlTolerance(Duration.ofMillis(500)).build();
         execute(name(server, "test-comparison-writer-compare"), left, writer);
         Assertions.assertTrue(counter.get(KeyComparisonItemWriter.Status.OK) > 0);
-        Assertions.assertEquals(1, counter.get(KeyComparisonItemWriter.Status.SOURCE));
+        Assertions.assertEquals(1, counter.get(KeyComparisonItemWriter.Status.MISSING));
     }
 
     @ParameterizedTest(name = "{displayName} - {index}: {0}")

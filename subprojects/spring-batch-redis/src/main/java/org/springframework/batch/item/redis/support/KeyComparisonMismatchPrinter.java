@@ -12,16 +12,13 @@ import java.util.Collection;
 @Slf4j
 public class KeyComparisonMismatchPrinter implements KeyComparisonItemWriter.KeyComparisonResultHandler {
 
-    private Javers javers = JaversBuilder.javers().withListCompareAlgorithm(ListCompareAlgorithm.LEVENSHTEIN_DISTANCE).build();
+    private final Javers javers = JaversBuilder.javers().withListCompareAlgorithm(ListCompareAlgorithm.LEVENSHTEIN_DISTANCE).build();
 
     @Override
     public void accept(DataStructure source, DataStructure target, KeyComparisonItemWriter.Status status) {
         switch (status) {
-            case SOURCE:
+            case MISSING:
                 log.warn("Missing key '{}'", source.getKey());
-                break;
-            case TARGET:
-                log.warn("Extraneous key '{}'", target.getKey());
                 break;
             case TTL:
                 log.warn("TTL mismatch for key '{}': {} <> {}", source.getKey(), source.getAbsoluteTTL(), target.getAbsoluteTTL());

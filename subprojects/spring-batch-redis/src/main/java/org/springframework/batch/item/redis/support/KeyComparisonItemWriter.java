@@ -20,14 +20,13 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 
     public enum Status {
         OK, // No difference
-        SOURCE, // Key only in source database
-        TARGET, // Key only in target database
+        MISSING, // Key missing in target database
         TYPE, // Type mismatch
         TTL, // TTL mismatch
         VALUE // Value mismatch
     }
 
-    public static final Set<Status> MISMATCHES = new HashSet<>(Arrays.asList(Status.SOURCE, Status.TARGET, Status.TYPE, Status.TTL, Status.VALUE));
+    public static final Set<Status> MISMATCHES = new HashSet<>(Arrays.asList(Status.MISSING, Status.TYPE, Status.TTL, Status.VALUE));
 
     public interface KeyComparisonResultHandler {
 
@@ -96,10 +95,10 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
             if (DataStructure.NONE.equalsIgnoreCase(target.getType())) {
                 return Status.OK;
             }
-            return Status.TARGET;
+            return Status.TYPE;
         }
         if (DataStructure.NONE.equalsIgnoreCase(target.getType())) {
-            return Status.SOURCE;
+            return Status.MISSING;
         }
         if (!ObjectUtils.nullSafeEquals(source.getType(), target.getType())) {
             return Status.TYPE;
@@ -108,10 +107,10 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
             if (target.getValue() == null) {
                 return Status.OK;
             }
-            return Status.TARGET;
+            return Status.VALUE;
         }
         if (target.getValue() == null) {
-            return Status.SOURCE;
+            return Status.MISSING;
         }
         if (Objects.deepEquals(source.getValue(), target.getValue())) {
             if (Math.abs(source.getAbsoluteTTL() - target.getAbsoluteTTL()) > ttlTolerance) {
