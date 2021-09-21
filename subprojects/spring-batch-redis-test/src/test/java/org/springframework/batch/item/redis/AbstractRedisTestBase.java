@@ -23,7 +23,6 @@ import org.springframework.batch.item.redis.support.DataStructure;
 import org.springframework.batch.item.redis.support.DataStructureValueReader;
 import org.springframework.batch.item.redis.support.KeyValue;
 import org.springframework.batch.item.redis.support.KeyValueItemReader;
-import org.springframework.batch.item.redis.support.LiveKeyValueItemReader;
 import org.springframework.batch.item.redis.test.DataGenerator;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -40,7 +39,7 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
     @Container
     protected static final RedisContainer REDIS = new RedisContainer().withKeyspaceNotifications();
     @Container
-    private static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer().withKeyspaceNotifications();
+    protected static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer().withKeyspaceNotifications();
 
     static Stream<RedisServer> servers() {
         return Stream.of(REDIS, REDIS_CLUSTER);
@@ -161,12 +160,19 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
         return DataGenerator.client(redisClient(server));
     }
 
-    protected LiveKeyValueItemReader<KeyValue<byte[]>> liveKeyDumpReader(RedisServer server) {
+    protected KeyDumpItemReader.LiveKeyDumpItemReaderBuilder liveKeyDumpReader(RedisServer server) {
         Duration idleTimeout = Duration.ofMillis(500);
         if (server.isCluster()) {
-            return KeyDumpItemReader.client(redisClusterClient(server)).live().idleTimeout(idleTimeout).build();
+            return KeyDumpItemReader.client(redisClusterClient(server)).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
         }
-        return KeyDumpItemReader.client(redisClient(server)).live().idleTimeout(idleTimeout).build();
+        return KeyDumpItemReader.client(redisClient(server)).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
+    }
+
+    protected DataStructureItemReader.LiveDataStructureItemReaderBuilder liveDataStructureReader(RedisServer server) {
+        if (server.isCluster()) {
+            return DataStructureItemReader.client(redisClusterClient(server)).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
+        }
+        return DataStructureItemReader.client(redisClient(server)).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
     }
 
     protected KeyValueItemReader<KeyValue<byte[]>> keyDumpReader(RedisServer server) {
@@ -198,7 +204,7 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
         return DataStructureValueReader.client(redisClient(server)).build();
     }
 
-    protected DataStructureItemWriter<DataStructure> dataStructureWriter(RedisServer server) {
+    protected DataStructureItemWriter dataStructureWriter(RedisServer server) {
         if (server.isCluster()) {
             return DataStructureItemWriter.client(redisClusterClient(server)).build();
         }

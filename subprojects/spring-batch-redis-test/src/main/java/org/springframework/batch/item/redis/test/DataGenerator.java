@@ -156,7 +156,7 @@ public class DataGenerator implements Callable<Long> {
     }
 
     public static String zsetKey(int index) {
-        return"zset:" + collectionIndex(index);
+        return "zset:" + collectionIndex(index);
     }
 
     public static String setKey(int index) {
@@ -223,6 +223,11 @@ public class DataGenerator implements Callable<Long> {
 
         public DataGeneratorBuilder dataTypes(String... dataTypes) {
             this.dataTypes = new HashSet<>(Arrays.asList(dataTypes));
+            return this;
+        }
+
+        public DataGeneratorBuilder exclude(String... dataTypes) {
+            this.dataTypes.removeAll(Arrays.asList(dataTypes));
             return this;
         }
 

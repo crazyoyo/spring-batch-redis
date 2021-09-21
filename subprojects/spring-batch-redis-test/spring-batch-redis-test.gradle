@@ -9,4 +9,5 @@ dependencies {
     testImplementation 'org.hsqldb:hsqldb'
     testImplementation group: 'com.redis.testcontainers', name: 'testcontainers-redis', version: testcontainersRedisVersion
     testImplementation group: 'com.redis.testcontainers', name: 'junit-jupiter', version: testcontainersVersion
+    testImplementation group: 'org.javers', name: 'javers-core', version: javersVersion
 }

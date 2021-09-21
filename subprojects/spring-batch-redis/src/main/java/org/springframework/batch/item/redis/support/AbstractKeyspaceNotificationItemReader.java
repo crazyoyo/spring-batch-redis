@@ -78,9 +78,10 @@ public abstract class AbstractKeyspaceNotificationItemReader<C extends StatefulR
         if (key == null) {
             return;
         }
-        boolean success = queue.offer(key);
-        if (!success) {
-            log.debug("Notification queue full for key '{}' (size={})", key, queue.size());
+        if (queue.offer(key)) {
+            log.debug("Adding key '{}' to notification queue", key);
+        } else {
+            log.debug("Could not add key '{}': notification queue full", key);
         }
     }
 

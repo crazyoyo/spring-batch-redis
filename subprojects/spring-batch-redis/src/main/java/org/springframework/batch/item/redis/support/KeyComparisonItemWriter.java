@@ -18,16 +18,20 @@ import java.util.stream.Collectors;
 @Slf4j
 public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataStructure> {
 
-
-    public enum Result {
-        OK, SOURCE, TARGET, TYPE, TTL, VALUE
+    public enum Status {
+        OK, // No difference
+        SOURCE, // Key only in source database
+        TARGET, // Key only in target database
+        TYPE, // Type mismatch
+        TTL, // TTL mismatch
+        VALUE // Value mismatch
     }
 
-    public static final Set<Result> MISMATCHES = new HashSet<>(Arrays.asList(Result.SOURCE, Result.TARGET, Result.TYPE, Result.TTL, Result.VALUE));
+    public static final Set<Status> MISMATCHES = new HashSet<>(Arrays.asList(Status.SOURCE, Status.TARGET, Status.TYPE, Status.TTL, Status.VALUE));
 
     public interface KeyComparisonResultHandler {
 
-        void accept(DataStructure source, DataStructure target, Result result);
+        void accept(DataStructure source, DataStructure target, Status status);
 
     }
 
@@ -80,42 +84,42 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
         for (int index = 0; index < sourceItems.size(); index++) {
             DataStructure source = sourceItems.get(index);
             DataStructure target = targetItems.get(index);
-            Result result = compare(source, target);
+            Status status = compare(source, target);
             for (KeyComparisonResultHandler handler : resultHandlers) {
-                handler.accept(source, target, result);
+                handler.accept(source, target, status);
             }
         }
     }
 
-    private Result compare(DataStructure source, DataStructure target) {
+    private Status compare(DataStructure source, DataStructure target) {
         if (DataStructure.NONE.equalsIgnoreCase(source.getType())) {
             if (DataStructure.NONE.equalsIgnoreCase(target.getType())) {
-                return Result.OK;
+                return Status.OK;
             }
-            return Result.TARGET;
+            return Status.TARGET;
         }
         if (DataStructure.NONE.equalsIgnoreCase(target.getType())) {
-            return Result.SOURCE;
+            return Status.SOURCE;
         }
         if (!ObjectUtils.nullSafeEquals(source.getType(), target.getType())) {
-            return Result.TYPE;
+            return Status.TYPE;
         }
         if (source.getValue() == null) {
             if (target.getValue() == null) {
-                return Result.OK;
+                return Status.OK;
             }
-            return Result.TARGET;
+            return Status.TARGET;
         }
         if (target.getValue() == null) {
-            return Result.SOURCE;
+            return Status.SOURCE;
         }
         if (Objects.deepEquals(source.getValue(), target.getValue())) {
             if (Math.abs(source.getAbsoluteTTL() - target.getAbsoluteTTL()) > ttlTolerance) {
-                return Result.TTL;
+                return Status.TTL;
             }
-            return Result.OK;
+            return Status.OK;
         }
-        return Result.VALUE;
+        return Status.VALUE;
     }
 
     public static KeyComparisonItemWriterBuilder valueReader(ItemProcessor<List<? extends String>, List<DataStructure>> valueReader) {
@@ -138,6 +142,11 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 
         public KeyComparisonItemWriterBuilder resultHandler(KeyComparisonResultHandler resultHandler) {
             resultHandlers.add(resultHandler);
+            return this;
+        }
+
+        public KeyComparisonItemWriterBuilder resultHandlers(KeyComparisonResultHandler... resultHandlers) {
+            this.resultHandlers.addAll(Arrays.asList(resultHandlers));
             return this;
         }
 

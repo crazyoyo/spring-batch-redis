@@ -2,7 +2,6 @@ package org.springframework.batch.item.redis;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
@@ -14,9 +13,7 @@ import org.springframework.batch.item.redis.support.RedisOperation;
 import org.springframework.batch.item.redis.support.TransactionalOperationItemWriter;
 import org.springframework.util.Assert;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -31,18 +28,10 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
     }
 
     @Override
-    protected void write(RedisModulesAsyncCommands<K, V> commands, long timeout, List<? extends T> items) {
-        List<RedisFuture<?>> futures = write(commands, items);
-        commands.flushCommands();
-        LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(new RedisFuture[0]));
-    }
-
-    protected List<RedisFuture<?>> write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
-        List<RedisFuture<?>> futures = new ArrayList<>(items.size());
+    protected void write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items, List<RedisFuture<?>> futures) {
         for (T item : items) {
             futures.add(operation.execute(commands, item));
         }
-        return futures;
     }
 
     public static ClientOperationItemWriterBuilder<String, String> client(AbstractRedisClient client) {

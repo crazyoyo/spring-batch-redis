@@ -8,34 +8,23 @@ import java.util.stream.Collectors;
 
 public class KeyComparisonResultCounter implements KeyComparisonItemWriter.KeyComparisonResultHandler {
 
-    private final Map<KeyComparisonItemWriter.Result, AtomicLong> counters = Arrays.stream(KeyComparisonItemWriter.Result.values()).collect(Collectors.toMap(Function.identity(), r -> new AtomicLong()));
+    private final Map<KeyComparisonItemWriter.Status, AtomicLong> counters = Arrays.stream(KeyComparisonItemWriter.Status.values()).collect(Collectors.toMap(Function.identity(), r -> new AtomicLong()));
 
     @Override
-    public void accept(DataStructure source, DataStructure target, KeyComparisonItemWriter.Result result) {
-        counters.get(result).incrementAndGet();
+    public void accept(DataStructure source, DataStructure target, KeyComparisonItemWriter.Status status) {
+        counters.get(status).incrementAndGet();
     }
 
-    public long get(KeyComparisonItemWriter.Result result) {
-        return counters.get(result).get();
+    public long get(KeyComparisonItemWriter.Status status) {
+        return counters.get(status).get();
     }
 
-    public Long[] get(KeyComparisonItemWriter.Result... results) {
-        Long[] counts = new Long[results.length];
-        for (int index = 0; index < results.length; index++) {
-            counts[index] = get(results[index]);
+    public Long[] get(KeyComparisonItemWriter.Status... statuses) {
+        Long[] counts = new Long[statuses.length];
+        for (int index = 0; index < statuses.length; index++) {
+            counts[index] = get(statuses[index]);
         }
         return counts;
     }
 
-    public boolean isOK() {
-        if (get(KeyComparisonItemWriter.Result.OK) == 0) {
-            return false;
-        }
-        for (KeyComparisonItemWriter.Result mismatch : KeyComparisonItemWriter.MISMATCHES) {
-            if (get(mismatch) > 0) {
-                return false;
-            }
-        }
-        return true;
-    }
 }

@@ -373,7 +373,7 @@ public class BatchTests extends AbstractRedisTestBase {
             list.add(keyValue);
         }
         ListItemReader<DataStructure> reader = new ListItemReader<>(list);
-        DataStructureItemWriter<DataStructure> writer = dataStructureWriter(redis);
+        DataStructureItemWriter writer = dataStructureWriter(redis);
         execute(name(redis, "value-writer"), reader, writer);
         RedisKeyCommands<String, String> sync = sync(redis);
         List<String> keys = sync.keys("hash:*");
@@ -383,7 +383,7 @@ public class BatchTests extends AbstractRedisTestBase {
     @ParameterizedTest
     @MethodSource("servers")
     public void testLiveReader(RedisServer redis) throws Exception {
-        LiveKeyValueItemReader<KeyValue<byte[]>> reader = liveKeyDumpReader(redis);
+        LiveKeyValueItemReader<KeyValue<byte[]>> reader = liveKeyDumpReader(redis).build();
         ListItemWriter<KeyValue<byte[]>> writer = new ListItemWriter<>();
         JobExecution execution = executeFlushing(name(redis, "live-reader"), reader, writer);
         Thread.sleep(100);

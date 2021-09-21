@@ -1,11 +1,15 @@
 package org.springframework.batch.item.redis.support;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import io.lettuce.core.LettuceFutures;
+import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ItemWriter;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -31,7 +35,18 @@ public abstract class AbstractPipelineItemWriter<K, V, T> extends ConnectionPool
         }
     }
 
-    protected abstract void write(RedisModulesAsyncCommands<K, V> commands, long timeout, List<? extends T> items);
+    protected void write(RedisModulesAsyncCommands<K, V> commands, long timeout, List<? extends T> items) {
+        List<RedisFuture<?>> futures = new ArrayList<>(futureCount(items));
+        write(commands, items, futures);
+        commands.flushCommands();
+        LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(new RedisFuture[0]));
+    }
+
+    protected int futureCount(List<? extends T> items) {
+        return items.size();
+    }
+
+    protected abstract void write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items, List<RedisFuture<?>> futures);
 
 
 }

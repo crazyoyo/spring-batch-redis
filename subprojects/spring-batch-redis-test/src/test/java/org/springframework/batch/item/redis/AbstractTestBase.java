@@ -42,6 +42,8 @@ import java.util.Map;
 @SuppressWarnings({"unused", "BusyWait", "SingleStatementInBlock", "NullableProblems", "SameParameterValue"})
 public abstract class AbstractTestBase {
 
+    protected final static Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
+
     @Autowired
     protected JobLauncher jobLauncher;
     @Autowired
@@ -86,16 +88,16 @@ public abstract class AbstractTestBase {
         return execution;
     }
 
+    protected <I, O> FlushingStepBuilder<I, O> flushing(SimpleStepBuilder<I, O> step) {
+        return new FlushingStepBuilder<>(step).idleTimeout(DEFAULT_IDLE_TIMEOUT);
+    }
+
     protected <I, O> SimpleStepBuilder<I, O> step(String name, ItemReader<? extends I> reader, ItemWriter<O> writer) {
         return step(name, reader, null, writer);
     }
 
     protected <I, O> SimpleStepBuilder<I, O> step(String name, ItemReader<? extends I> reader, ItemProcessor<I,O> processor, ItemWriter<O> writer) {
         return steps.get(name + "-step").<I, O>chunk(50).reader(reader).processor(processor).writer(writer);
-    }
-
-    protected <I, O> FlushingStepBuilder<I, O> flushing(SimpleStepBuilder<I, O> step) {
-        return new FlushingStepBuilder<>(step).idleTimeout(Duration.ofMillis(500));
     }
 
     private static class MapFieldSetMapper implements FieldSetMapper<Map<String, String>> {
@@ -157,7 +159,7 @@ public abstract class AbstractTestBase {
 
     protected void awaitRunning(JobExecution execution) throws InterruptedException {
         while (!execution.isRunning()) {
-            Thread.sleep(10);
+            Thread.sleep(1);
         }
     }
 
