@@ -38,18 +38,18 @@ jobs:
       - name: Build
         run: ./gradlew -Prelease=true build -S
 
-      - name: Jacoco
-        run: ./gradlew -Prelease=true aggregateJacocoReport -S
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v1
-
       - name: Show Reports
         uses: actions/upload-artifact@v1
         if: failure()
         with:
           name: reports-${{ runner.os }}
-          path: subprojects/lettucemod/build/reports
+          path: build/
+
+      - name: Jacoco
+        run: ./gradlew -Prelease=true aggregateJacocoReport -S
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v1
 
       - name: Version
         id: vars
