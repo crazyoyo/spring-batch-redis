@@ -4,4 +4,5 @@ dependencies {
     implementation 'org.apache.commons:commons-pool2'
     implementation 'org.springframework.batch:spring-batch-core'
     implementation 'org.slf4j:slf4j-api'
+    implementation group: 'org.javers', name: 'javers-core', version: javersVersion
 }

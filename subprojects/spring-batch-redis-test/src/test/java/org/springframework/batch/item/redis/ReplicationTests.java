@@ -4,8 +4,6 @@ import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.ScoredValue;
-import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import io.lettuce.core.api.sync.RedisHashCommands;
@@ -13,9 +11,6 @@ import io.lettuce.core.api.sync.RedisKeyCommands;
 import io.lettuce.core.api.sync.RedisServerCommands;
 import io.lettuce.core.api.sync.RedisSetCommands;
 import lombok.extern.slf4j.Slf4j;
-import org.javers.core.Javers;
-import org.javers.core.JaversBuilder;
-import org.javers.core.diff.ListCompareAlgorithm;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,6 +24,7 @@ import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.redis.support.DataStructure;
 import org.springframework.batch.item.redis.support.DataStructureValueReader;
 import org.springframework.batch.item.redis.support.KeyComparisonItemWriter;
+import org.springframework.batch.item.redis.support.KeyComparisonMismatchPrinter;
 import org.springframework.batch.item.redis.support.KeyComparisonResultCounter;
 import org.springframework.batch.item.redis.support.KeyValue;
 import org.springframework.batch.item.redis.support.KeyValueItemReader;
@@ -39,7 +35,6 @@ import org.testcontainers.junit.jupiter.Container;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -165,60 +160,6 @@ public class ReplicationTests extends AbstractRedisTestBase {
         execute(name(server, name + "-compare"), left, writer);
         Assertions.assertEquals(sourceSync.dbsize(), results.get(KeyComparisonItemWriter.Status.OK));
         Assertions.assertTrue(results.isOK());
-    }
-
-    private static class KeyComparisonMismatchPrinter implements KeyComparisonItemWriter.KeyComparisonResultHandler {
-
-        Javers javers = JaversBuilder.javers()
-                .withListCompareAlgorithm(ListCompareAlgorithm.LEVENSHTEIN_DISTANCE)
-                .build();
-
-        @Override
-        public void accept(DataStructure source, DataStructure target, KeyComparisonItemWriter.Status status) {
-            switch (status) {
-                case SOURCE:
-                    log.warn("Missing key '{}'", source.getKey());
-                    break;
-                case TARGET:
-                    log.warn("Extraneous key '{}'", target.getKey());
-                    break;
-                case TTL:
-                    log.warn("TTL mismatch for key '{}': {} <> {}", source.getKey(), source.getAbsoluteTTL(), target.getAbsoluteTTL());
-                    break;
-                case TYPE:
-                    log.warn("Type mismatch for key '{}': {} <> {}", source.getKey(), source.getType(), target.getType());
-                    break;
-                case VALUE:
-                    switch (source.getType()) {
-                        case DataStructure.SET:
-                        case DataStructure.LIST:
-                            diffCollections(source, target, String.class);
-                            break;
-                        case DataStructure.ZSET:
-                            diffCollections(source, target, ScoredValue.class);
-                            break;
-                        case DataStructure.STREAM:
-                            diffCollections(source, target, StreamMessage.class);
-                            break;
-                        default:
-                            log.warn("Value mismatch for {} '{}': {}", source.getType(), source.getKey(), javers.compare(source, target).prettyPrint());
-                            break;
-                    }
-                    break;
-            }
-        }
-
-        private <T> void diffCollections(DataStructure source, DataStructure target, Class<T> itemClass) {
-            Collection<T> sourceValue = (Collection<T>) source.getValue();
-            Collection<T> targetValue = (Collection<T>) target.getValue();
-            if (Math.abs(sourceValue.size() - targetValue.size()) > 5) {
-                log.warn("Size mismatch for {} '{}': {} <> {}", source.getType(), source.getKey(), sourceValue.size(), targetValue.size());
-            } else {
-                log.warn("Value mismatch for {} '{}'", source.getType(), source.getKey());
-                log.info("{}", javers.compareCollections(sourceValue, targetValue, itemClass).prettyPrint());
-            }
-        }
-
     }
 
     @ParameterizedTest(name = "{displayName} - {index}: {0}")
