@@ -56,7 +56,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         add(REDIS_REPLICA);
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testDataStructureReplication(RedisServer redis) throws Exception {
         dataGenerator(redis).end(10000).build().call();
@@ -66,7 +66,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         compare(redis, "ds-replication");
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testLiveDSSetReplication(RedisServer redisServer) throws Exception {
         RedisSetCommands<String, String> sync = sync(redisServer);
@@ -96,7 +96,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         Assertions.assertEquals(source, target);
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testReplication(RedisServer redisServer) throws Exception {
         dataGenerator(redisServer).end(10000).build().call();
@@ -106,7 +106,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         compare(redisServer, "replication");
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testLiveReplication(RedisServer redisServer) throws Exception {
         dataGenerator(redisServer).end(10000).build().call();
@@ -130,7 +130,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         compare(redisServer, "live-replication");
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testLiveDSReplication(RedisServer redisServer) throws Exception {
         dataGenerator(redisServer).exclude(DataStructure.STREAM).end(10000).build().call();
@@ -164,9 +164,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         KeyComparisonItemWriter writer = KeyComparisonItemWriter.valueReader(right).resultHandler(results).resultHandler(new KeyComparisonMismatchPrinter()).ttlTolerance(Duration.ofMillis(500)).build();
         execute(name(server, name + "-compare"), left, writer);
         Assertions.assertEquals(sourceSync.dbsize(), results.get(KeyComparisonItemWriter.Status.OK));
-        for (KeyComparisonItemWriter.Status status : KeyComparisonItemWriter.MISMATCHES) {
-            Assertions.assertEquals(0, results.get(status));
-        }
+        Assertions.assertTrue(results.isOK());
     }
 
     private static class KeyComparisonMismatchPrinter implements KeyComparisonItemWriter.KeyComparisonResultHandler {
@@ -253,7 +251,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         Assertions.assertEquals(1, counter.get(KeyComparisonItemWriter.Status.SOURCE));
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testScanSizeEstimator(RedisServer server) throws Exception {
         dataGenerator(server).end(12345).dataTypes(DataStructure.HASH).build().call();

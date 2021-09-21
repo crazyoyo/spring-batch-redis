@@ -27,4 +27,13 @@ public class KeyComparisonResultCounter implements KeyComparisonItemWriter.KeyCo
         return counts;
     }
 
+    public boolean isOK() {
+        for (KeyComparisonItemWriter.Status status : KeyComparisonItemWriter.MISMATCHES) {
+            if (get(status) > 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 }

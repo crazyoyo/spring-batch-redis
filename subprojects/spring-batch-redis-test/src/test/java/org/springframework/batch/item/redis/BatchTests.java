@@ -80,7 +80,7 @@ import java.util.stream.IntStream;
 @SuppressWarnings("unchecked")
 public class BatchTests extends AbstractRedisTestBase {
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     void testFlushingStep(RedisServer redis) throws Exception {
         PollableItemReader<String> reader = keyEventReader(redis);
@@ -134,7 +134,7 @@ public class BatchTests extends AbstractRedisTestBase {
         return new RedisKeyspaceNotificationItemReader(client::connectPubSub, KeyValueItemReader.LiveKeyValueItemReaderBuilder.DEFAULT_PUBSUB_PATTERNS, queueCapacity);
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     void testKeyspaceNotificationReader(RedisServer redis) throws Exception {
         BlockingQueue<String> queue = new LinkedBlockingDeque<>(10000);
@@ -172,7 +172,7 @@ public class BatchTests extends AbstractRedisTestBase {
     }
 
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     void testDataStructureReader(RedisServer redis) throws Exception {
         populateSource("scan-reader-populate", redis);
@@ -190,7 +190,7 @@ public class BatchTests extends AbstractRedisTestBase {
         execute(name(server, name), reader, new MapFlattener(), writer);
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     void testMultiThreadedReader(RedisServer server) throws Exception {
         populateSource("multithreaded-scan-reader-populate", server);
@@ -226,7 +226,7 @@ public class BatchTests extends AbstractRedisTestBase {
     }
 
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     void testStreamWriter(RedisServer redis) throws Exception {
         String stream = "stream:0";
@@ -272,7 +272,7 @@ public class BatchTests extends AbstractRedisTestBase {
     }
 
     @SuppressWarnings("unchecked")
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testHashWriter(RedisServer server) throws Exception {
         List<Map<String, String>> maps = new ArrayList<>();
@@ -304,7 +304,7 @@ public class BatchTests extends AbstractRedisTestBase {
         private final double latitude;
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testGeoaddWriter(RedisServer redis) throws Exception {
         AbstractRedisClient client = client(redis);
@@ -317,7 +317,7 @@ public class BatchTests extends AbstractRedisTestBase {
         Assertions.assertTrue(radius1.contains("Venice Breakwater"));
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testHashDelWriter(RedisServer server) throws Exception {
         List<Map.Entry<String, Map<String, String>>> hashes = new ArrayList<>();
@@ -340,7 +340,7 @@ public class BatchTests extends AbstractRedisTestBase {
         Assertions.assertEquals(2, commands.hgetall("hash:50").size());
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testSortedSetWriter(RedisServer server) throws Exception {
         List<ScoredValue<String>> values = new ArrayList<>();
@@ -357,7 +357,7 @@ public class BatchTests extends AbstractRedisTestBase {
         Assertions.assertEquals(60, range.size());
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testDataStructureWriter(RedisServer redis) throws Exception {
         List<DataStructure> list = new ArrayList<>();
@@ -380,7 +380,7 @@ public class BatchTests extends AbstractRedisTestBase {
         Assertions.assertEquals(count, keys.size());
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testLiveReader(RedisServer redis) throws Exception {
         LiveKeyValueItemReader<KeyValue<byte[]>> reader = liveKeyDumpReader(redis).build();
@@ -393,7 +393,7 @@ public class BatchTests extends AbstractRedisTestBase {
         Assertions.assertEquals(sync.dbsize(), writer.getWrittenItems().size());
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testKeyValueItemReaderFaultTolerance(RedisServer redis) throws Exception {
         dataGenerator(redis).end(1000).dataTypes(DataStructure.STRING).build().call();

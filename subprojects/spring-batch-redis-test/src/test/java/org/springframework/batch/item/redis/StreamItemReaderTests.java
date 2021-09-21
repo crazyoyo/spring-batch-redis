@@ -24,7 +24,7 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
         }
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     void testStreamReader(RedisServer server) throws Exception {
         dataGenerator(server).dataTypes(DataStructure.STREAM).end(100).build().call();
@@ -35,7 +35,7 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
         assertMessageBody(messages);
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     void testStreamReaderJob(RedisServer redis) throws Exception {
         dataGenerator(redis).dataTypes(DataStructure.STREAM).end(100).build().call();
@@ -48,7 +48,7 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
         assertMessageBody(items);
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     void testMultipleStreamReaders(RedisServer redis) throws Exception {
         String stream = "stream:0";
