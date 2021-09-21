@@ -13,6 +13,7 @@ import org.springframework.batch.item.redis.support.RedisOperation;
 import org.springframework.batch.item.redis.support.TransactionalOperationItemWriter;
 import org.springframework.util.Assert;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -28,10 +29,12 @@ public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, 
     }
 
     @Override
-    protected void write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items, List<RedisFuture<?>> futures) {
+    protected List<RedisFuture<?>> write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
+        List<RedisFuture<?>> futures = new ArrayList<>(items.size());
         for (T item : items) {
             futures.add(operation.execute(commands, item));
         }
+        return futures;
     }
 
     public static ClientOperationItemWriterBuilder<String, String> client(AbstractRedisClient client) {

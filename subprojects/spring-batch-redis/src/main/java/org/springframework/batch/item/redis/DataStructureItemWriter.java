@@ -18,6 +18,7 @@ import org.springframework.batch.item.redis.support.CommandBuilder;
 import org.springframework.batch.item.redis.support.DataStructure;
 import org.springframework.core.convert.converter.Converter;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +36,8 @@ public class DataStructureItemWriter extends AbstractPipelineItemWriter<String, 
     }
 
     @Override
-    public void write(RedisModulesAsyncCommands<String, String> commands, List<? extends DataStructure> items, List<RedisFuture<?>> futures) {
+    public List<RedisFuture<?>> write(RedisModulesAsyncCommands<String, String> commands, List<? extends DataStructure> items) {
+        List<RedisFuture<?>> futures = new ArrayList<>();
         for (DataStructure ds : items) {
             if (ds == null) {
                 continue;
@@ -56,29 +58,38 @@ public class DataStructureItemWriter extends AbstractPipelineItemWriter<String, 
                     futures.add(commands.set(ds.getKey(), (String) ds.getValue()));
                     break;
                 case DataStructure.LIST:
+                    futures.add(commands.multi());
                     futures.add(commands.del(ds.getKey()));
                     futures.add(commands.rpush(ds.getKey(), ((Collection<String>) ds.getValue()).toArray(new String[0])));
+                    futures.add(commands.exec());
                     break;
                 case DataStructure.SET:
+                    futures.add(commands.multi());
                     futures.add(commands.del(ds.getKey()));
                     futures.add(commands.sadd(ds.getKey(), ((Collection<String>) ds.getValue()).toArray(new String[0])));
+                    futures.add(commands.exec());
                     break;
                 case DataStructure.ZSET:
+                    futures.add(commands.multi());
                     futures.add(commands.del(ds.getKey()));
                     futures.add(commands.zadd(ds.getKey(), ((Collection<ScoredValue<String>>) ds.getValue()).toArray(new ScoredValue[0])));
+                    futures.add(commands.exec());
                     break;
                 case DataStructure.STREAM:
+                    futures.add(commands.multi());
                     futures.add(commands.del(ds.getKey()));
                     Collection<StreamMessage<String, String>> messages = (Collection<StreamMessage<String, String>>) ds.getValue();
                     for (StreamMessage<String, String> message : messages) {
                         futures.add(commands.xadd(ds.getKey(), xAddArgs.convert(message), message.getBody()));
                     }
+                    futures.add(commands.exec());
                     break;
             }
             if (ds.getAbsoluteTTL() > 0) {
                 futures.add(commands.pexpireat(ds.getKey(), ds.getAbsoluteTTL()));
             }
         }
+        return futures;
     }
 
     public static DataStructureItemWriterBuilder client(RedisModulesClient client) {

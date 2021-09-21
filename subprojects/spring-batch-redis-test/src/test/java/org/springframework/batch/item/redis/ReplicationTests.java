@@ -128,7 +128,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
     @ParameterizedTest(name = "{displayName} - {index}: {0}")
     @MethodSource("servers")
     public void testLiveDSReplication(RedisServer redisServer) throws Exception {
-        dataGenerator(redisServer).exclude(DataStructure.STREAM).end(10000).build().call();
+        dataGenerator(redisServer).end(10000).build().call();
         KeyValueItemReader<DataStructure> reader = dataStructureReader(redisServer);
         reader.setName("ds-reader");
         DataStructureItemWriter writer = dataStructureWriter(REDIS_REPLICA);
@@ -144,8 +144,9 @@ public class ReplicationTests extends AbstractRedisTestBase {
         Job job = jobs.get(name(redisServer, "live-ds-replication-job")).start(new FlowBuilder<SimpleFlow>("live-ds-replication-flow").split(new SimpleAsyncTaskExecutor()).add(replicationFlow, liveReplicationFlow).build()).build().build();
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         awaitRunning(execution);
-        dataGenerator(redisServer).exclude(DataStructure.STREAM).end(123).build().call();
+        dataGenerator(redisServer).end(123).build().call();
         awaitJobTermination(execution);
+        log.info("Comparing");
         compare(redisServer, "live-ds-replication");
     }
 

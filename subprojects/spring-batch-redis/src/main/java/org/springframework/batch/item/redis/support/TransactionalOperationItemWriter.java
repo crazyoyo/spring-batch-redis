@@ -6,6 +6,7 @@ import io.lettuce.core.api.StatefulConnection;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.redis.OperationItemWriter;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -17,14 +18,12 @@ public class TransactionalOperationItemWriter<K, V, T> extends OperationItemWrit
     }
 
     @Override
-    protected void write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items, List<RedisFuture<?>> futures) {
+    protected List<RedisFuture<?>> write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
+        List<RedisFuture<?>> futures = new ArrayList<>(items.size() + 2); // Add 2 for MULTI and EXEC commands
         futures.add(commands.multi());
-        super.write(commands, items, futures);
+        futures.addAll(super.write(commands, items));
         futures.add(commands.exec());
+        return futures;
     }
 
-    @Override
-    protected int futureCount(List<? extends T> items) {
-        return super.futureCount(items) + 2; // Add 2 for MULTI and EXEC commands
-    }
 }

@@ -7,7 +7,6 @@ import io.lettuce.core.api.StatefulConnection;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ItemWriter;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -36,17 +35,12 @@ public abstract class AbstractPipelineItemWriter<K, V, T> extends ConnectionPool
     }
 
     protected void write(RedisModulesAsyncCommands<K, V> commands, long timeout, List<? extends T> items) {
-        List<RedisFuture<?>> futures = new ArrayList<>(futureCount(items));
-        write(commands, items, futures);
+        List<RedisFuture<?>> futures = write(commands, items);
         commands.flushCommands();
         LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(new RedisFuture[0]));
     }
 
-    protected int futureCount(List<? extends T> items) {
-        return items.size();
-    }
-
-    protected abstract void write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items, List<RedisFuture<?>> futures);
+    protected abstract List<RedisFuture<?>> write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items);
 
 
 }
