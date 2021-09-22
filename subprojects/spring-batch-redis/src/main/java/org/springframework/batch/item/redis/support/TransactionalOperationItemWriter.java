@@ -18,10 +18,10 @@ public class TransactionalOperationItemWriter<K, V, T> extends OperationItemWrit
     }
 
     @Override
-    protected List<RedisFuture<?>> write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
+    protected List<RedisFuture<?>> futures(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
         List<RedisFuture<?>> futures = new ArrayList<>(items.size() + 2); // Add 2 for MULTI and EXEC commands
         futures.add(commands.multi());
-        futures.addAll(super.write(commands, items));
+        futures.addAll(super.futures(commands, items));
         futures.add(commands.exec());
         return futures;
     }

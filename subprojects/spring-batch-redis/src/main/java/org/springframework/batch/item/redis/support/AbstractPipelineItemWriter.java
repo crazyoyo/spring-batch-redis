@@ -7,6 +7,7 @@ import io.lettuce.core.api.StatefulConnection;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ItemWriter;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -27,20 +28,22 @@ public abstract class AbstractPipelineItemWriter<K, V, T> extends ConnectionPool
             RedisModulesAsyncCommands<K, V> commands = async.apply(connection);
             commands.setAutoFlushCommands(false);
             try {
-                write(commands, connection.getTimeout().toMillis(), items);
+                write(commands, connection.getTimeout(), items);
             } finally {
                 commands.setAutoFlushCommands(true);
             }
         }
     }
 
-    protected void write(RedisModulesAsyncCommands<K, V> commands, long timeout, List<? extends T> items) {
-        List<RedisFuture<?>> futures = write(commands, items);
-        commands.flushCommands();
-        LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(new RedisFuture[0]));
+    protected abstract void write(RedisModulesAsyncCommands<K, V> commands, Duration timeout, List<? extends T> items);
+
+    protected void flush(RedisModulesAsyncCommands<K, V> commands, Duration timeout, List<RedisFuture<?>> futures) {
+        flush(commands, timeout, futures.toArray(new RedisFuture[0]));
     }
 
-    protected abstract List<RedisFuture<?>> write(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items);
-
+    protected void flush(RedisModulesAsyncCommands<K, V> commands, Duration timeout, RedisFuture<?>... futures) {
+        commands.flushCommands();
+        LettuceFutures.awaitAll(timeout.toMillis(), TimeUnit.MILLISECONDS, futures);
+    }
 
 }
