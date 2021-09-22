@@ -88,7 +88,7 @@ public class BatchTests extends AbstractRedisTestBase {
         ListItemWriter<String> writer = new ListItemWriter<>();
         JobExecution execution = executeFlushing(name(redis, "flushing"), reader, writer);
         dataGenerator(redis).end(3).maxExpire(Duration.ofMillis(0)).dataTypes(DataStructure.STRING, DataStructure.HASH).build().call();
-        awaitJobTermination(execution);
+        awaitTermination(execution);
         RedisServerCommands<String, String> commands = sync(redis);
         Assertions.assertEquals(commands.dbsize(), writer.getWrittenItems().size());
     }
@@ -122,7 +122,7 @@ public class BatchTests extends AbstractRedisTestBase {
         Assertions.assertNotNull(search.timer());
         search = registry.find("spring.batch.redis.reader.queue.size");
         Assertions.assertNotNull(search.gauge());
-        awaitJobTermination(execution);
+        awaitTermination(execution);
     }
 
     private PollableItemReader<String> keyEventReader(RedisServer redis) {
@@ -389,7 +389,7 @@ public class BatchTests extends AbstractRedisTestBase {
         JobExecution execution = executeFlushing(name(redis, "live-reader"), reader, writer);
         Thread.sleep(100);
         dataGenerator(redis).end(123).maxExpire(Duration.ofMillis(0)).dataTypes(DataStructure.STRING, DataStructure.HASH).build().call();
-        awaitJobTermination(execution);
+        awaitTermination(execution);
         RedisServerCommands<String, String> sync = sync(redis);
         Assertions.assertEquals(sync.dbsize(), writer.getWrittenItems().size());
     }

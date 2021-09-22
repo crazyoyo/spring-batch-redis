@@ -42,7 +42,7 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
         StreamItemReader reader = streamReader(redis, XReadArgs.StreamOffset.from("stream:0", "0-0")).build();
         ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
         JobExecution execution = executeFlushing(name(redis, "stream-reader"), reader, writer);
-        awaitJobTermination(execution);
+        awaitTermination(execution);
         Assertions.assertEquals(10, writer.getWrittenItems().size());
         List<? extends StreamMessage<String, String>> items = writer.getWrittenItems();
         assertMessageBody(items);
@@ -60,8 +60,8 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
         JobExecution execution1 = executeFlushing(name(redis, "stream-reader-1"), reader1, writer1);
         ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
         JobExecution execution2 = executeFlushing(name(redis, "stream-reader-2"), reader2, writer2);
-        awaitJobTermination(execution1);
-        awaitJobTermination(execution2);
+        awaitTermination(execution1);
+        awaitTermination(execution2);
         Assertions.assertEquals(10, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
         assertMessageBody(writer1.getWrittenItems());
         assertMessageBody(writer2.getWrittenItems());

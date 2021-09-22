@@ -31,6 +31,7 @@ import org.springframework.test.context.junit4.SpringRunner;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,6 +44,8 @@ import java.util.Map;
 public abstract class AbstractTestBase {
 
     protected final static Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
+    private static final Duration JOB_TERMINATION_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration JOB_RUNNING_TIMEOUT = Duration.ofSeconds(3);
 
     @Autowired
     protected JobLauncher jobLauncher;
@@ -57,6 +60,7 @@ public abstract class AbstractTestBase {
         return jobs.get(name + "-job").start(step).build();
     }
 
+    @SuppressWarnings("UnusedReturnValue")
     protected <T> JobExecution execute(String name, ItemReader<? extends T> reader, ItemWriter<T> writer) throws Exception {
         return execute(name, reader, null, writer);
     }
@@ -80,8 +84,8 @@ public abstract class AbstractTestBase {
         return executeFlushing(name, reader, null, writer);
     }
 
-    protected <I, O> JobExecution executeFlushing(String name, PollableItemReader<? extends I> reader, ItemProcessor<I,O> processor, ItemWriter<O> writer) throws Exception {
-        TaskletStep step = flushing(step(name, reader,processor, writer)).build();
+    protected <I, O> JobExecution executeFlushing(String name, PollableItemReader<? extends I> reader, ItemProcessor<I, O> processor, ItemWriter<O> writer) throws Exception {
+        TaskletStep step = flushing(step(name, reader, processor, writer)).build();
         JobExecution execution = asyncJobLauncher.run(job(name, step), new JobParameters());
         awaitRunning(execution);
         Thread.sleep(200);
@@ -96,12 +100,13 @@ public abstract class AbstractTestBase {
         return step(name, reader, null, writer);
     }
 
-    protected <I, O> SimpleStepBuilder<I, O> step(String name, ItemReader<? extends I> reader, ItemProcessor<I,O> processor, ItemWriter<O> writer) {
+    protected <I, O> SimpleStepBuilder<I, O> step(String name, ItemReader<? extends I> reader, ItemProcessor<I, O> processor, ItemWriter<O> writer) {
         return steps.get(name + "-step").<I, O>chunk(50).reader(reader).processor(processor).writer(writer);
     }
 
     private static class MapFieldSetMapper implements FieldSetMapper<Map<String, String>> {
 
+        @SuppressWarnings("ConstantConditions")
         @Override
         public Map<String, String> mapFieldSet(FieldSet fieldSet) {
             Map<String, String> fields = new HashMap<>();
@@ -136,11 +141,16 @@ public abstract class AbstractTestBase {
         return builder.build();
     }
 
-    protected void awaitJobTermination(JobExecution execution) throws Exception {
-        while (execution.isRunning()) {
+    protected void awaitTermination(JobExecution execution) throws Exception {
+        Instant start = Instant.now();
+        while (execution.isRunning() && isActive(start, JOB_TERMINATION_TIMEOUT)) {
             Thread.sleep(10);
         }
         checkForFailure(execution);
+    }
+
+    private boolean isActive(Instant start, Duration timeout) {
+        return Duration.between(start, Instant.now()).compareTo(timeout) < 0;
     }
 
     protected static class SynchronizedListItemWriter<T> implements ItemWriter<T> {
@@ -158,8 +168,13 @@ public abstract class AbstractTestBase {
     }
 
     protected void awaitRunning(JobExecution execution) throws InterruptedException {
-        while (!execution.isRunning()) {
+        Instant start = Instant.now();
+        while (!execution.isRunning() && isActive(start, JOB_RUNNING_TIMEOUT)) {
             Thread.sleep(1);
+        }
+        if (!execution.isRunning()) {
+            checkForFailure(execution);
+            Assertions.fail("Job '" + execution.getJobInstance().getJobName() + "' did not reach running state in a timely fashion");
         }
     }
 

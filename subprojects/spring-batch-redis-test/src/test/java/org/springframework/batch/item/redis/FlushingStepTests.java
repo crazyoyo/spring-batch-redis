@@ -29,7 +29,7 @@ public class FlushingStepTests extends AbstractTestBase {
         TaskletStep step = stepBuilder.build();
         JobExecution execution = asyncJobLauncher.run(job("skip-policy", step), new JobParameters());
         awaitRunning(execution);
-        awaitJobTermination(execution);
+        awaitTermination(execution);
         Assertions.assertEquals(items.size(), writer.getWrittenItems().size() * 2);
     }
 }

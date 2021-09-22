@@ -84,7 +84,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         awaitRunning(execution);
         Thread.sleep(800);
         sync.srem(key, "5");
-        awaitJobTermination(execution);
+        awaitTermination(execution);
         Set<String> source = sync.smembers(key);
         RedisSetCommands<String, String> targetSync = sync(REDIS_REPLICA);
         Set<String> target = targetSync.smembers(key);
@@ -121,7 +121,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         awaitRunning(execution);
         dataGenerator(redisServer).end(123).build().call();
-        awaitJobTermination(execution);
+        awaitTermination(execution);
         compare(redisServer, "live-replication");
     }
 
@@ -145,7 +145,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         awaitRunning(execution);
         dataGenerator(redisServer).end(123).build().call();
-        awaitJobTermination(execution);
+        awaitTermination(execution);
         log.info("Comparing");
         compare(redisServer, "live-ds-replication");
     }
