@@ -28,14 +28,15 @@ import org.springframework.util.ClassUtils;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStreamItemReader<T> {
@@ -224,9 +225,9 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         public static final int DEFAULT_CHUNK_SIZE = 50;
         public static final int DEFAULT_QUEUE_CAPACITY = 1000;
         public static final Duration DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
-        public static final List<Class<? extends Throwable>> DEFAULT_SKIPPABLE_EXCEPTIONS = Arrays.asList(RedisCommandExecutionException.class, RedisCommandTimeoutException.class, TimeoutException.class);
+        public static final Map<Class<? extends Throwable>, Boolean> DEFAULT_SKIPPABLE_EXCEPTIONS = Stream.of(RedisCommandExecutionException.class, RedisCommandTimeoutException.class, TimeoutException.class).collect(Collectors.toMap(t -> t, t -> true));
         public static final int DEFAULT_SKIP_LIMIT = 3;
-        public static final SkipPolicy DEFAULT_SKIP_POLICY = new LimitCheckingItemSkipPolicy(DEFAULT_SKIP_LIMIT, DEFAULT_SKIPPABLE_EXCEPTIONS.stream().collect(Collectors.toMap(t -> t, t -> true)));
+        public static final SkipPolicy DEFAULT_SKIP_POLICY = new LimitCheckingItemSkipPolicy(DEFAULT_SKIP_LIMIT, DEFAULT_SKIPPABLE_EXCEPTIONS);
 
         protected final R valueReader;
         protected final AbstractRedisClient client;
