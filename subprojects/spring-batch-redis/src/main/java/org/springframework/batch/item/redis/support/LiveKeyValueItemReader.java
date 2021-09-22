@@ -2,6 +2,7 @@ package org.springframework.batch.item.redis.support;
 
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.util.Assert;
 
@@ -14,8 +15,8 @@ public class LiveKeyValueItemReader<T extends KeyValue<?>> extends KeyValueItemR
     private final Duration flushingInterval;
     private final Duration idleTimeout;
 
-    public LiveKeyValueItemReader(PollableItemReader<String> keyReader, ItemProcessor<List<? extends String>, List<T>> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, Duration flushingInterval, Duration idleTimeout) {
-        super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout);
+    public LiveKeyValueItemReader(PollableItemReader<String> keyReader, ItemProcessor<List<? extends String>, List<T>> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, SkipPolicy skipPolicy, int skipLimit, Duration flushingInterval, Duration idleTimeout) {
+        super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit);
         Assert.notNull(flushingInterval, "Flushing interval must not be null");
         Assert.isTrue(!flushingInterval.isZero(), "Flushing interval must not be zero");
         Assert.isTrue(!flushingInterval.isNegative(), "Flushing interval must not be negative");

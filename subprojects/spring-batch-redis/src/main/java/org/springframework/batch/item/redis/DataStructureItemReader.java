@@ -2,6 +2,7 @@ package org.springframework.batch.item.redis;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.DataStructure;
 import org.springframework.batch.item.redis.support.DataStructureValueReader;
@@ -12,8 +13,8 @@ import java.time.Duration;
 
 public class DataStructureItemReader extends KeyValueItemReader<DataStructure> {
 
-    public DataStructureItemReader(ItemReader<String> keyReader, DataStructureValueReader valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout) {
-        super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout);
+    public DataStructureItemReader(ItemReader<String> keyReader, DataStructureValueReader valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, SkipPolicy skipPolicy, int skipLimit) {
+        super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit);
     }
 
     public static DataStructureItemReaderBuilder client(RedisModulesClient client) {
@@ -35,7 +36,7 @@ public class DataStructureItemReader extends KeyValueItemReader<DataStructure> {
         }
 
         public DataStructureItemReader build() {
-            return new DataStructureItemReader(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout);
+            return new DataStructureItemReader(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit);
         }
 
         public LiveDataStructureItemReaderBuilder live() {
@@ -58,7 +59,7 @@ public class DataStructureItemReader extends KeyValueItemReader<DataStructure> {
         }
 
         public LiveKeyValueItemReader<DataStructure> build() {
-            return new LiveKeyValueItemReader<>(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, flushingInterval, idleTimeout);
+            return new LiveKeyValueItemReader<>(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit, flushingInterval, idleTimeout);
         }
     }
 

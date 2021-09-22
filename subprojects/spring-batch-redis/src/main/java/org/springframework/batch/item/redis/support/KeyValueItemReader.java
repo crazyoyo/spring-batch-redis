@@ -3,7 +3,8 @@ package org.springframework.batch.item.redis.support;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisException;
+import io.lettuce.core.RedisCommandExecutionException;
+import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.codec.StringCodec;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
@@ -11,7 +12,8 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
+import org.springframework.batch.core.step.skip.LimitCheckingItemSkipPolicy;
+import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
@@ -42,6 +44,8 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
     private final int chunkSize;
     private final int queueCapacity;
     private final Duration queuePollTimeout;
+    private final SkipPolicy skipPolicy;
+    private final int skipLimit;
 
     protected BlockingQueue<T> queue;
     private long pollTimeout;
@@ -49,7 +53,7 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
     private String name;
 
 
-    public KeyValueItemReader(ItemReader<String> keyReader, ItemProcessor<List<? extends String>, List<T>> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout) {
+    public KeyValueItemReader(ItemReader<String> keyReader, ItemProcessor<List<? extends String>, List<T>> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, SkipPolicy skipPolicy, int skipLimit) {
         setName(ClassUtils.getShortName(getClass()));
         Assert.notNull(keyReader, "A key reader is required");
         Assert.notNull(valueReader, "A value reader is required");
@@ -59,12 +63,15 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         Assert.notNull(queuePollTimeout, "Queue poll timeout must not be null");
         Assert.isTrue(!queuePollTimeout.isZero(), "Queue poll timeout must not be zero");
         Assert.isTrue(!queuePollTimeout.isNegative(), "Queue poll timeout must not be negative");
+        Assert.notNull(skipPolicy, "A skip policy is required");
         this.keyReader = keyReader;
         this.valueReader = valueReader;
         this.threads = threads;
         this.chunkSize = chunkSize;
         this.queueCapacity = queueCapacity;
         this.queuePollTimeout = queuePollTimeout;
+        this.skipPolicy = skipPolicy;
+        this.skipLimit = skipLimit;
     }
 
     @SuppressWarnings("NullableProblems")
@@ -93,7 +100,7 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
             throw new ItemStreamException("Failed to initialize the reader", e);
         }
         FaultTolerantStepBuilder<String, String> stepBuilder = faultTolerantStepBuilder(factory.getStepBuilderFactory().get(name + "-step").chunk(chunkSize));
-        stepBuilder.skipPolicy(new AlwaysSkipItemSkipPolicy()).skip(RedisException.class).skip(TimeoutException.class);
+        stepBuilder.skipPolicy(skipPolicy).skipLimit(skipLimit).skip(RedisCommandExecutionException.class).skip(RedisCommandTimeoutException.class).skip(TimeoutException.class);
         stepBuilder.reader(keyReader).writer(writer);
         if (threads > 1) {
             ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
@@ -217,6 +224,8 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         public static final int DEFAULT_CHUNK_SIZE = 50;
         public static final int DEFAULT_QUEUE_CAPACITY = 1000;
         public static final Duration DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
+        public static final SkipPolicy DEFAULT_SKIP_POLICY = new LimitCheckingItemSkipPolicy();
+        public static final int DEFAULT_SKIP_LIMIT = 3;
 
         protected final R valueReader;
         protected final AbstractRedisClient client;
@@ -225,6 +234,8 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         protected int chunkSize = DEFAULT_CHUNK_SIZE;
         protected int queueCapacity = DEFAULT_QUEUE_CAPACITY;
         protected Duration queuePollTimeout = DEFAULT_QUEUE_POLL_TIMEOUT;
+        protected SkipPolicy skipPolicy = DEFAULT_SKIP_POLICY;
+        protected int skipLimit = DEFAULT_SKIP_LIMIT;
 
 
         public AbstractKeyValueItemReaderBuilder(RedisModulesClient client, R valueReader) {

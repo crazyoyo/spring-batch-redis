@@ -33,6 +33,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
+import org.springframework.batch.core.step.skip.LimitCheckingItemSkipPolicy;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemWriter;
@@ -400,7 +402,7 @@ public class BatchTests extends AbstractRedisTestBase {
         List<String> keys = IntStream.range(0, 100).boxed().map(DataGenerator::stringKey).collect(Collectors.toList());
         DelegatingPollableItemReader<String> keyReader = DelegatingPollableItemReader.<String>builder().delegate(new ListItemReader<>(keys)).exceptionSupplier(TimeoutException::new).interval(2).build();
         DataStructureValueReader valueReader = dataStructureValueReader(redis);
-        KeyValueItemReader<DataStructure> reader = new KeyValueItemReader<>(keyReader, valueReader, 1, 1, 1000, Duration.ofMillis(100));
+        KeyValueItemReader<DataStructure> reader = new KeyValueItemReader<>(keyReader, valueReader, 1, 1, 1000, Duration.ofMillis(100), new AlwaysSkipItemSkipPolicy(), 0);
         ListItemWriter<DataStructure> writer = new ListItemWriter<>();
         execute(name(redis, "reader-ft"), reader, writer);
         Assertions.assertEquals(50, writer.getWrittenItems().size());
