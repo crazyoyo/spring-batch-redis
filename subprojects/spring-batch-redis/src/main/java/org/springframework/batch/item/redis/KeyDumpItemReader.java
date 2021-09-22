@@ -13,8 +13,8 @@ import java.time.Duration;
 
 public class KeyDumpItemReader extends KeyValueItemReader<KeyValue<byte[]>> {
 
-    public KeyDumpItemReader(ItemReader<String> keyReader, KeyDumpValueReader valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, SkipPolicy skipPolicy, int skipLimit) {
-        super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit);
+    public KeyDumpItemReader(ItemReader<String> keyReader, KeyDumpValueReader valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, SkipPolicy skipPolicy) {
+        super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy);
     }
 
     public static KeyDumpItemReaderBuilder client(RedisModulesClient client) {
@@ -36,7 +36,7 @@ public class KeyDumpItemReader extends KeyValueItemReader<KeyValue<byte[]>> {
         }
 
         public KeyDumpItemReader build() {
-            return new KeyDumpItemReader(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit);
+            return new KeyDumpItemReader(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy);
         }
 
         public LiveKeyDumpItemReaderBuilder live() {
@@ -60,7 +60,7 @@ public class KeyDumpItemReader extends KeyValueItemReader<KeyValue<byte[]>> {
         }
 
         public LiveKeyValueItemReader<KeyValue<byte[]>> build() {
-            return new LiveKeyValueItemReader<>(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit, flushingInterval, idleTimeout);
+            return new LiveKeyValueItemReader<>(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, flushingInterval, idleTimeout);
         }
     }
 

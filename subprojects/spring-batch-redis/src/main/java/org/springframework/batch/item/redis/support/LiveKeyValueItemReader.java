@@ -15,8 +15,8 @@ public class LiveKeyValueItemReader<T extends KeyValue<?>> extends KeyValueItemR
     private final Duration flushingInterval;
     private final Duration idleTimeout;
 
-    public LiveKeyValueItemReader(PollableItemReader<String> keyReader, ItemProcessor<List<? extends String>, List<T>> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, SkipPolicy skipPolicy, int skipLimit, Duration flushingInterval, Duration idleTimeout) {
-        super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit);
+    public LiveKeyValueItemReader(PollableItemReader<String> keyReader, ItemProcessor<List<? extends String>, List<T>> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, SkipPolicy skipPolicy, Duration flushingInterval, Duration idleTimeout) {
+        super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy);
         Assert.notNull(flushingInterval, "Flushing interval must not be null");
         Assert.isTrue(!flushingInterval.isZero(), "Flushing interval must not be zero");
         Assert.isTrue(!flushingInterval.isNegative(), "Flushing interval must not be negative");

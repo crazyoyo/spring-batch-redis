@@ -13,8 +13,8 @@ import java.time.Duration;
 
 public class DataStructureItemReader extends KeyValueItemReader<DataStructure> {
 
-    public DataStructureItemReader(ItemReader<String> keyReader, DataStructureValueReader valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, SkipPolicy skipPolicy, int skipLimit) {
-        super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit);
+    public DataStructureItemReader(ItemReader<String> keyReader, DataStructureValueReader valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, SkipPolicy skipPolicy) {
+        super(keyReader, valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy);
     }
 
     public static DataStructureItemReaderBuilder client(RedisModulesClient client) {
@@ -36,7 +36,7 @@ public class DataStructureItemReader extends KeyValueItemReader<DataStructure> {
         }
 
         public DataStructureItemReader build() {
-            return new DataStructureItemReader(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit);
+            return new DataStructureItemReader(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy);
         }
 
         public LiveDataStructureItemReaderBuilder live() {
@@ -59,7 +59,7 @@ public class DataStructureItemReader extends KeyValueItemReader<DataStructure> {
         }
 
         public LiveKeyValueItemReader<DataStructure> build() {
-            return new LiveKeyValueItemReader<>(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, skipLimit, flushingInterval, idleTimeout);
+            return new LiveKeyValueItemReader<>(keyReader(), valueReader, threads, chunkSize, queueCapacity, queuePollTimeout, skipPolicy, flushingInterval, idleTimeout);
         }
     }
 
