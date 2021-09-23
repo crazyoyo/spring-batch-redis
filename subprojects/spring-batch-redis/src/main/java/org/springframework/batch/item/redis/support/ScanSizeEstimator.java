@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis.support;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.StringCodec;
@@ -91,11 +92,7 @@ public class ScanSizeEstimator {
 
     public static class ScanSizeEstimatorBuilder extends CommandBuilder<String, String, ScanSizeEstimatorBuilder> {
 
-        public ScanSizeEstimatorBuilder(RedisModulesClient client) {
-            super(client, StringCodec.UTF8);
-        }
-
-        public ScanSizeEstimatorBuilder(RedisModulesClusterClient client) {
+        public ScanSizeEstimatorBuilder(AbstractRedisClient client) {
             super(client, StringCodec.UTF8);
         }
 

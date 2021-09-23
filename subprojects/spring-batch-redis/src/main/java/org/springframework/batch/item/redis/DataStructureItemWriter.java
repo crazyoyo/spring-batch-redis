@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -98,11 +99,7 @@ public class DataStructureItemWriter extends AbstractPipelineItemWriter<String, 
 
         private Converter<StreamMessage<String, String>, XAddArgs> xAddArgs = m -> new XAddArgs().id(m.getId());
 
-        public DataStructureItemWriterBuilder(RedisModulesClusterClient client) {
-            super(client, StringCodec.UTF8);
-        }
-
-        public DataStructureItemWriterBuilder(RedisModulesClient client) {
+        public DataStructureItemWriterBuilder(AbstractRedisClient client) {
             super(client, StringCodec.UTF8);
         }
 

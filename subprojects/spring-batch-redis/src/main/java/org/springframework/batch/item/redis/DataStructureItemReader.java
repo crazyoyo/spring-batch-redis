@@ -2,6 +2,7 @@ package org.springframework.batch.item.redis;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import io.lettuce.core.AbstractRedisClient;
 import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.DataStructure;
@@ -27,11 +28,7 @@ public class DataStructureItemReader extends KeyValueItemReader<DataStructure> {
 
     public static class DataStructureItemReaderBuilder extends KeyValueItemReaderBuilder<DataStructure, DataStructureValueReader, DataStructureItemReaderBuilder> {
 
-        public DataStructureItemReaderBuilder(RedisModulesClient client, DataStructureValueReader valueReader) {
-            super(client, valueReader);
-        }
-
-        public DataStructureItemReaderBuilder(RedisModulesClusterClient client, DataStructureValueReader valueReader) {
+        public DataStructureItemReaderBuilder(AbstractRedisClient client, DataStructureValueReader valueReader) {
             super(client, valueReader);
         }
 
@@ -40,21 +37,14 @@ public class DataStructureItemReader extends KeyValueItemReader<DataStructure> {
         }
 
         public LiveDataStructureItemReaderBuilder live() {
-            if (client instanceof RedisModulesClusterClient) {
-                return new LiveDataStructureItemReaderBuilder((RedisModulesClusterClient) client, valueReader);
-            }
-            return new LiveDataStructureItemReaderBuilder((RedisModulesClient) client, valueReader);
+            return new LiveDataStructureItemReaderBuilder(client, valueReader);
         }
 
     }
 
     public static class LiveDataStructureItemReaderBuilder extends LiveKeyValueItemReaderBuilder<DataStructure, DataStructureValueReader, LiveDataStructureItemReaderBuilder> {
 
-        public LiveDataStructureItemReaderBuilder(RedisModulesClient client, DataStructureValueReader valueReader) {
-            super(client, valueReader);
-        }
-
-        protected LiveDataStructureItemReaderBuilder(RedisModulesClusterClient client, DataStructureValueReader valueReader) {
+        public LiveDataStructureItemReaderBuilder(AbstractRedisClient client, DataStructureValueReader valueReader) {
             super(client, valueReader);
         }
 

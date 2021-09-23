@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis.support;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
@@ -92,11 +93,7 @@ public class DataStructureValueReader extends AbstractValueReader<DataStructure>
 
     public static class DataStructureValueReaderBuilder extends CommandBuilder<String, String, DataStructureValueReaderBuilder> {
 
-        public DataStructureValueReaderBuilder(RedisModulesClusterClient client) {
-            super(client, StringCodec.UTF8);
-        }
-
-        public DataStructureValueReaderBuilder(RedisModulesClient client) {
+        public DataStructureValueReaderBuilder(AbstractRedisClient client) {
             super(client, StringCodec.UTF8);
         }
 

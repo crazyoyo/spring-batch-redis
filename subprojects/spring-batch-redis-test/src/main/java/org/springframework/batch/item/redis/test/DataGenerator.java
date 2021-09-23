@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis.test;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
@@ -213,11 +214,7 @@ public class DataGenerator implements Callable<Long> {
         private int batchSize = DEFAULT_BATCH_SIZE;
         private Set<String> dataTypes = new HashSet<>(Arrays.asList(DataStructure.HASH, DataStructure.LIST, DataStructure.STRING, DataStructure.STREAM, DataStructure.SET, DataStructure.ZSET));
 
-        public DataGeneratorBuilder(RedisModulesClusterClient client) {
-            super(client, StringCodec.UTF8);
-        }
-
-        public DataGeneratorBuilder(RedisModulesClient client) {
+        public DataGeneratorBuilder(AbstractRedisClient client) {
             super(client, StringCodec.UTF8);
         }
 
@@ -226,6 +223,7 @@ public class DataGenerator implements Callable<Long> {
             return this;
         }
 
+        @SuppressWarnings("SlowAbstractSetRemoveAll")
         public DataGeneratorBuilder exclude(String... dataTypes) {
             this.dataTypes.removeAll(Arrays.asList(dataTypes));
             return this;

@@ -1,6 +1,5 @@
 package org.springframework.batch.item.redis.support;
 
-import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisCommandExecutionException;
@@ -238,13 +237,7 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         protected Duration queuePollTimeout = DEFAULT_QUEUE_POLL_TIMEOUT;
         protected SkipPolicy skipPolicy = DEFAULT_SKIP_POLICY;
 
-        public AbstractKeyValueItemReaderBuilder(RedisModulesClient client, R valueReader) {
-            super(client, StringCodec.UTF8);
-            this.client = client;
-            this.valueReader = valueReader;
-        }
-
-        public AbstractKeyValueItemReaderBuilder(RedisModulesClusterClient client, R valueReader) {
+        public AbstractKeyValueItemReaderBuilder(AbstractRedisClient client, R valueReader) {
             super(client, StringCodec.UTF8);
             this.client = client;
             this.valueReader = valueReader;
@@ -310,12 +303,7 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
             return (B) this;
         }
 
-
-        protected KeyValueItemReaderBuilder(RedisModulesClient client, R valueReader) {
-            super(client, valueReader);
-        }
-
-        protected KeyValueItemReaderBuilder(RedisModulesClusterClient client, R valueReader) {
+        protected KeyValueItemReaderBuilder(AbstractRedisClient client, R valueReader) {
             super(client, valueReader);
         }
 
@@ -364,12 +352,7 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
             return (B) this;
         }
 
-
-        protected LiveKeyValueItemReaderBuilder(RedisModulesClient client, R valueReader) {
-            super(client, valueReader);
-        }
-
-        protected LiveKeyValueItemReaderBuilder(RedisModulesClusterClient client, R valueReader) {
+        protected LiveKeyValueItemReaderBuilder(AbstractRedisClient client, R valueReader) {
             super(client, valueReader);
         }
 

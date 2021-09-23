@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.StringCodec;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
@@ -29,11 +30,7 @@ public class KeyDumpItemWriter extends OperationItemWriter<String, String, KeyVa
 
     public static class KeyDumpItemWriterBuilder extends CommandBuilder<String, String, KeyDumpItemWriterBuilder> {
 
-        public KeyDumpItemWriterBuilder(RedisModulesClusterClient client) {
-            super(client, StringCodec.UTF8);
-        }
-
-        public KeyDumpItemWriterBuilder(RedisModulesClient client) {
+        public KeyDumpItemWriterBuilder(AbstractRedisClient client) {
             super(client, StringCodec.UTF8);
         }
 

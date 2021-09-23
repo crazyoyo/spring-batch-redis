@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
 import io.lettuce.core.RedisBusyException;
 import io.lettuce.core.StreamMessage;
@@ -132,33 +133,19 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
         AUTO, MANUAL
     }
 
-    public static RedisClientStreamItemReaderBuilder client(RedisModulesClient client) {
-        return new RedisClientStreamItemReaderBuilder(client);
+    public static OffsetStreamItemReaderBuilder client(RedisModulesClient client) {
+        return new OffsetStreamItemReaderBuilder(client);
     }
 
-    public static RedisClusterClientStreamItemReaderBuilder client(RedisModulesClusterClient client) {
-        return new RedisClusterClientStreamItemReaderBuilder(client);
+    public static OffsetStreamItemReaderBuilder client(RedisModulesClusterClient client) {
+        return new OffsetStreamItemReaderBuilder(client);
     }
 
-    public static class RedisClientStreamItemReaderBuilder {
+    public static class OffsetStreamItemReaderBuilder {
 
-        private final RedisModulesClient client;
+        private final AbstractRedisClient client;
 
-        public RedisClientStreamItemReaderBuilder(RedisModulesClient client) {
-            this.client = client;
-        }
-
-        public StreamItemReaderBuilder offset(StreamOffset<String> offset) {
-            return new StreamItemReaderBuilder(client, offset);
-        }
-
-    }
-
-    public static class RedisClusterClientStreamItemReaderBuilder {
-
-        private final RedisModulesClusterClient client;
-
-        public RedisClusterClientStreamItemReaderBuilder(RedisModulesClusterClient client) {
+        public OffsetStreamItemReaderBuilder(AbstractRedisClient client) {
             this.client = client;
         }
 
@@ -185,12 +172,7 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
         private String consumer = DEFAULT_CONSUMER;
         private AckPolicy ackPolicy = DEFAULT_ACK_POLICY;
 
-        public StreamItemReaderBuilder(RedisModulesClient client, StreamOffset<String> offset) {
-            super(client, StringCodec.UTF8);
-            this.offset = offset;
-        }
-
-        public StreamItemReaderBuilder(RedisModulesClusterClient client, StreamOffset<String> offset) {
+        public StreamItemReaderBuilder(AbstractRedisClient client, StreamOffset<String> offset) {
             super(client, StringCodec.UTF8);
             this.offset = offset;
         }

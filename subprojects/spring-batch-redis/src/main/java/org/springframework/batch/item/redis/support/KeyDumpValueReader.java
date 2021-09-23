@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis.support;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -54,11 +55,7 @@ public class KeyDumpValueReader extends AbstractValueReader<KeyValue<byte[]>> {
 
     public static class KeyDumpValueReaderBuilder extends CommandBuilder<String, String, KeyDumpValueReaderBuilder> {
 
-        public KeyDumpValueReaderBuilder(RedisModulesClusterClient client) {
-            super(client, StringCodec.UTF8);
-        }
-
-        public KeyDumpValueReaderBuilder(RedisModulesClient client) {
+        public KeyDumpValueReaderBuilder(AbstractRedisClient client) {
             super(client, StringCodec.UTF8);
         }
 

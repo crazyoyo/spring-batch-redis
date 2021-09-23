@@ -2,6 +2,7 @@ package org.springframework.batch.item.redis;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import io.lettuce.core.AbstractRedisClient;
 import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.KeyDumpValueReader;
@@ -27,11 +28,7 @@ public class KeyDumpItemReader extends KeyValueItemReader<KeyValue<byte[]>> {
 
     public static class KeyDumpItemReaderBuilder extends KeyValueItemReaderBuilder<KeyValue<byte[]>, KeyDumpValueReader, KeyDumpItemReaderBuilder> {
 
-        public KeyDumpItemReaderBuilder(RedisModulesClient client, KeyDumpValueReader valueReader) {
-            super(client, valueReader);
-        }
-
-        public KeyDumpItemReaderBuilder(RedisModulesClusterClient client, KeyDumpValueReader valueReader) {
+        public KeyDumpItemReaderBuilder(AbstractRedisClient client, KeyDumpValueReader valueReader) {
             super(client, valueReader);
         }
 
@@ -40,22 +37,14 @@ public class KeyDumpItemReader extends KeyValueItemReader<KeyValue<byte[]>> {
         }
 
         public LiveKeyDumpItemReaderBuilder live() {
-            if (client instanceof RedisModulesClusterClient) {
-                return new LiveKeyDumpItemReaderBuilder((RedisModulesClusterClient) client, valueReader);
-            }
-            return new LiveKeyDumpItemReaderBuilder((RedisModulesClient) client, valueReader);
+            return new LiveKeyDumpItemReaderBuilder(client, valueReader);
         }
 
     }
 
     public static class LiveKeyDumpItemReaderBuilder extends LiveKeyValueItemReaderBuilder<KeyValue<byte[]>, KeyDumpValueReader, LiveKeyDumpItemReaderBuilder> {
 
-
-        public LiveKeyDumpItemReaderBuilder(RedisModulesClient client, KeyDumpValueReader valueReader) {
-            super(client, valueReader);
-        }
-
-        protected LiveKeyDumpItemReaderBuilder(RedisModulesClusterClient client, KeyDumpValueReader valueReader) {
+        public LiveKeyDumpItemReaderBuilder(AbstractRedisClient client, KeyDumpValueReader valueReader) {
             super(client, valueReader);
         }
 

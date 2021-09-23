@@ -5,9 +5,9 @@ import org.springframework.core.convert.converter.Converter;
 
 public class SuggestionConverter<V, T> implements Converter<T, Suggestion<V>> {
 
-    private Converter<T, V> string;
-    private Converter<T, Double> score;
-    private Converter<T, V> payload;
+    private final Converter<T, V> string;
+    private final Converter<T, Double> score;
+    private final Converter<T, V> payload;
 
     public SuggestionConverter(Converter<T, V> string, Converter<T, Double> score, Converter<T, V> payload) {
         this.string = string;

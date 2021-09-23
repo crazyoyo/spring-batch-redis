@@ -1,15 +1,12 @@
 package org.springframework.batch.item.redis.support.operation;
 
-import java.util.function.Predicate;
-
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import io.lettuce.core.RedisFuture;
+import io.lettuce.core.RestoreArgs;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-
-import io.lettuce.core.RedisFuture;
-import io.lettuce.core.RestoreArgs;
-import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import java.util.function.Predicate;
 
 public class Restore<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
