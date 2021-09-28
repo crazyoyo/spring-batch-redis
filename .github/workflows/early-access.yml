@@ -12,6 +12,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - id: release
+      - name: Release
         uses: redis-field-engineering/redis-release-action@v1
-        shell: bash
+        with:
+          gpg-key-id: ${{ secrets.GPG_KEY_ID }}
+          gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY }}
+          gpg-secret-key: ${{ secrets.GPG_SECRET_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          sonatype-username: ${{ secrets.SONATYPE_USERNAME }}
+          sonatype-password: ${{ secrets.SONATYPE_PASSWORD }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook: ${{ secrets.JRELEASER_SLACK_WEBHOOK }}
