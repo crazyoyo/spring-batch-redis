@@ -14,3 +14,4 @@ jobs:
         uses: actions/checkout@v2
       - id: release
         uses: redis-field-engineering/redis-release-action@v1
+        shell: bash
