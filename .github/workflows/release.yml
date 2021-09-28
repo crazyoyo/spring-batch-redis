@@ -16,9 +16,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Release
-          uses: redis-field-engineering/redis-release-version-action@v1
-          with:
-            version: ${{ github.event.inputs.version }}
+        uses: redis-field-engineering/redis-release-version-action@v1
+        with:
+          version: ${{ github.event.inputs.version }}
       - name: Release
         uses: redis-field-engineering/redis-release-action@v1
         with:
