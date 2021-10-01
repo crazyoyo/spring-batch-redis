@@ -3,6 +3,7 @@ package org.springframework.batch.item.redis;
 import lombok.Builder;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.redis.support.PollableItemReader;
+import org.springframework.batch.item.redis.support.State;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
@@ -14,6 +15,7 @@ public class DelegatingPollableItemReader<T> extends AbstractItemCountingItemStr
     private final ItemReader<T> delegate;
     private final Supplier<Exception> exceptionSupplier;
     private final long interval;
+    private State state;
 
     @Builder
     public DelegatingPollableItemReader(ItemReader<T> delegate, Supplier<Exception> exceptionSupplier, long interval) {
@@ -39,10 +41,16 @@ public class DelegatingPollableItemReader<T> extends AbstractItemCountingItemStr
 
     @Override
     protected void doOpen() {
+        this.state = State.OPEN;
     }
 
     @Override
     protected void doClose() {
+        this.state = State.CLOSED;
     }
 
+    @Override
+    public State getState() {
+        return state;
+    }
 }

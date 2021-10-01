@@ -7,7 +7,6 @@ import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.codec.StringCodec;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
@@ -45,14 +44,12 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
     private final int threads;
     private final int chunkSize;
     private final int queueCapacity;
-    private final Duration queuePollTimeout;
     private final SkipPolicy skipPolicy;
+    private final long pollTimeout;
 
     protected BlockingQueue<T> queue;
-    private long pollTimeout;
-    private JobExecution jobExecution;
+    private JobFactory.JobExecutionWrapper jobExecution;
     private String name;
-
 
     public KeyValueItemReader(ItemReader<String> keyReader, ItemProcessor<List<? extends String>, List<T>> valueReader, int threads, int chunkSize, int queueCapacity, Duration queuePollTimeout, SkipPolicy skipPolicy) {
         setName(ClassUtils.getShortName(getClass()));
@@ -70,7 +67,7 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         this.threads = threads;
         this.chunkSize = chunkSize;
         this.queueCapacity = queueCapacity;
-        this.queuePollTimeout = queuePollTimeout;
+        this.pollTimeout = queuePollTimeout.toMillis();
         this.skipPolicy = skipPolicy;
     }
 
@@ -81,7 +78,6 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         super.setName(name);
     }
 
-    @SuppressWarnings("BusyWait")
     @Override
     public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
         if (jobExecution != null) {
@@ -90,16 +86,15 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         }
         log.debug("Opening {}", name);
         queue = new LinkedBlockingDeque<>(queueCapacity);
-        pollTimeout = queuePollTimeout.toMillis();
         MetricsUtils.createGaugeCollectionSize("reader.queue.size", queue);
         ItemWriter<String> writer = new ValueWriter<>(valueReader, queue);
-        JobFactory factory = new JobFactory();
+        JobFactory factory;
         try {
-            factory.afterPropertiesSet();
+            factory = JobFactory.inMemory();
         } catch (Exception e) {
             throw new ItemStreamException("Failed to initialize the reader", e);
         }
-        FaultTolerantStepBuilder<String, String> stepBuilder = faultTolerantStepBuilder(factory.getStepBuilderFactory().get(name + "-step").chunk(chunkSize));
+        FaultTolerantStepBuilder<String, String> stepBuilder = faultTolerantStepBuilder(factory.step(name + "-step").chunk(chunkSize));
         stepBuilder.skipPolicy(skipPolicy);
         stepBuilder.reader(keyReader).writer(writer);
         if (threads > 1) {
@@ -109,18 +104,16 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
             taskExecutor.afterPropertiesSet();
             stepBuilder.taskExecutor(taskExecutor).throttleLimit(threads);
         }
-        Job job = factory.getJobBuilderFactory().get(name + "-job").start(stepBuilder.build()).build();
+        Job job = factory.job(name + "-job").start(stepBuilder.build()).build();
         try {
-            this.jobExecution = factory.getAsyncLauncher().run(job, new JobParameters());
+            jobExecution = factory.runAsync(job, new JobParameters());
         } catch (Exception e) {
             throw new ItemStreamException("Could not run job " + job.getName());
         }
-        while (!jobExecution.isRunning()) {
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                throw new ItemStreamException("Interrupted while waiting for job to run");
-            }
+        try {
+            jobExecution.awaitRunning();
+        } catch (Throwable e) {
+            throw new ItemStreamException("Could not start queue job", e);
         }
         super.open(executionContext);
         log.debug("Opened {}", name);
@@ -145,7 +138,6 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         return items;
     }
 
-    @SuppressWarnings("BusyWait")
     @Override
     public synchronized void close() {
         if (jobExecution == null) {
@@ -157,12 +149,10 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         if (!queue.isEmpty()) {
             log.warn("Closing {} with {} items still in queue", ClassUtils.getShortName(getClass()), queue.size());
         }
-        while (jobExecution.isRunning()) {
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                throw new ItemStreamException("Interrupted while waiting for job to finish running");
-            }
+        try {
+            jobExecution.awaitTermination();
+        } catch (Throwable e) {
+            throw new ItemStreamException("Error while waiting for job to terminate", e);
         }
         queue = null;
         jobExecution = null;

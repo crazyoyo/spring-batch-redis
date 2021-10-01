@@ -16,4 +16,6 @@ public interface PollableItemReader<T> extends ItemStreamReader<T> {
      */
     T poll(long timeout, TimeUnit unit) throws Exception;
 
+    State getState();
+
 }

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.springframework.batch.item.redis.support.DataStructure;
 import org.springframework.batch.item.redis.support.DataStructureValueReader;
+import org.springframework.batch.item.redis.support.JobFactory;
 import org.springframework.batch.item.redis.support.KeyValue;
 import org.springframework.batch.item.redis.support.KeyValueItemReader;
 import org.springframework.batch.item.redis.test.DataGenerator;
@@ -163,16 +164,16 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
     protected KeyDumpItemReader.LiveKeyDumpItemReaderBuilder liveKeyDumpReader(RedisServer server) {
         Duration idleTimeout = Duration.ofMillis(500);
         if (server.isCluster()) {
-            return KeyDumpItemReader.client(redisClusterClient(server)).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
+            return KeyDumpItemReader.client(redisClusterClient(server)).live().idleTimeout(JobFactory.DEFAULT_IDLE_TIMEOUT);
         }
-        return KeyDumpItemReader.client(redisClient(server)).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
+        return KeyDumpItemReader.client(redisClient(server)).live().idleTimeout(JobFactory.DEFAULT_IDLE_TIMEOUT);
     }
 
     protected DataStructureItemReader.LiveDataStructureItemReaderBuilder liveDataStructureReader(RedisServer server) {
         if (server.isCluster()) {
-            return DataStructureItemReader.client(redisClusterClient(server)).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
+            return DataStructureItemReader.client(redisClusterClient(server)).live().idleTimeout(JobFactory.DEFAULT_IDLE_TIMEOUT);
         }
-        return DataStructureItemReader.client(redisClient(server)).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
+        return DataStructureItemReader.client(redisClient(server)).live().idleTimeout(JobFactory.DEFAULT_IDLE_TIMEOUT);
     }
 
     protected KeyValueItemReader<KeyValue<byte[]>> keyDumpReader(RedisServer server) {

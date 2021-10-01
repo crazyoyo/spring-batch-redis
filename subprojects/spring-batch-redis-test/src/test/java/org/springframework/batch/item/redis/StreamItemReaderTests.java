@@ -8,9 +8,9 @@ import io.lettuce.core.models.stream.PendingMessages;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.redis.support.DataStructure;
+import org.springframework.batch.item.redis.support.JobFactory;
 import org.springframework.batch.item.support.ListItemWriter;
 
 import java.util.List;
@@ -24,7 +24,7 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
         }
     }
 
-    @ParameterizedTest(name = "{displayName} - {index}: {0}")
+    @ParameterizedTest
     @MethodSource("servers")
     void testStreamReader(RedisServer server) throws Exception {
         dataGenerator(server).dataTypes(DataStructure.STREAM).end(100).build().call();
@@ -35,33 +35,32 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
         assertMessageBody(messages);
     }
 
-    @ParameterizedTest(name = "{displayName} - {index}: {0}")
+    @ParameterizedTest
     @MethodSource("servers")
-    void testStreamReaderJob(RedisServer redis) throws Exception {
+    void testStreamReaderJob(RedisServer redis) throws Throwable {
         dataGenerator(redis).dataTypes(DataStructure.STREAM).end(100).build().call();
         StreamItemReader reader = streamReader(redis, XReadArgs.StreamOffset.from("stream:0", "0-0")).build();
         ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
-        JobExecution execution = executeFlushing(name(redis, "stream-reader"), reader, writer);
-        awaitTermination(execution);
+        jobFactory.runFlushing(name(redis, "stream-reader"), reader, writer).awaitTermination();
         Assertions.assertEquals(10, writer.getWrittenItems().size());
         List<? extends StreamMessage<String, String>> items = writer.getWrittenItems();
         assertMessageBody(items);
     }
 
-    @ParameterizedTest(name = "{displayName} - {index}: {0}")
+    @ParameterizedTest
     @MethodSource("servers")
-    void testMultipleStreamReaders(RedisServer redis) throws Exception {
+    void testMultipleStreamReaders(RedisServer redis) throws Throwable {
         String stream = "stream:0";
         String consumerGroup = "consumerGroup";
         dataGenerator(redis).dataTypes(DataStructure.STREAM).end(100).build().call();
         StreamItemReader reader1 = streamReader(redis, XReadArgs.StreamOffset.from(stream, "0-0")).consumerGroup(consumerGroup).consumer("consumer1").ackPolicy(StreamItemReader.AckPolicy.MANUAL).build();
         StreamItemReader reader2 = streamReader(redis, XReadArgs.StreamOffset.from(stream, "0-0")).consumerGroup(consumerGroup).consumer("consumer2").ackPolicy(StreamItemReader.AckPolicy.MANUAL).build();
         ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
-        JobExecution execution1 = executeFlushing(name(redis, "stream-reader-1"), reader1, writer1);
+        JobFactory.JobExecutionWrapper execution1 = jobFactory.runFlushing(name(redis, "stream-reader-1"), reader1, writer1);
         ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
-        JobExecution execution2 = executeFlushing(name(redis, "stream-reader-2"), reader2, writer2);
-        awaitTermination(execution1);
-        awaitTermination(execution2);
+        JobFactory.JobExecutionWrapper execution2 = jobFactory.runFlushing(name(redis, "stream-reader-2"), reader2, writer2);
+        execution1.awaitTermination();
+        execution2.awaitTermination();
         Assertions.assertEquals(10, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
         assertMessageBody(writer1.getWrittenItems());
         assertMessageBody(writer2.getWrittenItems());

@@ -22,6 +22,7 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.redis.support.CommandBuilder;
 import org.springframework.batch.item.redis.support.ConnectionPoolItemStream;
 import org.springframework.batch.item.redis.support.PollableItemReader;
+import org.springframework.batch.item.redis.support.State;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
@@ -47,6 +48,7 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
     private final String consumer;
     private final AckPolicy ackPolicy;
     private Iterator<StreamMessage<String, String>> iterator = Collections.emptyIterator();
+    private State state;
 
     public StreamItemReader(Supplier<StatefulConnection<String, String>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig, Function<StatefulConnection<String, String>, RedisModulesCommands<String, String>> sync, Long count, Duration block, String consumerGroup, String consumer, StreamOffset<String> offset, AckPolicy ackPolicy) {
         super(connectionSupplier, poolConfig);
@@ -74,6 +76,18 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
         } catch (Exception e) {
             throw new ItemStreamException("Failed to initialize the reader", e);
         }
+        this.state = State.OPEN;
+    }
+
+    @Override
+    public synchronized void close() {
+        super.close();
+        this.state = State.CLOSED;
+    }
+
+    @Override
+    public State getState() {
+        return state;
     }
 
     @Override
