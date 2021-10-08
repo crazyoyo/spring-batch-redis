@@ -15,13 +15,24 @@ project:
 
 release:
   github:
-    username: jruaux
     overwrite: true
+    sign: true
     changelog:
-      sort: DESC
       formatted: ALWAYS
       format: '- {{commitShortHash}} {{commitTitle}}'
+      contributors:
+        format: '- {{contributorName}}{{#contributorUsernameAsLink}} ({{.}}){{/contributorUsernameAsLink}}'
       labelers:
+        - label: 'merge_pull'
+          title: 'Merge pull'
+        - label: 'merge_branch'
+          title: 'Merge branch'
+        - label: 'translation'
+          title: '[translation]'
+        - label: 'task'
+          title: '[chore]'
+        - label: 'dependencies'
+          title: '[deps]'
         - label: 'feature'
           title: 'Resolves #'
           body: 'Resolves #'
@@ -31,11 +42,11 @@ release:
         - label: 'issue'
           title: 'Relates to #'
           body: 'Relates to #'
-        - label: 'task'
-          title: '[chore]'
-        - label: 'dependencies'
-          title: '[deps]'
       categories:
+        - title: 'Merge'
+          labels:
+            - 'merge_pull'
+            - 'merge_branch'
         - title: '🚀 Features'
           labels:
             - 'feature'
@@ -45,21 +56,44 @@ release:
         - title: '🧰 Tasks'
           labels:
             - 'task'
-        - title: '⚙️ Dependencies'
+        - title: '🌐 Translation'
+          labels:
+            - 'translation'
+        - title: '⚙️  Dependencies'
           labels:
             - 'dependencies'
+      hide:
+        categories:
+          - 'Merge'
+        contributors:
+          - 'GitHub'
       replacers:
         - search: '\[chore\] '
-          replace: ''
         - search: '\[deps\] '
-          replace: ''
+        - search: '\[translation\] '
+
+signing:
+  active: always
+  armored: true
+  files: false
+
+checksum:
+  files: false
+
+distributions:
+  spring-batch-redis:
+    artifacts:
+      - path: subprojects/{{distributionName}}/build/distributions/{{distributionName}}-{{projectVersion}}.zip
+        transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.zip'
+  spring-batch-redis-test:
+    artifacts:
+      - path: subprojects/{{distributionName}}/build/distributions/{{distributionName}}-{{projectVersion}}.zip
+        transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.zip'
+  spring-boot-starter-batch-redis:
+    artifacts:
+      - path: subprojects/{{distributionName}}/build/distributions/{{distributionName}}-{{projectVersion}}.zip
+        transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.zip'
 
 files:
   artifacts:
     - path: VERSION
-    - path: subprojects/spring-batch-redis/build/distributions/spring-batch-redis-{{projectVersion}}.zip
-      transform: spring-batch-redis-{{projectEffectiveVersion}}.zip
-    - path: subprojects/spring-batch-redis-test/build/distributions/spring-batch-redis-test-{{projectVersion}}.zip
-      transform: spring-batch-redis-test-{{projectEffectiveVersion}}.zip
-    - path: subprojects/spring-boot-starter-batch-redis/build/distributions/spring-boot-starter-batch-redis-{{projectVersion}}.zip
-      transform: spring-boot-starter-batch-redis-{{projectEffectiveVersion}}.zip
