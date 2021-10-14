@@ -85,10 +85,6 @@ distributions:
     artifacts:
       - path: subprojects/{{distributionName}}/build/distributions/{{distributionName}}-{{projectVersion}}.zip
         transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.zip'
-  spring-batch-redis-test:
-    artifacts:
-      - path: subprojects/{{distributionName}}/build/distributions/{{distributionName}}-{{projectVersion}}.zip
-        transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.zip'
   spring-boot-starter-batch-redis:
     artifacts:
       - path: subprojects/{{distributionName}}/build/distributions/{{distributionName}}-{{projectVersion}}.zip
