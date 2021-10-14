@@ -164,7 +164,6 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
     }
 
     protected KeyDumpItemReader.LiveKeyDumpItemReaderBuilder liveKeyDumpReader(RedisServer server) {
-        Duration idleTimeout = Duration.ofMillis(500);
         if (server.isCluster()) {
             return KeyDumpItemReader.client(redisClusterClient(server)).live().idleTimeout(JobFactory.DEFAULT_IDLE_TIMEOUT);
         }

@@ -129,7 +129,7 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
     @Accessors(fluent = true)
     public static class KeyComparisonItemWriterBuilder {
 
-        private static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
+        private static final Duration DEFAULT_TTL_TOLERANCE = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL.multipliedBy(2);
 
         private final ItemProcessor<List<? extends String>, List<DataStructure>> valueReader;
         private final List<KeyComparisonResultHandler> resultHandlers = new ArrayList<>();
