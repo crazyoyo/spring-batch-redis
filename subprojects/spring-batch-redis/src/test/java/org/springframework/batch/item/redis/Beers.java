@@ -1,4 +1,4 @@
-package org.springframework.batch.item.redis.test;
+package org.springframework.batch.item.redis;
 
 import java.util.Map;
 
@@ -6,7 +6,6 @@ import org.springframework.batch.item.json.JacksonJsonObjectReader;
 import org.springframework.batch.item.json.JsonItemReader;
 import org.springframework.batch.item.json.JsonObjectReader;
 import org.springframework.batch.item.json.builder.JsonItemReaderBuilder;
-import org.springframework.batch.item.redis.OperationItemWriter;
 import org.springframework.batch.item.redis.support.JacksonJsonNodeReader;
 import org.springframework.batch.item.redis.support.JobFactory;
 import org.springframework.batch.item.redis.support.convert.MapFlattener;

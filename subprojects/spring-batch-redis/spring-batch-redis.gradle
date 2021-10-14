@@ -5,4 +5,13 @@ dependencies {
     implementation 'org.springframework.batch:spring-batch-core'
     implementation 'org.slf4j:slf4j-api'
     implementation group: 'org.apache.commons', name: 'commons-lang3', version: commonsLangVersion
+    testImplementation 'io.micrometer:micrometer-core'
+    testImplementation('org.springframework.boot:spring-boot-starter-test') {
+        exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+    }
+    testImplementation 'org.springframework.batch:spring-batch-test'
+    testImplementation 'org.hsqldb:hsqldb'
+    testImplementation group: 'com.redis.testcontainers', name: 'testcontainers-redis', version: testcontainersRedisVersion
+    testImplementation group: 'com.redis.testcontainers', name: 'junit-jupiter', version: testcontainersVersion
+    
 }

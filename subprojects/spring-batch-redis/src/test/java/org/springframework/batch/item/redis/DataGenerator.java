@@ -1,4 +1,4 @@
-package org.springframework.batch.item.redis.test;
+package org.springframework.batch.item.redis;
 
 import java.time.Duration;
 import java.util.ArrayList;
