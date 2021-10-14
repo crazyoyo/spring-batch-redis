@@ -84,6 +84,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         jobFactory.awaitOpen(liveReader);
         Thread.sleep(10);
         sync.srem(key, "5");
+        Thread.sleep(10);
         execution.awaitTermination();
         Set<String> source = sync.smembers(key);
         RedisSetCommands<String, String> targetSync = sync(REDIS_REPLICA);
