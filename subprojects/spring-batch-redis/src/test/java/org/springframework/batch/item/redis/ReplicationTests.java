@@ -82,6 +82,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
         Job job = jobFactory.job(name(redisServer, "live-ds-set-replication-job")).start(new FlowBuilder<SimpleFlow>("live-ds-replication-flow").split(new SimpleAsyncTaskExecutor()).add(replicationFlow, liveReplicationFlow).build()).build().build();
         JobFactory.JobExecutionWrapper execution = jobFactory.runAsync(job, new JobParameters()).awaitRunning();
         jobFactory.awaitOpen(liveReader);
+        Thread.sleep(10);
         sync.srem(key, "5");
         execution.awaitTermination();
         Set<String> source = sync.smembers(key);
