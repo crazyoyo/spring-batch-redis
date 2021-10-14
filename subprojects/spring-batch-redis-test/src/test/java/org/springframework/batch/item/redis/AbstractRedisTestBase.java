@@ -1,19 +1,10 @@
 package org.springframework.batch.item.redis;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.testcontainers.RedisClusterContainer;
-import com.redis.testcontainers.RedisContainer;
-import com.redis.testcontainers.RedisServer;
-import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.sync.BaseRedisCommands;
-import io.lettuce.core.api.sync.RedisServerCommands;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
-import io.lettuce.core.support.ConnectionPoolSupport;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Stream;
+
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.junit.jupiter.api.AfterAll;
@@ -28,13 +19,24 @@ import org.springframework.batch.item.redis.test.DataGenerator;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.stream.Stream;
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import com.redis.testcontainers.RedisClusterContainer;
+import com.redis.testcontainers.RedisContainer;
+import com.redis.testcontainers.RedisServer;
+
+import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.sync.BaseRedisCommands;
+import io.lettuce.core.api.sync.RedisServerCommands;
+import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
+import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
+import io.lettuce.core.support.ConnectionPoolSupport;
 
 @Testcontainers
-@SuppressWarnings({"unchecked", "unused", "SingleStatementInBlock", "SameParameterValue"})
+@SuppressWarnings({"unchecked", "unused"})
 public abstract class AbstractRedisTestBase extends AbstractTestBase {
 
     @Container

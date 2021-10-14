@@ -15,7 +15,6 @@ import java.util.Map.Entry;
  */
 public class MapFlattener implements Converter<Map<String, Object>, Map<String, String>>, ItemProcessor<Map<String, Object>, Map<String, String>> {
 
-    @SuppressWarnings("NullableProblems")
     @Override
     public Map<String, String> process(Map<String, Object> item) {
         return convert(item);

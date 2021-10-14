@@ -1,8 +1,26 @@
 package org.springframework.batch.item.redis.test;
 
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import org.springframework.batch.item.redis.support.CommandBuilder;
+import org.springframework.batch.item.redis.support.DataStructure;
+
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
@@ -18,25 +36,7 @@ import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.batch.item.redis.support.CommandBuilder;
-import org.springframework.batch.item.redis.support.DataStructure;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.function.Supplier;
-
-@Slf4j
 public class DataGenerator implements Callable<Long> {
 
     private final Supplier<StatefulConnection<String, String>> connectionSupplier;
@@ -223,7 +223,6 @@ public class DataGenerator implements Callable<Long> {
             return this;
         }
 
-        @SuppressWarnings("SlowAbstractSetRemoveAll")
         public DataGeneratorBuilder exclude(String... dataTypes) {
             this.dataTypes.removeAll(Arrays.asList(dataTypes));
             return this;

@@ -51,10 +51,11 @@ public class KeyComparisonMismatchPrinter implements KeyComparisonItemWriter.Key
                         break;
                 }
                 break;
+            case OK:
+            	break;
         }
     }
 
-    @SuppressWarnings("unchecked")
     private void showHashDiff(DataStructure source, DataStructure target) {
         Map<String, String> sourceHash = (Map<String, String>) source.getValue();
         Map<String, String> targetHash = (Map<String, String>) target.getValue();

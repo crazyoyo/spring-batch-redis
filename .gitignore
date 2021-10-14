@@ -1,8 +1,8 @@
-/bin/
-/.classpath
-/.project
+bin
+.classpath
+.project
 build
-/.gradle/
-/.settings/
+.gradle
+.settings
 .idea
-/out/
+out

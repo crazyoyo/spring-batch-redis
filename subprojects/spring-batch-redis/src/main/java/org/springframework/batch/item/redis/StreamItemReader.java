@@ -107,7 +107,6 @@ public class StreamItemReader extends ConnectionPoolItemStream<String, String> i
         return iterator.next();
     }
 
-    @SuppressWarnings("unused")
     public List<StreamMessage<String, String>> readMessages() throws Exception {
         return readMessages(block);
     }

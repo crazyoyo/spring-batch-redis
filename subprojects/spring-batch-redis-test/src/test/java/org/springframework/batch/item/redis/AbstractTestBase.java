@@ -13,10 +13,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 @RunWith(SpringRunner.class)
 public abstract class AbstractTestBase implements InitializingBean {
 
-    @SuppressWarnings("unused")
     @Autowired
     private JobRepository jobRepository;
-    @SuppressWarnings("unused")
     @Autowired
     private PlatformTransactionManager transactionManager;
 

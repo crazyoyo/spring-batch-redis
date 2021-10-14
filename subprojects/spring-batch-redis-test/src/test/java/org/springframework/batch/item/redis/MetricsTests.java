@@ -1,12 +1,7 @@
 package org.springframework.batch.item.redis;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.testcontainers.RedisModulesContainer;
-import io.micrometer.core.instrument.Clock;
-import io.micrometer.core.instrument.Metrics;
-import io.micrometer.core.instrument.search.Search;
-import io.micrometer.core.instrument.simple.SimpleConfig;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Duration;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
@@ -19,7 +14,14 @@ import org.springframework.test.context.junit4.SpringRunner;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.time.Duration;
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.testcontainers.RedisModulesContainer;
+
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.search.Search;
+import io.micrometer.core.instrument.simple.SimpleConfig;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @Testcontainers
 @SpringBootTest(classes = BatchTestApplication.class)
@@ -30,7 +32,6 @@ public class MetricsTests {
     private static final RedisModulesContainer REDIS = new RedisModulesContainer();
 
     @Test
-    @SuppressWarnings("NullableProblems")
     public void testMetrics() throws Throwable {
         Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
         SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {

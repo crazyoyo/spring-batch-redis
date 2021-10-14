@@ -83,7 +83,6 @@ public class JobFactory {
         return jobBuilderFactory.get(name + "-job");
     }
 
-    @SuppressWarnings("UnusedReturnValue")
     public <T> JobExecutionWrapper run(String name, ItemReader<? extends T> reader, ItemWriter<T> writer) throws Throwable {
         return run(name, reader, null, writer);
     }

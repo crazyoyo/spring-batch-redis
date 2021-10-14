@@ -46,7 +46,7 @@ import org.springframework.batch.item.redis.support.operation.Geoadd;
 import org.springframework.batch.item.redis.support.operation.Hset;
 import org.springframework.batch.item.redis.support.operation.Xadd;
 import org.springframework.batch.item.redis.support.operation.Zadd;
-import org.springframework.batch.item.redis.test.Beer;
+import org.springframework.batch.item.redis.test.Beers;
 import org.springframework.batch.item.redis.test.DataGenerator;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
@@ -61,6 +61,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -150,7 +151,7 @@ public class BatchTests extends AbstractRedisTestBase {
     }
 
     private void populateSource(String name, RedisServer server) throws Throwable {
-        JsonItemReader<Map<String, Object>> reader = Beer.mapReader();
+        JsonItemReader<Map<String, Object>> reader = Beers.mapReader();
         OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.client(client(server)).operation(Hset.<String, Map<String, String>>key(t -> t.get("id")).map(t -> t).build()).build();
         jobFactory.run(name(server, name), reader, new MapFlattener(), writer);
     }
@@ -178,7 +179,6 @@ public class BatchTests extends AbstractRedisTestBase {
 
         private final List<T> writtenItems = Collections.synchronizedList(new ArrayList<>());
 
-        @SuppressWarnings("NullableProblems")
         @Override
         public void write(List<? extends T> items) {
             writtenItems.addAll(items);
@@ -235,7 +235,6 @@ public class BatchTests extends AbstractRedisTestBase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @ParameterizedTest
     @MethodSource("servers")
     public void testHashWriter(RedisServer server) throws Throwable {
@@ -297,7 +296,7 @@ public class BatchTests extends AbstractRedisTestBase {
         }
         RedisKeyCommands<String, String> sync = sync(server);
         ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
-        KeyMaker<Map.Entry<String, Map<String, String>>> keyConverter = KeyMaker.<Map.Entry<String, Map<String, String>>>builder().prefix("hash").converters(Map.Entry::getKey).build();
+        KeyMaker<Map.Entry<String, Map<String, String>>> keyConverter = KeyMaker.<Map.Entry<String, Map<String, String>>>builder().prefix("hash").converters(Entry<String, Map<String, String>>::getKey).build();
         OperationItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = OperationItemWriter.client(client(server)).operation(Hset.key(keyConverter).map(Map.Entry::getValue).build()).build();
         jobFactory.run(name(server, "hash-del-writer"), reader, writer);
         Assertions.assertEquals(50, sync.keys("hash:*").size());

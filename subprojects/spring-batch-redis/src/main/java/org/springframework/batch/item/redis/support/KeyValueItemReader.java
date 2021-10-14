@@ -71,7 +71,6 @@ public class KeyValueItemReader<T extends KeyValue<?>> extends AbstractItemStrea
         this.skipPolicy = skipPolicy;
     }
 
-    @SuppressWarnings("NullableProblems")
     @Override
     public void setName(String name) {
         this.name = name;
