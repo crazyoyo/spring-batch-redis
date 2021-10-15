@@ -1,100 +1,109 @@
 package org.springframework.batch.item.redis;
 
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.redis.support.CommandBuilder;
+import org.springframework.batch.item.redis.support.ConnectionPoolItemStream;
+import org.springframework.batch.item.redis.support.RedisOperation;
+import org.springframework.batch.item.redis.support.operation.executor.MultiExecOperationExecutor;
+import org.springframework.batch.item.redis.support.operation.executor.OperationExecutor;
+import org.springframework.batch.item.redis.support.operation.executor.SimpleOperationExecutor;
+import org.springframework.batch.item.redis.support.operation.executor.WaitForReplicationOperationExecutor;
+
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.springframework.batch.item.redis.support.AbstractPipelineItemWriter;
-import org.springframework.batch.item.redis.support.CommandBuilder;
-import org.springframework.batch.item.redis.support.RedisOperation;
-import org.springframework.batch.item.redis.support.TransactionalOperationItemWriter;
-import org.springframework.util.Assert;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Function;
-import java.util.function.Supplier;
+public class OperationItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> implements ItemWriter<T> {
 
-public class OperationItemWriter<K, V, T> extends AbstractPipelineItemWriter<K, V, T> {
+	private final Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async;
+	private final OperationExecutor<K, V, T> executor;
 
-    private final RedisOperation<K, V, T> operation;
+	public OperationItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier,
+			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
+			Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async,
+			OperationExecutor<K, V, T> executor) {
+		super(connectionSupplier, poolConfig);
+		this.async = async;
+		this.executor = executor;
+	}
 
-    public OperationItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier, GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig, Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async, RedisOperation<K, V, T> operation) {
-        super(connectionSupplier, poolConfig, async);
-        Assert.notNull(operation, "A Redis operation is required");
-        this.operation = operation;
-    }
+	@Override
+	public void write(List<? extends T> items) throws Exception {
+		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+			RedisModulesAsyncCommands<K, V> commands = async.apply(connection);
+			commands.setAutoFlushCommands(false);
+			try {
+				List<RedisFuture<?>> futures = executor.execute(commands, items);
+				commands.flushCommands();
+				LettuceFutures.awaitAll(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS,
+						futures.toArray(new RedisFuture[0]));
+			} finally {
+				commands.setAutoFlushCommands(true);
+			}
+		}
+	}
 
-    @Override
-    protected void write(RedisModulesAsyncCommands<K, V> commands, Duration timeout, List<? extends T> items) {
-        flush(commands, timeout, futures(commands, items));
-    }
+	public static ClientOperationItemWriterBuilder<String, String> client(AbstractRedisClient client) {
+		return new ClientOperationItemWriterBuilder<>(client, StringCodec.UTF8);
+	}
 
-    protected List<RedisFuture<?>> futures(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
-        List<RedisFuture<?>> futures = new ArrayList<>(items.size());
-        for (T item : items) {
-            futures.add(operation.execute(commands, item));
-        }
-        return futures;
-    }
+	public static <K, V> ClientOperationItemWriterBuilder<K, V> client(AbstractRedisClient client,
+			RedisCodec<K, V> codec) {
+		return new ClientOperationItemWriterBuilder<>(client, codec);
+	}
 
-    public static ClientOperationItemWriterBuilder<String, String> client(AbstractRedisClient client) {
-        return new ClientOperationItemWriterBuilder<>(client, StringCodec.UTF8);
-    }
+	public static class ClientOperationItemWriterBuilder<K, V> {
 
-    public static <K, V> ClientOperationItemWriterBuilder<K, V> client(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return new ClientOperationItemWriterBuilder<>(client, codec);
-    }
+		private final AbstractRedisClient client;
+		private final RedisCodec<K, V> codec;
 
-    public static class ClientOperationItemWriterBuilder<K, V> {
+		public ClientOperationItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+			this.client = client;
+			this.codec = codec;
+		}
 
-        private final AbstractRedisClient client;
-        private final RedisCodec<K, V> codec;
+		public <T> OperationItemWriterBuilder<K, V, T> operation(RedisOperation<K, V, T> operation) {
+			return new OperationItemWriterBuilder<>(client, codec, new SimpleOperationExecutor<>(operation));
+		}
 
-        public ClientOperationItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-            this.client = client;
-            this.codec = codec;
-        }
+	}
 
-        public <T> OperationItemWriterBuilder<K, V, T> operation(RedisOperation<K, V, T> operation) {
-            return new OperationItemWriterBuilder<>(client, codec, operation);
-        }
+	public static class OperationItemWriterBuilder<K, V, T>
+			extends CommandBuilder<K, V, OperationItemWriterBuilder<K, V, T>> {
 
-    }
+		private OperationExecutor<K, V, T> executor;
 
-    public static class OperationItemWriterBuilder<K, V, T> extends CommandBuilder<K, V, OperationItemWriterBuilder<K, V, T>> {
+		public OperationItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
+				SimpleOperationExecutor<K, V, T> executor) {
+			super(client, codec);
+			this.executor = executor;
+		}
 
-        protected final RedisOperation<K, V, T> operation;
+		public OperationItemWriterBuilder<K, V, T> multiExec() {
+			this.executor = new MultiExecOperationExecutor<>(executor);
+			return this;
+		}
 
-        public OperationItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec, RedisOperation<K, V, T> operation) {
-            super(client, codec);
-            this.operation = operation;
-        }
+		public OperationItemWriterBuilder<K, V, T> waitForReplication(int replicas, long timeout) {
+			this.executor = new WaitForReplicationOperationExecutor<>(executor, replicas, timeout);
+			return this;
+		}
 
-        public TransactionalOperationItemWriter.TransactionalOperationItemWriterBuilder<K, V, T> transactional() {
-            return new TransactionalOperationItemWriter.TransactionalOperationItemWriterBuilder<>(client, codec, operation);
-        }
+		public OperationItemWriter<K, V, T> build() {
+			return new OperationItemWriter<>(connectionSupplier(), poolConfig, async(), executor);
+		}
 
-        public OperationItemWriter<K, V, T> build() {
-            return new OperationItemWriter<>(connectionSupplier(), poolConfig, async(), operation);
-        }
-
-    }
-
-    public static class TransactionalOperationItemWriterBuilder<K, V, T> extends OperationItemWriterBuilder<K, V, T> {
-
-        public TransactionalOperationItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec, RedisOperation<K, V, T> operation) {
-            super(client, codec, operation);
-        }
-
-        @Override
-        public OperationItemWriter<K, V, T> build() {
-            return new TransactionalOperationItemWriter<>(connectionSupplier(), poolConfig, async(), operation);
-        }
-    }
+	}
 
 }

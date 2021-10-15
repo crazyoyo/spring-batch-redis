@@ -228,7 +228,7 @@ public class BatchTests extends AbstractRedisTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
 		OperationItemWriter<String, String, Map<String, String>> writer = OperationItemWriter.client(client(REDIS))
-				.operation(Xadd.<String, Map<String, String>>key(stream).body(t -> t).build()).transactional().build();
+				.operation(Xadd.<String, Map<String, String>>key(stream).body(t -> t).build()).multiExec().build();
 		jobFactory.run(name(REDIS, "stream-tx-writer"), reader, writer);
 		RedisStreamCommands<String, String> sync = sync(REDIS);
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -280,10 +280,10 @@ public class BatchTests extends AbstractRedisTestBase {
 		ListItemReader<Geo> reader = new ListItemReader<>(Arrays.asList(
 				Geo.builder().longitude(-118.476056).latitude(33.985728).member("Venice Breakwater").build(),
 				Geo.builder().longitude(-73.667022).latitude(40.582739).member("Long Beach National").build()));
+		GeoValueConverter<String, Geo> values = new GeoValueConverter<>(Geo::getMember, Geo::getLongitude,
+				Geo::getLatitude);
 		OperationItemWriter<String, String, Geo> writer = OperationItemWriter.client(client)
-				.operation(Geoadd.<Geo>key("geoset")
-						.value(new GeoValueConverter<>(Geo::getMember, Geo::getLongitude, Geo::getLatitude)).build())
-				.build();
+				.operation(Geoadd.<Geo>key("geoset").values(values).build()).build();
 		jobFactory.run(name(redis, "geoadd-writer"), reader, writer);
 		RedisGeoCommands<String, String> sync = sync(redis);
 		Set<String> radius1 = sync.georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
@@ -325,7 +325,7 @@ public class BatchTests extends AbstractRedisTestBase {
 		}
 		ListItemReader<ScoredValue<String>> reader = new ListItemReader<>(values);
 		OperationItemWriter<String, String, ScoredValue<String>> writer = OperationItemWriter.client(client(server))
-				.operation(Zadd.<ScoredValue<String>>key("zset").value(v -> v).build()).build();
+				.operation(Zadd.<ScoredValue<String>>key("zset").values(v -> new ScoredValue[] { v }).build()).build();
 		jobFactory.run(name(server, "sorted-set-writer"), reader, writer);
 		RedisServerCommands<String, String> sync = sync(server);
 		Assertions.assertEquals(1, sync.dbsize());
