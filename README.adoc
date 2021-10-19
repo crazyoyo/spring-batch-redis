@@ -60,25 +60,25 @@ NOTE: `StreamMessage` and `ScoredValue` are Lettuce core types (`io.lettuce.core
 
 == Item Readers
 
-Each data type has 2 corresponding item readers:
+`RedisItemReader` can be configured There are two modes for 
 
-* Snapshot: uses SCAN command to produce keys.
-* Live (AKA continuous): uses keyspace notifications to produce keys that have been updated.
+* Snapshot: relies on SCAN command to iterate over the keys whose values will be read to produce key/values.
+* Live (AKA continuous): listens to changes in the keyspace via notifications and produces corresponding key/values.
 
 == Item Writers
 
-All item writers can perform both inserts or deletes depending on the value and TTL in the incoming object:
+`RedisItemWriter`s can perform both inserts or deletes depending on the value and TTL in the incoming object:
 
 * If value is null or TTL is -2 then the `DEL` command is called
 * Otherwise a write is performed
 
-=== `KeyDumpItemWriter`
+=== Key Dump
 
-`RestoreOperation` accepts `KeyDump` objects and call the RESTORE command using the byte array and TTL if any.
+In this mode, `RedisItemWriter` accepts key dumps (`KeyValue<String, byte[]>`) and calls the RESTORE command with the byte array and TTL if any.
 
 === `DataStructureItemWriter`
 
-`DataStructureItemWriter` accepts `DataStructure` objects and calls the write command specific to the data type:
+In this mode, `RedisItemWriter` accepts `DataStructure` objects and calls the write command specific to the data type:
 
 * Hash -> HSET
 * List -> LPUSH
