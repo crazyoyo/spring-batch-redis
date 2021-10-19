@@ -14,8 +14,8 @@ import com.redis.lettucemod.api.search.CreateOptions;
 import com.redis.lettucemod.api.search.Field;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.support.JacksonJsonNodeReader;
-import com.redis.spring.batch.support.JobFactory;
 import com.redis.spring.batch.support.convert.MapFlattener;
+import com.redis.spring.batch.support.job.JobFactory;
 import com.redis.spring.batch.support.operation.Hset;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -60,10 +60,10 @@ public class Beers {
 				CAT_NAME, BREWERY_ID, DESCRIPT, ABV, IBU);
 	}
 
-	public static void populateIndex(AbstractRedisClient client) throws Throwable {
+	public static void populateIndex(AbstractRedisClient client) throws Exception {
 		JsonItemReader<Map<String, Object>> reader = mapReader();
 		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-				.operation(Hset.<String, Map<String, String>>key(m -> PREFIX + m.get(ID.getName())).map(m -> m).build())
+				.operation(Hset.<Map<String, String>>key(m -> PREFIX + m.get(ID.getName())).map(m -> m).build())
 				.client(client).build();
 		JobFactory jobFactory = JobFactory.inMemory();
 		jobFactory.run("create-beers", reader, new MapFlattener(), writer);

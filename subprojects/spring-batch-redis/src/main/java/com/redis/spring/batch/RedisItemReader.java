@@ -26,12 +26,13 @@ import org.springframework.util.ClassUtils;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.DataStructureValueReader.DataStructureValueReaderFactory;
-import com.redis.spring.batch.support.JobFactory;
 import com.redis.spring.batch.support.KeyDumpValueReader;
 import com.redis.spring.batch.support.KeyDumpValueReader.KeyDumpValueReaderFactory;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.ScanRedisItemReaderBuilder;
-import com.redis.spring.batch.support.StreamItemReaderBuilder.OffsetStreamItemReaderBuilder;
+import com.redis.spring.batch.support.RedisStreamItemReaderBuilder.OffsetStreamItemReaderBuilder;
+import com.redis.spring.batch.support.job.JobExecutionWrapper;
+import com.redis.spring.batch.support.job.JobFactory;
 import com.redis.spring.batch.support.Utils;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -49,7 +50,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	private final long pollTimeout;
 
 	protected BlockingQueue<T> queue;
-	private JobFactory.JobExecutionWrapper jobExecution;
+	private JobExecutionWrapper jobExecution;
 	private String name;
 
 	public RedisItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader, int threads,
@@ -111,7 +112,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		}
 		try {
 			jobExecution.awaitRunning();
-		} catch (Throwable e) {
+		} catch (Exception e) {
 			throw new ItemStreamException("Could not start queue job", e);
 		}
 		super.open(executionContext);
@@ -150,7 +151,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		}
 		try {
 			jobExecution.awaitTermination();
-		} catch (Throwable e) {
+		} catch (Exception e) {
 			throw new ItemStreamException("Error while waiting for job to terminate", e);
 		}
 		queue = null;

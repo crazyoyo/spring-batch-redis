@@ -5,6 +5,7 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.spring.batch.support.convert.ArrayConverter;
 
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisFuture;
@@ -37,46 +38,47 @@ public class Lpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		return commands.lrem(key, 1, members[0]);
 	}
 
-	public static <T> LpushMemberBuilder<String, T> key(String key) {
+	public static <T> LpushMemberBuilder<T> key(String key) {
 		return key(t -> key);
 	}
 
-	public static <K, T> LpushMemberBuilder<K, T> key(K key) {
-		return key(t -> key);
-	}
-
-	public static <K, T> LpushMemberBuilder<K, T> key(Converter<T, K> key) {
+	public static <T> LpushMemberBuilder<T> key(Converter<T, String> key) {
 		return new LpushMemberBuilder<>(key);
 	}
 
-	public static class LpushMemberBuilder<K, T> {
+	public static class LpushMemberBuilder<T> {
 
-		private final Converter<T, K> key;
+		private final Converter<T, String> key;
 
-		public LpushMemberBuilder(Converter<T, K> key) {
+		public LpushMemberBuilder(Converter<T, String> key) {
 			this.key = key;
 		}
+		
+		@SuppressWarnings("unchecked")
+		public LpushBuilder<T> members(Converter<T, String>... members) {
+			return new LpushBuilder<>(key, new ArrayConverter<>(String.class, members));
+		}
 
-		public <V> LpushBuilder<K, V, T> members(Converter<T, V[]> members) {
+		public LpushBuilder<T> members(Converter<T, String[]> members) {
 			return new LpushBuilder<>(key, members);
 		}
 	}
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class LpushBuilder<K, V, T> extends RemoveBuilder<K, V, T, LpushBuilder<K, V, T>> {
+	public static class LpushBuilder<T> extends RemoveBuilder<T, LpushBuilder<T>> {
 
-		private final Converter<T, K> key;
-		private final Converter<T, V[]> members;
+		private final Converter<T, String> key;
+		private final Converter<T, String[]> members;
 
-		public LpushBuilder(Converter<T, K> key, Converter<T, V[]> members) {
+		public LpushBuilder(Converter<T, String> key, Converter<T, String[]> members) {
 			super(members);
 			this.key = key;
 			this.members = members;
 		}
 
 		@Override
-		public Lpush<K, V, T> build() {
+		public Lpush<String, String, T> build() {
 			return new Lpush<>(key, del, remove, members);
 		}
 

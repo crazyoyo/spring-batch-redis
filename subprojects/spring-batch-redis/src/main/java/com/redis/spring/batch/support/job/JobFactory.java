@@ -1,9 +1,8 @@
-package com.redis.spring.batch.support;
+package com.redis.spring.batch.support.job;
 
 import java.time.Duration;
 import java.util.concurrent.TimeoutException;
 
-import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -11,8 +10,10 @@ import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.job.builder.SimpleJobBuilder;
+import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
@@ -29,17 +30,17 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import com.redis.spring.batch.support.FlushingStepBuilder;
+import com.redis.spring.batch.support.PollableItemReader;
+
 import lombok.Setter;
 
 @SuppressWarnings("deprecation")
 public class JobFactory {
 
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
-	public static final Duration DEFAULT_TERMINATION_TIMEOUT = Duration.ofSeconds(10);
-	public static final Duration DEFAULT_RUNNING_TIMEOUT = Duration.ofSeconds(3);
 	private static final Duration DEFAULT_STEP_COMPLETE_TIMEOUT = Duration.ofSeconds(3);
 	private static final Duration DEFAULT_READER_OPEN_TIMEOUT = Duration.ofSeconds(1);
-	private static final long DEFAULT_SLEEP = 1;
 	private static final long DEFAULT_NOTIFICATION_SLEEP = 50;
 
 	private final JobBuilderFactory jobBuilderFactory;
@@ -47,19 +48,15 @@ public class JobFactory {
 	private final SimpleJobLauncher syncLauncher;
 	private final SimpleJobLauncher asyncLauncher;
 	@Setter
-	private Duration jobRunningTimeout = DEFAULT_RUNNING_TIMEOUT;
-	@Setter
-	private Duration jobTerminationTimeout = DEFAULT_TERMINATION_TIMEOUT;
-	@Setter
 	private Duration stepCompleteTimeout = DEFAULT_STEP_COMPLETE_TIMEOUT;
 	@Setter
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
 	@Setter
 	private Duration readerOpenTimeout = DEFAULT_READER_OPEN_TIMEOUT;
 	@Setter
-	private long sleep = DEFAULT_SLEEP;
-	@Setter
 	private long notificationSleep = DEFAULT_NOTIFICATION_SLEEP;
+	@Setter
+	private JobExecutionOptions executionOptions = JobExecutionOptions.builder().build();
 
 	public JobFactory(JobRepository jobRepository, PlatformTransactionManager transactionManager) throws Exception {
 		jobBuilderFactory = new JobBuilderFactory(jobRepository);
@@ -88,39 +85,43 @@ public class JobFactory {
 	}
 
 	public <T> JobExecutionWrapper run(String name, ItemReader<? extends T> reader, ItemWriter<T> writer)
-			throws Throwable {
+			throws JobExecutionException {
 		return run(name, reader, null, writer);
 	}
 
 	public <I, O> JobExecutionWrapper run(String name, ItemReader<? extends I> reader, ItemProcessor<I, O> processor,
-			ItemWriter<O> writer) throws Throwable {
+			ItemWriter<O> writer) throws JobExecutionException {
 		return run(name, step(name, reader, processor, writer).build());
 	}
 
-	public JobExecutionWrapper run(String name, TaskletStep step) throws Throwable {
+	public JobExecutionWrapper run(String name, TaskletStep step) throws JobExecutionException {
 		return run(job(name, step).build(), new JobParameters());
 	}
 
-	public JobExecutionWrapper run(Job job, JobParameters parameters) throws Throwable {
-		return new JobExecutionWrapper(syncLauncher.run(job, parameters)).checkForFailure();
+	public JobExecutionWrapper run(Job job, JobParameters parameters) throws JobExecutionException {
+		JobExecution execution = syncLauncher.run(job, parameters);
+		return new JobExecutionWrapper(execution, executionOptions).checkForFailure();
 	}
 
 	public <I, O> JobExecutionWrapper runFlushing(String name, PollableItemReader<? extends I> reader,
-			ItemWriter<O> writer) throws Throwable {
+			ItemWriter<O> writer) throws JobExecutionAlreadyRunningException, JobRestartException,
+			JobInstanceAlreadyCompleteException, JobParametersInvalidException, InterruptedException, TimeoutException {
 		return runFlushing(name, reader, null, writer);
 	}
 
 	public <I, O> JobExecutionWrapper runFlushing(String name, PollableItemReader<? extends I> reader,
-			ItemProcessor<I, O> processor, ItemWriter<O> writer) throws Throwable {
+			ItemProcessor<I, O> processor, ItemWriter<O> writer)
+			throws JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException,
+			JobParametersInvalidException, InterruptedException, TimeoutException {
 		TaskletStep step = flushing(step(name, reader, processor, writer)).build();
-		JobExecutionWrapper execution = new JobExecutionWrapper(
-				asyncLauncher.run(job(name, step).build(), new JobParameters())).awaitRunning();
+		JobExecution jobExecution = asyncLauncher.run(job(name, step).build(), new JobParameters());
+		JobExecutionWrapper execution = new JobExecutionWrapper(jobExecution, executionOptions).awaitRunning();
 		awaitOpen(reader);
 		return execution;
 	}
 
 	public void awaitOpen(PollableItemReader<?> reader) throws InterruptedException, TimeoutException {
-		new Timer(readerOpenTimeout, sleep).await(() -> reader.getState() != null);
+		executionOptions.timer(readerOpenTimeout).await(() -> reader.getState() != null);
 		if (reader.getState() == null) {
 			throw new TimeoutException("Time-out while waiting for reader to become open");
 		}
@@ -128,7 +129,11 @@ public class JobFactory {
 	}
 
 	public void notificationSleep() throws InterruptedException {
-		Thread.sleep(notificationSleep);		
+		Thread.sleep(notificationSleep);
+	}
+
+	public FlowBuilder<SimpleFlow> flow(String name) {
+		return new FlowBuilder<>(name + "-flow");
 	}
 
 	public <I, O> FlushingStepBuilder<I, O> flushing(SimpleStepBuilder<I, O> step) {
@@ -148,50 +153,9 @@ public class JobFactory {
 		return stepBuilderFactory.get(name + "-step");
 	}
 
-	public class JobExecutionWrapper {
-
-		private final JobExecution jobExecution;
-
-		public JobExecutionWrapper(JobExecution jobExecution) {
-			this.jobExecution = jobExecution;
-		}
-
-		public boolean isRunning() {
-			return jobExecution.isRunning();
-		}
-
-		public JobExecutionWrapper awaitRunning() throws Throwable {
-			return awaitRunning(jobRunningTimeout);
-		}
-
-		public JobExecutionWrapper awaitRunning(Duration timeout) throws Throwable {
-			new Timer(timeout, sleep).await(() -> jobExecution.isRunning());
-			if (!jobExecution.isRunning()) {
-				throw new TimeoutException("Timeout while waiting for job to run");
-			}
-			return this;
-		}
-
-		public JobExecutionWrapper awaitTermination() throws Throwable {
-			return awaitTermination(jobTerminationTimeout);
-		}
-
-		public JobExecutionWrapper awaitTermination(Duration timeout) throws Throwable {
-			new Timer(timeout, sleep).await(() -> !jobExecution.isRunning());
-			return checkForFailure();
-		}
-
-		public JobExecutionWrapper checkForFailure() throws Throwable {
-			if (!jobExecution.getExitStatus().getExitCode().equals(ExitStatus.COMPLETED.getExitCode())) {
-				throw new JobExecutionException("Job status: " + jobExecution.getExitStatus());
-			}
-			return this;
-		}
-	}
-
 	public JobExecutionWrapper runAsync(Job job, JobParameters parameters) throws JobInstanceAlreadyCompleteException,
 			JobExecutionAlreadyRunningException, JobParametersInvalidException, JobRestartException {
-		return new JobExecutionWrapper(asyncLauncher.run(job, parameters));
+		return new JobExecutionWrapper(asyncLauncher.run(job, parameters), executionOptions);
 	}
 
 }

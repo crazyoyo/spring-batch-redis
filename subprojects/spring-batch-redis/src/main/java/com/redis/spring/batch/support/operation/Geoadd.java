@@ -1,17 +1,20 @@
 package com.redis.spring.batch.support.operation;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Predicate;
+
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.util.Assert;
+
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.spring.batch.support.convert.ArrayConverter;
+
 import io.lettuce.core.GeoAddArgs;
 import io.lettuce.core.GeoValue;
 import io.lettuce.core.RedisFuture;
 import lombok.Setter;
 import lombok.experimental.Accessors;
-import org.springframework.core.convert.converter.Converter;
-import org.springframework.util.Assert;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Predicate;
 
 public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
@@ -45,47 +48,48 @@ public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		return commands.zrem(key, (V[]) members.toArray());
 	}
 
-	public static <T> GeoaddValueBuilder<String, T> key(String key) {
+	public static <T> GeoaddValueBuilder<T> key(String key) {
 		return key(t -> key);
 	}
 
-	public static <K, T> GeoaddValueBuilder<K, T> key(K key) {
-		return key(t -> key);
-	}
-
-	public static <K, T> GeoaddValueBuilder<K, T> key(Converter<T, K> key) {
+	public static <T> GeoaddValueBuilder<T> key(Converter<T, String> key) {
 		return new GeoaddValueBuilder<>(key);
 	}
 
-	public static class GeoaddValueBuilder<K, T> {
+	public static class GeoaddValueBuilder<T> {
 
-		private final Converter<T, K> key;
+		private final Converter<T, String> key;
 
-		public GeoaddValueBuilder(Converter<T, K> key) {
+		public GeoaddValueBuilder(Converter<T, String> key) {
 			this.key = key;
 		}
+		
+		@SuppressWarnings({ "unchecked", "rawtypes" })
+		public GeoaddBuilder<T> values(Converter<T, GeoValue<String>>... values) {
+			return new GeoaddBuilder<>(key, (Converter) new ArrayConverter<>(GeoValue.class, values));
+		}
 
-		public <V> GeoaddBuilder<K, V, T> values(Converter<T, GeoValue<V>[]> values) {
+		public GeoaddBuilder<T> values(Converter<T, GeoValue<String>[]> values) {
 			return new GeoaddBuilder<>(key, values);
 		}
 	}
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class GeoaddBuilder<K, V, T> extends RemoveBuilder<K, V, T, GeoaddBuilder<K, V, T>> {
+	public static class GeoaddBuilder<T> extends RemoveBuilder<T, GeoaddBuilder<T>> {
 
-		private final Converter<T, K> key;
-		private final Converter<T, GeoValue<V>[]> values;
+		private final Converter<T, String> key;
+		private final Converter<T, GeoValue<String>[]> values;
 		private GeoAddArgs args;
 
-		public GeoaddBuilder(Converter<T, K> key, Converter<T, GeoValue<V>[]> values) {
+		public GeoaddBuilder(Converter<T, String> key, Converter<T, GeoValue<String>[]> values) {
 			super(values);
 			this.key = key;
 			this.values = values;
 		}
 
 		@Override
-		public Geoadd<K, V, T> build() {
+		public Geoadd<String, String, T> build() {
 			return new Geoadd<>(key, del, remove, values, args);
 		}
 

@@ -30,7 +30,7 @@ public class MetricsTests {
 	private static final RedisModulesContainer REDIS = new RedisModulesContainer();
 
 	@Test
-	public void testMetrics() throws Throwable {
+	public void testMetrics() throws Exception {
 		Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
 		SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
 			@Override

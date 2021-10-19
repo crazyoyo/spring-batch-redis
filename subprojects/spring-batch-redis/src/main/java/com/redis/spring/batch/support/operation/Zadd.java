@@ -8,6 +8,7 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.spring.batch.support.convert.ArrayConverter;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
@@ -51,47 +52,48 @@ public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		return commands.zrem(key, (V[]) members.toArray());
 	}
 
-	public static <T> ZaddValueBuilder<String, T> key(String key) {
+	public static <T> ZaddValueBuilder<T> key(String key) {
 		return key(t -> key);
 	}
 
-	public static <K, T> ZaddValueBuilder<K, T> key(K key) {
-		return key(t -> key);
-	}
-
-	public static <K, T> ZaddValueBuilder<K, T> key(Converter<T, K> key) {
+	public static <T> ZaddValueBuilder<T> key(Converter<T, String> key) {
 		return new ZaddValueBuilder<>(key);
 	}
 
-	public static class ZaddValueBuilder<K, T> {
+	public static class ZaddValueBuilder<T> {
 
-		private final Converter<T, K> key;
+		private final Converter<T, String> key;
 
-		public ZaddValueBuilder(Converter<T, K> key) {
+		public ZaddValueBuilder(Converter<T, String> key) {
 			this.key = key;
 		}
 
-		public <V> ZaddBuilder<K, V, T> values(Converter<T, ScoredValue<V>[]> values) {
+		@SuppressWarnings({ "unchecked", "rawtypes" })
+		public ZaddBuilder<T> values(Converter<T, ScoredValue<String>>... values) {
+			return new ZaddBuilder<>(key, new ArrayConverter<T, ScoredValue<String>>((Class) ScoredValue.class, values));
+		}
+
+		public ZaddBuilder<T> values(Converter<T, ScoredValue<String>[]> values) {
 			return new ZaddBuilder<>(key, values);
 		}
 	}
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class ZaddBuilder<K, V, T> extends RemoveBuilder<K, V, T, ZaddBuilder<K, V, T>> {
+	public static class ZaddBuilder<T> extends RemoveBuilder<T, ZaddBuilder<T>> {
 
-		private final Converter<T, K> key;
-		private final Converter<T, ScoredValue<V>[]> values;
+		private final Converter<T, String> key;
+		private final Converter<T, ScoredValue<String>[]> values;
 		private ZAddArgs args;
 
-		public ZaddBuilder(Converter<T, K> key, Converter<T, ScoredValue<V>[]> values) {
+		public ZaddBuilder(Converter<T, String> key, Converter<T, ScoredValue<String>[]> values) {
 			super(values);
 			this.key = key;
 			this.values = values;
 		}
 
 		@Override
-		public Zadd<K, V, T> build() {
+		public Zadd<String, String, T> build() {
 			return new Zadd<>(key, del, remove, values, args);
 		}
 

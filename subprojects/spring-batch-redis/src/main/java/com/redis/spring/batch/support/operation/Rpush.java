@@ -1,6 +1,7 @@
 package com.redis.spring.batch.support.operation;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.spring.batch.support.convert.ArrayConverter;
 
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisFuture;
@@ -36,46 +37,47 @@ public class Rpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		return commands.lrem(key, -1, members[0]);
 	}
 
-	public static <T> RpushMemberBuilder<String, T> key(String key) {
+	public static <T> RpushMemberBuilder<T> key(String key) {
 		return key(t -> key);
 	}
 
-	public static <K, T> RpushMemberBuilder<K, T> key(K key) {
-		return key(t -> key);
-	}
-
-	public static <K, T> RpushMemberBuilder<K, T> key(Converter<T, K> key) {
+	public static <T> RpushMemberBuilder<T> key(Converter<T, String> key) {
 		return new RpushMemberBuilder<>(key);
 	}
 
-	public static class RpushMemberBuilder<K, T> {
+	public static class RpushMemberBuilder<T> {
 
-		private final Converter<T, K> key;
+		private final Converter<T, String> key;
 
-		public RpushMemberBuilder(Converter<T, K> key) {
+		public RpushMemberBuilder(Converter<T, String> key) {
 			this.key = key;
 		}
 
-		public <V> RpushBuilder<K, V, T> members(Converter<T, V[]> members) {
+		@SuppressWarnings("unchecked")
+		public RpushBuilder<T> members(Converter<T, String>... members) {
+			return new RpushBuilder<>(key, new ArrayConverter<>(String.class, members));
+		}
+
+		public RpushBuilder<T> members(Converter<T, String[]> members) {
 			return new RpushBuilder<>(key, members);
 		}
 	}
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class RpushBuilder<K, V, T> extends RemoveBuilder<K, V, T, RpushBuilder<K, V, T>> {
+	public static class RpushBuilder<T> extends RemoveBuilder<T, RpushBuilder<T>> {
 
-		private final Converter<T, K> key;
-		private final Converter<T, V[]> members;
+		private final Converter<T, String> key;
+		private final Converter<T, String[]> members;
 
-		public RpushBuilder(Converter<T, K> key, Converter<T, V[]> members) {
+		public RpushBuilder(Converter<T, String> key, Converter<T, String[]> members) {
 			super(members);
 			this.key = key;
 			this.members = members;
 		}
 
 		@Override
-		public Rpush<K, V, T> build() {
+		public Rpush<String, String, T> build() {
 			return new Rpush<>(key, del, remove, members);
 		}
 

@@ -29,27 +29,27 @@ import io.lettuce.core.api.sync.RedisStreamCommands;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class RedisStreamItemReader extends ConnectionPoolItemStream<String, String>
-		implements PollableItemReader<StreamMessage<String, String>> {
+public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
+		implements PollableItemReader<StreamMessage<K, V>> {
 
 	public enum AckPolicy {
 		AUTO, MANUAL
 	}
 
-	private final Function<StatefulConnection<String, String>, RedisModulesCommands<String, String>> sync;
+	private final Function<StatefulConnection<K, V>, RedisModulesCommands<K, V>> sync;
 	private final Long count;
 	private final Duration block;
-	private final StreamOffset<String> offset;
-	private final String consumerGroup;
-	private final String consumer;
+	private final StreamOffset<K> offset;
+	private final K consumerGroup;
+	private final K consumer;
 	private final AckPolicy ackPolicy;
-	private Iterator<StreamMessage<String, String>> iterator = Collections.emptyIterator();
+	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
 	private State state;
 
-	public RedisStreamItemReader(Supplier<StatefulConnection<String, String>> connectionSupplier,
-			GenericObjectPoolConfig<StatefulConnection<String, String>> poolConfig,
-			Function<StatefulConnection<String, String>, RedisModulesCommands<String, String>> sync, Long count,
-			Duration block, String consumerGroup, String consumer, StreamOffset<String> offset, AckPolicy ackPolicy) {
+	public RedisStreamItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
+			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
+			Function<StatefulConnection<K, V>, RedisModulesCommands<K, V>> sync, Long count, Duration block,
+			K consumerGroup, K consumer, StreamOffset<K> offset, AckPolicy ackPolicy) {
 		super(connectionSupplier, poolConfig);
 		Assert.notNull(sync, "A command provider is required");
 		this.sync = sync;
@@ -64,8 +64,8 @@ public class RedisStreamItemReader extends ConnectionPoolItemStream<String, Stri
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		try (StatefulConnection<String, String> connection = pool.borrowObject()) {
-			RedisStreamCommands<String, String> commands = sync.apply(connection);
+		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+			RedisStreamCommands<K, V> commands = sync.apply(connection);
 			XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
 			try {
 				commands.xgroupCreate(offset, consumerGroup, args);
@@ -90,14 +90,14 @@ public class RedisStreamItemReader extends ConnectionPoolItemStream<String, Stri
 	}
 
 	@Override
-	public StreamMessage<String, String> read() throws Exception {
+	public StreamMessage<K, V> read() throws Exception {
 		throw new IllegalAccessException("read() method is not supposed to be called");
 	}
 
 	@Override
-	public StreamMessage<String, String> poll(long timeout, TimeUnit unit) throws Exception {
+	public StreamMessage<K, V> poll(long timeout, TimeUnit unit) throws Exception {
 		if (!iterator.hasNext()) {
-			List<StreamMessage<String, String>> messages = readMessages(unit.toMillis(timeout));
+			List<StreamMessage<K, V>> messages = readMessages(unit.toMillis(timeout));
 			if (messages == null || messages.isEmpty()) {
 				return null;
 			}
@@ -106,20 +106,20 @@ public class RedisStreamItemReader extends ConnectionPoolItemStream<String, Stri
 		return iterator.next();
 	}
 
-	public List<StreamMessage<String, String>> readMessages() throws Exception {
+	public List<StreamMessage<K, V>> readMessages() throws Exception {
 		return readMessages(block == null ? null : block.toMillis());
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<StreamMessage<String, String>> readMessages(Long blockInMillis) throws Exception {
+	private List<StreamMessage<K, V>> readMessages(Long blockInMillis) throws Exception {
 		XReadArgs args = XReadArgs.Builder.count(count);
 		if (block != null) {
 			args.block(block);
 		}
-		try (StatefulConnection<String, String> connection = pool.borrowObject()) {
-			RedisStreamCommands<String, String> commands = sync.apply(connection);
-			List<StreamMessage<String, String>> messages = commands.xreadgroup(Consumer.from(consumerGroup, consumer),
-					args, StreamOffset.lastConsumed(offset.getName()));
+		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+			RedisStreamCommands<K, V> commands = sync.apply(connection);
+			List<StreamMessage<K, V>> messages = commands.xreadgroup(Consumer.from(consumerGroup, consumer), args,
+					StreamOffset.lastConsumed(offset.getName()));
 			if (ackPolicy == AckPolicy.AUTO) {
 				ack(messages);
 			}
@@ -127,15 +127,15 @@ public class RedisStreamItemReader extends ConnectionPoolItemStream<String, Stri
 		}
 	}
 
-	public void ack(List<? extends StreamMessage<String, String>> messages) throws Exception {
+	public void ack(List<? extends StreamMessage<K, V>> messages) throws Exception {
 		if (messages.isEmpty()) {
 			return;
 		}
-		try (StatefulConnection<String, String> connection = pool.borrowObject()) {
-			RedisStreamCommands<String, String> commands = sync.apply(connection);
-			Map<String, List<StreamMessage<String, String>>> streams = messages.stream()
+		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+			RedisStreamCommands<K, V> commands = sync.apply(connection);
+			Map<K, List<StreamMessage<K, V>>> streams = messages.stream()
 					.collect(Collectors.groupingBy(StreamMessage::getStream));
-			for (Map.Entry<String, List<StreamMessage<String, String>>> entry : streams.entrySet()) {
+			for (Map.Entry<K, List<StreamMessage<K, V>>> entry : streams.entrySet()) {
 				String[] messageIds = entry.getValue().stream().map(StreamMessage::getId).toArray(String[]::new);
 				log.info("Ack'ing message ids: {}", Arrays.asList(messageIds));
 				commands.xack(entry.getKey(), consumerGroup, messageIds);

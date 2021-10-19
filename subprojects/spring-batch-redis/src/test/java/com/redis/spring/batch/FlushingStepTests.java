@@ -19,7 +19,7 @@ import com.redis.spring.batch.support.FlushingStepBuilder;
 public class FlushingStepTests extends AbstractTestBase {
 
     @Test
-    public void testReaderSkipPolicy() throws Throwable {
+    public void testReaderSkipPolicy() throws Exception {
         List<Integer> items = IntStream.range(0, 100).boxed().collect(Collectors.toList());
         int interval = 2;
         DelegatingPollableItemReader<Integer> reader = new DelegatingPollableItemReader<>(new ListItemReader<>(items), TimeoutException::new, interval);

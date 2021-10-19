@@ -41,10 +41,10 @@ public class ModulesTests extends AbstractTestBase {
 	}
 
 	@Test
-	public void testJsonSet() throws Throwable {
+	public void testJsonSet() throws Exception {
 		connection.sync().flushall();
-		RedisItemWriter<String, String, JsonNode> writer = RedisItemWriter.operation(JsonSet
-				.<String, JsonNode>key(n -> "beer:" + n.get("id").asText()).path(".").value(JsonNode::toString).build())
+		RedisItemWriter<String, String, JsonNode> writer = RedisItemWriter.operation(
+				JsonSet.<JsonNode>key(n -> "beer:" + n.get("id").asText()).path(".").value(JsonNode::toString).build())
 				.client(client).build();
 		jobFactory.run("json-set", Beers.jsonNodeReader(), writer);
 		Assertions.assertEquals(4432, connection.sync().keys("beer:*").size());
@@ -55,7 +55,7 @@ public class ModulesTests extends AbstractTestBase {
 	}
 
 	@Test
-	public void testBeerIndex() throws Throwable {
+	public void testBeerIndex() throws Exception {
 		Beers.createIndex(connection.sync());
 		Beers.populateIndex(client);
 		IndexInfo indexInfo = Utils.indexInfo(connection.sync().indexInfo(Beers.INDEX));

@@ -1,9 +1,10 @@
 package com.redis.spring.batch.support.convert;
 
-import io.lettuce.core.GeoValue;
 import org.springframework.core.convert.converter.Converter;
 
-public class GeoValueConverter<V, T> implements Converter<T, GeoValue<V>[]> {
+import io.lettuce.core.GeoValue;
+
+public class GeoValueConverter<V, T> implements Converter<T, GeoValue<V>> {
 
 	private final Converter<T, V> member;
 	private final Converter<T, Double> longitude;
@@ -15,9 +16,8 @@ public class GeoValueConverter<V, T> implements Converter<T, GeoValue<V>[]> {
 		this.latitude = latitude;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
-	public GeoValue<V>[] convert(T source) {
+	public GeoValue<V> convert(T source) {
 		Double longitude = this.longitude.convert(source);
 		if (longitude == null) {
 			return null;
@@ -26,7 +26,7 @@ public class GeoValueConverter<V, T> implements Converter<T, GeoValue<V>[]> {
 		if (latitude == null) {
 			return null;
 		}
-		return new GeoValue[] { GeoValue.just(longitude, latitude, member.convert(source)) };
+		return GeoValue.just(longitude, latitude, member.convert(source));
 	}
 
 }
