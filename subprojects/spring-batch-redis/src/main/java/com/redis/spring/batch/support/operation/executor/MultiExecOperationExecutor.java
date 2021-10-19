@@ -2,10 +2,9 @@ package com.redis.spring.batch.support.operation.executor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-
-import io.lettuce.core.RedisFuture;
 
 public class MultiExecOperationExecutor<K, V, T> implements OperationExecutor<K, V, T> {
 
@@ -16,8 +15,8 @@ public class MultiExecOperationExecutor<K, V, T> implements OperationExecutor<K,
 	}
 
 	@Override
-	public List<RedisFuture<?>> execute(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
-		List<RedisFuture<?>> futures = new ArrayList<>();
+	public List<Future<?>> execute(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
+		List<Future<?>> futures = new ArrayList<>();
 		futures.add(commands.multi());
 		futures.addAll(delegate.execute(commands, items));
 		futures.add(commands.exec());

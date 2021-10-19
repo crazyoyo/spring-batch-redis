@@ -2,10 +2,11 @@ package com.redis.spring.batch.support.operation.executor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 
-import io.lettuce.core.RedisFuture;
+import io.lettuce.core.RedisCommandExecutionException;
 
 public class WaitForReplicationOperationExecutor<K, V, T> implements OperationExecutor<K, V, T> {
 
@@ -20,10 +21,15 @@ public class WaitForReplicationOperationExecutor<K, V, T> implements OperationEx
 	}
 
 	@Override
-	public List<RedisFuture<?>> execute(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
-		List<RedisFuture<?>> futures = new ArrayList<>();
+	public List<Future<?>> execute(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
+		List<Future<?>> futures = new ArrayList<>();
 		futures.addAll(delegate.execute(commands, items));
-		futures.add(commands.waitForReplication(replicas, this.timeout));
+		futures.add(commands.waitForReplication(replicas, this.timeout).toCompletableFuture().thenAccept(r -> {
+			if (r < replicas) {
+				throw new RedisCommandExecutionException(
+						String.format("Insufficient replication level - expected: %s, actual: %s", replicas, r));
+			}
+		}));
 		return futures;
 	}
 

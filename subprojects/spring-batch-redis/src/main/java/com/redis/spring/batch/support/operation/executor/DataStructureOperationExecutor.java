@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.core.convert.converter.Converter;
@@ -33,9 +34,8 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public List<RedisFuture<?>> execute(RedisModulesAsyncCommands<K, V> commands,
-			List<? extends DataStructure<K>> items) {
-		List<RedisFuture<?>> futures = new ArrayList<>();
+	public List<Future<?>> execute(RedisModulesAsyncCommands<K, V> commands, List<? extends DataStructure<K>> items) {
+		List<Future<?>> futures = new ArrayList<>();
 		for (DataStructure<K> ds : items) {
 			if (ds == null) {
 				continue;

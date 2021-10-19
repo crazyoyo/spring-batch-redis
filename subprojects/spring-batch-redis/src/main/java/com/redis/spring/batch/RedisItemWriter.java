@@ -1,6 +1,7 @@
 package com.redis.spring.batch;
 
 import java.util.List;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -23,7 +24,6 @@ import com.redis.spring.batch.support.operation.executor.WaitForReplicationOpera
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
-import io.lettuce.core.RedisFuture;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
@@ -49,10 +49,10 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 			RedisModulesAsyncCommands<K, V> commands = async.apply(connection);
 			commands.setAutoFlushCommands(false);
 			try {
-				List<RedisFuture<?>> futures = executor.execute(commands, items);
+				List<Future<?>> futures = executor.execute(commands, items);
 				commands.flushCommands();
 				LettuceFutures.awaitAll(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS,
-						futures.toArray(new RedisFuture[0]));
+						futures.toArray(new Future[0]));
 			} finally {
 				commands.setAutoFlushCommands(true);
 			}

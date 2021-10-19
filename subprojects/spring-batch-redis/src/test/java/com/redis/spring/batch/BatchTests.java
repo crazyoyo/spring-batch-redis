@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemWriter;
@@ -243,6 +244,27 @@ public class BatchTests extends AbstractRedisTestBase {
 			StreamMessage<String, String> message = xrange.get(index);
 			Assertions.assertEquals(messages.get(index), message.getBody());
 		}
+	}
+
+	@ParameterizedTest
+	@MethodSource("servers")
+	public void testRedisItemWriterWait(RedisServer server) throws Exception {
+		List<Map<String, String>> maps = new ArrayList<>();
+		for (int index = 0; index < 100; index++) {
+			Map<String, String> body = new HashMap<>();
+			body.put("id", String.valueOf(index));
+			body.put("field1", "value1");
+			body.put("field2", "value2");
+			maps.add(body);
+		}
+		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
+		KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash")
+				.converters(h -> h.remove("id")).build();
+		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
+				.operation(Hset.key(keyConverter).map(m -> m).build()).client(client(server)).waitForReplication(1, 300)
+				.build();
+		Assertions.assertThrows(JobExecutionException.class,
+				() -> jobFactory.run(name(server, "writer-wait"), reader, writer));
 	}
 
 	@ParameterizedTest
