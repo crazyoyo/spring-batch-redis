@@ -126,7 +126,7 @@ public class BatchTests extends AbstractRedisTestBase {
 		}
 		async.flushCommands();
 		LettuceFutures.awaitAll(1, TimeUnit.SECONDS, futures.toArray(new RedisFuture[0]));
-		new Timer(Duration.ofSeconds(1), 1).await(() -> queue.size() == keys.size());
+		Timer.ofSeconds(1).await(() -> queue.size() == keys.size());
 		Assertions.assertEquals(keys.size(), queue.size());
 		log.info("Closing reader");
 		reader.close();
