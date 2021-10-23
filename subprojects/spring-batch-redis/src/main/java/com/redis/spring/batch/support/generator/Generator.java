@@ -58,7 +58,9 @@ public class Generator implements Callable<JobExecution> {
 		SimpleFlow flow = jobFactory.flow(name).split(new SimpleAsyncTaskExecutor())
 				.add(flows.toArray(new SimpleFlow[0])).build();
 		FlowJobBuilder job = jobFactory.job(name).start(flow).build();
-		return jobFactory.run(job.build(), new JobParameters());
+		JobExecution execution = jobFactory.run(job.build(), new JobParameters());
+		jobFactory.awaitTermination(execution);
+		return execution;
 	}
 
 	private ItemWriter<DataStructure<String>> writer() {
