@@ -44,7 +44,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 			String type = typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
 			valueFutures.add(value(commands, key, type));
 			ttlFutures.add(absoluteTTL(commands, key));
-			dataStructures.add(new DataStructure<>(key, type));
+			dataStructures.add(new DataStructure<>(type, key));
 		}
 		commands.flushCommands();
 		for (int index = 0; index < dataStructures.size(); index++) {

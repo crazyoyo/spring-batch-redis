@@ -1,8 +1,6 @@
 package com.redis.spring.batch;
 
-import java.time.Duration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -11,39 +9,35 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.springframework.batch.item.ItemProcessor;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.spring.batch.DataGenerator;
-import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemWriter;
+import com.redis.lettucemod.cluster.api.StatefulRedisModulesClusterConnection;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
-import com.redis.spring.batch.support.KeyDumpValueReader;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.LiveRedisItemReader;
-import com.redis.spring.batch.support.LiveRedisItemReaderBuilder;
-import com.redis.spring.batch.support.ScanRedisItemReaderBuilder;
-import com.redis.spring.batch.support.job.JobFactory;
+import com.redis.spring.batch.support.generator.Generator;
+import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
+import com.redis.spring.batch.support.job.JobFactory.Options;
 import com.redis.testcontainers.RedisClusterContainer;
 import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisServerCommands;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
 @Testcontainers
-@SuppressWarnings({ "unchecked", "unused" })
+@SuppressWarnings("unchecked")
 public abstract class AbstractRedisTestBase extends AbstractTestBase {
 
 	@Container
@@ -65,15 +59,15 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 	protected static final Map<RedisServer, GenericObjectPool<? extends StatefulConnection<String, String>>> POOLS = new HashMap<>();
 	protected static final Map<RedisServer, StatefulConnection<String, String>> CONNECTIONS = new HashMap<>();
 	protected static final Map<RedisServer, StatefulRedisPubSubConnection<String, String>> PUBSUB_CONNECTIONS = new HashMap<>();
-	protected static final Map<RedisServer, BaseRedisAsyncCommands<String, String>> ASYNCS = new HashMap<>();
-	protected static final Map<RedisServer, BaseRedisCommands<String, String>> SYNCS = new HashMap<>();
+	protected static final Map<RedisServer, RedisModulesAsyncCommands<String, String>> ASYNCS = new HashMap<>();
+	protected static final Map<RedisServer, RedisModulesCommands<String, String>> SYNCS = new HashMap<>();
 
 	protected static void add(RedisServer... servers) {
 		for (RedisServer server : servers) {
 			if (server.isCluster()) {
 				RedisModulesClusterClient client = RedisModulesClusterClient.create(server.getRedisURI());
 				CLIENTS.put(server, client);
-				StatefulRedisClusterConnection<String, String> connection = client.connect();
+				StatefulRedisModulesClusterConnection<String, String> connection = client.connect();
 				CONNECTIONS.put(server, connection);
 				SYNCS.put(server, connection.sync());
 				ASYNCS.put(server, connection.async());
@@ -83,7 +77,7 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 			} else {
 				RedisModulesClient client = RedisModulesClient.create(server.getRedisURI());
 				CLIENTS.put(server, client);
-				StatefulRedisConnection<String, String> connection = client.connect();
+				StatefulRedisModulesConnection<String, String> connection = client.connect();
 				CONNECTIONS.put(server, connection);
 				SYNCS.put(server, connection.sync());
 				ASYNCS.put(server, connection.async());
@@ -128,12 +122,12 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 		return (T) CLIENTS.get(redis);
 	}
 
-	protected static <T> T sync(RedisServer server) {
-		return (T) SYNCS.get(server);
+	protected static RedisModulesCommands<String, String> sync(RedisServer server) {
+		return SYNCS.get(server);
 	}
 
-	protected static <T> T async(RedisServer server) {
-		return (T) ASYNCS.get(server);
+	protected static RedisModulesAsyncCommands<String, String> async(RedisServer server) {
+		return ASYNCS.get(server);
 	}
 
 	protected static <C extends StatefulConnection<String, String>> C connection(RedisServer server) {
@@ -151,32 +145,26 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 		throw new IllegalStateException("No pool found for " + server);
 	}
 
-	protected String name(RedisServer server, String name) {
-		if (server.isCluster()) {
-			return "cluster-" + name;
-		}
-		return name;
-	}
-
-	protected DataGenerator.DataGeneratorBuilder dataGenerator(RedisServer server) {
-		return DataGenerator.client(client(server));
+	protected GeneratorBuilder dataGenerator(String id, RedisServer server) {
+		return Generator.id(name(server, id)).jobFactory(inMemoryJobFactory).client(client(server));
 	}
 
 	protected LiveRedisItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisServer server) {
-		return RedisItemReader.keyDump(client(server)).live().idleTimeout(JobFactory.DEFAULT_IDLE_TIMEOUT).build();
+		return RedisItemReader.keyDump(inMemoryJobFactory, client(server)).live().idleTimeout(Options.DEFAULT_IDLE_TIMEOUT)
+				.build();
 	}
 
-	protected LiveRedisItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>> liveDataStructureReader(
-			RedisServer server) {
-		return RedisItemReader.dataStructure(client(server)).live().idleTimeout(JobFactory.DEFAULT_IDLE_TIMEOUT);
+	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisServer server) {
+		return RedisItemReader.dataStructure(inMemoryJobFactory, client(server)).live()
+				.idleTimeout(Options.DEFAULT_IDLE_TIMEOUT).build();
 	}
 
 	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisServer server) {
-		return RedisItemReader.dataStructure(client(server)).build();
+		return RedisItemReader.dataStructure(inMemoryJobFactory, client(server)).build();
 	}
 
 	protected RedisItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisServer server) {
-		return RedisItemReader.keyDump(client(server)).build();
+		return RedisItemReader.keyDump(inMemoryJobFactory, client(server)).build();
 	}
 
 	protected RedisItemWriter<String, String, KeyValue<String, byte[]>> keyDumpWriter(RedisServer redis) {
@@ -186,10 +174,9 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 	protected RedisItemWriter<String, String, DataStructure<String>> dataStructureWriter(RedisServer redis) {
 		return RedisItemWriter.dataStructure(client(redis)).build();
 	}
-	
+
 	protected DataStructureValueReader<String, String> dataStructureValueReader(RedisServer redis) {
 		return DataStructureValueReader.client(client(redis)).build();
 	}
-
 
 }

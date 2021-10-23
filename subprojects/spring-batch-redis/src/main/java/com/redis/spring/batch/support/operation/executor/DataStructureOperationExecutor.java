@@ -77,7 +77,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 				flush(commands, streamFutures.toArray(new RedisFuture[0]));
 				break;
 			}
-			if (ds.getAbsoluteTTL() > 0) {
+			if (ds.hasTTL()) {
 				futures.add(commands.pexpireat(ds.getKey(), ds.getAbsoluteTTL()));
 			}
 		}

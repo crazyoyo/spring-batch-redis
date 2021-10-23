@@ -7,6 +7,7 @@ import org.springframework.batch.item.ItemReader;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
+import com.redis.spring.batch.support.job.JobFactory;
 
 import io.lettuce.core.AbstractRedisClient;
 
@@ -20,9 +21,9 @@ public class ScanRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	private long scanCount = DEFAULT_SCAN_COUNT;
 	private String scanType;
 
-	public ScanRedisItemReaderBuilder(AbstractRedisClient client,
+	public ScanRedisItemReaderBuilder(JobFactory jobFactory, AbstractRedisClient client,
 			ValueReaderFactory<String, String, T, R> valueReaderFactory) {
-		super(client, valueReaderFactory);
+		super(jobFactory, client, valueReaderFactory);
 	}
 
 	public ScanRedisItemReaderBuilder<T, R> scanMatch(String scanMatch) {
@@ -45,11 +46,11 @@ public class ScanRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	}
 
 	public RedisItemReader<String, T> build() {
-		return new RedisItemReader<>(keyReader(), valueReader(), threads, chunkSize, queue(), queuePollTimeout,
-				skipPolicy);
+		return new RedisItemReader<>(jobFactory, keyReader(), valueReader(), threads, chunkSize, queue(),
+				queuePollTimeout, skipPolicy);
 	}
 
 	public LiveRedisItemReaderBuilder<T, R> live() {
-		return new LiveRedisItemReaderBuilder<>(client, valueReaderFactory);
+		return new LiveRedisItemReaderBuilder<>(jobFactory, client, valueReaderFactory);
 	}
 }

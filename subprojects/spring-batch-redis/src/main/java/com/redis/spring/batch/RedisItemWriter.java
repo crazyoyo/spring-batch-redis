@@ -8,6 +8,7 @@ import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.core.convert.converter.Converter;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.spring.batch.support.CommandBuilder;
@@ -24,6 +25,7 @@ import com.redis.spring.batch.support.operation.executor.WaitForReplicationOpera
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
+import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
@@ -67,8 +69,13 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 
 	public static RedisItemWriterBuilder<String, String, DataStructure<String>> dataStructure(
 			AbstractRedisClient client) {
+		return dataStructure(client, m -> new XAddArgs().id(m.getId()));
+	}
+
+	public static RedisItemWriterBuilder<String, String, DataStructure<String>> dataStructure(
+			AbstractRedisClient client, Converter<StreamMessage<String, String>, XAddArgs> args) {
 		return new RedisItemWriterBuilder<>(client, StringCodec.UTF8,
-				new DataStructureOperationExecutor<>(client.getDefaultTimeout(), m -> new XAddArgs().id(m.getId())));
+				new DataStructureOperationExecutor<>(client.getDefaultTimeout(), args));
 	}
 
 	public static <T> RedisOperationItemWriterBuilder<T> operation(RedisOperation<String, String, T> operation) {

@@ -13,6 +13,7 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamException;
 
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.support.job.JobFactory;
 
 public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemReader<K, T>
 		implements PollableItemReader<T> {
@@ -21,10 +22,10 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 	private final Duration idleTimeout;
 	private State state;
 
-	public LiveRedisItemReader(PollableItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader,
-			int threads, int chunkSize, BlockingQueue<T> queue, Duration queuePollTimeout, SkipPolicy skipPolicy,
-			Duration flushingInterval, Duration idleTimeout) {
-		super(keyReader, valueReader, threads, chunkSize, queue, queuePollTimeout, skipPolicy);
+	public LiveRedisItemReader(JobFactory jobFactory, PollableItemReader<K> keyReader,
+			ItemProcessor<List<? extends K>, List<T>> valueReader, int threads, int chunkSize, BlockingQueue<T> queue,
+			Duration queuePollTimeout, SkipPolicy skipPolicy, Duration flushingInterval, Duration idleTimeout) {
+		super(jobFactory, keyReader, valueReader, threads, chunkSize, queue, queuePollTimeout, skipPolicy);
 		Utils.assertPositive(flushingInterval, "Flushing interval");
 		this.flushingInterval = flushingInterval;
 		this.idleTimeout = idleTimeout;

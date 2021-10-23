@@ -1,12 +1,17 @@
 package com.redis.spring.batch.support;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import io.lettuce.core.ScoredValue;
+import io.lettuce.core.StreamMessage;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-@NoArgsConstructor
 public class DataStructure<K> extends KeyValue<K, Object> {
 
 	public final static String STRING = "string";
@@ -19,18 +24,43 @@ public class DataStructure<K> extends KeyValue<K, Object> {
 
 	private String type;
 
-	public DataStructure(K key) {
+	public DataStructure(String type, K key) {
 		super(key);
-	}
-
-	public DataStructure(K key, long absoluteTTL, String type) {
-		super(key, absoluteTTL);
 		this.type = type;
 	}
 
-	public DataStructure(K key, String type) {
-		super(key);
+	public DataStructure(String type, K key, Object value) {
+		super(key, value);
 		this.type = type;
+	}
+
+	public DataStructure(String type, K key, Object value, Long absoluteTTL) {
+		super(key, value, absoluteTTL);
+		this.type = type;
+	}
+
+	public static <K, V> DataStructure<K> string(K key, V value) {
+		return new DataStructure<>(STRING, key, value);
+	}
+
+	public static <K, V> DataStructure<K> hash(K key, Map<K, V> value) {
+		return new DataStructure<>(HASH, key, value);
+	}
+
+	public static <K, V> DataStructure<K> set(K key, Set<V> value) {
+		return new DataStructure<>(SET, key, value);
+	}
+
+	public static <K, V> DataStructure<K> zset(K key, Collection<ScoredValue<V>> value) {
+		return new DataStructure<>(ZSET, key, value);
+	}
+
+	public static <K, V> DataStructure<K> list(K key, List<V> value) {
+		return new DataStructure<>(LIST, key, value);
+	}
+
+	public static <K, V> DataStructure<K> stream(K key, Collection<StreamMessage<K, V>> value) {
+		return new DataStructure<>(STREAM, key, value);
 	}
 
 }

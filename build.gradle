@@ -66,12 +66,15 @@ subprojects {
             description = project.project_description
         }
     }
+    
     test {
         useJUnitPlatform()
     }
+    
     bootJar {
         enabled = false
     }
+    
     jar {
         enabled = true
         archiveClassifier = ''

@@ -66,7 +66,7 @@ public class Beers {
 				.operation(Hset.<Map<String, String>>key(m -> PREFIX + m.get(ID.getName())).map(m -> m).build())
 				.client(client).build();
 		JobFactory jobFactory = JobFactory.inMemory();
-		jobFactory.run("create-beers", reader, new MapFlattener(), writer);
+		jobFactory.run("create-beers", 50, reader, new MapFlattener(), writer);
 	}
 
 }

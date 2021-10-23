@@ -9,6 +9,7 @@ import org.springframework.batch.item.ItemProcessor;
 
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
+import com.redis.spring.batch.support.job.JobFactory;
 
 import io.lettuce.core.AbstractRedisClient;
 
@@ -28,8 +29,9 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	protected Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
 	protected Duration idleTimeout;
 
-	public LiveRedisItemReaderBuilder(AbstractRedisClient client, ValueReaderFactory<String, String, T, R> valueReaderFactory) {
-		super(client, valueReaderFactory);
+	public LiveRedisItemReaderBuilder(JobFactory jobFactory, AbstractRedisClient client,
+			ValueReaderFactory<String, String, T, R> valueReaderFactory) {
+		super(jobFactory, client, valueReaderFactory);
 	}
 
 	public LiveRedisItemReaderBuilder<T, R> queueCapacity(int queueCapacity) {
@@ -80,7 +82,7 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	}
 
 	public LiveRedisItemReader<String, T> build() {
-		return new LiveRedisItemReader<>(keyReader(), valueReader(), threads, chunkSize, queue(), queuePollTimeout,
-				skipPolicy, flushingInterval, idleTimeout);
+		return new LiveRedisItemReader<>(jobFactory, keyReader(), valueReader(), threads, chunkSize, queue(),
+				queuePollTimeout, skipPolicy, flushingInterval, idleTimeout);
 	}
 }

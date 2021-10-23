@@ -115,7 +115,13 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 			return Status.MISSING;
 		}
 		if (Objects.deepEquals(source.getValue(), target.getValue())) {
-			if (Math.abs(source.getAbsoluteTTL() - target.getAbsoluteTTL()) > ttlTolerance) {
+			if (source.hasTTL()) {
+				if (target.hasTTL() && Math.abs(source.getAbsoluteTTL() - target.getAbsoluteTTL()) <= ttlTolerance) {
+					return Status.OK;
+				}
+				return Status.TTL;
+			}
+			if (target.hasTTL()) {
 				return Status.TTL;
 			}
 			return Status.OK;

@@ -10,9 +10,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.testcontainers.junit.jupiter.Container;
 
@@ -24,7 +26,8 @@ import com.redis.spring.batch.support.KeyComparisonResultCounter;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.LiveRedisItemReader;
 import com.redis.spring.batch.support.ScanSizeEstimator;
-import com.redis.spring.batch.support.job.JobExecutionWrapper;
+import com.redis.spring.batch.support.ScanSizeEstimator.EstimateOptions;
+import com.redis.spring.batch.support.generator.Generator.DataType;
 import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
 
@@ -33,13 +36,10 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 import io.lettuce.core.api.sync.RedisHashCommands;
-import io.lettuce.core.api.sync.RedisKeyCommands;
 import io.lettuce.core.api.sync.RedisServerCommands;
 import io.lettuce.core.api.sync.RedisSetCommands;
-import lombok.extern.slf4j.Slf4j;
 
 @SuppressWarnings("unchecked")
-@Slf4j
 public class ReplicationTests extends AbstractRedisTestBase {
 
 	@Container
@@ -53,39 +53,39 @@ public class ReplicationTests extends AbstractRedisTestBase {
 	@ParameterizedTest
 	@MethodSource("servers")
 	public void testDataStructureReplication(RedisServer redis) throws Exception {
-		dataGenerator(redis).end(10000).build().call();
+		String name = "ds-replication";
+		dataGenerator(name, redis).to(100).build().call();
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
-		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureWriter(REDIS_REPLICA);
-		jobFactory.run(name(redis, "ds-replication"), reader, writer);
-		compare(redis, "ds-replication");
+		reader.setName(name(redis, name + "-reader"));
+		run(redis, name, reader, dataStructureWriter(REDIS_REPLICA));
+		compare(redis, name);
 	}
 
 	@ParameterizedTest
 	@MethodSource("servers")
 	public void testLiveDSSetReplication(RedisServer redisServer) throws Exception {
+		String name = "live-ds-set-replication";
 		RedisSetCommands<String, String> sync = sync(redisServer);
 		String key = "myset";
 		sync.sadd(key, "1", "2", "3", "4", "5");
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redisServer);
 		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureWriter(REDIS_REPLICA);
-		TaskletStep replicationStep = jobFactory.step("ds-replication", reader, writer).build();
-		LiveRedisItemReader<String, DataStructure<String>> liveReader = liveDataStructureReader(redisServer).build();
+		TaskletStep replicationStep = step("scan-" + name, reader, writer).build();
+		LiveRedisItemReader<String, DataStructure<String>> liveReader = liveDataStructureReader(redisServer);
 		RedisItemWriter<String, String, DataStructure<String>> liveWriter = dataStructureWriter(REDIS_REPLICA);
-		TaskletStep liveReplicationStep = jobFactory
-				.flushing(jobFactory.step("live-ds-set-replication", liveReader, liveWriter)).build();
-		SimpleFlow replicationFlow = jobFactory.flow("ds-set-replication-flow").start(replicationStep).build();
-		SimpleFlow liveReplicationFlow = jobFactory.flow("live-ds-set-replication-flow").start(liveReplicationStep)
+		TaskletStep liveReplicationStep = jobFactory.flushing(step("live-" + name, liveReader, liveWriter)).build();
+		SimpleFlow replicationFlow = jobFactory.flow("scan-" + name).start(replicationStep).build();
+		SimpleFlow liveReplicationFlow = jobFactory.flow("live-" + name).start(liveReplicationStep).build();
+		Job job = jobFactory.job(name(redisServer, name)).start(jobFactory.flow(name)
+				.split(new SimpleAsyncTaskExecutor()).add(replicationFlow, liveReplicationFlow).build()).build()
 				.build();
-		Job job = jobFactory
-				.job(name(redisServer, "live-ds-set-replication-job")).start(jobFactory.flow("live-ds-replication-flow")
-						.split(new SimpleAsyncTaskExecutor()).add(replicationFlow, liveReplicationFlow).build())
-				.build().build();
-		JobExecutionWrapper execution = jobFactory.runAsync(job, new JobParameters()).awaitRunning();
+		JobExecution execution = jobFactory.runAsync(job, new JobParameters());
+		jobFactory.awaitRunning(execution);
 		jobFactory.awaitOpen(liveReader);
 		jobFactory.notificationSleep();
 		sync.srem(key, "5");
 		jobFactory.notificationSleep();
-		execution.awaitTermination();
+		jobFactory.awaitTermination(execution);
 		Set<String> source = sync.smembers(key);
 		RedisSetCommands<String, String> targetSync = sync(REDIS_REPLICA);
 		Set<String> target = targetSync.smembers(key);
@@ -94,59 +94,56 @@ public class ReplicationTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testReplication(RedisServer redisServer) throws Exception {
-		dataGenerator(redisServer).end(10000).build().call();
-		RedisItemReader<String, KeyValue<String, byte[]>> reader = keyDumpReader(redisServer);
+	public void testReplication(RedisServer server) throws Exception {
+		String name = "replication";
+		dataGenerator(name, server).to(100).build().call();
+		RedisItemReader<String, KeyValue<String, byte[]>> reader = keyDumpReader(server);
+		reader.setName(name(server, name + "-reader"));
 		RedisItemWriter<String, String, KeyValue<String, byte[]>> writer = keyDumpWriter(REDIS_REPLICA);
-		jobFactory.run(name(redisServer, "replication"), reader, writer);
-		compare(redisServer, "replication");
+		run(server, name, reader, writer);
+		compare(server, name);
 	}
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testLiveReplication(RedisServer redisServer) throws Exception {
-		dataGenerator(redisServer).end(10000).build().call();
-		RedisItemReader<String, KeyValue<String, byte[]>> reader = keyDumpReader(redisServer);
-		RedisItemWriter<String, String, KeyValue<String, byte[]>> writer = keyDumpWriter(REDIS_REPLICA);
-		TaskletStep replicationStep = jobFactory.step("replication", reader, writer).build();
-		LiveRedisItemReader<String, KeyValue<String, byte[]>> liveReader = liveKeyDumpReader(redisServer);
-		RedisItemWriter<String, String, KeyValue<String, byte[]>> liveWriter = keyDumpWriter(REDIS_REPLICA);
-		TaskletStep liveReplicationStep = jobFactory
-				.flushing(jobFactory.step("live-replication", liveReader, liveWriter)).build();
-		SimpleFlow replicationFlow = jobFactory.flow("replication-flow").start(replicationStep).build();
-		SimpleFlow liveReplicationFlow = jobFactory.flow("live-replication-flow").start(liveReplicationStep).build();
-		Job job = jobFactory
-				.job(name(redisServer, "live-replication-job")).start(jobFactory.flow("live-replication-flow")
-						.split(new SimpleAsyncTaskExecutor()).add(replicationFlow, liveReplicationFlow).build())
-				.build().build();
-		JobExecutionWrapper execution = jobFactory.runAsync(job, new JobParameters()).awaitRunning();
-		dataGenerator(redisServer).end(123).build().call();
-		execution.awaitTermination();
-		compare(redisServer, "live-replication");
+	public void testLiveReplication(RedisServer server) throws Exception {
+		RedisItemReader<String, KeyValue<String, byte[]>> reader = keyDumpReader(server);
+		ItemWriter<KeyValue<String, byte[]>> writer = keyDumpWriter(REDIS_REPLICA);
+		LiveRedisItemReader<String, KeyValue<String, byte[]>> liveReader = liveKeyDumpReader(server);
+		ItemWriter<KeyValue<String, byte[]>> liveWriter = keyDumpWriter(REDIS_REPLICA);
+		replicate("live-replication", server, reader, writer, liveReader, liveWriter);
 	}
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testLiveDSReplication(RedisServer redisServer) throws Exception {
-		dataGenerator(redisServer).end(10000).build().call();
-		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redisServer);
+	public void testLiveDSReplication(RedisServer server) throws Exception {
+		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server);
 		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureWriter(REDIS_REPLICA);
-		TaskletStep replicationStep = jobFactory.step("ds-replication", reader, writer).build();
-		LiveRedisItemReader<String, DataStructure<String>> liveReader = liveDataStructureReader(redisServer).build();
+		LiveRedisItemReader<String, DataStructure<String>> liveReader = liveDataStructureReader(server);
 		RedisItemWriter<String, String, DataStructure<String>> liveWriter = dataStructureWriter(REDIS_REPLICA);
+		replicate("live-ds-replication", server, reader, writer, liveReader, liveWriter);
+	}
+
+	private <T extends KeyValue<String, ?>> void replicate(String name, RedisServer server,
+			RedisItemReader<String, T> reader, ItemWriter<T> writer, LiveRedisItemReader<String, T> liveReader,
+			ItemWriter<T> liveWriter) throws Exception {
+		reader.setName(name(server, name + "-reader"));
+		liveReader.setName(name(server, name + "-live-reader"));
+		dataGenerator(name, server).to(1000).build().call();
+		TaskletStep replicationStep = step(name(server, "scan-" + name), reader, writer).build();
 		TaskletStep liveReplicationStep = jobFactory
-				.flushing(jobFactory.step("live-ds-replication", liveReader, liveWriter)).build();
-		SimpleFlow replicationFlow = jobFactory.flow("ds-replication-flow").start(replicationStep).build();
-		SimpleFlow liveReplicationFlow = jobFactory.flow("live-ds-replication-flow").start(liveReplicationStep).build();
-		Job job = jobFactory
-				.job(name(redisServer, "live-ds-replication-job")).start(jobFactory.flow("live-ds-replication-flow")
-						.split(new SimpleAsyncTaskExecutor()).add(replicationFlow, liveReplicationFlow).build())
-				.build().build();
-		JobExecutionWrapper execution = jobFactory.runAsync(job, new JobParameters()).awaitRunning();
-		dataGenerator(redisServer).end(123).build().call();
-		execution.awaitTermination();
-		log.info("Comparing");
-		compare(redisServer, "live-ds-replication");
+				.flushing(step(name(server, "live-" + name), liveReader, liveWriter)).build();
+		SimpleFlow replicationFlow = jobFactory.flow(name(server, "scan-" + name)).start(replicationStep).build();
+		SimpleFlow liveReplicationFlow = jobFactory.flow(name(server, "live-" + name)).start(liveReplicationStep)
+				.build();
+		Job job = jobFactory.job(name(server, name)).start(jobFactory.flow(name(server, name))
+				.split(new SimpleAsyncTaskExecutor()).add(replicationFlow, liveReplicationFlow).build()).build()
+				.build();
+		JobExecution execution = jobFactory.runAsync(job, new JobParameters());
+		jobFactory.awaitRunning(execution);
+		dataGenerator("live-" + name, server).to(123).keyPrefix("live").build().call();
+		jobFactory.awaitTermination(execution);
+		compare(server, name);
 	}
 
 	private void compare(RedisServer server, String name) throws Exception {
@@ -158,7 +155,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 		KeyComparisonResultCounter<String> results = new KeyComparisonResultCounter<>();
 		KeyComparisonItemWriter<String> writer = KeyComparisonItemWriter.valueReader(right).resultHandler(results)
 				.resultHandler(new KeyComparisonMismatchPrinter<>()).build();
-		jobFactory.run(name(server, name + "-compare"), left, writer);
+		run(server, name + "-compare", left, writer);
 		Assertions.assertEquals(sourceSync.dbsize(), results.get(KeyComparisonItemWriter.Status.OK));
 		Assertions.assertTrue(results.isOK());
 	}
@@ -184,12 +181,11 @@ public class ReplicationTests extends AbstractRedisTestBase {
 		target.setAutoFlushCommands(true);
 		RedisHashCommands<String, String> sourceSync = sync(server);
 		sourceSync.hset("zehash", "zefield", "zevalue");
-		RedisItemReader<String, DataStructure<String>> left = dataStructureReader(server);
 		DataStructureValueReader<String, String> right = dataStructureValueReader(REDIS_REPLICA);
 		KeyComparisonResultCounter<String> counter = new KeyComparisonResultCounter<String>();
 		KeyComparisonItemWriter<String> writer = KeyComparisonItemWriter.valueReader(right).resultHandler(counter)
 				.resultHandler(new KeyComparisonMismatchPrinter<>()).build();
-		jobFactory.run(name(server, "test-comparison-writer-compare"), left, writer);
+		run(server, "test-comparison-writer-compare", dataStructureReader(server), writer);
 		Assertions.assertTrue(counter.get(KeyComparisonItemWriter.Status.OK) > 0);
 		Assertions.assertEquals(1, counter.get(KeyComparisonItemWriter.Status.MISSING));
 	}
@@ -197,16 +193,14 @@ public class ReplicationTests extends AbstractRedisTestBase {
 	@ParameterizedTest
 	@MethodSource("servers")
 	public void testScanSizeEstimator(RedisServer server) throws Exception {
-		dataGenerator(server).end(12345).dataTypes(DataStructure.HASH).build().call();
+		dataGenerator("scan-size-estimator", server).to(12345).dataTypes(DataType.HASH).build().call();
 		ScanSizeEstimator estimator = sizeEstimator(server);
-		long matchSize = estimator
-				.estimate(ScanSizeEstimator.EstimateOptions.builder().sampleSize(100).match("hash:*").build());
-		RedisKeyCommands<String, String> sync = sync(server);
-		long hashCount = sync.keys("hash:*").size();
-		Assertions.assertEquals(hashCount, matchSize, (double) hashCount / 10);
-		long typeSize = estimator.estimate(
-				ScanSizeEstimator.EstimateOptions.builder().sampleSize(1000).type(DataStructure.HASH).build());
-		Assertions.assertEquals(hashCount, typeSize, (double) hashCount / 10);
+		String pattern = DataType.HASH + ":*";
+		long expectedCount = sync(server).keys(pattern).size();
+		long matchCount = estimator.estimate(EstimateOptions.builder().sampleSize(1000).match(pattern).build());
+		Assertions.assertEquals(expectedCount, matchCount, expectedCount / 10);
+		long typeSize = estimator.estimate(EstimateOptions.builder().sampleSize(1000).type(DataStructure.HASH).build());
+		Assertions.assertEquals(expectedCount, typeSize, expectedCount / 10);
 	}
 
 	private ScanSizeEstimator sizeEstimator(RedisServer server) {

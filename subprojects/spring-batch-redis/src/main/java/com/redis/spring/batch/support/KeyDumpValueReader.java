@@ -43,9 +43,9 @@ public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyValue
 		List<KeyValue<K, byte[]>> dumps = new ArrayList<>(keys.size());
 		for (int index = 0; index < keys.size(); index++) {
 			K key = keys.get(index);
-			long absoluteTTL = ttlFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
+			Long absoluteTTL = ttlFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
 			byte[] bytes = dumpFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
-			dumps.add(new KeyValue<>(key, absoluteTTL, bytes));
+			dumps.add(new KeyValue<>(key, bytes, absoluteTTL));
 		}
 		return dumps;
 	}
