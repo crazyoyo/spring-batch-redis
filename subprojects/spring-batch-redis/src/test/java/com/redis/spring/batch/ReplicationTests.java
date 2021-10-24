@@ -141,6 +141,8 @@ public class ReplicationTests extends AbstractRedisTestBase {
 				.build();
 		JobExecution execution = jobFactory.runAsync(job, new JobParameters());
 		jobFactory.awaitRunning(execution);
+		jobFactory.awaitOpen(liveReader);
+		Thread.sleep(100);
 		dataGenerator("live-" + name, server).to(123).keyPrefix("live").build().call();
 		jobFactory.awaitTermination(execution);
 		compare(server, name);
