@@ -6,12 +6,13 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
-import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 
@@ -28,13 +29,13 @@ public class FlushingStepTests extends AbstractTestBase {
 				TimeoutException::new, interval);
 		ListItemWriter<Integer> writer = new ListItemWriter<>();
 		FlushingStepBuilder<Integer, Integer> stepBuilder = new FlushingStepBuilder<>(
-				jobFactory.step(name).<Integer, Integer>chunk(1).reader(reader).writer(writer));
+				stepBuilderFactory.get(name).<Integer, Integer>chunk(1).reader(reader).writer(writer));
 		stepBuilder.idleTimeout(Duration.ofMillis(100)).skip(TimeoutException.class)
 				.skipPolicy(new AlwaysSkipItemSkipPolicy());
-		TaskletStep step = stepBuilder.build();
-		JobExecution execution = jobFactory.runAsync(jobFactory.job(name, step).build(), new JobParameters());
-		jobFactory.awaitRunning(execution);
-		jobFactory.awaitTermination(execution);
+		Job job = jobBuilderFactory.get(name).start(stepBuilder.build()).build();
+		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
+		Awaitility.await().until(() -> execution.isRunning());
+		Awaitility.await().until(() -> !execution.isRunning());
 		Assertions.assertEquals(items.size(), writer.getWrittenItems().size() * 2);
 	}
 }

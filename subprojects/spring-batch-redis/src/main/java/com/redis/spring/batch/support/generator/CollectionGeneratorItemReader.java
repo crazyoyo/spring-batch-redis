@@ -7,16 +7,15 @@ import org.apache.commons.lang3.Range;
 
 import com.redis.spring.batch.support.generator.Generator.DataType;
 
-import lombok.Builder;
-import lombok.Builder.Default;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 public abstract class CollectionGeneratorItemReader<T> extends DataStructureGeneratorItemReader<T> {
 
-	private Options options;
+	private CollectionOptions options;
 
-	protected CollectionGeneratorItemReader(Options options, DataType type) {
-		super(options.getDataStructureOptions(), type);
+	protected CollectionGeneratorItemReader(DataType type, CollectionOptions options) {
+		super(type, options);
 		this.options = options;
 	}
 
@@ -29,20 +28,40 @@ public abstract class CollectionGeneratorItemReader<T> extends DataStructureGene
 	}
 
 	@Data
-	@Builder
-	public static class Options {
+	@EqualsAndHashCode(callSuper = true)
+	public static class CollectionOptions extends DataStructureOptions {
 
-		public static final int DEFAULT_CARDINALITY_MIN = 10;
-		public static final int DEFAULT_CARDINALITY_MAX = 10;
+		private Range<Integer> cardinality;
 
-		@Default
-		private DataStructureGeneratorItemReader.Options dataStructureOptions = DataStructureGeneratorItemReader.Options
-				.builder().build();
-		@Default
-		private Range<Integer> cardinality = Range.between(DEFAULT_CARDINALITY_MIN, DEFAULT_CARDINALITY_MAX);
+		public static CollectionOptionsBuilder<?> builder() {
+			return new CollectionOptionsBuilder<>();
+		}
 
-		public void to(int max) {
-			this.dataStructureOptions.to(max);
+		public static class CollectionOptionsBuilder<B extends CollectionOptionsBuilder<B>> extends DataStructureOptionsBuilder<B> {
+
+			public static final int DEFAULT_CARDINALITY_MIN = 10;
+			public static final int DEFAULT_CARDINALITY_MAX = 10;
+
+			private Range<Integer> cardinality = Range.between(DEFAULT_CARDINALITY_MIN, DEFAULT_CARDINALITY_MAX);
+
+			@SuppressWarnings("unchecked")
+			public B cardinality(Range<Integer> cardinality) {
+				this.cardinality = cardinality;
+				return (B) this;
+			}
+
+			public CollectionOptions build() {
+				CollectionOptions options = new CollectionOptions();
+				set(options);
+				return options;
+			}
+
+			@Override
+			protected void set(DataStructureOptions options) {
+				super.set(options);
+				((CollectionOptions) options).setCardinality(cardinality);
+			}
+
 		}
 
 	}

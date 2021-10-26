@@ -9,6 +9,7 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -22,9 +23,7 @@ import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.LiveRedisItemReader;
-import com.redis.spring.batch.support.generator.Generator;
 import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
-import com.redis.spring.batch.support.job.JobFactory.Options;
 import com.redis.testcontainers.RedisClusterContainer;
 import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
@@ -145,26 +144,40 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 		throw new IllegalStateException("No pool found for " + server);
 	}
 
-	protected GeneratorBuilder dataGenerator(String id, RedisServer server) {
-		return Generator.id(name(server, id)).jobFactory(inMemoryJobFactory).client(client(server));
+	protected GeneratorBuilder dataGenerator(RedisServer server, String name) {
+		return new GeneratorBuilder(name(server, name + "-generator"), jobRepository, transactionManager,
+				client(server));
 	}
 
-	protected LiveRedisItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisServer server) {
-		return RedisItemReader.keyDump(inMemoryJobFactory, client(server)).live().idleTimeout(Options.DEFAULT_IDLE_TIMEOUT)
-				.build();
+	protected LiveRedisItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisServer redis, String name,
+			int notificationQueueCapacity) {
+		return setName(
+				RedisItemReader.keyDump(jobRepository, transactionManager, client(redis)).live()
+						.idleTimeout(IDLE_TIMEOUT).notificationQueueCapacity(notificationQueueCapacity).build(),
+				redis, name + "-live-key-dump");
 	}
 
-	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisServer server) {
-		return RedisItemReader.dataStructure(inMemoryJobFactory, client(server)).live()
-				.idleTimeout(Options.DEFAULT_IDLE_TIMEOUT).build();
+	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisServer server,
+			String name, int notificationQueueCapacity) {
+		return setName(
+				RedisItemReader.dataStructure(jobRepository, transactionManager, client(server)).live()
+						.idleTimeout(IDLE_TIMEOUT).notificationQueueCapacity(notificationQueueCapacity).build(),
+				server, name + "-live-data-structure");
 	}
 
-	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisServer server) {
-		return RedisItemReader.dataStructure(inMemoryJobFactory, client(server)).build();
+	private <T extends AbstractItemStreamItemReader<?>> T setName(T reader, RedisServer redis, String name) {
+		reader.setName(name(redis, name + "-reader"));
+		return reader;
 	}
 
-	protected RedisItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisServer server) {
-		return RedisItemReader.keyDump(inMemoryJobFactory, client(server)).build();
+	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisServer redis, String name) {
+		return setName(RedisItemReader.dataStructure(jobRepository, transactionManager, client(redis)).build(), redis,
+				name + "-data-structure");
+	}
+
+	protected RedisItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisServer redis, String name) {
+		return setName(RedisItemReader.keyDump(jobRepository, transactionManager, client(redis)).build(), redis,
+				name + "-key-dump");
 	}
 
 	protected RedisItemWriter<String, String, KeyValue<String, byte[]>> keyDumpWriter(RedisServer redis) {

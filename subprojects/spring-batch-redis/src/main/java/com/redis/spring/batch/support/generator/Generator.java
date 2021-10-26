@@ -7,16 +7,24 @@ import java.util.concurrent.Callable;
 
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.job.builder.FlowBuilder;
-import org.springframework.batch.core.job.builder.FlowJobBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
+import org.springframework.batch.core.launch.support.SimpleJobLauncher;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.support.DataStructure;
-import com.redis.spring.batch.support.job.JobFactory;
+import com.redis.spring.batch.support.generator.CollectionGeneratorItemReader.CollectionOptions;
+import com.redis.spring.batch.support.generator.DataStructureGeneratorItemReader.DataStructureOptions;
+import com.redis.spring.batch.support.generator.StringGeneratorItemReader.StringOptions;
+import com.redis.spring.batch.support.generator.ZsetGeneratorItemReader.ZsetOptions;
 
 import io.lettuce.core.AbstractRedisClient;
 import lombok.Builder;
@@ -33,14 +41,17 @@ public class Generator implements Callable<JobExecution> {
 	private static final String NAME = "generator";
 
 	private final String id;
-	private final JobFactory jobFactory;
+	private final JobRepository jobRepository;
+	private final PlatformTransactionManager transactionManager;
 	private final AbstractRedisClient client;
 	@Getter
-	private final Options options;
+	private final GeneratorOptions options;
 
-	public Generator(String id, JobFactory jobFactory, AbstractRedisClient client, Options options) {
+	public Generator(String id, JobRepository jobRepository, PlatformTransactionManager transactionManager,
+			AbstractRedisClient client, GeneratorOptions options) {
 		this.id = id;
-		this.jobFactory = jobFactory;
+		this.jobRepository = jobRepository;
+		this.transactionManager = transactionManager;
 		this.client = client;
 		this.options = options;
 	}
@@ -48,19 +59,24 @@ public class Generator implements Callable<JobExecution> {
 	@Override
 	public JobExecution call() throws Exception {
 		String name = id + "-" + NAME;
+		StepBuilderFactory stepBuilderFactory = new StepBuilderFactory(jobRepository, transactionManager);
 		List<SimpleFlow> flows = new ArrayList<>();
 		for (DataType type : options.getDataTypes()) {
-			FlowBuilder<SimpleFlow> flow = jobFactory.flow(type + "-" + name);
-			flows.add(flow
-					.start(jobFactory.step(type + "-" + name, options.getChunkSize(), reader(type), writer()).build())
-					.build());
+			flows.add(new FlowBuilder<SimpleFlow>(type + "-" + name).start(stepBuilderFactory.get(type + "-" + name)
+					.<DataStructure<String>, DataStructure<String>>chunk(options.getChunkSize()).reader(reader(type))
+					.writer(writer()).build()).build());
 		}
-		SimpleFlow flow = jobFactory.flow(name).split(new SimpleAsyncTaskExecutor())
+		SimpleFlow flow = new FlowBuilder<SimpleFlow>(name).split(new SimpleAsyncTaskExecutor())
 				.add(flows.toArray(new SimpleFlow[0])).build();
-		FlowJobBuilder job = jobFactory.job(name).start(flow).build();
-		JobExecution execution = jobFactory.run(job.build(), new JobParameters());
-		jobFactory.awaitTermination(execution);
-		return execution;
+		JobBuilderFactory jobBuilderFactory = new JobBuilderFactory(jobRepository);
+		SimpleJobLauncher launcher = new SimpleJobLauncher();
+		launcher.setJobRepository(jobRepository);
+		try {
+			launcher.afterPropertiesSet();
+		} catch (Exception e) {
+			throw new ItemStreamException("Could not initialize job launcher", e);
+		}
+		return launcher.run(jobBuilderFactory.get(name).start(flow).build().build(), new JobParameters());
 	}
 
 	private ItemWriter<DataStructure<String>> writer() {
@@ -85,49 +101,19 @@ public class Generator implements Callable<JobExecution> {
 		throw new UnsupportedOperationException(String.format("Data type '%s' is not supported", type));
 	}
 
-	public static JobFactoryGeneratorBuilder id(String id) {
-		return new JobFactoryGeneratorBuilder(id);
-	}
-
-	public static class JobFactoryGeneratorBuilder {
-
-		private final String id;
-
-		public JobFactoryGeneratorBuilder(String id) {
-			this.id = id;
-		}
-
-		public ClientGeneratorBuilder jobFactory(JobFactory jobFactory) {
-			return new ClientGeneratorBuilder(id, jobFactory);
-		}
-
-	}
-
-	public static class ClientGeneratorBuilder {
-
-		private final String id;
-		private final JobFactory jobFactory;
-
-		public ClientGeneratorBuilder(String id, JobFactory jobFactory) {
-			this.id = id;
-			this.jobFactory = jobFactory;
-		}
-
-		public GeneratorBuilder client(AbstractRedisClient client) {
-			return new GeneratorBuilder(id, jobFactory, client);
-		}
-	}
-
 	public static class GeneratorBuilder {
 
 		private final String id;
-		private final JobFactory jobFactory;
+		private final JobRepository jobRepository;
+		private final PlatformTransactionManager transactionManager;
 		private final AbstractRedisClient client;
-		private Options options = Options.builder().build();
+		private GeneratorOptions options = GeneratorOptions.builder().build();
 
-		public GeneratorBuilder(String id, JobFactory jobFactory, AbstractRedisClient client) {
+		public GeneratorBuilder(String id, JobRepository jobRepository, PlatformTransactionManager transactionManager,
+				AbstractRedisClient client) {
 			this.id = id;
-			this.jobFactory = jobFactory;
+			this.jobRepository = jobRepository;
+			this.transactionManager = transactionManager;
 			this.client = client;
 		}
 
@@ -136,27 +122,32 @@ public class Generator implements Callable<JobExecution> {
 			return this;
 		}
 
-		public GeneratorBuilder options(Options options) {
+		public GeneratorBuilder options(GeneratorOptions options) {
 			this.options = options;
 			return this;
 		}
 
-		public GeneratorBuilder hash(DataStructureGeneratorItemReader.Options hashOptions) {
+		public GeneratorBuilder hash(DataStructureGeneratorItemReader.DataStructureOptions hashOptions) {
 			this.options.setHashOptions(hashOptions);
 			return this;
 		}
 
-		public GeneratorBuilder string(DataStructureGeneratorItemReader.Options hashOptions) {
-			this.options.setStringOptions(hashOptions);
+		public GeneratorBuilder string(StringOptions stringOptions) {
+			this.options.setStringOptions(stringOptions);
 			return this;
 		}
 
 		public Generator build() {
-			return new Generator(id, jobFactory, client, options);
+			return new Generator(id, jobRepository, transactionManager, client, options);
 		}
 
-		public GeneratorBuilder to(int max) {
-			this.options.to(max);
+		public GeneratorBuilder start(long start) {
+			this.options.start(start);
+			return this;
+		}
+
+		public GeneratorBuilder end(long end) {
+			this.options.end(end);
 			return this;
 		}
 
@@ -169,53 +160,59 @@ public class Generator implements Callable<JobExecution> {
 
 	@Data
 	@Builder
-	public static class Options {
+	public static class GeneratorOptions {
 
 		public static final int DEFAULT_CHUNK_SIZE = 50;
 
+		public static final DataType[] DEFAULT_DATATYPES = DataType.values();
+
 		@Default
-		private List<DataType> dataTypes = Arrays.asList(DataType.values());
+		private List<DataType> dataTypes = Arrays.asList(DEFAULT_DATATYPES);
 		@Default
 		private int chunkSize = DEFAULT_CHUNK_SIZE;
 		@Default
-		private DataStructureGeneratorItemReader.Options hashOptions = DataStructureGeneratorItemReader.Options
-				.builder().build();
+		private DataStructureOptions hashOptions = DataStructureOptions.builder().build();
 		@Default
-		private CollectionGeneratorItemReader.Options listOptions = CollectionGeneratorItemReader.Options.builder()
-				.build();
+		private CollectionOptions listOptions = CollectionOptions.builder().build();
 		@Default
-		private CollectionGeneratorItemReader.Options setOptions = CollectionGeneratorItemReader.Options.builder()
-				.build();
+		private CollectionOptions setOptions = CollectionOptions.builder().build();
 		@Default
-		private CollectionGeneratorItemReader.Options streamOptions = CollectionGeneratorItemReader.Options.builder()
-				.build();
+		private CollectionOptions streamOptions = CollectionOptions.builder().build();
 		@Default
-		private DataStructureGeneratorItemReader.Options stringOptions = DataStructureGeneratorItemReader.Options
-				.builder().build();
+		private StringOptions stringOptions = StringOptions.builder().build();
 		@Default
-		private ZsetGeneratorItemReader.Options zsetOptions = ZsetGeneratorItemReader.Options.builder().build();
+		private ZsetOptions zsetOptions = ZsetOptions.builder().build();
 
-		public void to(int max) {
-			hashOptions.to(max);
-			listOptions.to(max);
-			setOptions.to(max);
-			streamOptions.to(max);
-			stringOptions.to(max);
-			zsetOptions.to(max);
+		public void start(long start) {
+			hashOptions.setStart(start);
+			listOptions.setStart(start);
+			setOptions.setStart(start);
+			streamOptions.setStart(start);
+			stringOptions.setStart(start);
+			zsetOptions.setStart(start);
+		}
+
+		public void end(long end) {
+			hashOptions.setEnd(end);
+			listOptions.setEnd(end);
+			setOptions.setEnd(end);
+			streamOptions.setEnd(end);
+			stringOptions.setEnd(end);
+			zsetOptions.setEnd(end);
 		}
 
 		public void keyPrefix(String prefix) {
 			hashOptions.setKeyPrefix(prefix);
-			listOptions.getDataStructureOptions().setKeyPrefix(prefix);
-			setOptions.getDataStructureOptions().setKeyPrefix(prefix);
-			streamOptions.getDataStructureOptions().setKeyPrefix(prefix);
+			listOptions.setKeyPrefix(prefix);
+			setOptions.setKeyPrefix(prefix);
+			streamOptions.setKeyPrefix(prefix);
 			stringOptions.setKeyPrefix(prefix);
-			zsetOptions.getCollectionOptions().getDataStructureOptions().setKeyPrefix(prefix);
+			zsetOptions.setKeyPrefix(prefix);
 		}
 
-		public static class OptionsBuilder {
+		public static class GeneratorOptionsBuilder {
 
-			public OptionsBuilder dataType(DataType... dataTypes) {
+			public GeneratorOptionsBuilder dataType(DataType... dataTypes) {
 				dataTypes(Arrays.asList(dataTypes));
 				return this;
 			}

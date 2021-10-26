@@ -3,16 +3,18 @@ package com.redis.spring.batch.support.generator;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import com.redis.spring.batch.support.generator.CollectionGeneratorItemReader.CollectionOptions;
 import com.redis.spring.batch.support.generator.Generator.DataType;
 
 import io.lettuce.core.StreamMessage;
 
-public class StreamGeneratorItemReader extends DataStructureGeneratorItemReader<Collection<StreamMessage<String, String>>> {
+public class StreamGeneratorItemReader
+		extends DataStructureGeneratorItemReader<Collection<StreamMessage<String, String>>> {
 
-	private CollectionGeneratorItemReader.Options options;
+	private CollectionOptions options;
 
-	public StreamGeneratorItemReader(CollectionGeneratorItemReader.Options options) {
-		super(options.getDataStructureOptions(), DataType.STREAM);
+	public StreamGeneratorItemReader(CollectionOptions options) {
+		super(DataType.STREAM, options);
 		this.options = options;
 	}
 

@@ -23,6 +23,9 @@ public class KeyValue<K, T> {
 	 */
 	private Long absoluteTTL;
 
+	public KeyValue() {
+	}
+
 	public KeyValue(K key) {
 		this.key = key;
 	}

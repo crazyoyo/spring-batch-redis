@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -15,7 +15,6 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.util.Assert;
 
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
-import com.redis.spring.batch.support.job.JobFactory;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisCommandExecutionException;
@@ -37,7 +36,6 @@ public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends Ite
 	public static final SkipPolicy DEFAULT_SKIP_POLICY = new LimitCheckingItemSkipPolicy(DEFAULT_SKIP_LIMIT,
 			DEFAULT_SKIPPABLE_EXCEPTIONS);
 
-	protected final JobFactory jobFactory;
 	protected final AbstractRedisClient client;
 	protected final ValueReaderFactory<String, String, T, R> valueReaderFactory;
 
@@ -47,10 +45,9 @@ public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends Ite
 	protected Duration queuePollTimeout = DEFAULT_QUEUE_POLL_TIMEOUT;
 	protected SkipPolicy skipPolicy = DEFAULT_SKIP_POLICY;
 
-	public RedisItemReaderBuilder(JobFactory jobFactory, AbstractRedisClient client,
+	public RedisItemReaderBuilder(AbstractRedisClient client,
 			ValueReaderFactory<String, String, T, R> valueReaderFactory) {
 		super(client, StringCodec.UTF8);
-		this.jobFactory = jobFactory;
 		this.client = client;
 		this.valueReaderFactory = valueReaderFactory;
 	}
@@ -86,7 +83,7 @@ public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends Ite
 	}
 
 	protected BlockingQueue<T> queue() {
-		return new LinkedBlockingDeque<>(queueCapacity);
+		return new LinkedBlockingQueue<>(queueCapacity);
 	}
 
 	protected R valueReader() {

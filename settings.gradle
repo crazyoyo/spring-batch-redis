@@ -22,7 +22,7 @@ projects {
 
     plugins {
         all {
-            id 'idea'
+            id 'eclipse'
         }
         path(':') {
             id 'org.kordamp.gradle.java-project'
@@ -34,5 +34,13 @@ projects {
             id 'io.spring.dependency-management'
             id 'io.freefair.lombok'
         }
+    }
+}
+
+enforce {
+    mergeStrategy = 'append'
+
+    rule(enforcer.rules.ForceDependencies) { r ->
+        r.dependencies.addAll "org.objenesis:objenesis:3.2"
     }
 }

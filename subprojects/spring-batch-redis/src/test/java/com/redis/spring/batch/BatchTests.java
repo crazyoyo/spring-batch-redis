@@ -10,20 +10,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemWriter;
@@ -34,23 +32,19 @@ import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.spring.batch.support.AbstractKeyspaceNotificationItemReader;
-import com.redis.spring.batch.support.ClusterKeyspaceNotificationItemReader;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.KeyValue;
-import com.redis.spring.batch.support.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.support.LiveRedisItemReader;
-import com.redis.spring.batch.support.LiveRedisItemReaderBuilder;
-import com.redis.spring.batch.support.Timer;
+import com.redis.spring.batch.support.PollableItemReader;
+import com.redis.spring.batch.support.State;
 import com.redis.spring.batch.support.convert.ArrayConverter;
 import com.redis.spring.batch.support.convert.GeoValueConverter;
 import com.redis.spring.batch.support.convert.KeyMaker;
 import com.redis.spring.batch.support.convert.MapFlattener;
 import com.redis.spring.batch.support.convert.ScoredValueConverter;
+import com.redis.spring.batch.support.generator.Generator;
 import com.redis.spring.batch.support.generator.Generator.DataType;
 import com.redis.spring.batch.support.operation.Geoadd;
 import com.redis.spring.batch.support.operation.Hset;
@@ -60,17 +54,13 @@ import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.GeoArgs;
 import io.lettuce.core.GeoValue;
-import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.Range;
-import io.lettuce.core.RedisClient;
-import io.lettuce.core.RedisFuture;
+import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import lombok.Builder;
 import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @SuppressWarnings("unchecked")
 public class BatchTests extends AbstractRedisTestBase {
 
@@ -78,103 +68,74 @@ public class BatchTests extends AbstractRedisTestBase {
 	@MethodSource("servers")
 	void testFlushingStep(RedisServer redis) throws Exception {
 		String name = "flushing-step";
-		AbstractKeyspaceNotificationItemReader<?> reader = keyEventReader(redis);
+		PollableItemReader<String> reader = keyspaceNotificationReader(redis);
 		ListItemWriter<String> writer = new ListItemWriter<>();
-		JobExecution execution = runFlushing(redis, name, reader, writer);
-		dataGenerator(name, redis).to(3).dataTypes(DataType.STRING, DataType.HASH).build().call();
-		jobFactory.awaitTermination(execution);
+		JobExecution execution = runFlushing(redis, name, reader, null, writer);
+		Awaitility.await().until(() -> reader.getState() == State.OPEN);
+		dataGenerator(redis, name).end(3).dataTypes(DataType.STRING, DataType.HASH).build().call();
+		awaitTermination(execution);
 		RedisModulesCommands<String, String> commands = sync(redis);
 		Assertions.assertEquals(commands.dbsize(), writer.getWrittenItems().size());
 	}
 
-	private AbstractKeyspaceNotificationItemReader<?> keyEventReader(RedisServer redis) {
-		int queueCapacity = LiveRedisItemReaderBuilder.DEFAULT_QUEUE_CAPACITY;
-		if (redis.isCluster()) {
-			RedisModulesClusterClient client = (RedisModulesClusterClient) client(redis);
-			return new ClusterKeyspaceNotificationItemReader(client::connectPubSub,
-					LiveRedisItemReaderBuilder.DEFAULT_PUBSUB_PATTERNS, queueCapacity);
-		}
-		RedisClient client = (RedisClient) client(redis);
-		return new KeyspaceNotificationItemReader(client::connectPubSub,
-				LiveRedisItemReaderBuilder.DEFAULT_PUBSUB_PATTERNS, queueCapacity);
+	private PollableItemReader<String> keyspaceNotificationReader(RedisServer redis) {
+		return LiveRedisItemReader.dataStructure(jobRepository, transactionManager, client(redis)).live().keyReader();
 	}
 
 	@ParameterizedTest
 	@MethodSource("servers")
 	void testKeyspaceNotificationReader(RedisServer redis) throws Exception {
-		BlockingQueue<String> queue = new LinkedBlockingDeque<>(10000);
-		AbstractKeyspaceNotificationItemReader<?> reader = keyspaceNotificationReader(redis, queue);
+		String name = "keyspace-notification-reader";
+		PollableItemReader<String> reader = keyspaceNotificationReader(redis);
 		reader.open(new ExecutionContext());
-		RedisModulesAsyncCommands<String, String> async = async(redis);
-		async.setAutoFlushCommands(false);
-		List<String> keys = new ArrayList<>();
-		List<RedisFuture<?>> futures = new ArrayList<>();
-		for (int index = 0; index < 4321; index++) {
-			String key = "key" + index;
-			futures.add(async.set(key, "value"));
-			if (futures.size() == 50) {
-				async.flushCommands();
-				LettuceFutures.awaitAll(1, TimeUnit.SECONDS, futures.toArray(new RedisFuture[0]));
-				futures.clear();
-			}
-			keys.add(key);
+		int generatorEnd = 100;
+		Generator generator = dataGenerator(redis, name).end(100).build();
+		generator.call();
+		int actualCount = 0;
+		while (reader.read() != null) {
+			actualCount++;
 		}
-		async.flushCommands();
-		LettuceFutures.awaitAll(1, TimeUnit.SECONDS, futures.toArray(new RedisFuture[0]));
-		Timer.ofSeconds(1).await(() -> queue.size() == keys.size());
-		Assertions.assertEquals(keys.size(), queue.size());
-		log.info("Closing reader");
+		Assertions.assertEquals(generatorEnd * generator.getOptions().getDataTypes().size(), actualCount);
 		reader.close();
-		async.setAutoFlushCommands(true);
-	}
-
-	private AbstractKeyspaceNotificationItemReader<?> keyspaceNotificationReader(RedisServer server,
-			BlockingQueue<String> queue) {
-		if (server.isCluster()) {
-			RedisModulesClusterClient client = (RedisModulesClusterClient) client(server);
-			return new ClusterKeyspaceNotificationItemReader(client::connectPubSub,
-					LiveRedisItemReaderBuilder.DEFAULT_PUBSUB_PATTERNS, queue);
-		}
-		RedisClient client = (RedisClient) client(server);
-		return new KeyspaceNotificationItemReader(client::connectPubSub,
-				LiveRedisItemReaderBuilder.DEFAULT_PUBSUB_PATTERNS, queue);
 	}
 
 	@ParameterizedTest
 	@MethodSource("servers")
 	void testDataStructureReader(RedisServer redis) throws Exception {
-		populateSource("scan-reader-populate", redis);
-		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
+		String name = "ds-reader";
+		populateSource(redis, name);
+		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis, name);
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
-		run(redis, "scan-reader", reader, writer);
+		run(redis, name, reader, writer);
 		RedisModulesCommands<String, String> sync = sync(redis);
 		Assertions.assertEquals(sync.dbsize(), writer.getWrittenItems().size());
 	}
 
-	private void populateSource(String name, RedisServer server) throws Exception {
+	private void populateSource(RedisServer server, String name) throws Exception {
 		JsonItemReader<Map<String, Object>> reader = Beers.mapReader();
 		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
 				.operation(Hset.<Map<String, String>>key(t -> t.get("id")).map(t -> t).build()).client(client(server))
 				.build();
-		run(server, name, reader, new MapFlattener(), writer);
+		run(server, name + "-populate", reader, new MapFlattener(), writer);
 	}
 
 	@ParameterizedTest
 	@MethodSource("servers")
 	void testMultiThreadedReader(RedisServer server) throws Exception {
-		populateSource("multithreaded-scan-reader-populate", server);
+		String name = "multi-threaded-reader";
+		populateSource(server, name);
+		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server, name);
 		SynchronizedItemStreamReader<DataStructure<String>> synchronizedReader = new SynchronizedItemStreamReader<>();
-		synchronizedReader.setDelegate(dataStructureReader(server));
+		synchronizedReader.setDelegate(reader);
 		synchronizedReader.afterPropertiesSet();
 		SynchronizedListItemWriter<DataStructure<String>> writer = new SynchronizedListItemWriter<>();
-		String name = "multithreaded-scan-reader";
 		int threads = 4;
 		ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
 		taskExecutor.setMaxPoolSize(threads);
 		taskExecutor.setCorePoolSize(threads);
 		taskExecutor.afterPropertiesSet();
-		jobFactory.run(name(server, name),
-				step(name, synchronizedReader, writer).taskExecutor(taskExecutor).throttleLimit(threads).build());
+		run(job(server, name, step(server, name, synchronizedReader, null, writer).taskExecutor(taskExecutor)
+				.throttleLimit(threads).build()).build());
 		RedisModulesCommands<String, String> sync = sync(server);
 		Assertions.assertEquals(sync.dbsize(), writer.getWrittenItems().size());
 	}
@@ -258,7 +219,13 @@ public class BatchTests extends AbstractRedisTestBase {
 		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
 				.operation(Hset.key(keyConverter).map(m -> m).build()).client(client(server)).waitForReplication(1, 300)
 				.build();
-		Assertions.assertThrows(JobExecutionException.class, () -> run(server, "writer-wait", reader, writer));
+		JobExecution execution = run(server, "writer-wait", reader, writer);
+		Assertions.assertEquals(ExitStatus.FAILED.getExitCode(), execution.getExitStatus().getExitCode());
+		Assertions.assertEquals(1, execution.getAllFailureExceptions().size());
+		Assertions.assertEquals(RedisCommandExecutionException.class,
+				execution.getAllFailureExceptions().get(0).getClass());
+		Assertions.assertEquals("Insufficient replication level - expected: 1, actual: 0",
+				execution.getAllFailureExceptions().get(0).getMessage());
 	}
 
 	@ParameterizedTest
@@ -391,11 +358,12 @@ public class BatchTests extends AbstractRedisTestBase {
 	@MethodSource("servers")
 	public void testLiveReader(RedisServer redis) throws Exception {
 		String name = "live-reader";
-		LiveRedisItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(redis);
+		LiveRedisItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(redis, name, 10000);
 		ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
-		JobExecution execution = runFlushing(redis, name, reader, writer);
-		dataGenerator(name, redis).to(123).dataTypes(DataType.HASH, DataType.STRING).build().call();
-		jobFactory.awaitTermination(execution);
+		JobExecution execution = runFlushing(redis, name, reader, null, writer);
+		Awaitility.await().until(() -> reader.getState() == State.OPEN);
+		dataGenerator(redis, name).end(123).dataTypes(DataType.HASH, DataType.STRING).build().call();
+		awaitTermination(execution);
 		RedisModulesCommands<String, String> sync = sync(redis);
 		Assertions.assertEquals(sync.dbsize(), writer.getWrittenItems().size());
 	}
@@ -404,17 +372,18 @@ public class BatchTests extends AbstractRedisTestBase {
 	@MethodSource("servers")
 	public void testKeyValueItemReaderFaultTolerance(RedisServer redis) throws Exception {
 		String name = "reader-ft";
-		dataGenerator(name, redis).dataTypes(DataType.STRING).build().call();
+		dataGenerator(redis, name).dataTypes(DataType.STRING).build().call();
 		List<String> keys = IntStream.range(0, 100).boxed().map(i -> DataType.STRING + ":" + i)
 				.collect(Collectors.toList());
 		DelegatingPollableItemReader<String> keyReader = DelegatingPollableItemReader.<String>builder()
 				.delegate(new ListItemReader<>(keys)).exceptionSupplier(TimeoutException::new).interval(2).build();
 		DataStructureValueReader<String, String> valueReader = dataStructureValueReader(redis);
-		RedisItemReader<String, DataStructure<String>> reader = new RedisItemReader<>(inMemoryJobFactory, keyReader,
-				valueReader, 1, 1, new LinkedBlockingQueue<>(1000), Duration.ofMillis(100),
+		RedisItemReader<String, DataStructure<String>> reader = new RedisItemReader<>(jobRepository, transactionManager,
+				keyReader, valueReader, 1, 1, new LinkedBlockingQueue<>(1000), Duration.ofMillis(100),
 				new AlwaysSkipItemSkipPolicy());
+		reader.setName(name(redis, name + "-reader"));
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
-		jobFactory.run(name(redis, name), 50, reader, writer);
+		run(redis, name, reader, writer);
 		Assertions.assertEquals(50, writer.getWrittenItems().size());
 	}
 

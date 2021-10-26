@@ -3,17 +3,19 @@ package com.redis.spring.batch.support;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.transaction.PlatformTransactionManager;
 
+import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
-import com.redis.spring.batch.support.job.JobFactory;
 
 import io.lettuce.core.AbstractRedisClient;
+import lombok.extern.slf4j.Slf4j;
 
-@SuppressWarnings("unchecked")
+@Slf4j
 public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ItemProcessor<List<? extends String>, List<T>>>
 		extends RedisItemReaderBuilder<T, R, LiveRedisItemReaderBuilder<T, R>> {
 
@@ -23,19 +25,23 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 	public static final List<String> DEFAULT_PUBSUB_PATTERNS = pubSubPatterns(DEFAULT_DATABASE, DEFAULT_KEY_PATTERN);
 
-	protected int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+	private final JobRepository jobRepository;
+	private final PlatformTransactionManager transactionManager;
+	private int notificationQueueCapacity = DEFAULT_QUEUE_CAPACITY;
 	private String[] keyPatterns = new String[] { DEFAULT_KEY_PATTERN };
 	private int database = DEFAULT_DATABASE;
 	protected Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
 	protected Duration idleTimeout;
 
-	public LiveRedisItemReaderBuilder(JobFactory jobFactory, AbstractRedisClient client,
-			ValueReaderFactory<String, String, T, R> valueReaderFactory) {
-		super(jobFactory, client, valueReaderFactory);
+	public LiveRedisItemReaderBuilder(JobRepository jobRepository, PlatformTransactionManager transactionManager,
+			AbstractRedisClient client, ValueReaderFactory<String, String, T, R> valueReaderFactory) {
+		super(client, valueReaderFactory);
+		this.jobRepository = jobRepository;
+		this.transactionManager = transactionManager;
 	}
 
-	public LiveRedisItemReaderBuilder<T, R> queueCapacity(int queueCapacity) {
-		this.queueCapacity = queueCapacity;
+	public LiveRedisItemReaderBuilder<T, R> notificationQueueCapacity(int notificationQueueCapacity) {
+		this.notificationQueueCapacity = notificationQueueCapacity;
 		return this;
 	}
 
@@ -71,18 +77,20 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 		return String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern);
 	}
 
-	@SuppressWarnings("rawtypes")
 	public PollableItemReader<String> keyReader() {
+		List<String> pubSubPatterns = pubSubPatterns(database, keyPatterns);
+		log.info("Creating keyspace notification reader with queue capacity {}", notificationQueueCapacity);
 		if (client instanceof RedisModulesClusterClient) {
-			return new ClusterKeyspaceNotificationItemReader((Supplier) pubSubConnectionSupplier(),
-					pubSubPatterns(database, keyPatterns), queueCapacity);
+			return new ClusterKeyspaceNotificationItemReader(
+					() -> ((RedisModulesClusterClient) client).connectPubSub(codec), pubSubPatterns,
+					notificationQueueCapacity, queuePollTimeout);
 		}
-		return new KeyspaceNotificationItemReader(pubSubConnectionSupplier(), pubSubPatterns(database, keyPatterns),
-				queueCapacity);
+		return new KeyspaceNotificationItemReader(() -> ((RedisModulesClient) client).connectPubSub(codec),
+				pubSubPatterns, notificationQueueCapacity, queuePollTimeout);
 	}
 
 	public LiveRedisItemReader<String, T> build() {
-		return new LiveRedisItemReader<>(jobFactory, keyReader(), valueReader(), threads, chunkSize, queue(),
-				queuePollTimeout, skipPolicy, flushingInterval, idleTimeout);
+		return new LiveRedisItemReader<>(jobRepository, transactionManager, keyReader(), valueReader(), threads,
+				chunkSize, queue(), queuePollTimeout, skipPolicy, flushingInterval, idleTimeout);
 	}
 }

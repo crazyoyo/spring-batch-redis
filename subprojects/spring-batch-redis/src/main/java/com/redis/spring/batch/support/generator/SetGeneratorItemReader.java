@@ -7,8 +7,8 @@ import com.redis.spring.batch.support.generator.Generator.DataType;
 
 public class SetGeneratorItemReader extends CollectionGeneratorItemReader<Set<String>> {
 
-	public SetGeneratorItemReader(CollectionGeneratorItemReader.Options options) {
-		super(options, DataType.SET);
+	public SetGeneratorItemReader(CollectionGeneratorItemReader.CollectionOptions options) {
+		super(DataType.SET, options);
 	}
 
 	@Override

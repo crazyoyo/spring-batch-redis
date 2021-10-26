@@ -10,7 +10,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.spring.batch.support.DataStructure;
-import com.redis.spring.batch.support.generator.Generator;
+import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
 import com.redis.testcontainers.RedisModulesContainer;
 
 import io.micrometer.core.instrument.Clock;
@@ -41,8 +41,9 @@ public class MetricsTests extends AbstractTestBase {
 		}, Clock.SYSTEM);
 		Metrics.addRegistry(registry);
 		RedisModulesClient client = RedisModulesClient.create(REDIS.getRedisURI());
-		Generator.id("metrics").jobFactory(inMemoryJobFactory).client(client).build().call();
-		RedisItemReader<String, DataStructure<String>> reader = RedisItemReader.dataStructure(inMemoryJobFactory, client).build();
+		new GeneratorBuilder("metrics", jobRepository, transactionManager, client).build().call();
+		RedisItemReader<String, DataStructure<String>> reader = RedisItemReader
+				.dataStructure(jobRepository, transactionManager, client).build();
 		reader.open(new ExecutionContext());
 		Search search = registry.find("spring.batch.redis.reader.queue.size");
 		Assertions.assertNotNull(search.gauge());
