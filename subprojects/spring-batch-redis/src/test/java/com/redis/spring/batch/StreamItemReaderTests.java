@@ -38,9 +38,9 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	void testStreamReader(RedisServer redis) throws Exception {
+	public void testStreamReader(RedisServer redis) throws Exception {
 		String name = "stream-reader";
-		dataGenerator(redis, name).options(options()).build().call();
+		awaitTermination(dataGenerator(redis, name).options(options()).build().call());
 		RedisStreamItemReader<String, String> reader = streamReader(redis, offset()).build();
 		reader.open(new ExecutionContext());
 		List<StreamMessage<String, String>> messages = reader.readMessages();
@@ -61,9 +61,9 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	void testStreamReaderJob(RedisServer redis) throws Exception {
+	public void testStreamReaderJob(RedisServer redis) throws Exception {
 		String name = "stream-reader-job";
-		dataGenerator(redis, name).options(options()).build().call();
+		awaitTermination(dataGenerator(redis, name).options(options()).build().call());
 		RedisStreamItemReader<String, String> reader = streamReader(redis, offset()).build();
 		ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(redis, name, reader, null, writer);
@@ -74,10 +74,10 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	void testMultipleStreamReaders(RedisServer redis) throws Exception {
+	public void testMultipleStreamReaders(RedisServer redis) throws Exception {
 		String name = "multiple-stream-readers";
 		String consumerGroup = "consumerGroup";
-		dataGenerator(redis, name).options(options()).build().call();
+		awaitTermination(dataGenerator(redis, name).options(options()).build().call());
 		RedisStreamItemReader<String, String> reader1 = streamReader(redis, offset()).consumerGroup(consumerGroup)
 				.consumer("consumer1").ackPolicy(AckPolicy.MANUAL).build();
 		RedisStreamItemReader<String, String> reader2 = streamReader(redis, offset()).consumerGroup(consumerGroup)

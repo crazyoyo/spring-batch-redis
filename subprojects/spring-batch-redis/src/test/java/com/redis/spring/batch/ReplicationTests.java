@@ -57,7 +57,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 	@MethodSource("servers")
 	public void testDataStructureReplication(RedisServer redis) throws Exception {
 		String name = "ds-replication";
-		dataGenerator(redis, name).end(100).build().call();
+		awaitTermination(dataGenerator(redis, name).end(100).build().call());
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis, name);
 		run(redis, name, reader, dataStructureWriter(REDIS_REPLICA));
 		compare(redis, name);
@@ -97,7 +97,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 	@MethodSource("servers")
 	public void testReplication(RedisServer server) throws Exception {
 		String name = "replication";
-		dataGenerator(server, name).end(100).build().call();
+		awaitTermination(dataGenerator(server, name).end(100).build().call());
 		RedisItemReader<String, KeyValue<String, byte[]>> reader = keyDumpReader(server, name);
 		reader.setName(name(server, name + "-reader"));
 		RedisItemWriter<String, String, KeyValue<String, byte[]>> writer = keyDumpWriter(REDIS_REPLICA);
@@ -130,7 +130,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 	private <T extends KeyValue<String, ?>> void replicate(String name, RedisServer server,
 			RedisItemReader<String, T> reader, ItemWriter<T> writer, LiveRedisItemReader<String, T> liveReader,
 			ItemWriter<T> liveWriter) throws Exception {
-		dataGenerator(server, name).end(3000).build().call();
+		awaitTermination(dataGenerator(server, name).end(3000).build().call());
 		TaskletStep replicationStep = step(server, name, reader, null, writer).build();
 		SimpleFlow replicationFlow = flow(server, "scan-" + name).start(replicationStep).build();
 		TaskletStep liveReplicationStep = flushingStep(server, "live-" + name, liveReader, null, liveWriter).build();
@@ -141,7 +141,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 		Awaitility.await().until(() -> execution.isRunning());
 		Awaitility.await().until(() -> liveReader.getState() == State.OPEN);
 		Thread.sleep(IDLE_TIMEOUT.dividedBy(2).toMillis());
-		dataGenerator(server, "live-" + name).end(1000).keyPrefix("live").build().call();
+		awaitTermination(dataGenerator(server, "live-" + name).end(1000).keyPrefix("live").build().call());
 		Awaitility.await().timeout(Duration.ofSeconds(30)).until(() -> !execution.isRunning());
 		compare(server, name);
 	}
@@ -195,7 +195,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 	@ParameterizedTest
 	@MethodSource("servers")
 	public void testScanSizeEstimator(RedisServer server) throws Exception {
-		dataGenerator(server, "scan-size-estimator").end(12345).dataTypes(DataType.HASH).build().call();
+		awaitTermination(dataGenerator(server, "scan-size-estimator").end(12345).dataTypes(DataType.HASH).build().call());
 		ScanSizeEstimator estimator = sizeEstimator(server);
 		String pattern = DataType.HASH + ":*";
 		long expectedCount = sync(server).keys(pattern).size();

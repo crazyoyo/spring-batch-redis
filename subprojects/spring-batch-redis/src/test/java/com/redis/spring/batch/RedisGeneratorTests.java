@@ -13,8 +13,8 @@ public class RedisGeneratorTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	void testDefaults(RedisServer redis) throws Exception {
-		dataGenerator(redis, "defaults").build().call();
+	public void testDefaults(RedisServer redis) throws Exception {
+		awaitTermination(dataGenerator(redis, "defaults").build().call());
 		RedisModulesCommands<String, String> sync = sync(redis);
 		int expectedCount = DataStructureOptions.DataStructureOptionsBuilder.DEFAULT_END
 				- DataStructureOptions.DataStructureOptionsBuilder.DEFAULT_START;
@@ -25,9 +25,9 @@ public class RedisGeneratorTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	void testToOption(RedisServer redis) throws Exception {
+	public void testToOption(RedisServer redis) throws Exception {
 		int count = 123;
-		dataGenerator(redis, "to-options").end(123).build().call();
+		awaitTermination(dataGenerator(redis, "to-options").end(123).build().call());
 		RedisModulesCommands<String, String> sync = sync(redis);
 		int actualStringCount = sync.keys(DataType.STRING + ":*").size();
 		Assertions.assertEquals(count, actualStringCount);

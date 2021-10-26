@@ -35,7 +35,7 @@ import com.redis.testcontainers.RedisServer;
 public abstract class AbstractTestBase {
 
 	private static final int DEFAULT_CHUNK_SIZE = 50;
-	protected static final Duration IDLE_TIMEOUT = Duration.ofSeconds(2);
+	protected static final Duration IDLE_TIMEOUT = Duration.ofSeconds(6);
 
 	@Autowired
 	protected JobRepository jobRepository;
@@ -100,7 +100,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void awaitTermination(JobExecution execution) {
-		Awaitility.await().until(() -> !execution.isRunning());
+		Awaitility.await().timeout(Duration.ofSeconds(30)).until(() -> !execution.isRunning());
 	}
 
 }

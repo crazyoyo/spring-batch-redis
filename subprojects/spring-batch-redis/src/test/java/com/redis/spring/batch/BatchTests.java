@@ -44,7 +44,6 @@ import com.redis.spring.batch.support.convert.GeoValueConverter;
 import com.redis.spring.batch.support.convert.KeyMaker;
 import com.redis.spring.batch.support.convert.MapFlattener;
 import com.redis.spring.batch.support.convert.ScoredValueConverter;
-import com.redis.spring.batch.support.generator.Generator;
 import com.redis.spring.batch.support.generator.Generator.DataType;
 import com.redis.spring.batch.support.operation.Geoadd;
 import com.redis.spring.batch.support.operation.Hset;
@@ -72,7 +71,7 @@ public class BatchTests extends AbstractRedisTestBase {
 		ListItemWriter<String> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(redis, name, reader, null, writer);
 		Awaitility.await().until(() -> reader.getState() == State.OPEN);
-		dataGenerator(redis, name).end(3).dataTypes(DataType.STRING, DataType.HASH).build().call();
+		awaitTermination(dataGenerator(redis, name).end(3).dataTypes(DataType.STRING, DataType.HASH).build().call());
 		awaitTermination(execution);
 		RedisModulesCommands<String, String> commands = sync(redis);
 		Assertions.assertEquals(commands.dbsize(), writer.getWrittenItems().size());
@@ -88,9 +87,7 @@ public class BatchTests extends AbstractRedisTestBase {
 		String name = "keyspace-notification-reader";
 		PollableItemReader<String> reader = keyspaceNotificationReader(redis);
 		reader.open(new ExecutionContext());
-		Generator generator = dataGenerator(redis, name).end(100).build();
-		JobExecution execution = generator.call();
-		Awaitility.await().until(() -> !execution.isRunning());
+		awaitTermination(dataGenerator(redis, name).end(100).build().call());
 		int actualCount = 0;
 		while (reader.read() != null) {
 			actualCount++;
@@ -362,7 +359,7 @@ public class BatchTests extends AbstractRedisTestBase {
 		ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(redis, name, reader, null, writer);
 		Awaitility.await().until(() -> reader.getState() == State.OPEN);
-		dataGenerator(redis, name).end(123).dataTypes(DataType.HASH, DataType.STRING).build().call();
+		awaitTermination(dataGenerator(redis, name).end(123).dataTypes(DataType.HASH, DataType.STRING).build().call());
 		awaitTermination(execution);
 		RedisModulesCommands<String, String> sync = sync(redis);
 		Assertions.assertEquals(sync.dbsize(), writer.getWrittenItems().size());
@@ -372,7 +369,7 @@ public class BatchTests extends AbstractRedisTestBase {
 	@MethodSource("servers")
 	public void testKeyValueItemReaderFaultTolerance(RedisServer redis) throws Exception {
 		String name = "reader-ft";
-		dataGenerator(redis, name).dataTypes(DataType.STRING).build().call();
+		awaitTermination(dataGenerator(redis, name).dataTypes(DataType.STRING).build().call());
 		List<String> keys = IntStream.range(0, 100).boxed().map(i -> DataType.STRING + ":" + i)
 				.collect(Collectors.toList());
 		DelegatingPollableItemReader<String> keyReader = DelegatingPollableItemReader.<String>builder()
