@@ -66,7 +66,7 @@ public class BatchTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	void testFlushingStep(RedisServer redis) throws Exception {
+	public void testFlushingStep(RedisServer redis) throws Exception {
 		String name = "flushing-step";
 		PollableItemReader<String> reader = keyspaceNotificationReader(redis);
 		ListItemWriter<String> writer = new ListItemWriter<>();
@@ -84,24 +84,24 @@ public class BatchTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	void testKeyspaceNotificationReader(RedisServer redis) throws Exception {
+	public void testKeyspaceNotificationReader(RedisServer redis) throws Exception {
 		String name = "keyspace-notification-reader";
 		PollableItemReader<String> reader = keyspaceNotificationReader(redis);
 		reader.open(new ExecutionContext());
-		int generatorEnd = 100;
 		Generator generator = dataGenerator(redis, name).end(100).build();
-		generator.call();
+		JobExecution execution = generator.call();
+		Awaitility.await().until(() -> !execution.isRunning());
 		int actualCount = 0;
 		while (reader.read() != null) {
 			actualCount++;
 		}
-		Assertions.assertEquals(generatorEnd * generator.getOptions().getDataTypes().size(), actualCount);
+		Assertions.assertEquals(sync(redis).dbsize(), actualCount);
 		reader.close();
 	}
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	void testDataStructureReader(RedisServer redis) throws Exception {
+	public void testDataStructureReader(RedisServer redis) throws Exception {
 		String name = "ds-reader";
 		populateSource(redis, name);
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis, name);
@@ -121,7 +121,7 @@ public class BatchTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	void testMultiThreadedReader(RedisServer server) throws Exception {
+	public void testMultiThreadedReader(RedisServer server) throws Exception {
 		String name = "multi-threaded-reader";
 		populateSource(server, name);
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server, name);
@@ -156,7 +156,7 @@ public class BatchTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	void testStreamWriter(RedisServer redis) throws Exception {
+	public void testStreamWriter(RedisServer redis) throws Exception {
 		String stream = "stream:0";
 		List<Map<String, String>> messages = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {

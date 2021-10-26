@@ -14,9 +14,9 @@ import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.RedisItemWriter;
@@ -68,15 +68,11 @@ public class Generator implements Callable<JobExecution> {
 		}
 		SimpleFlow flow = new FlowBuilder<SimpleFlow>(name).split(new SimpleAsyncTaskExecutor())
 				.add(flows.toArray(new SimpleFlow[0])).build();
-		JobBuilderFactory jobBuilderFactory = new JobBuilderFactory(jobRepository);
 		SimpleJobLauncher launcher = new SimpleJobLauncher();
 		launcher.setJobRepository(jobRepository);
-		try {
-			launcher.afterPropertiesSet();
-		} catch (Exception e) {
-			throw new ItemStreamException("Could not initialize job launcher", e);
-		}
-		return launcher.run(jobBuilderFactory.get(name).start(flow).build().build(), new JobParameters());
+		launcher.setTaskExecutor(new SyncTaskExecutor());
+		return launcher.run(new JobBuilderFactory(jobRepository).get(name).start(flow).build().build(),
+				new JobParameters());
 	}
 
 	private ItemWriter<DataStructure<String>> writer() {
