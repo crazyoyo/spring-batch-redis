@@ -55,7 +55,9 @@ public abstract class AbstractTestBase {
 	}
 
 	protected <I, O> JobExecution run(Job job) throws JobExecutionException {
-		return jobLauncher.run(job, new JobParameters());
+		JobExecution execution = jobLauncher.run(job, new JobParameters());
+		Awaitility.await().timeout(Duration.ofSeconds(60)).until(() -> !execution.isRunning());
+		return execution;
 	}
 
 	protected FlowBuilder<SimpleFlow> flow(RedisServer redis, String name) {
