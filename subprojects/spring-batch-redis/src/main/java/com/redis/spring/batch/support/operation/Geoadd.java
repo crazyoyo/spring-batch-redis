@@ -7,12 +7,14 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.spring.batch.support.convert.ArrayConverter;
 
 import io.lettuce.core.GeoAddArgs;
 import io.lettuce.core.GeoValue;
 import io.lettuce.core.RedisFuture;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisGeoAsyncCommands;
+import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
@@ -29,14 +31,15 @@ public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		this.args = args;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> add(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
-		return commands.geoadd(key, args, values.convert(item));
+	protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args, values.convert(item));
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> remove(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		GeoValue<V>[] values = this.values.convert(item);
 		if (values == null) {
 			return null;
@@ -45,7 +48,7 @@ public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		for (GeoValue<V> value : values) {
 			members.add(value.getValue());
 		}
-		return commands.zrem(key, (V[]) members.toArray());
+		return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, (V[]) members.toArray());
 	}
 
 	public static <T> GeoaddValueBuilder<T> key(String key) {
@@ -63,7 +66,7 @@ public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		public GeoaddValueBuilder(Converter<T, String> key) {
 			this.key = key;
 		}
-		
+
 		@SuppressWarnings({ "unchecked", "rawtypes" })
 		public GeoaddBuilder<T> values(Converter<T, GeoValue<String>>... values) {
 			return new GeoaddBuilder<>(key, (Converter) new ArrayConverter<>(GeoValue.class, values));

@@ -10,12 +10,14 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.spring.batch.support.convert.GlobToRegexConverter;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import io.lettuce.core.api.async.RedisServerAsyncCommands;
 import io.lettuce.core.codec.StringCodec;
 import lombok.Builder;
 import lombok.Data;
@@ -23,19 +25,20 @@ import lombok.Data;
 public class ScanSizeEstimator {
 
 	private final Supplier<StatefulConnection<String, String>> connectionSupplier;
-	private final Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async;
+	private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
 
 	public ScanSizeEstimator(Supplier<StatefulConnection<String, String>> connectionSupplier,
-			Function<StatefulConnection<String, String>, RedisModulesAsyncCommands<String, String>> async) {
+			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
 		this.connectionSupplier = connectionSupplier;
 		this.async = async;
 	}
 
+	@SuppressWarnings("unchecked")
 	public long estimate(EstimateOptions options) throws Exception {
 		Utils.assertPositive(options.getSampleSize(), "Sample size");
 		try (StatefulConnection<String, String> connection = connectionSupplier.get()) {
-			RedisModulesAsyncCommands<String, String> commands = async.apply(connection);
-			Long dbsize = commands.dbsize().get();
+			BaseRedisAsyncCommands<String, String> commands = async.apply(connection);
+			Long dbsize = ((RedisServerAsyncCommands<String, String>) commands).dbsize().get();
 			if (dbsize == null) {
 				throw new Exception("Could not get DB size");
 			}
@@ -46,7 +49,7 @@ public class ScanSizeEstimator {
 			List<RedisFuture<String>> keyFutures = new ArrayList<>(options.getSampleSize());
 			// rough estimate of keys matching pattern
 			for (int index = 0; index < options.getSampleSize(); index++) {
-				keyFutures.add(commands.randomkey());
+				keyFutures.add(((RedisKeyAsyncCommands<String, String>) commands).randomkey());
 			}
 			commands.flushCommands();
 			long commandTimeout = connection.getTimeout().toMillis();
@@ -57,7 +60,8 @@ public class ScanSizeEstimator {
 				if (key == null) {
 					continue;
 				}
-				keyTypeFutures.put(key, options.getType() == null ? null : commands.type(key));
+				keyTypeFutures.put(key, options.getType() == null ? null
+						: ((RedisKeyAsyncCommands<String, String>) commands).type(key));
 			}
 			commands.flushCommands();
 			Predicate<String> matchPredicate = predicate(options.getMatch());

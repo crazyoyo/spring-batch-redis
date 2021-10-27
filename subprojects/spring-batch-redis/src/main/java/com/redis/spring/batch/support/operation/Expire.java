@@ -1,11 +1,13 @@
 package com.redis.spring.batch.support.operation;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-import io.lettuce.core.RedisFuture;
+import java.util.function.Predicate;
+
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import java.util.function.Predicate;
+import io.lettuce.core.RedisFuture;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
 public class Expire<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
@@ -17,8 +19,9 @@ public class Expire<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		this.milliseconds = millis;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> doExecute(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Long millis = milliseconds.convert(item);
 		if (millis == null) {
 			return null;
@@ -26,7 +29,7 @@ public class Expire<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		if (millis < 0) {
 			return null;
 		}
-		return commands.pexpire(key, millis);
+		return ((RedisKeyAsyncCommands<K, V>) commands).pexpire(key, millis);
 	}
 
 	public static <T> ExpireMillisBuilder<T> key(Converter<T, String> key) {

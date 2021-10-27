@@ -15,7 +15,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,12 +32,13 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
+import com.redis.spring.batch.RedisItemWriter.RedisItemWriterBuilder;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.LiveRedisItemReader;
 import com.redis.spring.batch.support.PollableItemReader;
-import com.redis.spring.batch.support.State;
+import com.redis.spring.batch.support.RedisOperation;
 import com.redis.spring.batch.support.convert.ArrayConverter;
 import com.redis.spring.batch.support.convert.GeoValueConverter;
 import com.redis.spring.batch.support.convert.KeyMaker;
@@ -70,8 +70,7 @@ public class BatchTests extends AbstractRedisTestBase {
 		PollableItemReader<String> reader = keyspaceNotificationReader(redis);
 		ListItemWriter<String> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(redis, name, reader, null, writer);
-		Awaitility.await().until(() -> reader.getState() == State.OPEN);
-		awaitTermination(dataGenerator(redis, name).end(3).dataTypes(DataType.STRING, DataType.HASH).build().call());
+		execute(dataGenerator(redis, name).end(3).dataTypes(DataType.STRING, DataType.HASH));
 		awaitTermination(execution);
 		RedisModulesCommands<String, String> commands = sync(redis);
 		Assertions.assertEquals(commands.dbsize(), writer.getWrittenItems().size());
@@ -87,7 +86,7 @@ public class BatchTests extends AbstractRedisTestBase {
 		String name = "keyspace-notification-reader";
 		PollableItemReader<String> reader = keyspaceNotificationReader(redis);
 		reader.open(new ExecutionContext());
-		awaitTermination(dataGenerator(redis, name).end(100).build().call());
+		execute(dataGenerator(redis, name).end(100));
 		int actualCount = 0;
 		while (reader.read() != null) {
 			actualCount++;
@@ -110,10 +109,17 @@ public class BatchTests extends AbstractRedisTestBase {
 
 	private void populateSource(RedisServer server, String name) throws Exception {
 		JsonItemReader<Map<String, Object>> reader = Beers.mapReader();
-		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-				.operation(Hset.<Map<String, String>>key(t -> t.get("id")).map(t -> t).build()).client(client(server))
-				.build();
+		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(server,
+				Hset.<Map<String, String>>key(t -> t.get("id")).map(t -> t).build()).build();
 		run(server, name + "-populate", reader, new MapFlattener(), writer);
+	}
+
+	private <T> RedisItemWriterBuilder<String, String, T> redisItemWriter(RedisServer server,
+			RedisOperation<String, String, T> operation) {
+		if (server.isCluster()) {
+			return RedisItemWriter.operation(redisClusterClient(server), operation);
+		}
+		return RedisItemWriter.operation(redisClient(server), operation);
 	}
 
 	@ParameterizedTest
@@ -163,8 +169,8 @@ public class BatchTests extends AbstractRedisTestBase {
 			messages.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-				.operation(Xadd.<Map<String, String>>key(stream).body(t -> t).build()).client(client(redis)).build();
+		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(redis,
+				Xadd.<Map<String, String>>key(stream).body(t -> t).build()).build();
 		run(redis, "stream-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(redis);
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -186,9 +192,8 @@ public class BatchTests extends AbstractRedisTestBase {
 			messages.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-				.operation(Xadd.<Map<String, String>>key(stream).body(t -> t).build()).client(client(REDIS)).multiExec()
-				.build();
+		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(REDIS,
+				Xadd.<Map<String, String>>key(stream).body(t -> t).build()).multiExec().build();
 		run(REDIS, "stream-tx-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(REDIS);
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -213,9 +218,8 @@ public class BatchTests extends AbstractRedisTestBase {
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
 		KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash")
 				.converters(h -> h.remove("id")).build();
-		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-				.operation(Hset.key(keyConverter).map(m -> m).build()).client(client(server)).waitForReplication(1, 300)
-				.build();
+		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(server,
+				Hset.key(keyConverter).map(m -> m).build()).waitForReplication(1, 300).build();
 		JobExecution execution = run(server, "writer-wait", reader, writer);
 		Assertions.assertEquals(ExitStatus.FAILED.getExitCode(), execution.getExitStatus().getExitCode());
 		Assertions.assertEquals(1, execution.getAllFailureExceptions().size());
@@ -239,8 +243,8 @@ public class BatchTests extends AbstractRedisTestBase {
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
 		KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash")
 				.converters(h -> h.remove("id")).build();
-		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-				.operation(Hset.key(keyConverter).map(m -> m).build()).client(client(server)).build();
+		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(server,
+				Hset.key(keyConverter).map(m -> m).build()).build();
 		run(server, "hash-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(server);
 		Assertions.assertEquals(maps.size(), sync.keys("hash:*").size());
@@ -269,8 +273,8 @@ public class BatchTests extends AbstractRedisTestBase {
 		Converter<Geo, GeoValue<String>> value = new GeoValueConverter<>(Geo::getMember, Geo::getLongitude,
 				Geo::getLatitude);
 		Converter<Geo, GeoValue<String>[]> converter = (Converter) new ArrayConverter<>(GeoValue.class, value);
-		RedisItemWriter<String, String, Geo> writer = RedisItemWriter
-				.operation(Geoadd.<Geo>key("geoset").values(converter).build()).client(client(redis)).build();
+		RedisItemWriter<String, String, Geo> writer = redisItemWriter(redis,
+				Geoadd.<Geo>key("geoset").values(converter).build()).build();
 		run(redis, "geoadd-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(redis);
 		Set<String> radius1 = sync.georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
@@ -296,8 +300,8 @@ public class BatchTests extends AbstractRedisTestBase {
 		ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
 		KeyMaker<Map.Entry<String, Map<String, String>>> keyConverter = KeyMaker.<Map.Entry<String, Map<String, String>>>builder()
 				.prefix("hash").converters(Entry<String, Map<String, String>>::getKey).build();
-		RedisItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = RedisItemWriter
-				.operation(Hset.key(keyConverter).map(Map.Entry::getValue).build()).client(client(server)).build();
+		RedisItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = redisItemWriter(server,
+				Hset.key(keyConverter).map(Map.Entry::getValue).build()).build();
 		run(server, "hash-del-writer", reader, writer);
 		Assertions.assertEquals(50, sync.keys("hash:*").size());
 		Assertions.assertEquals(2, commands.hgetall("hash:50").size());
@@ -321,8 +325,8 @@ public class BatchTests extends AbstractRedisTestBase {
 		Converter<ZValue, ScoredValue<String>[]> converter = (Converter) new ArrayConverter<>(ScoredValue.class,
 				new ScoredValueConverter<>(ZValue::getMember, ZValue::getScore));
 		ListItemReader<ZValue> reader = new ListItemReader<>(values);
-		RedisItemWriter<String, String, ZValue> writer = RedisItemWriter
-				.operation(Zadd.<ZValue>key("zset").values(converter).build()).client(client(server)).build();
+		RedisItemWriter<String, String, ZValue> writer = redisItemWriter(server,
+				Zadd.<ZValue>key("zset").values(converter).build()).build();
 		run(server, "sorted-set-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(server);
 		Assertions.assertEquals(1, sync.dbsize());
@@ -358,8 +362,7 @@ public class BatchTests extends AbstractRedisTestBase {
 		LiveRedisItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(redis, name, 10000);
 		ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(redis, name, reader, null, writer);
-		Awaitility.await().until(() -> reader.getState() == State.OPEN);
-		awaitTermination(dataGenerator(redis, name).end(123).dataTypes(DataType.HASH, DataType.STRING).build().call());
+		execute(dataGenerator(redis, name).end(123).dataTypes(DataType.HASH, DataType.STRING));
 		awaitTermination(execution);
 		RedisModulesCommands<String, String> sync = sync(redis);
 		Assertions.assertEquals(sync.dbsize(), writer.getWrittenItems().size());
@@ -369,7 +372,7 @@ public class BatchTests extends AbstractRedisTestBase {
 	@MethodSource("servers")
 	public void testKeyValueItemReaderFaultTolerance(RedisServer redis) throws Exception {
 		String name = "reader-ft";
-		awaitTermination(dataGenerator(redis, name).dataTypes(DataType.STRING).build().call());
+		execute(dataGenerator(redis, name).dataTypes(DataType.STRING));
 		List<String> keys = IntStream.range(0, 100).boxed().map(i -> DataType.STRING + ":" + i)
 				.collect(Collectors.toList());
 		DelegatingPollableItemReader<String> keyReader = DelegatingPollableItemReader.<String>builder()

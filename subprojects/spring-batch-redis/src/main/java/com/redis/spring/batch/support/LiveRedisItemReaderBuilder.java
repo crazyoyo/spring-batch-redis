@@ -8,11 +8,11 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.cluster.RedisClusterClient;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -80,13 +80,12 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	public PollableItemReader<String> keyReader() {
 		List<String> pubSubPatterns = pubSubPatterns(database, keyPatterns);
 		log.info("Creating keyspace notification reader with queue capacity {}", notificationQueueCapacity);
-		if (client instanceof RedisModulesClusterClient) {
-			return new ClusterKeyspaceNotificationItemReader(
-					() -> ((RedisModulesClusterClient) client).connectPubSub(codec), pubSubPatterns,
-					notificationQueueCapacity, queuePollTimeout);
+		if (client instanceof RedisClusterClient) {
+			return new ClusterKeyspaceNotificationItemReader(() -> ((RedisClusterClient) client).connectPubSub(codec),
+					pubSubPatterns, notificationQueueCapacity, queuePollTimeout);
 		}
-		return new KeyspaceNotificationItemReader(() -> ((RedisModulesClient) client).connectPubSub(codec),
-				pubSubPatterns, notificationQueueCapacity, queuePollTimeout);
+		return new KeyspaceNotificationItemReader(() -> ((RedisClient) client).connectPubSub(codec), pubSubPatterns,
+				notificationQueueCapacity, queuePollTimeout);
 	}
 
 	public LiveRedisItemReader<String, T> build() {

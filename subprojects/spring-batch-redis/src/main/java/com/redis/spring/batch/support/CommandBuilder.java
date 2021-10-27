@@ -5,15 +5,14 @@ import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.lettucemod.cluster.api.StatefulRedisModulesClusterConnection;
-
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.sync.BaseRedisCommands;
+import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.codec.RedisCodec;
 
 public class CommandBuilder<K, V, B extends CommandBuilder<K, V, B>> {
@@ -34,24 +33,24 @@ public class CommandBuilder<K, V, B extends CommandBuilder<K, V, B>> {
 	}
 
 	protected Supplier<StatefulConnection<K, V>> connectionSupplier() {
-		if (client instanceof RedisModulesClusterClient) {
-			return () -> ((RedisModulesClusterClient) client).connect(codec);
+		if (client instanceof RedisClusterClient) {
+			return () -> ((RedisClusterClient) client).connect(codec);
 		}
-		return () -> ((RedisModulesClient) client).connect(codec);
+		return () -> ((RedisClient) client).connect(codec);
 	}
 
-	protected Function<StatefulConnection<K, V>, RedisModulesCommands<K, V>> sync() {
-		if (client instanceof RedisModulesClusterClient) {
-			return c -> ((StatefulRedisModulesClusterConnection<K, V>) c).sync();
+	protected Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync() {
+		if (client instanceof RedisClusterClient) {
+			return c -> ((StatefulRedisClusterConnection<K, V>) c).sync();
 		}
-		return c -> ((StatefulRedisModulesConnection<K, V>) c).sync();
+		return c -> ((StatefulRedisConnection<K, V>) c).sync();
 	}
 
-	protected Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async() {
-		if (client instanceof RedisModulesClusterClient) {
-			return c -> ((StatefulRedisModulesClusterConnection<K, V>) c).async();
+	protected Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async() {
+		if (client instanceof RedisClusterClient) {
+			return c -> ((StatefulRedisClusterConnection<K, V>) c).async();
 		}
-		return c -> ((StatefulRedisModulesConnection<K, V>) c).async();
+		return c -> ((StatefulRedisConnection<K, V>) c).async();
 	}
 
 }

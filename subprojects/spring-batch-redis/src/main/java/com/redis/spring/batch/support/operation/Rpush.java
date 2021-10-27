@@ -1,15 +1,17 @@
 package com.redis.spring.batch.support.operation;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import java.util.function.Predicate;
+
+import org.springframework.core.convert.converter.Converter;
+
 import com.redis.spring.batch.support.convert.ArrayConverter;
 
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisFuture;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisListAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
-import org.springframework.core.convert.converter.Converter;
-
-import java.util.function.Predicate;
 
 public class Rpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
@@ -20,13 +22,15 @@ public class Rpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		this.members = members;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> add(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
-		return commands.rpush(key, members.convert(item));
+	protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		return ((RedisListAsyncCommands<K, V>) commands).rpush(key, members.convert(item));
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> remove(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		V[] members = this.members.convert(item);
 		if (members == null) {
 			return null;
@@ -34,7 +38,7 @@ public class Rpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		if (members.length > 1) {
 			throw new RedisCommandExecutionException("Removal of multiple list members is not supported");
 		}
-		return commands.lrem(key, -1, members[0]);
+		return ((RedisListAsyncCommands<K, V>) commands).lrem(key, -1, members[0]);
 	}
 
 	public static <T> RpushMemberBuilder<T> key(String key) {

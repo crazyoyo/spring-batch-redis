@@ -21,11 +21,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.redis.lettucemod.api.search.CreateOptions;
 import com.redis.lettucemod.api.search.Field;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
+import com.redis.spring.batch.RedisItemWriter.RedisItemWriterBuilder;
 import com.redis.spring.batch.support.JacksonJsonNodeReader;
 import com.redis.spring.batch.support.convert.MapFlattener;
 import com.redis.spring.batch.support.operation.Hset;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.cluster.RedisClusterClient;
 
 public class Beers {
 
@@ -72,9 +75,9 @@ public class Beers {
 	public static void populateIndex(JobRepository jobRepository, PlatformTransactionManager transactionManager,
 			AbstractRedisClient client) throws Exception {
 		JsonItemReader<Map<String, Object>> reader = mapReader();
-		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-				.operation(Hset.<Map<String, String>>key(m -> PREFIX + m.get(ID.getName())).map(m -> m).build())
-				.client(client).build();
+		Hset<String, String, Map<String, String>> operation = Hset
+				.<Map<String, String>>key(m -> PREFIX + m.get(ID.getName())).map(m -> m).build();
+		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(client, operation).build();
 		String name = "populate-beer-index";
 		StepBuilderFactory stepBuilderFactory = new StepBuilderFactory(jobRepository, transactionManager);
 		TaskletStep step = stepBuilderFactory.get(name).<Map<String, Object>, Map<String, String>>chunk(CHUNK_SIZE)
@@ -84,6 +87,14 @@ public class Beers {
 		jobLauncher.setJobRepository(jobRepository);
 		jobLauncher.afterPropertiesSet();
 		jobLauncher.run(job, new JobParameters());
+	}
+
+	private static RedisItemWriterBuilder<String, String, Map<String, String>> redisItemWriter(
+			AbstractRedisClient client, Hset<String, String, Map<String, String>> operation) {
+		if (client instanceof RedisClusterClient) {
+			return RedisItemWriter.operation((RedisClusterClient) client, operation);
+		}
+		return RedisItemWriter.operation((RedisClient) client, operation);
 	}
 
 }

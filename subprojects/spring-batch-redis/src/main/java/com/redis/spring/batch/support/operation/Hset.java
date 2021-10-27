@@ -6,9 +6,9 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-
 import io.lettuce.core.RedisFuture;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisHashAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
@@ -22,9 +22,10 @@ public class Hset<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		this.map = map;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> doExecute(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
-		return commands.hset(key, map.convert(item));
+	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		return ((RedisHashAsyncCommands<K, V>) commands).hset(key, map.convert(item));
 	}
 
 	public static <T> HsetMapBuilder<T> key(Converter<T, String> key) {

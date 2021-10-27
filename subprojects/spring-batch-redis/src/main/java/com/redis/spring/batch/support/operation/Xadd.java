@@ -1,15 +1,17 @@
 package com.redis.spring.batch.support.operation;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-import io.lettuce.core.RedisFuture;
-import io.lettuce.core.XAddArgs;
-import lombok.Setter;
-import lombok.experimental.Accessors;
+import java.util.Map;
+import java.util.function.Predicate;
+
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import java.util.Map;
-import java.util.function.Predicate;
+import io.lettuce.core.RedisFuture;
+import io.lettuce.core.XAddArgs;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisStreamAsyncCommands;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 
 public class Xadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
@@ -24,9 +26,10 @@ public class Xadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		this.args = args;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> doExecute(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
-		return commands.xadd(key, args.convert(item), body.convert(item));
+	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.convert(item), body.convert(item));
 	}
 
 	public static <T> XaddBodyBuilder<T> key(String key) {

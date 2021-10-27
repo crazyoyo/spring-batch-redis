@@ -16,8 +16,6 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
 
-import com.redis.lettucemod.api.sync.RedisModulesCommands;
-
 import io.lettuce.core.Consumer;
 import io.lettuce.core.RedisBusyException;
 import io.lettuce.core.StreamMessage;
@@ -25,6 +23,7 @@ import io.lettuce.core.XGroupCreateArgs;
 import io.lettuce.core.XReadArgs;
 import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,7 +35,7 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 		AUTO, MANUAL
 	}
 
-	private final Function<StatefulConnection<K, V>, RedisModulesCommands<K, V>> sync;
+	private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync;
 	private final Long count;
 	private final Duration block;
 	private final StreamOffset<K> offset;
@@ -48,7 +47,7 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 
 	public RedisStreamItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-			Function<StatefulConnection<K, V>, RedisModulesCommands<K, V>> sync, Long count, Duration block,
+			Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, Long count, Duration block,
 			K consumerGroup, K consumer, StreamOffset<K> offset, AckPolicy ackPolicy) {
 		super(connectionSupplier, poolConfig);
 		Assert.notNull(sync, "A command provider is required");
@@ -61,11 +60,12 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 		this.ackPolicy = ackPolicy;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-			RedisStreamCommands<K, V> commands = sync.apply(connection);
+			RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
 			XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
 			try {
 				commands.xgroupCreate(offset, consumerGroup, args);
@@ -117,7 +117,7 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 			args.block(block);
 		}
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-			RedisStreamCommands<K, V> commands = sync.apply(connection);
+			RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
 			List<StreamMessage<K, V>> messages = commands.xreadgroup(Consumer.from(consumerGroup, consumer), args,
 					StreamOffset.lastConsumed(offset.getName()));
 			if (ackPolicy == AckPolicy.AUTO) {
@@ -127,12 +127,13 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	public void ack(List<? extends StreamMessage<K, V>> messages) throws Exception {
 		if (messages.isEmpty()) {
 			return;
 		}
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-			RedisStreamCommands<K, V> commands = sync.apply(connection);
+			RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
 			Map<K, List<StreamMessage<K, V>>> streams = messages.stream()
 					.collect(Collectors.groupingBy(StreamMessage::getStream));
 			for (Map.Entry<K, List<StreamMessage<K, V>>> entry : streams.entrySet()) {

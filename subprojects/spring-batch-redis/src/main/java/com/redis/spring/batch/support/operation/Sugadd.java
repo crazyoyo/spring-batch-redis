@@ -5,10 +5,11 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.lettucemod.api.async.RediSearchAsyncCommands;
 import com.redis.lettucemod.api.search.Suggestion;
 
 import io.lettuce.core.RedisFuture;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
@@ -24,22 +25,24 @@ public class Sugadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		this.incr = incr;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> add(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Suggestion<V> suggestion = this.suggestion.convert(item);
 		if (incr) {
-			return commands.sugaddIncr(key, suggestion);
+			return ((RediSearchAsyncCommands<K, V>) commands).sugaddIncr(key, suggestion);
 		}
-		return commands.sugadd(key, suggestion);
+		return ((RediSearchAsyncCommands<K, V>) commands).sugadd(key, suggestion);
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> remove(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Suggestion<V> suggestion = this.suggestion.convert(item);
 		if (suggestion == null) {
 			return null;
 		}
-		return commands.sugdel(key, suggestion.getString());
+		return ((RediSearchAsyncCommands<K, V>) commands).sugdel(key, suggestion.getString());
 	}
 
 	public static <T> SugaddSuggestionBuilder<T> key(String key) {

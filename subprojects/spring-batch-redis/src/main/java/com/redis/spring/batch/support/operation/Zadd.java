@@ -7,12 +7,13 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.spring.batch.support.convert.ArrayConverter;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.ZAddArgs;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
@@ -29,18 +30,19 @@ public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		this.args = args;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> add(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		ScoredValue<V>[] scoredValues = values.convert(item);
 		if (scoredValues == null) {
 			return null;
 		}
-		return commands.zadd(key, args, scoredValues);
+		return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key, args, scoredValues);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> remove(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		ScoredValue<V>[] scoredValues = values.convert(item);
 		if (scoredValues == null) {
 			return null;
@@ -49,7 +51,7 @@ public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		for (ScoredValue<V> value : scoredValues) {
 			members.add(value.getValue());
 		}
-		return commands.zrem(key, (V[]) members.toArray());
+		return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, (V[]) members.toArray());
 	}
 
 	public static <T> ZaddValueBuilder<T> key(String key) {
@@ -70,7 +72,8 @@ public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
 		@SuppressWarnings({ "unchecked", "rawtypes" })
 		public ZaddBuilder<T> values(Converter<T, ScoredValue<String>>... values) {
-			return new ZaddBuilder<>(key, new ArrayConverter<T, ScoredValue<String>>((Class) ScoredValue.class, values));
+			return new ZaddBuilder<>(key,
+					new ArrayConverter<T, ScoredValue<String>>((Class) ScoredValue.class, values));
 		}
 
 		public ZaddBuilder<T> values(Converter<T, ScoredValue<String>[]> values) {

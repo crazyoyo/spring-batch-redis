@@ -10,12 +10,20 @@ import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Range;
+import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisHashAsyncCommands;
+import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import io.lettuce.core.api.async.RedisListAsyncCommands;
+import io.lettuce.core.api.async.RedisSetAsyncCommands;
+import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
+import io.lettuce.core.api.async.RedisStreamAsyncCommands;
+import io.lettuce.core.api.async.RedisStringAsyncCommands;
+import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
@@ -23,17 +31,17 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 
 	public DataStructureValueReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-			Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async) {
+			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
 		super(connectionSupplier, poolConfig, async);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected List<DataStructure<K>> read(RedisModulesAsyncCommands<K, V> commands, long timeout,
-			List<? extends K> keys) throws InterruptedException, ExecutionException, TimeoutException {
+	protected List<DataStructure<K>> read(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends K> keys)
+			throws InterruptedException, ExecutionException, TimeoutException {
 		List<RedisFuture<String>> typeFutures = new ArrayList<>(keys.size());
 		for (K key : keys) {
-			typeFutures.add(commands.type(key));
+			typeFutures.add(((RedisKeyAsyncCommands<K, V>) commands).type(key));
 		}
 		commands.flushCommands();
 		List<DataStructure<K>> dataStructures = new ArrayList<>(keys.size());
@@ -59,26 +67,31 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 		return dataStructures;
 	}
 
-	private RedisFuture<?> value(RedisModulesAsyncCommands<K, V> commands, K key, String type) {
+	@SuppressWarnings("unchecked")
+	private RedisFuture<?> value(BaseRedisAsyncCommands<K, V> commands, K key, String type) {
 		switch (type.toLowerCase()) {
 		case DataStructure.HASH:
-			return commands.hgetall(key);
+			return ((RedisHashAsyncCommands<K, V>) commands).hgetall(key);
 		case DataStructure.LIST:
-			return commands.lrange(key, 0, -1);
+			return ((RedisListAsyncCommands<K, V>) commands).lrange(key, 0, -1);
 		case DataStructure.SET:
-			return commands.smembers(key);
+			return ((RedisSetAsyncCommands<K, V>) commands).smembers(key);
 		case DataStructure.STREAM:
-			return commands.xrange(key, Range.create("-", "+"));
+			return ((RedisStreamAsyncCommands<K, V>) commands).xrange(key, Range.create("-", "+"));
 		case DataStructure.STRING:
-			return commands.get(key);
+			return ((RedisStringAsyncCommands<K, V>) commands).get(key);
 		case DataStructure.ZSET:
-			return commands.zrangeWithScores(key, 0, -1);
+			return ((RedisSortedSetAsyncCommands<K, V>) commands).zrangeWithScores(key, 0, -1);
 		default:
 			return null;
 		}
 	}
 
-	public static DataStructureValueReaderBuilder<String, String> client(AbstractRedisClient client) {
+	public static DataStructureValueReaderBuilder<String, String> client(RedisClient client) {
+		return new DataStructureValueReaderBuilder<>(client, StringCodec.UTF8);
+	}
+
+	public static DataStructureValueReaderBuilder<String, String> client(RedisClusterClient client) {
 		return new DataStructureValueReaderBuilder<>(client, StringCodec.UTF8);
 	}
 
@@ -100,7 +113,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 		@Override
 		public DataStructureValueReader<K, V> create(Supplier<StatefulConnection<K, V>> connectionSupplier,
 				GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-				Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async) {
+				Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
 			return new DataStructureValueReader<>(connectionSupplier, poolConfig, async);
 		}
 

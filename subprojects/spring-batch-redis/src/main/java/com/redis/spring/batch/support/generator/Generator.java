@@ -27,6 +27,8 @@ import com.redis.spring.batch.support.generator.StringGeneratorItemReader.String
 import com.redis.spring.batch.support.generator.ZsetGeneratorItemReader.ZsetOptions;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.cluster.RedisClusterClient;
 import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.Data;
@@ -76,7 +78,10 @@ public class Generator implements Callable<JobExecution> {
 	}
 
 	private ItemWriter<DataStructure<String>> writer() {
-		return RedisItemWriter.dataStructure(client, m -> null).build();
+		if (client instanceof RedisClusterClient) {
+			return RedisItemWriter.dataStructure((RedisClusterClient) client, m -> null).build();
+		}
+		return RedisItemWriter.dataStructure((RedisClient) client, m -> null).build();
 	}
 
 	private ItemReader<DataStructure<String>> reader(DataType type) {

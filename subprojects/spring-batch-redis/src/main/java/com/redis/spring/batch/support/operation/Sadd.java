@@ -1,12 +1,14 @@
 package com.redis.spring.batch.support.operation;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import java.util.function.Predicate;
+
+import org.springframework.core.convert.converter.Converter;
+
 import com.redis.spring.batch.support.convert.ArrayConverter;
 
 import io.lettuce.core.RedisFuture;
-import org.springframework.core.convert.converter.Converter;
-
-import java.util.function.Predicate;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisSetAsyncCommands;
 
 public class Sadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
@@ -17,14 +19,16 @@ public class Sadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		this.members = members;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> add(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
-		return commands.sadd(key, members.convert(item));
+	protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		return ((RedisSetAsyncCommands<K, V>) commands).sadd(key, members.convert(item));
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> remove(RedisModulesAsyncCommands<K, V> commands, T item, K key) {
-		return commands.srem(key, members.convert(item));
+	protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		return ((RedisSetAsyncCommands<K, V>) commands).srem(key, members.convert(item));
 	}
 
 	public static <T> SaddMemberBuilder<T> key(String key) {
@@ -42,7 +46,7 @@ public class Sadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		public SaddMemberBuilder(Converter<T, String> key) {
 			this.key = key;
 		}
-		
+
 		@SuppressWarnings("unchecked")
 		public SaddBuilder<T> members(Converter<T, String>... members) {
 			return new SaddBuilder<>(key, new ArrayConverter<>(String.class, members));

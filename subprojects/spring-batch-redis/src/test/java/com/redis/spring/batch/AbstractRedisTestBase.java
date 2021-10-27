@@ -29,9 +29,11 @@ import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisServerCommands;
+import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
@@ -117,8 +119,16 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 		CLIENTS.clear();
 	}
 
-	protected static <T extends AbstractRedisClient> T client(RedisServer redis) {
-		return (T) CLIENTS.get(redis);
+	protected static AbstractRedisClient client(RedisServer redis) {
+		return CLIENTS.get(redis);
+	}
+
+	protected static RedisClient redisClient(RedisServer redis) {
+		return (RedisClient) client(redis);
+	}
+
+	protected static RedisClusterClient redisClusterClient(RedisServer redis) {
+		return (RedisClusterClient) client(redis);
 	}
 
 	protected static RedisModulesCommands<String, String> sync(RedisServer server) {
@@ -181,15 +191,24 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 	}
 
 	protected RedisItemWriter<String, String, KeyValue<String, byte[]>> keyDumpWriter(RedisServer redis) {
-		return RedisItemWriter.keyDump(client(redis)).build();
+		if (redis.isCluster()) {
+			RedisItemWriter.keyDump(redisClusterClient(redis)).build();
+		}
+		return RedisItemWriter.keyDump(redisClient(redis)).build();
 	}
 
 	protected RedisItemWriter<String, String, DataStructure<String>> dataStructureWriter(RedisServer redis) {
-		return RedisItemWriter.dataStructure(client(redis)).build();
+		if (redis.isCluster()) {
+			return RedisItemWriter.dataStructure(redisClusterClient(redis)).build();
+		}
+		return RedisItemWriter.dataStructure(redisClient(redis)).build();
 	}
 
 	protected DataStructureValueReader<String, String> dataStructureValueReader(RedisServer redis) {
-		return DataStructureValueReader.client(client(redis)).build();
+		if (redis.isCluster()) {
+			return DataStructureValueReader.client(redisClusterClient(redis)).build();
+		}
+		return DataStructureValueReader.client(redisClient(redis)).build();
 	}
 
 }

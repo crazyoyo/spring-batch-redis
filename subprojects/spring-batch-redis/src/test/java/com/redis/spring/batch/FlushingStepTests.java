@@ -6,12 +6,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
@@ -33,9 +31,8 @@ public class FlushingStepTests extends AbstractTestBase {
 		stepBuilder.idleTimeout(Duration.ofMillis(100)).skip(TimeoutException.class)
 				.skipPolicy(new AlwaysSkipItemSkipPolicy());
 		Job job = jobBuilderFactory.get(name).start(stepBuilder.build()).build();
-		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
-		Awaitility.await().until(() -> execution.isRunning());
-		Awaitility.await().until(() -> !execution.isRunning());
+		JobExecution execution = runAsync(job);
+		awaitTermination(execution);
 		Assertions.assertEquals(items.size(), writer.getWrittenItems().size() * 2);
 	}
 }

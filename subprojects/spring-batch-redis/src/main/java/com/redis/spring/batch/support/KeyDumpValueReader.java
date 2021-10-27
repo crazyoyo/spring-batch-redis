@@ -10,14 +10,13 @@ import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
@@ -25,13 +24,13 @@ public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyValue
 
 	public KeyDumpValueReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-			Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async) {
+			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
 		super(connectionSupplier, poolConfig, async);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected List<KeyValue<K, byte[]>> read(RedisModulesAsyncCommands<K, V> commands, long timeout,
+	protected List<KeyValue<K, byte[]>> read(BaseRedisAsyncCommands<K, V> commands, long timeout,
 			List<? extends K> keys) throws InterruptedException, ExecutionException, TimeoutException {
 		List<RedisFuture<Long>> ttlFutures = new ArrayList<>(keys.size());
 		List<RedisFuture<byte[]>> dumpFutures = new ArrayList<>(keys.size());
@@ -50,11 +49,11 @@ public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyValue
 		return dumps;
 	}
 
-	public static KeyDumpValueReaderBuilder<String, String> client(RedisModulesClient client) {
+	public static KeyDumpValueReaderBuilder<String, String> client(RedisClient client) {
 		return new KeyDumpValueReaderBuilder<>(client, StringCodec.UTF8);
 	}
 
-	public static KeyDumpValueReaderBuilder<String, String> client(RedisModulesClusterClient client) {
+	public static KeyDumpValueReaderBuilder<String, String> client(RedisClusterClient client) {
 		return new KeyDumpValueReaderBuilder<>(client, StringCodec.UTF8);
 	}
 
@@ -75,7 +74,7 @@ public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyValue
 		@Override
 		public KeyDumpValueReader<K, V> create(Supplier<StatefulConnection<K, V>> connectionSupplier,
 				GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-				Function<StatefulConnection<K, V>, RedisModulesAsyncCommands<K, V>> async) {
+				Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
 			return new KeyDumpValueReader<>(connectionSupplier, poolConfig, async);
 		}
 

@@ -4,9 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-
 import io.lettuce.core.RedisCommandExecutionException;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public class WaitForReplicationOperationExecutor<K, V, T> implements OperationExecutor<K, V, T> {
 
@@ -21,7 +20,7 @@ public class WaitForReplicationOperationExecutor<K, V, T> implements OperationEx
 	}
 
 	@Override
-	public List<Future<?>> execute(RedisModulesAsyncCommands<K, V> commands, List<? extends T> items) {
+	public List<Future<?>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
 		List<Future<?>> futures = new ArrayList<>();
 		futures.addAll(delegate.execute(commands, items));
 		futures.add(commands.waitForReplication(replicas, this.timeout).toCompletableFuture().thenAccept(r -> {

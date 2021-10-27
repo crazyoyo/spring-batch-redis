@@ -3,7 +3,6 @@ package com.redis.spring.batch;
 import java.util.List;
 
 import org.apache.commons.lang3.Range;
-import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -40,7 +39,7 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
 	@MethodSource("servers")
 	public void testStreamReader(RedisServer redis) throws Exception {
 		String name = "stream-reader";
-		awaitTermination(dataGenerator(redis, name).options(options()).build().call());
+		execute(dataGenerator(redis, name).options(options()));
 		RedisStreamItemReader<String, String> reader = streamReader(redis, offset()).build();
 		reader.open(new ExecutionContext());
 		List<StreamMessage<String, String>> messages = reader.readMessages();
@@ -63,11 +62,10 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
 	@MethodSource("servers")
 	public void testStreamReaderJob(RedisServer redis) throws Exception {
 		String name = "stream-reader-job";
-		awaitTermination(dataGenerator(redis, name).options(options()).build().call());
+		execute(dataGenerator(redis, name).options(options()));
 		RedisStreamItemReader<String, String> reader = streamReader(redis, offset()).build();
 		ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
-		JobExecution execution = runFlushing(redis, name, reader, null, writer);
-		Awaitility.await().until(() -> !execution.isRunning());
+		awaitTermination(runFlushing(redis, name, reader, null, writer));
 		Assertions.assertEquals(COUNT, writer.getWrittenItems().size());
 		assertMessageBody(writer.getWrittenItems());
 	}
@@ -77,7 +75,7 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
 	public void testMultipleStreamReaders(RedisServer redis) throws Exception {
 		String name = "multiple-stream-readers";
 		String consumerGroup = "consumerGroup";
-		awaitTermination(dataGenerator(redis, name).options(options()).build().call());
+		execute(dataGenerator(redis, name).options(options()));
 		RedisStreamItemReader<String, String> reader1 = streamReader(redis, offset()).consumerGroup(consumerGroup)
 				.consumer("consumer1").ackPolicy(AckPolicy.MANUAL).build();
 		RedisStreamItemReader<String, String> reader2 = streamReader(redis, offset()).consumerGroup(consumerGroup)
@@ -86,8 +84,8 @@ public class StreamItemReaderTests extends AbstractRedisTestBase {
 		JobExecution execution1 = runFlushing(redis, "stream-reader-1", reader1, null, writer1);
 		ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
 		JobExecution execution2 = runFlushing(redis, "stream-reader-2", reader2, null, writer2);
-		Awaitility.await().until(() -> !execution1.isRunning());
-		Awaitility.await().until(() -> !execution2.isRunning());
+		awaitTermination(execution1);
+		awaitTermination(execution2);
 		Assertions.assertEquals(COUNT, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
 		assertMessageBody(writer1.getWrittenItems());
 		assertMessageBody(writer2.getWrittenItems());
