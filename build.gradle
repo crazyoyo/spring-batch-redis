@@ -32,14 +32,7 @@ config {
 
     docs {
         javadoc {
-            options {
-                autoLinks {
-                    enabled = false
-                }
-            }
-            aggregate {
-                enabled = false
-            }
+            enabled = false
         }
     }
     

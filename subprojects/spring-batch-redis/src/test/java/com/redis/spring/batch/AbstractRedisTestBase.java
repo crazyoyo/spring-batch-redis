@@ -4,25 +4,21 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
-import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.lettucemod.cluster.api.StatefulRedisModulesClusterConnection;
+import com.redis.spring.batch.RedisItemWriter.RedisItemWriterBuilder;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.LiveRedisItemReader;
+import com.redis.spring.batch.support.RedisOperation;
+import com.redis.spring.batch.support.generator.Generator;
 import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
 import com.redis.testcontainers.RedisClusterContainer;
 import com.redis.testcontainers.RedisContainer;
@@ -31,14 +27,12 @@ import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.sync.BaseRedisCommands;
+import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisServerCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
-import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
-import io.lettuce.core.support.ConnectionPoolSupport;
+import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 
 @Testcontainers
-@SuppressWarnings("unchecked")
 public abstract class AbstractRedisTestBase extends AbstractTestBase {
 
 	@Container
@@ -47,122 +41,63 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 	protected static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer()
 			.withKeyspaceNotifications();
 
+	protected static final Map<RedisServer, AbstractRedisClient> clients = new HashMap<>();
+	protected static final Map<RedisServer, StatefulConnection<String, String>> connections = new HashMap<>();
+
 	static Stream<RedisServer> servers() {
 		return Stream.of(REDIS, REDIS_CLUSTER);
 	}
 
-	@BeforeAll
-	public static void setupRedisContainers() {
-		servers().forEach(AbstractRedisTestBase::add);
+	@BeforeEach
+	private void setup() {
+		RedisModulesClient client = RedisModulesClient.create(REDIS.getRedisURI());
+		clients.put(REDIS, client);
+		connections.put(REDIS, client.connect());
+		RedisModulesClusterClient clusterClient = RedisModulesClusterClient.create(REDIS_CLUSTER.getRedisURI());
+		clients.put(REDIS_CLUSTER, clusterClient);
+		connections.put(REDIS_CLUSTER, clusterClient.connect());
 	}
 
-	protected static final Map<RedisServer, AbstractRedisClient> CLIENTS = new HashMap<>();
-	protected static final Map<RedisServer, GenericObjectPool<? extends StatefulConnection<String, String>>> POOLS = new HashMap<>();
-	protected static final Map<RedisServer, StatefulConnection<String, String>> CONNECTIONS = new HashMap<>();
-	protected static final Map<RedisServer, StatefulRedisPubSubConnection<String, String>> PUBSUB_CONNECTIONS = new HashMap<>();
-	protected static final Map<RedisServer, RedisModulesAsyncCommands<String, String>> ASYNCS = new HashMap<>();
-	protected static final Map<RedisServer, RedisModulesCommands<String, String>> SYNCS = new HashMap<>();
-
-	protected static void add(RedisServer... servers) {
-		for (RedisServer server : servers) {
-			if (server.isCluster()) {
-				RedisModulesClusterClient client = RedisModulesClusterClient.create(server.getRedisURI());
-				CLIENTS.put(server, client);
-				StatefulRedisModulesClusterConnection<String, String> connection = client.connect();
-				CONNECTIONS.put(server, connection);
-				SYNCS.put(server, connection.sync());
-				ASYNCS.put(server, connection.async());
-				PUBSUB_CONNECTIONS.put(server, client.connectPubSub());
-				POOLS.put(server, ConnectionPoolSupport.createGenericObjectPool(client::connect,
-						new GenericObjectPoolConfig<>()));
-			} else {
-				RedisModulesClient client = RedisModulesClient.create(server.getRedisURI());
-				CLIENTS.put(server, client);
-				StatefulRedisModulesConnection<String, String> connection = client.connect();
-				CONNECTIONS.put(server, connection);
-				SYNCS.put(server, connection.sync());
-				ASYNCS.put(server, connection.async());
-				PUBSUB_CONNECTIONS.put(server, client.connectPubSub());
-				POOLS.put(server, ConnectionPoolSupport.createGenericObjectPool(client::connect,
-						new GenericObjectPoolConfig<>()));
-			}
-		}
-	}
-
+	@SuppressWarnings("unchecked")
 	@AfterEach
-	public void flushall() {
-		for (BaseRedisCommands<String, String> sync : SYNCS.values()) {
-			((RedisServerCommands<String, String>) sync).flushall();
+	private void teardown() {
+		connections.forEach((k, v) -> {
+			((RedisServerCommands<String, String>) sync(k)).flushall();
+			v.close();
+		});
+		connections.clear();
+		clients.forEach((k, v) -> {
+			v.shutdown();
+			v.getResources().shutdown();
+		});
+	}
+
+	@SuppressWarnings("unchecked")
+	protected Long dbsize(RedisServer redis) {
+		return ((RedisServerCommands<String, String>) sync(redis)).dbsize();
+	}
+
+	@SuppressWarnings("unchecked")
+	protected <T> T sync(RedisServer redis) {
+		if (redis.isCluster()) {
+			return (T) ((StatefulRedisClusterConnection<String, String>) connections.get(redis)).sync();
 		}
-	}
-
-	@AfterAll
-	public static void teardown() {
-		for (StatefulConnection<String, String> connection : CONNECTIONS.values()) {
-			connection.close();
-		}
-		for (StatefulRedisPubSubConnection<String, String> pubSubConnection : PUBSUB_CONNECTIONS.values()) {
-			pubSubConnection.close();
-		}
-		for (GenericObjectPool<? extends StatefulConnection<String, String>> pool : POOLS.values()) {
-			pool.close();
-		}
-		for (AbstractRedisClient client : CLIENTS.values()) {
-			client.shutdown();
-			client.getResources().shutdown();
-		}
-		SYNCS.clear();
-		ASYNCS.clear();
-		CONNECTIONS.clear();
-		PUBSUB_CONNECTIONS.clear();
-		POOLS.clear();
-		CLIENTS.clear();
-	}
-
-	protected static AbstractRedisClient client(RedisServer redis) {
-		return CLIENTS.get(redis);
-	}
-
-	protected static RedisClient redisClient(RedisServer redis) {
-		return (RedisClient) client(redis);
-	}
-
-	protected static RedisClusterClient redisClusterClient(RedisServer redis) {
-		return (RedisClusterClient) client(redis);
-	}
-
-	protected static RedisModulesCommands<String, String> sync(RedisServer server) {
-		return SYNCS.get(server);
-	}
-
-	protected static RedisModulesAsyncCommands<String, String> async(RedisServer server) {
-		return ASYNCS.get(server);
-	}
-
-	protected static <C extends StatefulConnection<String, String>> C connection(RedisServer server) {
-		return (C) CONNECTIONS.get(server);
-	}
-
-	protected static <C extends StatefulRedisPubSubConnection<String, String>> C pubSubConnection(RedisServer server) {
-		return (C) PUBSUB_CONNECTIONS.get(server);
-	}
-
-	protected static <C extends StatefulConnection<String, String>> GenericObjectPool<C> pool(RedisServer server) {
-		if (POOLS.containsKey(server)) {
-			return (GenericObjectPool<C>) POOLS.get(server);
-		}
-		throw new IllegalStateException("No pool found for " + server);
+		return (T) ((StatefulRedisConnection<String, String>) connections.get(redis)).sync();
 	}
 
 	protected GeneratorBuilder dataGenerator(RedisServer server, String name) {
-		return new GeneratorBuilder(name(server, name + "-generator"), jobRepository, transactionManager,
-				client(server));
+		return Generator.builder(name(server, name + "-generator"), jobRepository, transactionManager,
+				clients.get(server));
+	}
+
+	protected GeneratorBuilder dataGenerator(AbstractRedisClient client, String name) {
+		return Generator.builder(name + "-generator", jobRepository, transactionManager, client);
 	}
 
 	protected LiveRedisItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisServer redis, String name,
 			int notificationQueueCapacity) {
 		return setName(
-				RedisItemReader.keyDump(jobRepository, transactionManager, client(redis)).live()
+				RedisItemReader.keyDump(jobRepository, transactionManager, clients.get(redis)).live()
 						.idleTimeout(IDLE_TIMEOUT).notificationQueueCapacity(notificationQueueCapacity).build(),
 				redis, name + "-live-key-dump");
 	}
@@ -170,7 +105,7 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisServer server,
 			String name, int notificationQueueCapacity) {
 		return setName(
-				RedisItemReader.dataStructure(jobRepository, transactionManager, client(server)).live()
+				RedisItemReader.dataStructure(jobRepository, transactionManager, clients.get(server)).live()
 						.idleTimeout(IDLE_TIMEOUT).notificationQueueCapacity(notificationQueueCapacity).build(),
 				server, name + "-live-data-structure");
 	}
@@ -181,34 +116,57 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 	}
 
 	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisServer redis, String name) {
-		return setName(RedisItemReader.dataStructure(jobRepository, transactionManager, client(redis)).build(), redis,
-				name + "-data-structure");
+		return setName(RedisItemReader.dataStructure(jobRepository, transactionManager, clients.get(redis)).build(),
+				redis, name + "-data-structure");
 	}
 
 	protected RedisItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisServer redis, String name) {
-		return setName(RedisItemReader.keyDump(jobRepository, transactionManager, client(redis)).build(), redis,
+		return setName(RedisItemReader.keyDump(jobRepository, transactionManager, clients.get(redis)).build(), redis,
 				name + "-key-dump");
 	}
 
 	protected RedisItemWriter<String, String, KeyValue<String, byte[]>> keyDumpWriter(RedisServer redis) {
-		if (redis.isCluster()) {
-			RedisItemWriter.keyDump(redisClusterClient(redis)).build();
+		return keyDumpWriter(clients.get(redis));
+	}
+
+	protected RedisItemWriter<String, String, KeyValue<String, byte[]>> keyDumpWriter(AbstractRedisClient client) {
+		if (client instanceof RedisClusterClient) {
+			RedisItemWriter.keyDump((RedisClusterClient) client).build();
 		}
-		return RedisItemWriter.keyDump(redisClient(redis)).build();
+		return RedisItemWriter.keyDump((RedisClient) client).build();
 	}
 
 	protected RedisItemWriter<String, String, DataStructure<String>> dataStructureWriter(RedisServer redis) {
-		if (redis.isCluster()) {
-			return RedisItemWriter.dataStructure(redisClusterClient(redis)).build();
+		return dataStructureWriter(clients.get(redis));
+	}
+
+	protected RedisItemWriter<String, String, DataStructure<String>> dataStructureWriter(AbstractRedisClient client) {
+		if (client instanceof RedisClusterClient) {
+			return RedisItemWriter.dataStructure((RedisClusterClient) client).build();
 		}
-		return RedisItemWriter.dataStructure(redisClient(redis)).build();
+		return RedisItemWriter.dataStructure((RedisClient) client).build();
 	}
 
 	protected DataStructureValueReader<String, String> dataStructureValueReader(RedisServer redis) {
 		if (redis.isCluster()) {
-			return DataStructureValueReader.client(redisClusterClient(redis)).build();
+			return DataStructureValueReader.client((RedisClusterClient) clients.get(redis)).build();
 		}
-		return DataStructureValueReader.client(redisClient(redis)).build();
+		return DataStructureValueReader.client((RedisClient) clients.get(redis)).build();
+	}
+
+	protected DataStructureValueReader<String, String> dataStructureValueReader(AbstractRedisClient client) {
+		if (client instanceof RedisClusterClient) {
+			return DataStructureValueReader.client((RedisClusterClient) client).build();
+		}
+		return DataStructureValueReader.client((RedisClient) client).build();
+	}
+
+	protected <T> RedisItemWriterBuilder<String, String, T> redisItemWriter(RedisServer server,
+			RedisOperation<String, String, T> operation) {
+		if (server.isCluster()) {
+			return RedisItemWriter.operation((RedisClusterClient) clients.get(server), operation);
+		}
+		return RedisItemWriter.operation((RedisClient) clients.get(server), operation);
 	}
 
 }

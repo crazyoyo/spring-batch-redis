@@ -12,20 +12,19 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisKeyCommands;
 
-public class ScanKeyItemReader extends AbstractItemStreamItemReader<String> {
+public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 
-	private final Supplier<StatefulConnection<String, String>> connectionSupplier;
-	private final Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> sync;
+	private final Supplier<StatefulConnection<K, V>> connectionSupplier;
+	private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync;
 	private final String match;
 	private final long count;
 	private final String type;
 
-	private StatefulConnection<String, String> connection;
-	private ScanIterator<String> scanIterator;
+	private StatefulConnection<K, V> connection;
+	private ScanIterator<K> scanIterator;
 
-	public ScanKeyItemReader(Supplier<StatefulConnection<String, String>> connectionSupplier,
-			Function<StatefulConnection<String, String>, BaseRedisCommands<String, String>> sync, String match,
-			long count, String type) {
+	public ScanKeyItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
+			Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, String match, long count, String type) {
 		this.connectionSupplier = connectionSupplier;
 		this.sync = sync;
 		this.match = match;
@@ -48,12 +47,12 @@ public class ScanKeyItemReader extends AbstractItemStreamItemReader<String> {
 			if (type != null) {
 				args.type(type);
 			}
-			scanIterator = ScanIterator.scan((RedisKeyCommands<String, String>) sync.apply(connection), args);
+			scanIterator = ScanIterator.scan((RedisKeyCommands<K, V>) sync.apply(connection), args);
 		}
 	}
 
 	@Override
-	public synchronized String read() {
+	public synchronized K read() {
 		if (scanIterator.hasNext()) {
 			return scanIterator.next();
 		}

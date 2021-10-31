@@ -43,7 +43,7 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	private final K consumer;
 	private final AckPolicy ackPolicy;
 	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
-	private State state;
+	private boolean open;
 
 	public RedisStreamItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
@@ -75,18 +75,18 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 		} catch (Exception e) {
 			throw new ItemStreamException("Failed to initialize the reader", e);
 		}
-		this.state = State.OPEN;
+		this.open = true;
 	}
 
 	@Override
 	public synchronized void close() {
 		super.close();
-		this.state = State.CLOSED;
+		this.open = false;
 	}
 
 	@Override
-	public State getState() {
-		return state;
+	public boolean isOpen() {
+		return open;
 	}
 
 	@Override

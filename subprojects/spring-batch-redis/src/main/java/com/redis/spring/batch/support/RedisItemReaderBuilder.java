@@ -9,11 +9,15 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.skip.LimitCheckingItemSkipPolicy;
 import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -27,7 +31,7 @@ public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends Ite
 
 	public static final int DEFAULT_THREADS = 1;
 	public static final int DEFAULT_CHUNK_SIZE = 50;
-	public static final int DEFAULT_QUEUE_CAPACITY = 1000;
+	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 	public static final Duration DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
 	public static final Map<Class<? extends Throwable>, Boolean> DEFAULT_SKIPPABLE_EXCEPTIONS = Stream
 			.of(RedisCommandExecutionException.class, RedisCommandTimeoutException.class, TimeoutException.class)
@@ -41,7 +45,7 @@ public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends Ite
 
 	protected int threads = DEFAULT_THREADS;
 	protected int chunkSize = DEFAULT_CHUNK_SIZE;
-	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+	private int valueQueueCapacity = DEFAULT_QUEUE_CAPACITY;
 	protected Duration queuePollTimeout = DEFAULT_QUEUE_POLL_TIMEOUT;
 	protected SkipPolicy skipPolicy = DEFAULT_SKIP_POLICY;
 
@@ -64,9 +68,9 @@ public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends Ite
 		return (B) this;
 	}
 
-	public B queueCapacity(int queueCapacity) {
-		Utils.assertPositive(queueCapacity, "Queue capacity");
-		this.queueCapacity = queueCapacity;
+	public B valueQueueCapacity(int capacity) {
+		Utils.assertPositive(capacity, "Value queue capacity");
+		this.valueQueueCapacity = capacity;
 		return (B) this;
 	}
 
@@ -82,12 +86,64 @@ public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends Ite
 		return (B) this;
 	}
 
-	protected BlockingQueue<T> queue() {
-		return new LinkedBlockingQueue<>(queueCapacity);
+	protected <E> BlockingQueue<E> queue(int capacity) {
+		return new LinkedBlockingQueue<>(capacity);
+	}
+
+	protected BlockingQueue<T> valueQueue() {
+		return queue(valueQueueCapacity);
 	}
 
 	protected R valueReader() {
 		return valueReaderFactory.create(connectionSupplier(), poolConfig, async());
+	}
+
+	public static class ScanRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ItemProcessor<List<? extends String>, List<T>>>
+			extends RedisItemReaderBuilder<T, R, ScanRedisItemReaderBuilder<T, R>> {
+
+		public static final String DEFAULT_SCAN_MATCH = "*";
+		public static final long DEFAULT_SCAN_COUNT = 1000;
+
+		private final JobRepository jobRepository;
+		private final PlatformTransactionManager transactionManager;
+		private String scanMatch = DEFAULT_SCAN_MATCH;
+		private long scanCount = DEFAULT_SCAN_COUNT;
+		private String scanType;
+
+		public ScanRedisItemReaderBuilder(JobRepository jobRepository, PlatformTransactionManager transactionManager,
+				AbstractRedisClient client, ValueReaderFactory<String, String, T, R> valueReaderFactory) {
+			super(client, valueReaderFactory);
+			this.jobRepository = jobRepository;
+			this.transactionManager = transactionManager;
+		}
+
+		public ScanRedisItemReaderBuilder<T, R> scanMatch(String scanMatch) {
+			this.scanMatch = scanMatch;
+			return this;
+		}
+
+		public ScanRedisItemReaderBuilder<T, R> scanCount(long scanCount) {
+			this.scanCount = scanCount;
+			return this;
+		}
+
+		public ScanRedisItemReaderBuilder<T, R> scanType(String scanType) {
+			this.scanType = scanType;
+			return this;
+		}
+
+		public ItemReader<String> keyReader() {
+			return new ScanKeyItemReader<>(connectionSupplier(), sync(), scanMatch, scanCount, scanType);
+		}
+
+		public RedisItemReader<String, T> build() {
+			return new RedisItemReader<>(jobRepository, transactionManager, keyReader(), valueReader(), threads,
+					chunkSize, valueQueue(), queuePollTimeout, skipPolicy);
+		}
+
+		public LiveRedisItemReaderBuilder<T, R> live() {
+			return new LiveRedisItemReaderBuilder<>(jobRepository, transactionManager, client, valueReaderFactory);
+		}
 	}
 
 }

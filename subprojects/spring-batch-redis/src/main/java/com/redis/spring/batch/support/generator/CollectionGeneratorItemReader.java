@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.apache.commons.lang3.Range;
 
-import com.redis.spring.batch.support.generator.Generator.DataType;
+import com.redis.spring.batch.support.DataStructure.Type;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,14 +14,14 @@ public abstract class CollectionGeneratorItemReader<T> extends DataStructureGene
 
 	private CollectionOptions options;
 
-	protected CollectionGeneratorItemReader(DataType type, CollectionOptions options) {
+	protected CollectionGeneratorItemReader(Type type, CollectionOptions options) {
 		super(type, options);
 		this.options = options;
 	}
 
 	protected List<String> members() {
 		List<String> members = new ArrayList<>();
-		for (int index = 0; index < random(options.getCardinality()); index++) {
+		for (int index = 0; index < randomLong(options.getCardinality()); index++) {
 			members.add("member:" + index);
 		}
 		return members;
@@ -31,21 +31,19 @@ public abstract class CollectionGeneratorItemReader<T> extends DataStructureGene
 	@EqualsAndHashCode(callSuper = true)
 	public static class CollectionOptions extends DataStructureOptions {
 
-		private Range<Integer> cardinality;
+		private Range<Long> cardinality;
 
 		public static CollectionOptionsBuilder<?> builder() {
 			return new CollectionOptionsBuilder<>();
 		}
 
-		public static class CollectionOptionsBuilder<B extends CollectionOptionsBuilder<B>> extends DataStructureOptionsBuilder<B> {
+		public static class CollectionOptionsBuilder<B extends CollectionOptionsBuilder<B>>
+				extends DataStructureOptionsBuilder<B> {
 
-			public static final int DEFAULT_CARDINALITY_MIN = 10;
-			public static final int DEFAULT_CARDINALITY_MAX = 10;
-
-			private Range<Integer> cardinality = Range.between(DEFAULT_CARDINALITY_MIN, DEFAULT_CARDINALITY_MAX);
+			private Range<Long> cardinality = Generator.DEFAULT_COLLECTION_CARDINALITY;
 
 			@SuppressWarnings("unchecked")
-			public B cardinality(Range<Integer> cardinality) {
+			public B cardinality(Range<Long> cardinality) {
 				this.cardinality = cardinality;
 				return (B) this;
 			}

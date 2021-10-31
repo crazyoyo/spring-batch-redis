@@ -1,8 +1,5 @@
 package com.redis.spring.batch.support;
 
-import lombok.Data;
-
-@Data
 public class KeyValue<K, T> {
 
 	/**
@@ -43,6 +40,35 @@ public class KeyValue<K, T> {
 
 	public boolean hasTTL() {
 		return absoluteTTL != null && absoluteTTL > 0;
+	}
+
+	public K getKey() {
+		return key;
+	}
+
+	public void setKey(K key) {
+		this.key = key;
+	}
+
+	public T getValue() {
+		return value;
+	}
+
+	public void setValue(T value) {
+		this.value = value;
+	}
+
+	public Long getAbsoluteTTL() {
+		return absoluteTTL;
+	}
+
+	public void setAbsoluteTTL(Long absoluteTTL) {
+		this.absoluteTTL = absoluteTTL;
+	}
+
+	@Override
+	public String toString() {
+		return "KeyValue [key=" + key + ", value=" + value + ", absoluteTTL=" + absoluteTTL + "]";
 	}
 
 }

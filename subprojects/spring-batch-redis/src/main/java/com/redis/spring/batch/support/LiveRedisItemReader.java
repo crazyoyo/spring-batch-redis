@@ -15,21 +15,25 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.support.LiveKeyItemReader.KeyListener;
 
 public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemReader<K, T>
 		implements PollableItemReader<T> {
 
+	private final KeyDeduplicator deduplicator = new KeyDeduplicator();
+	private final LiveKeyItemReader<K> keyReader;
 	private final Duration flushingInterval;
 	private final Duration idleTimeout;
-	private State state;
+	private boolean open;
 
 	public LiveRedisItemReader(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-			PollableItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader, int threads,
+			LiveKeyItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader, int threads,
 			int chunkSize, BlockingQueue<T> queue, Duration queuePollTimeout, SkipPolicy skipPolicy,
 			Duration flushingInterval, Duration idleTimeout) {
 		super(jobRepository, transactionManager, keyReader, valueReader, threads, chunkSize, queue, queuePollTimeout,
 				skipPolicy);
 		Utils.assertPositive(flushingInterval, "Flushing interval");
+		this.keyReader = keyReader;
 		this.flushingInterval = flushingInterval;
 		this.idleTimeout = idleTimeout;
 	}
@@ -37,28 +41,38 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 	@Override
 	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
 		super.open(executionContext);
-		this.state = State.OPEN;
+		keyReader.addListener(deduplicator);
+		this.open = true;
 	}
 
 	@Override
 	public synchronized void close() {
 		super.close();
-		this.state = State.CLOSED;
+		this.open = false;
 	}
 
 	@Override
-	public State getState() {
-		return state;
+	public boolean isOpen() {
+		return open;
 	}
 
 	@Override
 	public T poll(long timeout, TimeUnit unit) throws InterruptedException {
-		return queue.poll(timeout, unit);
+		return valueQueue.poll(timeout, unit);
 	}
 
 	@Override
 	protected FaultTolerantStepBuilder<K, K> faultTolerantStepBuilder(SimpleStepBuilder<K, K> stepBuilder) {
 		return new FlushingStepBuilder<>(stepBuilder).flushingInterval(flushingInterval).idleTimeout(idleTimeout);
+	}
+
+	private class KeyDeduplicator implements KeyListener<K> {
+
+		@Override
+		public void key(K key) {
+			enqueuer.filter(key);
+		}
+
 	}
 
 }

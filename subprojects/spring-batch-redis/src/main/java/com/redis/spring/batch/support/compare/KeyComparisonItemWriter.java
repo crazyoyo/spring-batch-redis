@@ -1,8 +1,16 @@
-package com.redis.spring.batch.support;
+package com.redis.spring.batch.support.compare;
 
-import lombok.Setter;
-import lombok.experimental.Accessors;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStream;
@@ -11,43 +19,39 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.ObjectUtils;
 
-import java.time.Duration;
-import java.util.*;
-import java.util.stream.Collectors;
+import com.redis.spring.batch.support.DataStructure;
+import com.redis.spring.batch.support.FlushingStepBuilder;
+import com.redis.spring.batch.support.Utils;
+import com.redis.spring.batch.support.compare.KeyComparison.Status;
+
+import lombok.Setter;
+import lombok.experimental.Accessors;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<DataStructure<K>> {
 
-	public enum Status {
-		OK, // No difference
-		MISSING, // Key missing in target database
-		TYPE, // Type mismatch
-		TTL, // TTL mismatch
-		VALUE // Value mismatch
-	}
-
-	public static final Set<Status> MISMATCHES = new HashSet<>(
-			Arrays.asList(Status.MISSING, Status.TYPE, Status.TTL, Status.VALUE));
-
-	public interface KeyComparisonResultHandler<K> {
-
-		void accept(DataStructure<K> source, DataStructure<K> target, Status status);
-
-	}
-
 	private final ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader;
 	private final long ttlTolerance;
-	private final List<KeyComparisonResultHandler<K>> resultHandlers;
+	private final Map<Status, AtomicLong> counts = Arrays.stream(Status.values())
+			.collect(Collectors.toMap(Function.identity(), r -> new AtomicLong()));
+	private List<KeyComparisonListener<K>> listeners = new ArrayList<>();
 
 	public KeyComparisonItemWriter(ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader,
-			Duration ttlTolerance, List<KeyComparisonResultHandler<K>> resultHandlers) {
+			Duration ttlTolerance) {
 		setName(ClassUtils.getShortName(getClass()));
 		Assert.notNull(valueReader, "A value reader is required");
 		Utils.assertPositive(ttlTolerance, "TTL tolerance");
-		Assert.notEmpty(resultHandlers, "At least one result handler is required");
 		this.valueReader = valueReader;
 		this.ttlTolerance = ttlTolerance.toMillis();
-		this.resultHandlers = resultHandlers;
+	}
+
+	public void addListener(KeyComparisonListener<K> listener) {
+		this.listeners.add(listener);
+	}
+
+	public void setListeners(List<KeyComparisonListener<K>> listeners) {
+		this.listeners = listeners;
 	}
 
 	@Override
@@ -86,9 +90,9 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 			DataStructure<K> source = sourceItems.get(index);
 			DataStructure<K> target = targetItems.get(index);
 			Status status = compare(source, target);
-			for (KeyComparisonResultHandler<K> handler : resultHandlers) {
-				handler.accept(source, target, status);
-			}
+			KeyComparison<K> comparison = new KeyComparison<>(source, target, status);
+			counts.get(comparison.getStatus()).incrementAndGet();
+			listeners.forEach(c -> c.keyComparison(comparison));
 		}
 	}
 
@@ -142,27 +146,21 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 				.multipliedBy(2);
 
 		private final ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader;
-		private final List<KeyComparisonResultHandler<K>> resultHandlers = new ArrayList<>();
 		private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
 		public KeyComparisonItemWriterBuilder(ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader) {
 			this.valueReader = valueReader;
 		}
 
-		public KeyComparisonItemWriterBuilder<K> resultHandler(KeyComparisonResultHandler<K> resultHandler) {
-			resultHandlers.add(resultHandler);
-			return this;
-		}
-
-		@SuppressWarnings("unchecked")
-		public KeyComparisonItemWriterBuilder<K> resultHandlers(KeyComparisonResultHandler<K>... resultHandlers) {
-			this.resultHandlers.addAll(Arrays.asList(resultHandlers));
-			return this;
-		}
-
 		public KeyComparisonItemWriter<K> build() {
-			return new KeyComparisonItemWriter<>(valueReader, ttlTolerance, resultHandlers);
+			return new KeyComparisonItemWriter<>(valueReader, ttlTolerance);
 		}
+	}
+
+	public KeyComparisonResults getResults() {
+		Map<Status, Long> results = new HashMap<>();
+		counts.forEach((k, v) -> results.put(k, v.get()));
+		return new KeyComparisonResults(results);
 	}
 
 }

@@ -3,8 +3,8 @@ package com.redis.spring.batch.support.generator;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import com.redis.spring.batch.support.DataStructure.Type;
 import com.redis.spring.batch.support.generator.CollectionGeneratorItemReader.CollectionOptions;
-import com.redis.spring.batch.support.generator.Generator.DataType;
 
 import io.lettuce.core.StreamMessage;
 
@@ -14,7 +14,7 @@ public class StreamGeneratorItemReader
 	private CollectionOptions options;
 
 	public StreamGeneratorItemReader(CollectionOptions options) {
-		super(DataType.STREAM, options);
+		super(Type.STREAM, options);
 		this.options = options;
 	}
 
@@ -22,7 +22,7 @@ public class StreamGeneratorItemReader
 	protected Collection<StreamMessage<String, String>> value() {
 		String stream = "stream:" + index();
 		Collection<StreamMessage<String, String>> messages = new ArrayList<>();
-		for (int elementIndex = 0; elementIndex < random(options.getCardinality()); elementIndex++) {
+		for (int elementIndex = 0; elementIndex < randomLong(options.getCardinality()); elementIndex++) {
 			messages.add(new StreamMessage<>(stream, null, map()));
 		}
 		return messages;

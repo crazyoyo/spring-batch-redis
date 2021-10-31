@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
@@ -19,15 +20,16 @@ import lombok.extern.slf4j.Slf4j;
 public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ItemProcessor<List<? extends String>, List<T>>>
 		extends RedisItemReaderBuilder<T, R, LiveRedisItemReaderBuilder<T, R>> {
 
-	public static final int DEFAULT_QUEUE_CAPACITY = 1000;
+	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = 10000;
 	public static final int DEFAULT_DATABASE = 0;
 	public static final String DEFAULT_KEY_PATTERN = "*";
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 	public static final List<String> DEFAULT_PUBSUB_PATTERNS = pubSubPatterns(DEFAULT_DATABASE, DEFAULT_KEY_PATTERN);
+	private static final Converter<String, String> DEFAULT_KEY_EXTRACTOR = m -> m.substring(m.indexOf(":") + 1);
 
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager transactionManager;
-	private int notificationQueueCapacity = DEFAULT_QUEUE_CAPACITY;
+	private int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
 	private String[] keyPatterns = new String[] { DEFAULT_KEY_PATTERN };
 	private int database = DEFAULT_DATABASE;
 	protected Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
@@ -77,19 +79,23 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 		return String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern);
 	}
 
-	public PollableItemReader<String> keyReader() {
-		List<String> pubSubPatterns = pubSubPatterns(database, keyPatterns);
+	public PubSubSubscriber<String> pubSubSubscriber() {
+		List<String> patterns = pubSubPatterns(database, keyPatterns);
 		log.info("Creating keyspace notification reader with queue capacity {}", notificationQueueCapacity);
 		if (client instanceof RedisClusterClient) {
-			return new ClusterKeyspaceNotificationItemReader(() -> ((RedisClusterClient) client).connectPubSub(codec),
-					pubSubPatterns, notificationQueueCapacity, queuePollTimeout);
+			return new RedisClusterPubSubSubscriber<>(() -> ((RedisClusterClient) client).connectPubSub(codec),
+					patterns);
 		}
-		return new KeyspaceNotificationItemReader(() -> ((RedisClient) client).connectPubSub(codec), pubSubPatterns,
-				notificationQueueCapacity, queuePollTimeout);
+		return new RedisPubSubSubscriber<>(() -> ((RedisClient) client).connectPubSub(codec), patterns);
+	}
+
+	public LiveKeyItemReader<String> keyReader() {
+		return new LiveKeyItemReader<>(pubSubSubscriber(), queue(notificationQueueCapacity), queuePollTimeout,
+				DEFAULT_KEY_EXTRACTOR);
 	}
 
 	public LiveRedisItemReader<String, T> build() {
 		return new LiveRedisItemReader<>(jobRepository, transactionManager, keyReader(), valueReader(), threads,
-				chunkSize, queue(), queuePollTimeout, skipPolicy, flushingInterval, idleTimeout);
+				chunkSize, valueQueue(), queuePollTimeout, skipPolicy, flushingInterval, idleTimeout);
 	}
 }

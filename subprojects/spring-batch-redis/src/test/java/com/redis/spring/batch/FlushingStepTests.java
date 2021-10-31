@@ -8,8 +8,6 @@ import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
@@ -30,9 +28,8 @@ public class FlushingStepTests extends AbstractTestBase {
 				stepBuilderFactory.get(name).<Integer, Integer>chunk(1).reader(reader).writer(writer));
 		stepBuilder.idleTimeout(Duration.ofMillis(100)).skip(TimeoutException.class)
 				.skipPolicy(new AlwaysSkipItemSkipPolicy());
-		Job job = jobBuilderFactory.get(name).start(stepBuilder.build()).build();
-		JobExecution execution = runAsync(job);
-		awaitTermination(execution);
+		launch(jobBuilderFactory.get(name).start(stepBuilder.build()).build());
 		Assertions.assertEquals(items.size(), writer.getWrittenItems().size() * 2);
 	}
+
 }

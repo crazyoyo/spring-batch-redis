@@ -3,12 +3,12 @@ package com.redis.spring.batch;
 import java.time.Duration;
 
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.runner.RunWith;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
@@ -17,22 +17,20 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
-import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
+import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.support.FlushingStepBuilder;
 import com.redis.spring.batch.support.PollableItemReader;
-import com.redis.spring.batch.support.State;
 import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
 import com.redis.testcontainers.RedisServer;
 
@@ -41,7 +39,7 @@ import com.redis.testcontainers.RedisServer;
 public abstract class AbstractTestBase {
 
 	private static final int DEFAULT_CHUNK_SIZE = 50;
-	protected static final Duration IDLE_TIMEOUT = Duration.ofSeconds(6);
+	protected static final Duration IDLE_TIMEOUT = Duration.ofSeconds(1);
 
 	@Autowired
 	protected JobRepository jobRepository;
@@ -53,15 +51,37 @@ public abstract class AbstractTestBase {
 	protected StepBuilderFactory stepBuilderFactory;
 	@Autowired
 	private JobLauncher jobLauncher;
-	@Autowired
 	private JobLauncher asyncJobLauncher;
+
+	@BeforeEach
+	public void setupAsyncJobLauncher() {
+		asyncJobLauncher = asyncJobLauncher();
+	}
+
+	private JobLauncher asyncJobLauncher() {
+		SimpleJobLauncher asyncJobLauncher = new SimpleJobLauncher();
+		asyncJobLauncher.setJobRepository(jobRepository);
+		asyncJobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+		return asyncJobLauncher;
+	}
 
 	protected String name(RedisServer redis, String name) {
 		return redis.getRedisURI() + "-" + name;
 	}
 
-	protected <I, O> JobExecution run(Job job) throws JobExecutionException {
+	protected <I, O> JobExecution launch(Job job) throws JobExecutionException {
 		return awaitTermination(jobLauncher.run(job, new JobParameters()));
+	}
+
+	protected <I, O> JobExecution launchAsync(Job job) throws JobExecutionException {
+		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
+		awaitRunning(execution);
+		return execution;
+	}
+
+	protected JobExecution awaitRunning(JobExecution execution) {
+		Awaitility.await().until(execution::isRunning);
+		return execution;
 	}
 
 	protected JobExecution awaitTermination(JobExecution execution) {
@@ -89,7 +109,7 @@ public abstract class AbstractTestBase {
 
 	protected <I, O> JobExecution run(RedisServer redis, String name, ItemReader<? extends I> reader,
 			ItemProcessor<I, O> processor, ItemWriter<O> writer) throws JobExecutionException {
-		return run(job(redis, name, step(redis, name, reader, processor, writer).build()).build());
+		return launch(job(redis, name, step(redis, name, reader, processor, writer).build()).build());
 	}
 
 	protected <T> JobExecution run(RedisServer redis, String name, ItemReader<? extends T> reader, ItemWriter<T> writer)
@@ -99,21 +119,11 @@ public abstract class AbstractTestBase {
 
 	protected <I, O> JobExecution runFlushing(RedisServer redis, String name, PollableItemReader<? extends I> reader,
 			ItemProcessor<I, O> processor, ItemWriter<O> writer) throws JobExecutionException {
-		FlushingStepBuilder<I, O> step = flushingStep(redis, name, reader, processor, writer);
-		Job job = job(redis, name, step.build()).build();
-		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
-		awaitRunning(execution);
-		awaitOpen(reader);
-		return execution;
-	}
-
-	private JobExecution awaitRunning(JobExecution execution) {
-		Awaitility.await().until(() -> execution.isRunning());
-		return execution;
+		return launchAsync(job(redis, name, flushingStep(redis, name, reader, processor, writer).build()).build());
 	}
 
 	protected void awaitOpen(PollableItemReader<?> reader) {
-		Awaitility.await().until(() -> reader.getState() == State.OPEN);
+		Awaitility.await().until(reader::isOpen);
 	}
 
 	protected <I, O> FlushingStepBuilder<I, O> flushingStep(RedisServer redis, String name,
@@ -124,11 +134,6 @@ public abstract class AbstractTestBase {
 
 	protected void execute(GeneratorBuilder generator) throws Exception {
 		awaitTermination(generator.build().call());
-	}
-
-	protected JobExecution runAsync(Job job) throws JobExecutionAlreadyRunningException, JobRestartException,
-			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
-		return awaitRunning(asyncJobLauncher.run(job, new JobParameters()));
 	}
 
 }

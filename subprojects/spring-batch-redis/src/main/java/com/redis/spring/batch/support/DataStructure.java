@@ -7,12 +7,16 @@ import java.util.Set;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
-import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-@Data
 @EqualsAndHashCode(callSuper = true)
 public class DataStructure<K> extends KeyValue<K, Object> {
+
+	public enum Type {
+
+		HASH, LIST, SET, STREAM, STRING, ZSET
+
+	}
 
 	public final static String STRING = "string";
 	public final static String LIST = "list";
@@ -64,6 +68,20 @@ public class DataStructure<K> extends KeyValue<K, Object> {
 
 	public static <K, V> DataStructure<K> stream(K key, Collection<StreamMessage<K, V>> value) {
 		return new DataStructure<>(STREAM, key, value);
+	}
+
+	public String getType() {
+		return type;
+	}
+
+	public void setType(String type) {
+		this.type = type;
+	}
+
+	@Override
+	public String toString() {
+		return "DataStructure [type=" + type + ", key=" + getKey() + ", value=" + getValue() + ", absoluteTTL="
+				+ getAbsoluteTTL() + "]";
 	}
 
 }
