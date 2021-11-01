@@ -63,6 +63,7 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 		JobExecution execution = runFlushing(redis, name, reader, null, writer);
 		execute(dataGenerator(redis, name).end(3).dataType(Type.STRING).dataType(Type.HASH));
 		awaitTermination(execution);
+		Thread.sleep(100);
 		Assertions.assertEquals(dbsize(redis), writer.getWrittenItems().size());
 	}
 
