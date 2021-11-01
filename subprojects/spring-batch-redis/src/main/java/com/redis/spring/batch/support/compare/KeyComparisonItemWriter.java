@@ -2,13 +2,8 @@ package com.redis.spring.batch.support.compare;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.batch.item.ExecutionContext;
@@ -31,10 +26,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<DataStructure<K>> {
 
+	private final KeyComparisonResults results = new KeyComparisonResults();
 	private final ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader;
 	private final long ttlTolerance;
-	private final Map<Status, AtomicLong> counts = Arrays.stream(Status.values())
-			.collect(Collectors.toMap(Function.identity(), r -> new AtomicLong()));
 	private List<KeyComparisonListener<K>> listeners = new ArrayList<>();
 
 	public KeyComparisonItemWriter(ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader,
@@ -86,14 +80,31 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 			log.warn("Missing values in value reader response");
 			return;
 		}
+		results.addAndGetSource(sourceItems.size());
 		for (int index = 0; index < sourceItems.size(); index++) {
 			DataStructure<K> source = sourceItems.get(index);
 			DataStructure<K> target = targetItems.get(index);
 			Status status = compare(source, target);
+			increment(status);
 			KeyComparison<K> comparison = new KeyComparison<>(source, target, status);
-			counts.get(comparison.getStatus()).incrementAndGet();
 			listeners.forEach(c -> c.keyComparison(comparison));
 		}
+	}
+
+	private long increment(Status status) {
+		switch (status) {
+		case OK:
+			return results.incrementOK();
+		case MISSING:
+			return results.incrementMissing();
+		case TTL:
+			return results.incrementTTL();
+		case TYPE:
+			return results.incrementType();
+		case VALUE:
+			return results.incrementValue();
+		}
+		throw new IllegalArgumentException("Unknown status: " + status);
 	}
 
 	private Status compare(DataStructure<K> source, DataStructure<K> target) {
@@ -133,6 +144,10 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 		return Status.VALUE;
 	}
 
+	public KeyComparisonResults getResults() {
+		return results;
+	}
+
 	public static <K> KeyComparisonItemWriterBuilder<K> valueReader(
 			ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader) {
 		return new KeyComparisonItemWriterBuilder<>(valueReader);
@@ -155,12 +170,6 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 		public KeyComparisonItemWriter<K> build() {
 			return new KeyComparisonItemWriter<>(valueReader, ttlTolerance);
 		}
-	}
-
-	public KeyComparisonResults getResults() {
-		Map<Status, Long> results = new HashMap<>();
-		counts.forEach((k, v) -> results.put(k, v.get()));
-		return new KeyComparisonResults(results);
 	}
 
 }

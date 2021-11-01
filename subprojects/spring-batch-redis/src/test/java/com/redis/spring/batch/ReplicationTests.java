@@ -22,8 +22,6 @@ import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.LiveRedisItemReader;
 import com.redis.spring.batch.support.ScanSizeEstimator;
 import com.redis.spring.batch.support.ScanSizeEstimator.EstimateOptions;
-import com.redis.spring.batch.support.compare.KeyComparison;
-import com.redis.spring.batch.support.compare.KeyComparison.Status;
 import com.redis.spring.batch.support.compare.KeyComparisonLogger;
 import com.redis.spring.batch.support.compare.KeyComparisonResults;
 import com.redis.testcontainers.RedisContainer;
@@ -147,7 +145,6 @@ public class ReplicationTests extends AbstractRedisTestBase {
 				.left(clients.get(server)).right(targetClient).build();
 		comparator.addListener(new KeyComparisonLogger(log));
 		KeyComparisonResults results = comparator.call();
-		Assertions.assertEquals(dbsize(server), results.get(KeyComparison.Status.OK));
 		Assertions.assertTrue(results.isOK());
 	}
 
@@ -160,8 +157,9 @@ public class ReplicationTests extends AbstractRedisTestBase {
 		KeyComparator comparator = KeyComparator.builder(name(server, name), jobRepository, transactionManager)
 				.left(clients.get(server)).right(targetClient).build();
 		KeyComparisonResults results = comparator.call();
-		Assertions.assertTrue(results.get(Status.OK) > 0);
-		Assertions.assertEquals(120, results.get(Status.MISSING));
+		Assertions.assertEquals(results.getSource(), results.getOK() + results.getMissing() + results.getValue());
+		Assertions.assertEquals(120, results.getMissing());
+		Assertions.assertEquals(300, results.getValue());
 	}
 
 	@SuppressWarnings("unchecked")
