@@ -35,10 +35,6 @@ config {
             enabled = false
         }
     }
-    
-    testing {
-        jar = true
-    }
 }
 
 allprojects {

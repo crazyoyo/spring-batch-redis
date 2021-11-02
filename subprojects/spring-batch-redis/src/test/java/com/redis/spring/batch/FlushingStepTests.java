@@ -14,10 +14,10 @@ import org.springframework.batch.item.support.ListItemWriter;
 
 import com.redis.spring.batch.support.FlushingStepBuilder;
 
-public class FlushingStepTests extends AbstractTestBase {
+class FlushingStepTests extends AbstractTestBase {
 
 	@Test
-	public void testReaderSkipPolicy() throws Exception {
+	void testReaderSkipPolicy() throws Exception {
 		String name = "skip-policy";
 		List<Integer> items = IntStream.range(0, 100).boxed().collect(Collectors.toList());
 		int interval = 2;

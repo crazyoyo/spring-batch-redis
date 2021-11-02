@@ -118,8 +118,16 @@ public abstract class AbstractTestBase {
 	}
 
 	protected <I, O> JobExecution runFlushing(RedisServer redis, String name, PollableItemReader<? extends I> reader,
+			ItemWriter<O> writer) throws JobExecutionException {
+		return runFlushing(redis, name, reader, null, writer);
+	}
+
+	protected <I, O> JobExecution runFlushing(RedisServer redis, String name, PollableItemReader<? extends I> reader,
 			ItemProcessor<I, O> processor, ItemWriter<O> writer) throws JobExecutionException {
-		return launchAsync(job(redis, name, flushingStep(redis, name, reader, processor, writer).build()).build());
+		JobExecution execution = launchAsync(
+				job(redis, name, flushingStep(redis, name, reader, processor, writer).build()).build());
+		awaitOpen(reader);
+		return execution;
 	}
 
 	protected void awaitOpen(PollableItemReader<?> reader) {

@@ -4,16 +4,15 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 
 public class RedisValueEnqueuer<K, T extends KeyValue<K, ?>> extends AbstractItemStreamItemWriter<K> {
 
-	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
+	private final ValueReader<K, T> valueReader;
 	private final BlockingQueue<T> queue;
 
-	public RedisValueEnqueuer(ItemProcessor<List<? extends K>, List<T>> reader, BlockingQueue<T> queue) {
+	public RedisValueEnqueuer(ValueReader<K, T> reader, BlockingQueue<T> queue) {
 		this.valueReader = reader;
 		this.queue = queue;
 	}
@@ -44,7 +43,7 @@ public class RedisValueEnqueuer<K, T extends KeyValue<K, ?>> extends AbstractIte
 
 	@Override
 	public void write(List<? extends K> items) throws Exception {
-		List<T> values = valueReader.process(items);
+		List<T> values = valueReader.read(items);
 		if (values == null) {
 			return;
 		}

@@ -1,14 +1,12 @@
 package com.redis.spring.batch.support;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -25,7 +23,7 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 	private boolean open;
 
 	public LiveRedisItemReader(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-			LiveKeyItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader) {
+			LiveKeyItemReader<K> keyReader, ValueReader<K, T> valueReader) {
 		super(jobRepository, transactionManager, keyReader, valueReader);
 		this.keyReader = keyReader;
 	}

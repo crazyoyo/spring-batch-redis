@@ -3,7 +3,6 @@ package com.redis.spring.batch;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -23,7 +22,6 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.skip.LimitCheckingItemSkipPolicy;
 import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
@@ -43,6 +41,7 @@ import com.redis.spring.batch.support.KeyDumpValueReader.KeyDumpValueReaderFacto
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.RedisValueEnqueuer;
 import com.redis.spring.batch.support.Utils;
+import com.redis.spring.batch.support.ValueReader;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisCommandExecutionException;
@@ -58,16 +57,14 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 	public static final Duration DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
 	public static final int DEFAULT_SKIP_LIMIT = 3;
-	public static final Map<Class<? extends Throwable>, Boolean> DEFAULT_SKIPPABLE_EXCEPTIONS = Stream
-			.of(RedisCommandExecutionException.class, RedisCommandTimeoutException.class, TimeoutException.class)
-			.collect(Collectors.toMap(t -> t, t -> true));
 	public static final SkipPolicy DEFAULT_SKIP_POLICY = new LimitCheckingItemSkipPolicy(DEFAULT_SKIP_LIMIT,
-			DEFAULT_SKIPPABLE_EXCEPTIONS);
+			Stream.of(RedisCommandExecutionException.class, RedisCommandTimeoutException.class, TimeoutException.class)
+					.collect(Collectors.toMap(t -> t, t -> true)));
 
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager transactionManager;
 	private final ItemReader<K> keyReader;
-	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
+	private final ValueReader<K, T> valueReader;
 
 	private int threads = DEFAULT_THREADS;
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
@@ -81,7 +78,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	private String name;
 
 	public RedisItemReader(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-			ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader) {
+			ItemReader<K> keyReader, ValueReader<K, T> valueReader) {
 		setName(ClassUtils.getShortName(getClass()));
 		Assert.notNull(jobRepository, "A job repository is required");
 		Assert.notNull(transactionManager, "A platform transaction manager is required");
@@ -118,7 +115,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		this.skipPolicy = skipPolicy;
 	}
 
-	public ItemProcessor<List<? extends K>, List<T>> getValueReader() {
+	public ValueReader<K, T> getValueReader() {
 		return valueReader;
 	}
 

@@ -113,8 +113,8 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	@SuppressWarnings("unchecked")
 	private List<StreamMessage<K, V>> readMessages(Long blockInMillis) throws Exception {
 		XReadArgs args = XReadArgs.Builder.count(count);
-		if (block != null) {
-			args.block(block);
+		if (blockInMillis != null) {
+			args.block(blockInMillis);
 		}
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
 			RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);

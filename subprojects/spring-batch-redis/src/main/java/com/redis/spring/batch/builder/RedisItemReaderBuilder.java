@@ -1,20 +1,19 @@
 package com.redis.spring.batch.builder;
 
 import java.time.Duration;
-import java.util.List;
 
 import org.springframework.batch.core.step.skip.SkipPolicy;
-import org.springframework.batch.item.ItemProcessor;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
 import com.redis.spring.batch.support.CommandBuilder;
 import com.redis.spring.batch.support.KeyValue;
+import com.redis.spring.batch.support.ValueReader;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ItemProcessor<List<? extends String>, List<T>>, B extends RedisItemReaderBuilder<T, R, B>>
+public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ValueReader<String, T>, B extends RedisItemReaderBuilder<T, R, B>>
 		extends CommandBuilder<String, String, B> {
 
 	protected final ValueReaderFactory<String, String, T, R> valueReaderFactory;

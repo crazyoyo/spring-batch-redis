@@ -1,19 +1,17 @@
 package com.redis.spring.batch.builder;
 
-import java.util.List;
-
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.ScanKeyItemReader;
+import com.redis.spring.batch.support.ValueReader;
 
 import io.lettuce.core.AbstractRedisClient;
 
-public class ScanRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ItemProcessor<List<? extends String>, List<T>>>
+public class ScanRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ValueReader<String, T>>
 		extends RedisItemReaderBuilder<T, R, ScanRedisItemReaderBuilder<T, R>> {
 
 	private final JobRepository jobRepository;

@@ -1,5 +1,7 @@
 package com.redis.spring.batch.support;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -9,7 +11,6 @@ import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.FileCopyUtils;
 
@@ -20,8 +21,9 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 
 public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extends ConnectionPoolItemStream<K, V>
-		implements ItemProcessor<List<? extends K>, List<T>> {
+		implements ValueReader<K, T> {
 
+	private static final String ABSTTL_LUA = "absttl.lua";
 	private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
 	private String digest;
 
@@ -37,10 +39,14 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
 		if (digest == null) {
+			byte[] bytes;
+			try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(ABSTTL_LUA)) {
+				bytes = FileCopyUtils.copyToByteArray(inputStream);
+			} catch (IOException e) {
+				throw new ItemStreamException("Could not load LUA script file " + ABSTTL_LUA);
+			}
 			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
 				long timeout = connection.getTimeout().toMillis();
-				byte[] bytes = FileCopyUtils
-						.copyToByteArray(getClass().getClassLoader().getResourceAsStream("absttl.lua"));
 				RedisFuture<String> load = ((RedisScriptingAsyncCommands<K, V>) async.apply(connection))
 						.scriptLoad(bytes);
 				this.digest = load.get(timeout, TimeUnit.MILLISECONDS);
@@ -56,7 +62,7 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 	}
 
 	@Override
-	public List<T> process(List<? extends K> keys) throws Exception {
+	public List<T> read(List<? extends K> keys) throws Exception {
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
 			BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
 			commands.setAutoFlushCommands(false);
@@ -71,7 +77,7 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 	protected abstract List<T> read(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends K> keys)
 			throws InterruptedException, ExecutionException, TimeoutException;
 
-	public static interface ValueReaderFactory<K, V, T extends KeyValue<K, ?>, R extends ItemProcessor<List<? extends K>, List<T>>> {
+	public static interface ValueReaderFactory<K, V, T extends KeyValue<K, ?>, R extends ValueReader<K, T>> {
 
 		R create(Supplier<StatefulConnection<K, V>> connectionSupplier,
 				GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,

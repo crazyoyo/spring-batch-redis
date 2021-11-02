@@ -18,7 +18,7 @@ import com.redis.spring.batch.support.operation.JsonSet;
 import com.redis.testcontainers.RedisModulesContainer;
 
 @Testcontainers
-public class ModulesTests extends AbstractTestBase {
+class ModulesTests extends AbstractTestBase {
 
 	@Container
 	protected static final RedisModulesContainer REDIS = new RedisModulesContainer();
@@ -41,7 +41,7 @@ public class ModulesTests extends AbstractTestBase {
 	}
 
 	@Test
-	public void testJsonSet() throws Exception {
+	void testJsonSet() throws Exception {
 		connection.sync().flushall();
 		RedisItemWriter<String, String, JsonNode> writer = RedisItemWriter.operation(client,
 				JsonSet.<JsonNode>key(n -> "beer:" + n.get("id").asText()).path(".").value(JsonNode::toString).build())
@@ -55,7 +55,7 @@ public class ModulesTests extends AbstractTestBase {
 	}
 
 	@Test
-	public void testBeerIndex() throws Exception {
+	void testBeerIndex() throws Exception {
 		Beers.createIndex(connection.sync());
 		Beers.populateIndex(jobRepository, transactionManager, client);
 		IndexInfo indexInfo = Utils.indexInfo(connection.sync().indexInfo(Beers.INDEX));

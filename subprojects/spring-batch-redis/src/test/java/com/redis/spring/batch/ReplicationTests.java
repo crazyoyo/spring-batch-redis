@@ -35,7 +35,7 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class ReplicationTests extends AbstractRedisTestBase {
+class ReplicationTests extends AbstractRedisTestBase {
 
 	@Container
 	private static final RedisContainer TARGET = new RedisContainer();
@@ -43,13 +43,13 @@ public class ReplicationTests extends AbstractRedisTestBase {
 	private StatefulRedisConnection<String, String> targetConnection;
 
 	@BeforeEach
-	public void setupTarget() {
+	void setupTarget() {
 		targetClient = RedisClient.create(TARGET.getRedisURI());
 		targetConnection = targetClient.connect();
 	}
 
 	@AfterEach
-	public void cleanupTarget() throws InterruptedException {
+	void cleanupTarget() throws InterruptedException {
 		targetConnection.sync().flushall();
 		targetConnection.close();
 		targetClient.shutdown();
@@ -58,7 +58,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testDataStructureReplication(RedisServer redis) throws Exception {
+	void testDataStructureReplication(RedisServer redis) throws Exception {
 		String name = "ds-replication";
 		execute(dataGenerator(redis, name).end(100));
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis, name);
@@ -68,25 +68,14 @@ public class ReplicationTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testLiveDSSetReplication(RedisServer redis) throws Exception {
+	void testLiveDSSetReplication(RedisServer redis) throws Exception {
 		String name = "live-ds-set-replication";
 		RedisSetCommands<String, String> sync = sync(redis);
 		String key = "myset";
 		sync.sadd(key, "1", "2", "3", "4", "5");
-		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis, name);
-		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureWriter(targetClient);
-		TaskletStep replicationStep = step(redis, "scan-" + name, reader, null, writer).build();
-		LiveRedisItemReader<String, DataStructure<String>> liveReader = liveDataStructureReader(redis, name, 100);
-		RedisItemWriter<String, String, DataStructure<String>> liveWriter = dataStructureWriter(targetClient);
-		TaskletStep liveReplicationStep = flushingStep(redis, "live-" + name, liveReader, null, liveWriter).build();
-		SimpleFlow replicationFlow = flow(redis, "scan-" + name).start(replicationStep).build();
-		SimpleFlow liveReplicationFlow = flow(redis, "live-" + name).start(liveReplicationStep).build();
-		Job job = job(redis, name).start(flow(redis, name).split(new SimpleAsyncTaskExecutor())
-				.add(replicationFlow, liveReplicationFlow).build()).build().build();
-		JobExecution execution = launchAsync(job);
-		awaitOpen(liveReader);
+		JobExecution execution = runFlushing(redis, name, liveDataStructureReader(redis, name, 100),
+				dataStructureWriter(targetClient));
 		log.info("Removing from set");
-		Thread.sleep(100);
 		sync.srem(key, "5");
 		awaitTermination(execution);
 		Set<String> source = sync.smembers(key);
@@ -96,7 +85,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testReplication(RedisServer server) throws Exception {
+	void testReplication(RedisServer server) throws Exception {
 		String name = "replication";
 		execute(dataGenerator(server, name).end(100));
 		RedisItemReader<String, KeyValue<String, byte[]>> reader = keyDumpReader(server, name);
@@ -108,7 +97,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testLiveReplication(RedisServer server) throws Exception {
+	void testLiveReplication(RedisServer server) throws Exception {
 		String name = "live-replication";
 		liveReplication(name, server, keyDumpReader(server, name), keyDumpWriter(targetClient),
 				liveKeyDumpReader(server, name, 100000), keyDumpWriter(targetClient));
@@ -116,7 +105,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testLiveDSReplication(RedisServer server) throws Exception {
+	void testLiveDSReplication(RedisServer server) throws Exception {
 		String name = "live-ds-replication";
 		liveReplication(name, server, dataStructureReader(server, name), dataStructureWriter(targetClient),
 				liveDataStructureReader(server, name, 100000), dataStructureWriter(targetClient));
@@ -151,7 +140,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testComparator(RedisServer server) throws Exception {
+	void testComparator(RedisServer server) throws Exception {
 		String name = "comparator";
 		execute(dataGenerator(server, name + "-source-init").end(120));
 		execute(dataGenerator(targetClient, name(server, name) + "-target-init").end(100));
@@ -166,7 +155,7 @@ public class ReplicationTests extends AbstractRedisTestBase {
 	@SuppressWarnings("unchecked")
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testScanSizeEstimator(RedisServer server) throws Exception {
+	void testScanSizeEstimator(RedisServer server) throws Exception {
 		String pattern = "hash:*";
 		execute(dataGenerator(server, "scan-size-estimator").end(12345).dataType(Type.HASH));
 		long expectedCount = ((RedisKeyCommands<String, String>) sync(server)).keys(pattern).size();

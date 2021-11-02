@@ -7,7 +7,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
@@ -17,6 +16,7 @@ import org.springframework.util.ObjectUtils;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.FlushingStepBuilder;
 import com.redis.spring.batch.support.Utils;
+import com.redis.spring.batch.support.ValueReader;
 import com.redis.spring.batch.support.compare.KeyComparison.Status;
 
 import lombok.Setter;
@@ -27,12 +27,11 @@ import lombok.extern.slf4j.Slf4j;
 public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<DataStructure<K>> {
 
 	private final KeyComparisonResults results = new KeyComparisonResults();
-	private final ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader;
+	private final ValueReader<K, DataStructure<K>> valueReader;
 	private final long ttlTolerance;
 	private List<KeyComparisonListener<K>> listeners = new ArrayList<>();
 
-	public KeyComparisonItemWriter(ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader,
-			Duration ttlTolerance) {
+	public KeyComparisonItemWriter(ValueReader<K, DataStructure<K>> valueReader, Duration ttlTolerance) {
 		setName(ClassUtils.getShortName(getClass()));
 		Assert.notNull(valueReader, "A value reader is required");
 		Utils.assertPositive(ttlTolerance, "TTL tolerance");
@@ -75,7 +74,7 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 	@Override
 	public void write(List<? extends DataStructure<K>> sourceItems) throws Exception {
 		List<DataStructure<K>> targetItems = valueReader
-				.process(sourceItems.stream().map(DataStructure::getKey).collect(Collectors.toList()));
+				.read(sourceItems.stream().map(DataStructure::getKey).collect(Collectors.toList()));
 		if (targetItems == null || targetItems.size() != sourceItems.size()) {
 			log.warn("Missing values in value reader response");
 			return;
@@ -148,8 +147,7 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 		return results;
 	}
 
-	public static <K> KeyComparisonItemWriterBuilder<K> valueReader(
-			ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader) {
+	public static <K> KeyComparisonItemWriterBuilder<K> valueReader(ValueReader<K, DataStructure<K>> valueReader) {
 		return new KeyComparisonItemWriterBuilder<>(valueReader);
 	}
 
@@ -160,10 +158,10 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 		private static final Duration DEFAULT_TTL_TOLERANCE = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL
 				.multipliedBy(2);
 
-		private final ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader;
+		private final ValueReader<K, DataStructure<K>> valueReader;
 		private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-		public KeyComparisonItemWriterBuilder(ItemProcessor<List<? extends K>, List<DataStructure<K>>> valueReader) {
+		public KeyComparisonItemWriterBuilder(ValueReader<K, DataStructure<K>> valueReader) {
 			this.valueReader = valueReader;
 		}
 

@@ -2,7 +2,6 @@ package com.redis.spring.batch;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
@@ -51,18 +50,17 @@ import io.micrometer.core.instrument.search.Search;
 import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-public class RedisItemReaderTests extends AbstractRedisTestBase {
+class RedisItemReaderTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testFlushingStep(RedisServer redis) throws Exception {
+	void testFlushingStep(RedisServer redis) throws Exception {
 		String name = "flushing-step";
 		PollableItemReader<String> reader = keyspaceNotificationReader(redis);
 		ListItemWriter<String> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(redis, name, reader, null, writer);
 		execute(dataGenerator(redis, name).end(3).dataType(Type.STRING).dataType(Type.HASH));
 		awaitTermination(execution);
-		Thread.sleep(100);
 		Assertions.assertEquals(dbsize(redis), writer.getWrittenItems().size());
 	}
 
@@ -73,7 +71,7 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testKeyspaceNotificationReader(RedisServer redis) throws Exception {
+	void testKeyspaceNotificationReader(RedisServer redis) throws Exception {
 		String name = "keyspace-notification-reader";
 		LiveKeyItemReader<String> keyReader = keyspaceNotificationReader(redis);
 		keyReader.open(new ExecutionContext());
@@ -86,7 +84,7 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testDataStructureReader(RedisServer redis) throws Exception {
+	void testDataStructureReader(RedisServer redis) throws Exception {
 		String name = "ds-reader";
 		populateSource(redis, name);
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis, name);
@@ -101,10 +99,24 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 				Hset.<Map<String, String>>key(t -> t.get("id")).map(t -> t).build()).build();
 		run(server, name + "-populate", reader, new MapFlattener(), writer);
 	}
+	
+	private static class SynchronizedListItemWriter<T> implements ItemWriter<T> {
+
+		private List<T> writtenItems = new ArrayList<>();
+
+		@Override
+		public synchronized void write(List<? extends T> items) throws Exception {
+			writtenItems.addAll(items);
+		}
+
+		public List<? extends T> getWrittenItems() {
+			return this.writtenItems;
+		}
+	}
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testMultiThreadedReader(RedisServer redis) throws Exception {
+	void testMultiThreadedReader(RedisServer redis) throws Exception {
 		String name = "multi-threaded-reader";
 		populateSource(redis, name);
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis, name);
@@ -122,23 +134,9 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 		Assertions.assertEquals(dbsize(redis), writer.getWrittenItems().size());
 	}
 
-	private static class SynchronizedListItemWriter<T> implements ItemWriter<T> {
-
-		private final List<T> writtenItems = Collections.synchronizedList(new ArrayList<>());
-
-		@Override
-		public void write(List<? extends T> items) {
-			writtenItems.addAll(items);
-		}
-
-		public List<? extends T> getWrittenItems() {
-			return this.writtenItems;
-		}
-	}
-
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testLiveReader(RedisServer redis) throws Exception {
+	void testLiveReader(RedisServer redis) throws Exception {
 		String name = "live-reader";
 		LiveRedisItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(redis, name, 10000);
 		ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
@@ -150,7 +148,7 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testKeyValueItemReaderFaultTolerance(RedisServer redis) throws Exception {
+	void testKeyValueItemReaderFaultTolerance(RedisServer redis) throws Exception {
 		String name = "reader-ft";
 		execute(dataGenerator(redis, name).dataType(Type.STRING));
 		List<String> keys = IntStream.range(0, 100).boxed().map(i -> "string:" + i).collect(Collectors.toList());
@@ -169,7 +167,7 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 	}
 
 	@Test
-	public void testMetrics() throws Exception {
+	void testMetrics() throws Exception {
 		Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
 		SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
 			@Override
@@ -203,7 +201,7 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testStreamReader(RedisServer redis) throws Exception {
+	void testStreamReader(RedisServer redis) throws Exception {
 		String name = "stream-reader";
 		execute(streamDataGenerator(redis, name));
 		RedisStreamItemReader<String, String> reader = streamReader(redis, offset()).build();
@@ -223,7 +221,7 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testStreamReaderJob(RedisServer redis) throws Exception {
+	void testStreamReaderJob(RedisServer redis) throws Exception {
 		String name = "stream-reader-job";
 		execute(streamDataGenerator(redis, name));
 		RedisStreamItemReader<String, String> reader = streamReader(redis, offset()).build();
@@ -235,7 +233,7 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testMultipleStreamReaders(RedisServer redis) throws Exception {
+	void testMultipleStreamReaders(RedisServer redis) throws Exception {
 		String name = "multiple-stream-readers";
 		String consumerGroup = "consumerGroup";
 		execute(streamDataGenerator(redis, name));
