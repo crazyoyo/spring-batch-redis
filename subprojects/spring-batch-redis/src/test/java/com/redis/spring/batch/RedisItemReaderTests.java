@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -25,6 +24,7 @@ import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import com.redis.spring.batch.builder.RedisStreamItemReaderBuilder;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructure.Type;
 import com.redis.spring.batch.support.DataStructureValueReader;
@@ -34,7 +34,6 @@ import com.redis.spring.batch.support.LiveRedisItemReader;
 import com.redis.spring.batch.support.PollableItemReader;
 import com.redis.spring.batch.support.RedisStreamItemReader;
 import com.redis.spring.batch.support.RedisStreamItemReader.AckPolicy;
-import com.redis.spring.batch.support.RedisStreamItemReaderBuilder;
 import com.redis.spring.batch.support.convert.MapFlattener;
 import com.redis.spring.batch.support.generator.Generator;
 import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
@@ -159,8 +158,10 @@ public class RedisItemReaderTests extends AbstractRedisTestBase {
 				.delegate(new ListItemReader<>(keys)).exceptionSupplier(TimeoutException::new).interval(2).build();
 		DataStructureValueReader<String, String> valueReader = dataStructureValueReader(redis);
 		RedisItemReader<String, DataStructure<String>> reader = new RedisItemReader<>(jobRepository, transactionManager,
-				keyReader, valueReader, 1, 1, new LinkedBlockingQueue<>(1000), Duration.ofMillis(100),
-				new AlwaysSkipItemSkipPolicy());
+				keyReader, valueReader);
+		reader.setChunkSize(1);
+		reader.setQueueCapacity(1000);
+		reader.setSkipPolicy(new AlwaysSkipItemSkipPolicy());
 		reader.setName(name(redis, name + "-reader"));
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
 		run(redis, name, reader, writer);

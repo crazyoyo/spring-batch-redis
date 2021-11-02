@@ -5,6 +5,7 @@ import java.util.function.Supplier;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
+import org.springframework.util.Assert;
 
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.ScanIterator;
@@ -16,19 +17,33 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 
 	private final Supplier<StatefulConnection<K, V>> connectionSupplier;
 	private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync;
-	private final String match;
-	private final long count;
-	private final String type;
+	public static final String DEFAULT_SCAN_MATCH = "*";
+	public static final long DEFAULT_SCAN_COUNT = 1000;
+
+	private String match = DEFAULT_SCAN_MATCH;
+	private long count = DEFAULT_SCAN_COUNT;
+	private String type;
 
 	private StatefulConnection<K, V> connection;
 	private ScanIterator<K> scanIterator;
 
 	public ScanKeyItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
-			Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, String match, long count, String type) {
+			Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync) {
 		this.connectionSupplier = connectionSupplier;
 		this.sync = sync;
+	}
+
+	public void setMatch(String match) {
+		Assert.notNull(match, "Scan match cannot be null");
 		this.match = match;
+	}
+
+	public void setCount(long count) {
+		Utils.assertPositive(count, "Scan count");
 		this.count = count;
+	}
+
+	public void setType(String type) {
 		this.type = type;
 	}
 
@@ -38,8 +53,6 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 		super.open(executionContext);
 		if (connection == null) {
 			connection = connectionSupplier.get();
-		}
-		if (scanIterator == null) {
 			KeyScanArgs args = KeyScanArgs.Builder.limit(count);
 			if (match != null) {
 				args.match(match);

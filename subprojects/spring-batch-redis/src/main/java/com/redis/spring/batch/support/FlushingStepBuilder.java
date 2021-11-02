@@ -1,5 +1,8 @@
 package com.redis.spring.batch.support;
 
+import java.time.Duration;
+import java.util.ArrayList;
+
 import org.springframework.batch.core.StepListener;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
@@ -10,58 +13,59 @@ import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.util.Assert;
 
-import java.time.Duration;
-import java.util.ArrayList;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 
+@Setter
+@Accessors(fluent = true)
 public class FlushingStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 
-    public final static Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
+	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 
-    private Duration flushingInterval = DEFAULT_FLUSHING_INTERVAL;
-    private Duration idleTimeout; // no idle stream detection by default
+	private Duration flushingInterval = DEFAULT_FLUSHING_INTERVAL;
+	private Duration idleTimeout; // no idle stream detection by default
 
-    public FlushingStepBuilder(StepBuilderHelper<?> parent) {
-        super(parent);
-    }
+	public FlushingStepBuilder(StepBuilderHelper<?> parent) {
+		super(parent);
+	}
 
-    public FlushingStepBuilder(SimpleStepBuilder<I, O> parent) {
-        super(parent);
-    }
+	public FlushingStepBuilder(SimpleStepBuilder<I, O> parent) {
+		super(parent);
+	}
 
-    @Override
-    protected ChunkProvider<I> createChunkProvider() {
+	public FlushingStepBuilder<I, O> flushingInterval(Duration flushingInterval) {
+		Utils.assertPositive(flushingInterval, "Flushing interval");
+		this.flushingInterval = flushingInterval;
+		return this;
+	}
 
-        SkipPolicy readSkipPolicy = createSkipPolicy();
-        readSkipPolicy = getFatalExceptionAwareProxy(readSkipPolicy);
-        FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>(getReader(), createChunkOperations());
-        chunkProvider.setMaxSkipsOnRead(Math.max(getChunkSize(), FaultTolerantChunkProvider.DEFAULT_MAX_SKIPS_ON_READ));
-        chunkProvider.setSkipPolicy(readSkipPolicy);
-        chunkProvider.setRollbackClassifier(getRollbackClassifier());
-        chunkProvider.setFlushingInterval(flushingInterval);
-        chunkProvider.setIdleTimeout(idleTimeout);
-        ArrayList<StepListener> listeners = new ArrayList<>(getItemListeners());
-        listeners.addAll(getSkipListeners());
-        chunkProvider.setListeners(listeners);
+	public FlushingStepBuilder<I, O> idleTimeout(Duration idleTimeout) {
+		this.idleTimeout = idleTimeout;
+		return this;
+	}
 
-        return chunkProvider;
-    }
+	@Override
+	protected ChunkProvider<I> createChunkProvider() {
 
-    @Override
-    public FlushingStepBuilder<I, O> reader(ItemReader<? extends I> reader) {
-        Assert.state(reader instanceof PollableItemReader, "Reader must be an instance of PollableItemReader");
-        return (FlushingStepBuilder<I, O>) super.reader(reader);
-    }
+		SkipPolicy readSkipPolicy = createSkipPolicy();
+		readSkipPolicy = getFatalExceptionAwareProxy(readSkipPolicy);
+		FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>(getReader(), createChunkOperations());
+		chunkProvider.setMaxSkipsOnRead(Math.max(getChunkSize(), FaultTolerantChunkProvider.DEFAULT_MAX_SKIPS_ON_READ));
+		chunkProvider.setSkipPolicy(readSkipPolicy);
+		chunkProvider.setRollbackClassifier(getRollbackClassifier());
+		chunkProvider.setFlushingInterval(flushingInterval);
+		chunkProvider.setIdleTimeout(idleTimeout);
+		ArrayList<StepListener> listeners = new ArrayList<>(getItemListeners());
+		listeners.addAll(getSkipListeners());
+		chunkProvider.setListeners(listeners);
 
-    public FlushingStepBuilder<I, O> flushingInterval(Duration flushingInterval) {
-        Assert.notNull(flushingInterval, "Flushing interval must not be null");
-        this.flushingInterval = flushingInterval;
-        return this;
-    }
+		return chunkProvider;
+	}
 
-    public FlushingStepBuilder<I, O> idleTimeout(Duration idleTimeout) {
-        this.idleTimeout = idleTimeout;
-        return this;
-    }
-
+	@Override
+	public FlushingStepBuilder<I, O> reader(ItemReader<? extends I> reader) {
+		Assert.state(reader instanceof PollableItemReader, "Reader must be an instance of PollableItemReader");
+		return (FlushingStepBuilder<I, O>) super.reader(reader);
+	}
 
 }

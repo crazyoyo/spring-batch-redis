@@ -44,7 +44,7 @@ public class Expire<K, V, T> extends AbstractKeyOperation<K, V, T> {
 			this.key = key;
 		}
 
-		public <V> ExpireBuilder<T> millis(Converter<T, Long> millis) {
+		public ExpireBuilder<T> millis(Converter<T, Long> millis) {
 			return new ExpireBuilder<>(key, millis);
 		}
 	}

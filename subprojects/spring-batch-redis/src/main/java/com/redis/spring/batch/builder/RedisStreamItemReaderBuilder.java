@@ -1,9 +1,11 @@
-package com.redis.spring.batch.support;
+package com.redis.spring.batch.builder;
 
 import java.time.Duration;
 
 import org.springframework.util.ClassUtils;
 
+import com.redis.spring.batch.support.CommandBuilder;
+import com.redis.spring.batch.support.RedisStreamItemReader;
 import com.redis.spring.batch.support.RedisStreamItemReader.AckPolicy;
 
 import io.lettuce.core.AbstractRedisClient;

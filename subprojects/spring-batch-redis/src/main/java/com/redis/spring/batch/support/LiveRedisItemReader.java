@@ -2,13 +2,11 @@ package com.redis.spring.batch.support;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamException;
@@ -22,19 +20,21 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 
 	private final KeyDeduplicator deduplicator = new KeyDeduplicator();
 	private final LiveKeyItemReader<K> keyReader;
-	private final Duration flushingInterval;
-	private final Duration idleTimeout;
+	private Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
+	private Duration idleTimeout;
 	private boolean open;
 
 	public LiveRedisItemReader(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-			LiveKeyItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader, int threads,
-			int chunkSize, BlockingQueue<T> queue, Duration queuePollTimeout, SkipPolicy skipPolicy,
-			Duration flushingInterval, Duration idleTimeout) {
-		super(jobRepository, transactionManager, keyReader, valueReader, threads, chunkSize, queue, queuePollTimeout,
-				skipPolicy);
-		Utils.assertPositive(flushingInterval, "Flushing interval");
+			LiveKeyItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader) {
+		super(jobRepository, transactionManager, keyReader, valueReader);
 		this.keyReader = keyReader;
+	}
+
+	public void setFlushingInterval(Duration flushingInterval) {
 		this.flushingInterval = flushingInterval;
+	}
+
+	public void setIdleTimeout(Duration idleTimeout) {
 		this.idleTimeout = idleTimeout;
 	}
 

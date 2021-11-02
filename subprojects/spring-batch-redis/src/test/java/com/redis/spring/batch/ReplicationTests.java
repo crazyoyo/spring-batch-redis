@@ -21,7 +21,7 @@ import com.redis.spring.batch.support.KeyComparator;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.LiveRedisItemReader;
 import com.redis.spring.batch.support.ScanSizeEstimator;
-import com.redis.spring.batch.support.ScanSizeEstimator.EstimateOptions;
+import com.redis.spring.batch.support.ScanSizeEstimator.ScanSizeEstimatorBuilder;
 import com.redis.spring.batch.support.compare.KeyComparisonLogger;
 import com.redis.spring.batch.support.compare.KeyComparisonResults;
 import com.redis.testcontainers.RedisContainer;
@@ -166,18 +166,17 @@ public class ReplicationTests extends AbstractRedisTestBase {
 	@ParameterizedTest
 	@MethodSource("servers")
 	public void testScanSizeEstimator(RedisServer server) throws Exception {
-		execute(dataGenerator(server, "scan-size-estimator").end(12345).dataType(Type.HASH));
-		ScanSizeEstimator estimator = sizeEstimator(server);
 		String pattern = "hash:*";
+		execute(dataGenerator(server, "scan-size-estimator").end(12345).dataType(Type.HASH));
 		long expectedCount = ((RedisKeyCommands<String, String>) sync(server)).keys(pattern).size();
-		long matchCount = estimator.estimate(EstimateOptions.builder().sampleSize(1000).match(pattern).build());
+		long matchCount = sizeEstimator(server).sampleSize(1000).match(pattern).build().call();
 		Assertions.assertEquals(expectedCount, matchCount, expectedCount / 10);
-		long typeSize = estimator.estimate(EstimateOptions.builder().sampleSize(1000).type(DataStructure.HASH).build());
+		long typeSize = sizeEstimator(server).sampleSize(1000).type(DataStructure.HASH).build().call();
 		Assertions.assertEquals(expectedCount, typeSize, expectedCount / 10);
 	}
 
-	private ScanSizeEstimator sizeEstimator(RedisServer server) {
-		return ScanSizeEstimator.client(clients.get(server)).build();
+	private ScanSizeEstimatorBuilder sizeEstimator(RedisServer server) {
+		return ScanSizeEstimator.client(clients.get(server));
 	}
 
 }

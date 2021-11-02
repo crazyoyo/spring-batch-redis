@@ -12,21 +12,36 @@ import org.springframework.util.ClassUtils;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructure.Type;
 
-import lombok.Data;
-
 public abstract class DataStructureGeneratorItemReader<T>
 		extends AbstractItemCountingItemStreamItemReader<DataStructure<String>> {
 
 	private final Type type;
-	private final DataStructureOptions options;
+	private String keyPrefix;
+	private Range<Long> sequence = Generator.DEFAULT_SEQUENCE;
+	private Range<Long> expiration;
 
-	protected DataStructureGeneratorItemReader(Type type, DataStructureOptions options) {
+	protected DataStructureGeneratorItemReader(Type type) {
 		Assert.notNull(type, "A data structure type is required");
-		Assert.notNull(options, "Options are required");
 		setName(ClassUtils.getShortName(getClass()));
-		setMaxItemCount(Math.toIntExact(options.getSequence().getMaximum() - options.getSequence().getMinimum()));
+		setMaxItemCount();
 		this.type = type;
-		this.options = options;
+	}
+
+	public void setKeyPrefix(String keyPrefix) {
+		this.keyPrefix = keyPrefix;
+	}
+
+	public void setSequence(Range<Long> sequence) {
+		this.sequence = sequence;
+		setMaxItemCount();
+	}
+
+	public void setExpiration(Range<Long> expiration) {
+		this.expiration = expiration;
+	}
+
+	private void setMaxItemCount() {
+		setMaxItemCount(Math.toIntExact(sequence.getMaximum() - sequence.getMinimum()));
 	}
 
 	@Override
@@ -34,8 +49,8 @@ public abstract class DataStructureGeneratorItemReader<T>
 		String key = key();
 		T value = value();
 		DataStructure<String> dataStructure = new DataStructure<>(type.name(), key, value);
-		if (options.getExpiration() != null) {
-			dataStructure.setAbsoluteTTL(System.currentTimeMillis() + randomLong(options.getExpiration()));
+		if (expiration != null) {
+			dataStructure.setAbsoluteTTL(System.currentTimeMillis() + randomLong(expiration));
 		}
 		return dataStructure;
 	}
@@ -45,14 +60,14 @@ public abstract class DataStructureGeneratorItemReader<T>
 	}
 
 	private String prefix(String id) {
-		if (options.getKeyPrefix() == null) {
+		if (keyPrefix == null) {
 			return id;
 		}
-		return options.getKeyPrefix() + ":" + id;
+		return keyPrefix + ":" + id;
 	}
 
 	protected long index() {
-		return options.getSequence().getMinimum() + getCurrentItemCount();
+		return sequence.getMinimum() + getCurrentItemCount();
 	}
 
 	protected abstract T value();
@@ -84,54 +99,6 @@ public abstract class DataStructureGeneratorItemReader<T>
 			return range.getMinimum();
 		}
 		return ThreadLocalRandom.current().nextDouble(range.getMinimum(), range.getMaximum());
-	}
-
-	@Data
-	public static class DataStructureOptions {
-
-		private String keyPrefix;
-		private Range<Long> sequence;
-		private Range<Long> expiration;
-
-		public static DataStructureOptionsBuilder<?> builder() {
-			return new DataStructureOptionsBuilder<>();
-		}
-
-		@SuppressWarnings("unchecked")
-		public static class DataStructureOptionsBuilder<B extends DataStructureOptionsBuilder<B>> {
-
-			private String keyPrefix;
-			private Range<Long> sequence = Generator.DEFAULT_SEQUENCE;
-			private Range<Long> expiration;
-
-			public B keyPrefix(String keyPrefix) {
-				this.keyPrefix = keyPrefix;
-				return (B) this;
-			}
-
-			public B sequence(Range<Long> sequence) {
-				this.sequence = sequence;
-				return (B) this;
-			}
-
-			public B expiration(Range<Long> expiration) {
-				this.expiration = expiration;
-				return (B) this;
-			}
-
-			public DataStructureOptions build() {
-				DataStructureOptions options = new DataStructureOptions();
-				set(options);
-				return options;
-			}
-
-			protected void set(DataStructureOptions options) {
-				options.setKeyPrefix(keyPrefix);
-				options.setSequence(sequence);
-				options.setExpiration(expiration);
-			}
-		}
-
 	}
 
 }

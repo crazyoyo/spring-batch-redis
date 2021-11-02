@@ -6,8 +6,8 @@ import com.redis.spring.batch.support.DataStructure.Type;
 
 public class ListGeneratorItemReader extends CollectionGeneratorItemReader<List<String>> {
 
-	public ListGeneratorItemReader(CollectionOptions options) {
-		super(Type.LIST, options);
+	public ListGeneratorItemReader() {
+		super(Type.LIST);
 	}
 
 	@Override

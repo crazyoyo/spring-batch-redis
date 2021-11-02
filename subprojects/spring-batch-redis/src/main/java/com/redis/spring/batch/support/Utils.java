@@ -1,13 +1,13 @@
 package com.redis.spring.batch.support;
 
-import io.micrometer.core.instrument.Metrics;
-import io.micrometer.core.instrument.Tag;
-
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 
 import org.springframework.util.Assert;
+
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.Tag;
 
 /**
  * Helper class for spring-batch-redis metrics.
@@ -28,8 +28,9 @@ public interface Utils {
 		Assert.isTrue(!duration.isNegative(), name + " must not be negative");
 	}
 
-	static void assertPositive(int value, String name) {
-		Assert.isTrue(value > 0, name + " must be greater than zero");
+	static void assertPositive(Number value, String name) {
+		Assert.notNull(value, name + " must not be null");
+		Assert.isTrue(value.doubleValue() > 0, name + " must be greater than zero");
 	}
 
 }

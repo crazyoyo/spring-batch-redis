@@ -3,61 +3,89 @@ package com.redis.spring.batch.support;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.core.convert.converter.Converter;
-import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import com.redis.spring.batch.builder.LiveKeyItemReaderBuilder;
+
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.cluster.RedisClusterClient;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class LiveKeyItemReader<K> extends ItemStreamSupport implements PollableItemReader<K> {
+public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements PollableItemReader<K> {
 
-	private final MessageListener messageListener = new MessageListener();
+	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
+	public static final Duration DEFAULT_DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
+
 	private final Collection<KeyListener<K>> listeners = new ArrayList<>();
-	private final PubSubSubscriber<K> subscriber;
-	private final BlockingQueue<K> queue;
-	private final long defaultQueuePollTimeout;
 	private final Converter<K, K> keyExtractor;
-	private boolean open;
+	protected final List<K> patterns;
+	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+	private Duration defaultQueuePollTimeout = DEFAULT_DEFAULT_QUEUE_POLL_TIMEOUT;
 
-	protected LiveKeyItemReader(PubSubSubscriber<K> subscriber, BlockingQueue<K> queue,
-			Duration defaultQueuePollTimeout, Converter<K, K> keyExtractor) {
+	private boolean open;
+	private BlockingQueue<K> queue;
+
+	protected LiveKeyItemReader(Converter<K, K> keyExtractor, List<K> patterns) {
 		setName(ClassUtils.getShortName(getClass()));
-		Assert.notNull(subscriber, "A subscriber is required");
-		Assert.notNull(queue, "A queue is required");
-		Utils.assertPositive(defaultQueuePollTimeout, "Default queue poll timeout");
-		Assert.notNull(keyExtractor, "A key extractor is required");
-		this.subscriber = subscriber;
-		this.queue = queue;
-		this.defaultQueuePollTimeout = defaultQueuePollTimeout.toMillis();
 		this.keyExtractor = keyExtractor;
+		this.patterns = patterns;
+	}
+
+	public void setQueueCapacity(int queueCapacity) {
+		Utils.assertPositive(queueCapacity, "Queue capacity");
+		this.queueCapacity = queueCapacity;
+	}
+
+	public void setDefaultQueuePollTimeout(Duration defaultQueuePollTimeout) {
+		Utils.assertPositive(defaultQueuePollTimeout, "Default queue poll timeout");
+		this.defaultQueuePollTimeout = defaultQueuePollTimeout;
 	}
 
 	public void addListener(KeyListener<K> listener) {
 		this.listeners.add(listener);
 	}
 
-	@Override
-	public K read() throws Exception {
-		return poll(defaultQueuePollTimeout, TimeUnit.MILLISECONDS);
+	protected void message(K message) {
+		if (message == null) {
+			return;
+		}
+		K key = keyExtractor.convert(message);
+		if (key == null) {
+			return;
+		}
+		listeners.forEach(l -> l.key(key));
+		if (!queue.offer(key)) {
+			log.debug("Could not add key: queue full (size={})", queue.size());
+		}
 	}
 
-	@SuppressWarnings("unchecked")
+	@Override
+	public K read() throws Exception {
+		return poll(defaultQueuePollTimeout.toMillis(), TimeUnit.MILLISECONDS);
+	}
+
 	@Override
 	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
 		if (open) {
 			return;
 		}
+		this.queue = new LinkedBlockingQueue<>(queueCapacity);
 		Utils.createGaugeCollectionSize("reader.notification.queue.size", queue);
-		subscriber.open(messageListener);
+		doOpen();
 		open = true;
 	}
+
+	protected abstract void doOpen();
 
 	@Override
 	public K poll(long timeout, TimeUnit unit) throws InterruptedException {
@@ -69,38 +97,29 @@ public class LiveKeyItemReader<K> extends ItemStreamSupport implements PollableI
 		if (!open) {
 			return;
 		}
-		subscriber.close();
+		doClose();
 		open = false;
 	}
+
+	protected abstract void doClose();
 
 	@Override
 	public boolean isOpen() {
 		return open;
 	}
 
-	private class MessageListener implements KeyMessageListener<K> {
-
-		@Override
-		public void message(K message) {
-			if (message == null) {
-				return;
-			}
-			K key = keyExtractor.convert(message);
-			if (key == null) {
-				return;
-			}
-			listeners.forEach(l -> l.key(key));
-			if (!queue.offer(key)) {
-				log.debug("Could not add key: queue full (size={})", queue.size());
-			}
-		}
-
-	}
-
 	public static interface KeyListener<K> {
 
 		void key(K key);
 
+	}
+
+	public static LiveKeyItemReaderBuilder client(RedisClient client) {
+		return new LiveKeyItemReaderBuilder(client);
+	}
+
+	public static LiveKeyItemReaderBuilder client(RedisClusterClient client) {
+		return new LiveKeyItemReaderBuilder(client);
 	}
 
 }

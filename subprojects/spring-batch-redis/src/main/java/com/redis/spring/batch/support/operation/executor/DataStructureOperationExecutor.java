@@ -38,60 +38,58 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		this.xAddArgs = xAddArgs;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public List<Future<?>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends DataStructure<K>> items) {
 		List<Future<?>> futures = new ArrayList<>();
-		for (DataStructure<K> ds : items) {
-			if (ds == null) {
-				continue;
-			}
-			if (ds.getValue() == null) {
-				futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
-				continue;
-			}
-			if (ds.getType() == null) {
-				continue;
-			}
-			switch (ds.getType().toLowerCase()) {
-			case DataStructure.HASH:
-				futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
-				futures.add(((RedisHashAsyncCommands<K, V>) commands).hset(ds.getKey(), (Map<K, V>) ds.getValue()));
-				break;
-			case DataStructure.STRING:
-				futures.add(((RedisStringAsyncCommands<K, V>) commands).set(ds.getKey(), (V) ds.getValue()));
-				break;
-			case DataStructure.LIST:
-				flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()),
-						((RedisListAsyncCommands<K, V>) commands).rpush(ds.getKey(),
-								(V[]) ((Collection<V>) ds.getValue()).toArray()));
-				break;
-			case DataStructure.SET:
-				flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()),
-						((RedisSetAsyncCommands<K, V>) commands).sadd(ds.getKey(),
-								(V[]) ((Collection<V>) ds.getValue()).toArray()));
-				break;
-			case DataStructure.ZSET:
-				flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()),
-						((RedisSortedSetAsyncCommands<K, V>) commands).zadd(ds.getKey(),
-								((Collection<ScoredValue<String>>) ds.getValue()).toArray(new ScoredValue[0])));
-				break;
-			case DataStructure.STREAM:
-				List<RedisFuture<?>> streamFutures = new ArrayList<>();
-				streamFutures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
-				Collection<StreamMessage<K, V>> messages = (Collection<StreamMessage<K, V>>) ds.getValue();
-				for (StreamMessage<K, V> message : messages) {
-					streamFutures.add(((RedisStreamAsyncCommands<K, V>) commands).xadd(ds.getKey(),
-							xAddArgs.convert(message), message.getBody()));
-				}
-				flush(commands, streamFutures.toArray(new RedisFuture[0]));
-				break;
-			}
-			if (ds.hasTTL()) {
-				futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getAbsoluteTTL()));
-			}
+		for (DataStructure<K> item : items) {
+			execute(commands, futures, item);
 		}
 		return futures;
+	}
+
+	@SuppressWarnings("unchecked")
+	private void execute(BaseRedisAsyncCommands<K, V> commands, List<Future<?>> futures, DataStructure<K> ds) {
+		if (ds == null) {
+			return;
+		}
+		if (ds.getValue() == null) {
+			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
+			return;
+		}
+		if (ds.getType() == null) {
+			return;
+		}
+		String lowerCase = ds.getType().toLowerCase();
+		if (lowerCase.equals(DataStructure.HASH)) {
+			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
+			futures.add(((RedisHashAsyncCommands<K, V>) commands).hset(ds.getKey(), (Map<K, V>) ds.getValue()));
+		} else if (lowerCase.equals(DataStructure.STRING)) {
+			futures.add(((RedisStringAsyncCommands<K, V>) commands).set(ds.getKey(), (V) ds.getValue()));
+		} else if (lowerCase.equals(DataStructure.LIST)) {
+			flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()),
+					((RedisListAsyncCommands<K, V>) commands).rpush(ds.getKey(),
+							(V[]) ((Collection<V>) ds.getValue()).toArray()));
+		} else if (lowerCase.equals(DataStructure.SET)) {
+			flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()),
+					((RedisSetAsyncCommands<K, V>) commands).sadd(ds.getKey(),
+							(V[]) ((Collection<V>) ds.getValue()).toArray()));
+		} else if (lowerCase.equals(DataStructure.ZSET)) {
+			flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()),
+					((RedisSortedSetAsyncCommands<K, V>) commands).zadd(ds.getKey(),
+							((Collection<ScoredValue<String>>) ds.getValue()).toArray(new ScoredValue[0])));
+		} else if (lowerCase.equals(DataStructure.STREAM)) {
+			List<RedisFuture<?>> streamFutures = new ArrayList<>();
+			streamFutures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
+			Collection<StreamMessage<K, V>> messages = (Collection<StreamMessage<K, V>>) ds.getValue();
+			for (StreamMessage<K, V> message : messages) {
+				streamFutures.add(((RedisStreamAsyncCommands<K, V>) commands).xadd(ds.getKey(),
+						xAddArgs.convert(message), message.getBody()));
+			}
+			flush(commands, streamFutures.toArray(new RedisFuture[0]));
+		}
+		if (ds.hasTTL()) {
+			futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getAbsoluteTTL()));
+		}
 	}
 
 	private void flush(BaseRedisAsyncCommands<K, V> commands, RedisFuture<?>... futures) {

@@ -3,8 +3,13 @@ package com.redis.spring.batch;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
@@ -15,6 +20,7 @@ import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.step.skip.LimitCheckingItemSkipPolicy;
 import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
@@ -27,61 +33,89 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import com.redis.spring.batch.builder.RedisStreamItemReaderBuilder.OffsetStreamItemReaderBuilder;
+import com.redis.spring.batch.builder.ScanRedisItemReaderBuilder;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.DataStructureValueReader.DataStructureValueReaderFactory;
 import com.redis.spring.batch.support.KeyDumpValueReader;
 import com.redis.spring.batch.support.KeyDumpValueReader.KeyDumpValueReaderFactory;
 import com.redis.spring.batch.support.KeyValue;
-import com.redis.spring.batch.support.RedisItemReaderBuilder.ScanRedisItemReaderBuilder;
-import com.redis.spring.batch.support.RedisStreamItemReaderBuilder.OffsetStreamItemReaderBuilder;
 import com.redis.spring.batch.support.RedisValueEnqueuer;
 import com.redis.spring.batch.support.Utils;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisCommandExecutionException;
+import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.XReadArgs.StreamOffset;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemStreamItemReader<T> {
 
+	public static final int DEFAULT_THREADS = 1;
+	public static final int DEFAULT_CHUNK_SIZE = 50;
+	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
+	public static final Duration DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
+	public static final int DEFAULT_SKIP_LIMIT = 3;
+	public static final Map<Class<? extends Throwable>, Boolean> DEFAULT_SKIPPABLE_EXCEPTIONS = Stream
+			.of(RedisCommandExecutionException.class, RedisCommandTimeoutException.class, TimeoutException.class)
+			.collect(Collectors.toMap(t -> t, t -> true));
+	public static final SkipPolicy DEFAULT_SKIP_POLICY = new LimitCheckingItemSkipPolicy(DEFAULT_SKIP_LIMIT,
+			DEFAULT_SKIPPABLE_EXCEPTIONS);
+
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager transactionManager;
 	private final ItemReader<K> keyReader;
 	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
-	protected final RedisValueEnqueuer<K, T> enqueuer;
-	private final int threads;
-	private final int chunkSize;
-	private final SkipPolicy skipPolicy;
-	private final long pollTimeout;
+
+	private int threads = DEFAULT_THREADS;
+	private int chunkSize = DEFAULT_CHUNK_SIZE;
+	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+	private Duration queuePollTimeout = DEFAULT_QUEUE_POLL_TIMEOUT;
+	private SkipPolicy skipPolicy = DEFAULT_SKIP_POLICY;
 
 	protected BlockingQueue<T> valueQueue;
+	protected RedisValueEnqueuer<K, T> enqueuer;
 	private JobExecution jobExecution;
 	private String name;
 
 	public RedisItemReader(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-			ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader, int threads, int chunkSize,
-			BlockingQueue<T> valueQueue, Duration queuePollTimeout, SkipPolicy skipPolicy) {
+			ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader) {
 		setName(ClassUtils.getShortName(getClass()));
 		Assert.notNull(jobRepository, "A job repository is required");
 		Assert.notNull(transactionManager, "A platform transaction manager is required");
 		Assert.notNull(keyReader, "A key reader is required");
 		Assert.notNull(valueReader, "A value reader is required");
-		Utils.assertPositive(threads, "Thread count");
-		Utils.assertPositive(chunkSize, "Chunk size");
-		Assert.notNull(valueQueue, "A queue is required");
-		Utils.assertPositive(queuePollTimeout, "Queue poll timeout");
-		Assert.notNull(skipPolicy, "A skip policy is required");
 		this.jobRepository = jobRepository;
 		this.transactionManager = transactionManager;
 		this.keyReader = keyReader;
 		this.valueReader = valueReader;
+	}
+
+	public void setThreads(int threads) {
+		Utils.assertPositive(threads, "Thread count");
 		this.threads = threads;
+	}
+
+	public void setChunkSize(int chunkSize) {
+		Utils.assertPositive(chunkSize, "Chunk size");
 		this.chunkSize = chunkSize;
-		this.valueQueue = valueQueue;
-		this.pollTimeout = queuePollTimeout.toMillis();
+	}
+
+	public void setQueueCapacity(int queueCapacity) {
+		Utils.assertPositive(queueCapacity, "Value queue capacity");
+		this.queueCapacity = queueCapacity;
+	}
+
+	public void setQueuePollTimeout(Duration queuePollTimeout) {
+		Utils.assertPositive(queuePollTimeout, "Queue poll timeout");
+		this.queuePollTimeout = queuePollTimeout;
+	}
+
+	public void setSkipPolicy(SkipPolicy skipPolicy) {
+		Assert.notNull(skipPolicy, "A skip policy is required");
 		this.skipPolicy = skipPolicy;
-		this.enqueuer = new RedisValueEnqueuer<>(valueReader, valueQueue);
 	}
 
 	public ItemProcessor<List<? extends K>, List<T>> getValueReader() {
@@ -101,6 +135,8 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 			return;
 		}
 		log.info("Opening {}", name);
+		valueQueue = new LinkedBlockingQueue<>(queueCapacity);
+		enqueuer = new RedisValueEnqueuer<>(valueReader, valueQueue);
 		Utils.createGaugeCollectionSize("reader.queue.size", valueQueue);
 		StepBuilderFactory stepBuilderFactory = new StepBuilderFactory(jobRepository, transactionManager);
 		FaultTolerantStepBuilder<K, K> stepBuilder = faultTolerantStepBuilder(
@@ -135,7 +171,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	public T read() throws Exception {
 		T item;
 		do {
-			item = valueQueue.poll(pollTimeout, TimeUnit.MILLISECONDS);
+			item = valueQueue.poll(queuePollTimeout.toMillis(), TimeUnit.MILLISECONDS);
 		} while (item == null && jobExecution.isRunning());
 		return item;
 	}
@@ -162,14 +198,14 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 
 	public static ScanRedisItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>> dataStructure(
 			JobRepository jobRepository, PlatformTransactionManager transactionManager, AbstractRedisClient client) {
-		return new ScanRedisItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>>(
-				jobRepository, transactionManager, client, new DataStructureValueReaderFactory<String, String>());
+		return new ScanRedisItemReaderBuilder<>(jobRepository, transactionManager, client,
+				new DataStructureValueReaderFactory<>());
 	}
 
 	public static ScanRedisItemReaderBuilder<KeyValue<String, byte[]>, KeyDumpValueReader<String, String>> keyDump(
 			JobRepository jobRepository, PlatformTransactionManager transactionManager, AbstractRedisClient client) {
-		return new ScanRedisItemReaderBuilder<KeyValue<String, byte[]>, KeyDumpValueReader<String, String>>(
-				jobRepository, transactionManager, client, new KeyDumpValueReaderFactory<String, String>());
+		return new ScanRedisItemReaderBuilder<>(jobRepository, transactionManager, client,
+				new KeyDumpValueReaderFactory<>());
 	}
 
 	public static OffsetStreamItemReaderBuilder stream(StreamOffset<String> offset) {

@@ -28,10 +28,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructure.Type;
-import com.redis.spring.batch.support.generator.CollectionGeneratorItemReader.CollectionOptions;
-import com.redis.spring.batch.support.generator.DataStructureGeneratorItemReader.DataStructureOptions;
-import com.redis.spring.batch.support.generator.StringGeneratorItemReader.StringOptions;
-import com.redis.spring.batch.support.generator.ZsetGeneratorItemReader.ZsetOptions;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
@@ -46,7 +42,6 @@ public class Generator implements Callable<JobExecution> {
 	private static final String NAME = "generator";
 
 	public static final int DEFAULT_CHUNK_SIZE = 50;
-	public static final Type[] DEFAULT_DATATYPES = Type.values();
 	public static final Range<Long> DEFAULT_SEQUENCE = Range.between(0L, 100L);
 	public static final Range<Long> DEFAULT_COLLECTION_CARDINALITY = Range.is(10L);
 	public static final Range<Integer> DEFAULT_STRING_VALUE_SIZE = Range.is(100);
@@ -121,44 +116,44 @@ public class Generator implements Callable<JobExecution> {
 	private ItemReader<DataStructure<String>> reader(Type type) {
 		switch (type) {
 		case HASH:
-			return new HashGeneratorItemReader(configureDataStructure(DataStructureOptions.builder().build()));
+			HashGeneratorItemReader hashReader = new HashGeneratorItemReader();
+			configureDataStructure(hashReader);
+			return hashReader;
 		case LIST:
-			return new ListGeneratorItemReader(configureCollection(CollectionOptions.builder().build()));
+			ListGeneratorItemReader listReader = new ListGeneratorItemReader();
+			configureCollection(listReader);
+			return listReader;
 		case SET:
-			return new SetGeneratorItemReader(configureCollection(CollectionOptions.builder().build()));
+			SetGeneratorItemReader setReader = new SetGeneratorItemReader();
+			configureCollection(setReader);
+			return setReader;
 		case STREAM:
-			return new StreamGeneratorItemReader(configureCollection(CollectionOptions.builder().build()));
+			StreamGeneratorItemReader streamReader = new StreamGeneratorItemReader();
+			configureCollection(streamReader);
+			return streamReader;
 		case STRING:
-			return new StringGeneratorItemReader(configureString(StringOptions.builder().build()));
+			StringGeneratorItemReader stringReader = new StringGeneratorItemReader();
+			stringReader.setValueSize(stringValueSize);
+			configureDataStructure(stringReader);
+			return stringReader;
 		case ZSET:
-			return new ZsetGeneratorItemReader(configureZset(ZsetOptions.builder().build()));
+			ZsetGeneratorItemReader zsetReader = new ZsetGeneratorItemReader();
+			zsetReader.setScore(zsetScore);
+			configureCollection(zsetReader);
+			return zsetReader;
 		}
 		throw new UnsupportedOperationException(String.format("Data type '%s' is not supported", type));
 	}
 
-	private ZsetOptions configureZset(ZsetOptions options) {
-		options.setScore(zsetScore);
-		configureCollection(options);
-		return options;
+	private void configureCollection(CollectionGeneratorItemReader<?> reader) {
+		reader.setCardinality(collectionCardinality);
+		configureDataStructure(reader);
 	}
 
-	private StringOptions configureString(StringOptions options) {
-		options.setValueSize(stringValueSize);
-		configureDataStructure(options);
-		return options;
-	}
-
-	private CollectionOptions configureCollection(CollectionOptions options) {
-		options.setCardinality(collectionCardinality);
-		configureDataStructure(options);
-		return options;
-	}
-
-	private DataStructureOptions configureDataStructure(DataStructureOptions options) {
-		options.setSequence(sequence);
-		options.setKeyPrefix(keyPrefix);
-		options.setExpiration(expiration);
-		return options;
+	private void configureDataStructure(DataStructureGeneratorItemReader<?> reader) {
+		reader.setSequence(sequence);
+		reader.setKeyPrefix(keyPrefix);
+		reader.setExpiration(expiration);
 	}
 
 	public static class GeneratorBuilder {

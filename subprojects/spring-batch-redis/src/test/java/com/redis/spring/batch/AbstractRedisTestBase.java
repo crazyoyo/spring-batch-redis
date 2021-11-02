@@ -13,6 +13,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.RedisItemWriter.RedisItemWriterBuilder;
+import com.redis.spring.batch.builder.LiveRedisItemReaderBuilder;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.KeyValue;
@@ -96,18 +97,21 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 
 	protected LiveRedisItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisServer redis, String name,
 			int notificationQueueCapacity) {
-		return setName(
-				RedisItemReader.keyDump(jobRepository, transactionManager, clients.get(redis)).live()
-						.idleTimeout(IDLE_TIMEOUT).notificationQueueCapacity(notificationQueueCapacity).build(),
-				redis, name + "-live-key-dump");
+		return setName(configureLiveReader(
+				RedisItemReader.keyDump(jobRepository, transactionManager, clients.get(redis)).live(),
+				notificationQueueCapacity).build(), redis, name + "-live-key-dump");
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private <B extends LiveRedisItemReaderBuilder> B configureLiveReader(B builder, int notificationQueueCapacity) {
+		return (B) builder.idleTimeout(IDLE_TIMEOUT).notificationQueueCapacity(notificationQueueCapacity);
 	}
 
 	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisServer server,
 			String name, int notificationQueueCapacity) {
-		return setName(
-				RedisItemReader.dataStructure(jobRepository, transactionManager, clients.get(server)).live()
-						.idleTimeout(IDLE_TIMEOUT).notificationQueueCapacity(notificationQueueCapacity).build(),
-				server, name + "-live-data-structure");
+		return setName(configureLiveReader(
+				RedisItemReader.dataStructure(jobRepository, transactionManager, clients.get(server)).live(),
+				notificationQueueCapacity).build(), server, name + "-live-data-structure");
 	}
 
 	private <T extends AbstractItemStreamItemReader<?>> T setName(T reader, RedisServer redis, String name) {

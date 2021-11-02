@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -19,13 +20,19 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.api.async.RedisServerAsyncCommands;
 import io.lettuce.core.codec.StringCodec;
-import lombok.Builder;
-import lombok.Data;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 
-public class ScanSizeEstimator {
+public class ScanSizeEstimator implements Callable<Long> {
+
+	public static final int DEFAULT_SAMPLE_SIZE = 1000;
 
 	private final Supplier<StatefulConnection<String, String>> connectionSupplier;
 	private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
+
+	private int sampleSize = DEFAULT_SAMPLE_SIZE;
+	private String match;
+	private String type;
 
 	public ScanSizeEstimator(Supplier<StatefulConnection<String, String>> connectionSupplier,
 			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
@@ -33,22 +40,35 @@ public class ScanSizeEstimator {
 		this.async = async;
 	}
 
+	public void setSampleSize(int sampleSize) {
+		this.sampleSize = sampleSize;
+	}
+
+	public void setMatch(String match) {
+		this.match = match;
+	}
+
+	public void setType(String type) {
+		this.type = type;
+	}
+
 	@SuppressWarnings("unchecked")
-	public long estimate(EstimateOptions options) throws Exception {
-		Utils.assertPositive(options.getSampleSize(), "Sample size");
+	@Override
+	public Long call() throws Exception {
+		Utils.assertPositive(sampleSize, "Sample size");
 		try (StatefulConnection<String, String> connection = connectionSupplier.get()) {
 			BaseRedisAsyncCommands<String, String> commands = async.apply(connection);
 			Long dbsize = ((RedisServerAsyncCommands<String, String>) commands).dbsize().get();
 			if (dbsize == null) {
-				throw new Exception("Could not get DB size");
+				return null;
 			}
-			if (options.getMatch() == null && options.getType() == null) {
+			if (match == null && type == null) {
 				return dbsize;
 			}
 			commands.setAutoFlushCommands(false);
-			List<RedisFuture<String>> keyFutures = new ArrayList<>(options.getSampleSize());
+			List<RedisFuture<String>> keyFutures = new ArrayList<>(sampleSize);
 			// rough estimate of keys matching pattern
-			for (int index = 0; index < options.getSampleSize(); index++) {
+			for (int index = 0; index < sampleSize; index++) {
 				keyFutures.add(((RedisKeyAsyncCommands<String, String>) commands).randomkey());
 			}
 			commands.flushCommands();
@@ -60,22 +80,24 @@ public class ScanSizeEstimator {
 				if (key == null) {
 					continue;
 				}
-				keyTypeFutures.put(key, options.getType() == null ? null
-						: ((RedisKeyAsyncCommands<String, String>) commands).type(key));
+				keyTypeFutures.put(key,
+						type == null ? null : ((RedisKeyAsyncCommands<String, String>) commands).type(key));
 			}
 			commands.flushCommands();
-			Predicate<String> matchPredicate = predicate(options.getMatch());
+			Predicate<String> matchPredicate = predicate(match);
 			for (Map.Entry<String, RedisFuture<String>> entry : keyTypeFutures.entrySet()) {
-				if (matchPredicate.test(entry.getKey())) {
-					if (options.getType() == null || options.getType()
-							.equalsIgnoreCase(entry.getValue().get(commandTimeout, TimeUnit.MILLISECONDS))) {
-						matchCount++;
-					}
+				if (!matchPredicate.test(entry.getKey())) {
+					continue;
+				}
+				if (type == null
+						|| type.equalsIgnoreCase(entry.getValue().get(commandTimeout, TimeUnit.MILLISECONDS))) {
+					matchCount++;
 				}
 			}
 			commands.setAutoFlushCommands(true);
-			return dbsize * matchCount / options.getSampleSize();
+			return dbsize * matchCount / sampleSize;
 		}
+
 	}
 
 	private Predicate<String> predicate(String match) {
@@ -90,33 +112,24 @@ public class ScanSizeEstimator {
 		return new ScanSizeEstimatorBuilder(client);
 	}
 
+	@Setter
+	@Accessors(fluent = true)
 	public static class ScanSizeEstimatorBuilder extends CommandBuilder<String, String, ScanSizeEstimatorBuilder> {
+
+		private int sampleSize = DEFAULT_SAMPLE_SIZE;
+		private String match;
+		private String type;
 
 		public ScanSizeEstimatorBuilder(AbstractRedisClient client) {
 			super(client, StringCodec.UTF8);
 		}
 
 		public ScanSizeEstimator build() {
-			return new ScanSizeEstimator(connectionSupplier(), async());
-		}
-
-	}
-
-	@Data
-	@Builder
-	public static class EstimateOptions {
-
-		public final static int DEFAULT_SAMPLE_SIZE = 1000;
-
-		@Builder.Default
-		private int sampleSize = DEFAULT_SAMPLE_SIZE;
-		private String match;
-		private String type;
-
-		public EstimateOptions sampleSize(int sampleSize) {
-			Utils.assertPositive(sampleSize, "Sample size");
-			this.sampleSize = sampleSize;
-			return this;
+			ScanSizeEstimator estimator = new ScanSizeEstimator(super.connectionSupplier(), super.async());
+			estimator.setSampleSize(sampleSize);
+			estimator.setMatch(match);
+			estimator.setType(type);
+			return estimator;
 		}
 
 	}
