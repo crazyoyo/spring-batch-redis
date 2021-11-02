@@ -21,7 +21,7 @@ public class Expire<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<Boolean> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Long millis = milliseconds.convert(item);
 		if (millis == null) {
 			return null;

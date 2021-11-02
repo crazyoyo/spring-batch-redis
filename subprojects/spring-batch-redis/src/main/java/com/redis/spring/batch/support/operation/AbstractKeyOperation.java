@@ -13,27 +13,27 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
 public abstract class AbstractKeyOperation<K, V, T> implements RedisOperation<K, V, T> {
 
-	private final Converter<T, K> key;
-	private final Predicate<T> delete;
+	private final Converter<T, K> keyConverter;
+	private final Predicate<T> deletePredicate;
 
 	protected AbstractKeyOperation(Converter<T, K> key, Predicate<T> delete) {
 		Assert.notNull(key, "A key converter is required");
 		Assert.notNull(delete, "A delete predicate is required");
-		this.key = key;
-		this.delete = delete;
+		this.keyConverter = key;
+		this.deletePredicate = delete;
 	}
 
 	@Override
 	public RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
-		K key = this.key.convert(item);
-		if (delete.test(item)) {
+		K key = this.keyConverter.convert(item);
+		if (deletePredicate.test(item)) {
 			return delete(commands, item, key);
 		}
 		return doExecute(commands, item, key);
 	}
 
 	@SuppressWarnings("unchecked")
-	protected RedisFuture<?> delete(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<Long> delete(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		return ((RedisKeyAsyncCommands<K, K>) commands).del(key);
 	}
 

@@ -88,14 +88,14 @@ public abstract class DataStructureGeneratorItemReader<T>
 	}
 
 	public long randomLong(Range<Long> range) {
-		if (range.getMinimum() == range.getMaximum()) {
+		if (range.getMinimum().equals(range.getMaximum())) {
 			return range.getMinimum();
 		}
 		return ThreadLocalRandom.current().nextLong(range.getMinimum(), range.getMaximum());
 	}
 
 	public double randomDouble(Range<Double> range) {
-		if (range.getMinimum() == range.getMaximum()) {
+		if (range.getMinimum().equals(range.getMaximum())) {
 			return range.getMinimum();
 		}
 		return ThreadLocalRandom.current().nextDouble(range.getMinimum(), range.getMaximum());

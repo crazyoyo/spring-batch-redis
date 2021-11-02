@@ -9,11 +9,11 @@ import com.redis.spring.batch.support.DataStructure.Type;
 import com.redis.spring.batch.support.generator.Generator;
 import com.redis.testcontainers.RedisServer;
 
-public class GeneratorTests extends AbstractRedisTestBase {
+class GeneratorTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testDefaults(RedisServer redis) throws Exception {
+	void testDefaults(RedisServer redis) throws Exception {
 		execute(dataGenerator(redis, "defaults"));
 		RedisModulesCommands<String, String> sync = sync(redis);
 		long expectedCount = Generator.DEFAULT_SEQUENCE.getMaximum() - Generator.DEFAULT_SEQUENCE.getMinimum();
@@ -24,7 +24,7 @@ public class GeneratorTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testToOption(RedisServer redis) throws Exception {
+	void testToOption(RedisServer redis) throws Exception {
 		int count = 123;
 		execute(dataGenerator(redis, "to-options").end(count));
 		RedisModulesCommands<String, String> sync = sync(redis);

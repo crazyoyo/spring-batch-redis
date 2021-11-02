@@ -15,23 +15,23 @@ import lombok.experimental.Accessors;
 
 public class Lpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
-	private final Converter<T, V[]> members;
+	private final Converter<T, V[]> memberArrayConverter;
 
 	public Lpush(Converter<T, K> key, Predicate<T> delete, Predicate<T> remove, Converter<T, V[]> members) {
 		super(key, delete, remove);
-		this.members = members;
+		this.memberArrayConverter = members;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		return ((RedisListAsyncCommands<K, V>) commands).lpush(key, members.convert(item));
+	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		return ((RedisListAsyncCommands<K, V>) commands).lpush(key, memberArrayConverter.convert(item));
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		V[] members = this.members.convert(item);
+	protected RedisFuture<Long> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		V[] members = this.memberArrayConverter.convert(item);
 		if (members == null) {
 			return null;
 		}

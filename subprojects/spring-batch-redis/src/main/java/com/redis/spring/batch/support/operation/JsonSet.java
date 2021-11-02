@@ -28,7 +28,7 @@ public class JsonSet<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> delete(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<Long> delete(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		return ((RedisJSONAsyncCommands<K, V>) commands).jsonDel(key, path.convert(item));
 	}
 

@@ -18,18 +18,15 @@ import lombok.experimental.Accessors;
 @Accessors(fluent = true)
 public class RedisStreamItemReaderBuilder extends CommandBuilder<String, String, RedisStreamItemReaderBuilder> {
 
-	public static final Duration DEFAULT_BLOCK = Duration.ofMillis(100);
-	public static final long DEFAULT_COUNT = 50;
 	public static final String DEFAULT_CONSUMER_GROUP = ClassUtils.getShortName(RedisStreamItemReader.class);
 	public static final String DEFAULT_CONSUMER = "consumer1";
-	public static final AckPolicy DEFAULT_ACK_POLICY = AckPolicy.AUTO;
 
 	private final StreamOffset<String> offset;
-	private Duration block = DEFAULT_BLOCK;
-	private Long count = DEFAULT_COUNT;
+	private Duration block = RedisStreamItemReader.DEFAULT_BLOCK;
+	private long count = RedisStreamItemReader.DEFAULT_COUNT;
 	private String consumerGroup = DEFAULT_CONSUMER_GROUP;
 	private String consumer = DEFAULT_CONSUMER;
-	private AckPolicy ackPolicy = DEFAULT_ACK_POLICY;
+	private AckPolicy ackPolicy = RedisStreamItemReader.DEFAULT_ACK_POLICY;
 
 	public RedisStreamItemReaderBuilder(AbstractRedisClient client, StreamOffset<String> offset) {
 		super(client, StringCodec.UTF8);
@@ -37,8 +34,14 @@ public class RedisStreamItemReaderBuilder extends CommandBuilder<String, String,
 	}
 
 	public RedisStreamItemReader<String, String> build() {
-		return new RedisStreamItemReader<>(connectionSupplier(), poolConfig, sync(), count, block, consumerGroup,
-				consumer, offset, ackPolicy);
+		RedisStreamItemReader<String, String> reader = new RedisStreamItemReader<>(connectionSupplier(), poolConfig,
+				sync(), offset);
+		reader.setAckPolicy(ackPolicy);
+		reader.setBlock(block);
+		reader.setConsumer(consumer);
+		reader.setConsumerGroup(consumerGroup);
+		reader.setCount(count);
+		return reader;
 	}
 
 	public static class OffsetStreamItemReaderBuilder {

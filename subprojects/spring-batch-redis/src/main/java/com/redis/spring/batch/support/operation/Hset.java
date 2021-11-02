@@ -24,7 +24,7 @@ public class Hset<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<Long> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		return ((RedisHashAsyncCommands<K, V>) commands).hset(key, map.convert(item));
 	}
 

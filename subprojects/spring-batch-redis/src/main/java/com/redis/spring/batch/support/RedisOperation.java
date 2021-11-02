@@ -54,7 +54,7 @@ public interface RedisOperation<K, V, T> {
 
 		protected Predicate<T> remove = t -> false;
 
-		public RemoveBuilder(Converter<T, ?> value) {
+		protected RemoveBuilder(Converter<T, ?> value) {
 			super(value);
 		}
 

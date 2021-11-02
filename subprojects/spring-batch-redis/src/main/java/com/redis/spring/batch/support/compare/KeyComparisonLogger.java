@@ -64,6 +64,8 @@ public class KeyComparisonLogger implements KeyComparisonListener<String> {
 			case DataStructure.HASH:
 				showHashDiff(comparison);
 				break;
+			default:
+				break;
 			}
 			break;
 		case OK:
@@ -86,12 +88,7 @@ public class KeyComparisonLogger implements KeyComparisonListener<String> {
 		String sourceString = (String) comparison.getSource().getValue();
 		String targetString = (String) comparison.getTarget().getValue();
 		int diffIndex = StringUtils.indexOfDifference(sourceString, targetString);
-		log.warn("Mismatch for string '{}' at offset {}: {} <> {}", comparison.getSource().getKey(), diffIndex,
-				substring(sourceString, diffIndex), substring(targetString, diffIndex));
-	}
-
-	private String substring(String string, int index) {
-		return string.substring(Math.max(0, index - 5), Math.min(string.length(), index + 5));
+		log.warn("Mismatch for string '{}' at offset {}", comparison.getSource().getKey(), diffIndex);
 	}
 
 	private void showListDiff(KeyComparison<String> comparison) {

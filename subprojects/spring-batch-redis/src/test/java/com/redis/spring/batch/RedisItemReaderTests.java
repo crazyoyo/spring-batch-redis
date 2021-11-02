@@ -99,7 +99,7 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 				Hset.<Map<String, String>>key(t -> t.get("id")).map(t -> t).build()).build();
 		run(server, name + "-populate", reader, new MapFlattener(), writer);
 	}
-	
+
 	private static class SynchronizedListItemWriter<T> implements ItemWriter<T> {
 
 		private List<T> writtenItems = new ArrayList<>();
@@ -207,7 +207,7 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 		RedisStreamItemReader<String, String> reader = streamReader(redis, offset()).build();
 		reader.open(new ExecutionContext());
 		List<StreamMessage<String, String>> messages = reader.readMessages();
-		Assertions.assertEquals(RedisStreamItemReaderBuilder.DEFAULT_COUNT, messages.size());
+		Assertions.assertEquals(RedisStreamItemReader.DEFAULT_COUNT, messages.size());
 		assertMessageBody(messages);
 	}
 

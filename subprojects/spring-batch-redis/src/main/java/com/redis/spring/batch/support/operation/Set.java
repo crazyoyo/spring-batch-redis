@@ -27,7 +27,7 @@ public class Set<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<String> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		return ((RedisStringAsyncCommands<K, V>) commands).set(key, value.convert(item), args);
 	}
 

@@ -20,27 +20,27 @@ import lombok.experimental.Accessors;
 
 public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
-	private final Converter<T, GeoValue<V>[]> values;
+	private final Converter<T, GeoValue<V>[]> valueArrayConverter;
 	private final GeoAddArgs args;
 
 	public Geoadd(Converter<T, K> key, Predicate<T> delete, Predicate<T> remove, Converter<T, GeoValue<V>[]> values,
 			GeoAddArgs args) {
 		super(key, delete, remove);
 		Assert.notNull(values, "A geo-value converter is required");
-		this.values = values;
+		this.valueArrayConverter = values;
 		this.args = args;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args, values.convert(item));
+	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args, valueArrayConverter.convert(item));
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		GeoValue<V>[] values = this.values.convert(item);
+	protected RedisFuture<Long> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		GeoValue<V>[] values = this.valueArrayConverter.convert(item);
 		if (values == null) {
 			return null;
 		}

@@ -15,20 +15,20 @@ import lombok.experimental.Accessors;
 
 public class Sugadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
-	protected final Converter<T, Suggestion<V>> suggestion;
+	protected final Converter<T, Suggestion<V>> suggestionConverter;
 	private final boolean incr;
 
 	public Sugadd(Converter<T, K> key, Predicate<T> remove, Converter<T, Suggestion<V>> suggestion, boolean incr) {
 		super(key, t -> false, remove);
 		Assert.notNull(suggestion, "A suggestion converter is required");
-		this.suggestion = suggestion;
+		this.suggestionConverter = suggestion;
 		this.incr = incr;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		Suggestion<V> suggestion = this.suggestion.convert(item);
+	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		Suggestion<V> suggestion = this.suggestionConverter.convert(item);
 		if (incr) {
 			return ((RediSearchAsyncCommands<K, V>) commands).sugaddIncr(key, suggestion);
 		}
@@ -37,8 +37,8 @@ public class Sugadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		Suggestion<V> suggestion = this.suggestion.convert(item);
+	protected RedisFuture<Boolean> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		Suggestion<V> suggestion = this.suggestionConverter.convert(item);
 		if (suggestion == null) {
 			return null;
 		}

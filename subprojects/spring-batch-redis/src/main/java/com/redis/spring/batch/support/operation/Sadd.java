@@ -21,13 +21,13 @@ public class Sadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		return ((RedisSetAsyncCommands<K, V>) commands).sadd(key, members.convert(item));
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<Long> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		return ((RedisSetAsyncCommands<K, V>) commands).srem(key, members.convert(item));
 	}
 

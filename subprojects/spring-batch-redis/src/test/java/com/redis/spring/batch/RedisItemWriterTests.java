@@ -41,11 +41,11 @@ import lombok.Builder;
 import lombok.Data;
 
 @SuppressWarnings("unchecked")
-public class RedisItemWriterTests extends AbstractRedisTestBase {
+class RedisItemWriterTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testStreamWriter(RedisServer redis) throws Exception {
+	void testStreamWriter(RedisServer redis) throws Exception {
 		String stream = "stream:0";
 		List<Map<String, String>> messages = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
@@ -68,7 +68,7 @@ public class RedisItemWriterTests extends AbstractRedisTestBase {
 	}
 
 	@Test
-	public void testStreamTransactionWriter() throws Exception {
+	void testStreamTransactionWriter() throws Exception {
 		String stream = "stream:1";
 		List<Map<String, String>> messages = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
@@ -92,7 +92,7 @@ public class RedisItemWriterTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testRedisItemWriterWait(RedisServer server) throws Exception {
+	void testRedisItemWriterWait(RedisServer server) throws Exception {
 		List<Map<String, String>> maps = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
 			Map<String, String> body = new HashMap<>();
@@ -117,7 +117,7 @@ public class RedisItemWriterTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testHashWriter(RedisServer server) throws Exception {
+	void testHashWriter(RedisServer server) throws Exception {
 		List<Map<String, String>> maps = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
 			Map<String, String> body = new HashMap<>();
@@ -152,7 +152,7 @@ public class RedisItemWriterTests extends AbstractRedisTestBase {
 	@SuppressWarnings("rawtypes")
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testGeoaddWriter(RedisServer redis) throws Exception {
+	void testGeoaddWriter(RedisServer redis) throws Exception {
 		ListItemReader<Geo> reader = new ListItemReader<>(Arrays.asList(
 				Geo.builder().longitude(-118.476056).latitude(33.985728).member("Venice Breakwater").build(),
 				Geo.builder().longitude(-73.667022).latitude(40.582739).member("Long Beach National").build()));
@@ -170,7 +170,7 @@ public class RedisItemWriterTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testHashDelWriter(RedisServer server) throws Exception {
+	void testHashDelWriter(RedisServer server) throws Exception {
 		List<Map.Entry<String, Map<String, String>>> hashes = new ArrayList<>();
 		RedisModulesCommands<String, String> commands = sync(server);
 		for (int index = 0; index < 100; index++) {
@@ -203,7 +203,7 @@ public class RedisItemWriterTests extends AbstractRedisTestBase {
 	@SuppressWarnings("rawtypes")
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testSortedSetWriter(RedisServer server) throws Exception {
+	void testSortedSetWriter(RedisServer server) throws Exception {
 		List<ZValue> values = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
 			values.add(ZValue.builder().member(String.valueOf(index)).score(index % 10).build());
@@ -224,7 +224,7 @@ public class RedisItemWriterTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
 	@MethodSource("servers")
-	public void testDataStructureWriter(RedisServer redis) throws Exception {
+	void testDataStructureWriter(RedisServer redis) throws Exception {
 		List<DataStructure<String>> list = new ArrayList<>();
 		long count = 100;
 		for (int index = 0; index < count; index++) {

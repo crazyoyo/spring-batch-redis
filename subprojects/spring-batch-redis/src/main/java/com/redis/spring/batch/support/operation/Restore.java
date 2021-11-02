@@ -14,14 +14,14 @@ public class Restore<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
 	public static final long TTL_KEY_DOES_NOT_EXIST = -2;
 
-	private final Converter<T, byte[]> value;
+	private final Converter<T, byte[]> valueConverter;
 	private final Converter<T, Long> absoluteTTL;
 
 	public Restore(Converter<T, K> key, Converter<T, byte[]> value, Converter<T, Long> absoluteTTL) {
 		super(key, new InexistentKeyPredicate<>(absoluteTTL));
 		Assert.notNull(value, "A value converter is required");
 		Assert.notNull(absoluteTTL, "A TTL converter is required");
-		this.value = value;
+		this.valueConverter = value;
 		this.absoluteTTL = absoluteTTL;
 	}
 
@@ -46,8 +46,12 @@ public class Restore<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		return ((RedisKeyAsyncCommands<K, V>) commands).restore(key, value.convert(item), args(item));
+	protected RedisFuture<String> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		byte[] value = valueConverter.convert(item);
+		if (value == null) {
+			return null;
+		}
+		return ((RedisKeyAsyncCommands<K, V>) commands).restore(key, value, args(item));
 	}
 
 	protected RestoreArgs args(T item) {

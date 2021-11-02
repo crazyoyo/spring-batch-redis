@@ -163,7 +163,7 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 		}
 
 		public RedisItemWriter<K, V, T> build() {
-			return new RedisItemWriter<>(connectionSupplier(), poolConfig, async(), executor);
+			return new RedisItemWriter<>(connectionSupplier(), poolConfig, super.async(), executor);
 		}
 
 	}

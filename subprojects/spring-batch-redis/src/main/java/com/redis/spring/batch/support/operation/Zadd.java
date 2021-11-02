@@ -32,7 +32,7 @@ public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		ScoredValue<V>[] scoredValues = values.convert(item);
 		if (scoredValues == null) {
 			return null;
@@ -42,7 +42,7 @@ public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<Long> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		ScoredValue<V>[] scoredValues = values.convert(item);
 		if (scoredValues == null) {
 			return null;
@@ -72,8 +72,7 @@ public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
 		@SuppressWarnings({ "unchecked", "rawtypes" })
 		public ZaddBuilder<T> values(Converter<T, ScoredValue<String>>... values) {
-			return new ZaddBuilder<>(key,
-					new ArrayConverter<T, ScoredValue<String>>((Class) ScoredValue.class, values));
+			return new ZaddBuilder<>(key, new ArrayConverter<>((Class) ScoredValue.class, values));
 		}
 
 		public ZaddBuilder<T> values(Converter<T, ScoredValue<String>[]> values) {

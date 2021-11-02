@@ -35,29 +35,48 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 		AUTO, MANUAL
 	}
 
+	public static final Duration DEFAULT_BLOCK = Duration.ofMillis(100);
+	public static final long DEFAULT_COUNT = 50;
+	public static final AckPolicy DEFAULT_ACK_POLICY = AckPolicy.AUTO;
+
 	private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync;
-	private final Long count;
-	private final Duration block;
 	private final StreamOffset<K> offset;
-	private final K consumerGroup;
-	private final K consumer;
-	private final AckPolicy ackPolicy;
+	private long count = DEFAULT_COUNT;
+	private Duration block = DEFAULT_BLOCK;
+	private K consumerGroup;
+	private K consumer;
+	private AckPolicy ackPolicy = DEFAULT_ACK_POLICY;
 	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
 	private boolean open;
 
 	public RedisStreamItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-			Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, Long count, Duration block,
-			K consumerGroup, K consumer, StreamOffset<K> offset, AckPolicy ackPolicy) {
+			Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, StreamOffset<K> offset) {
 		super(connectionSupplier, poolConfig);
 		Assert.notNull(sync, "A command provider is required");
+		Assert.notNull(offset, "A stream offset is required");
 		this.sync = sync;
-		this.count = count;
-		this.block = block;
-		this.consumerGroup = consumerGroup;
-		this.consumer = consumer;
 		this.offset = offset;
+	}
+
+	public void setConsumer(K consumer) {
+		this.consumer = consumer;
+	}
+
+	public void setConsumerGroup(K consumerGroup) {
+		this.consumerGroup = consumerGroup;
+	}
+
+	public void setCount(long count) {
+		this.count = count;
+	}
+
+	public void setAckPolicy(AckPolicy ackPolicy) {
 		this.ackPolicy = ackPolicy;
+	}
+
+	public void setBlock(Duration block) {
+		this.block = block;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -65,17 +84,19 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-			RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
-			XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
-			try {
-				commands.xgroupCreate(offset, consumerGroup, args);
-			} catch (RedisBusyException e) {
-				// Consumer Group name already exists, ignore
-			}
+			createGroup((RedisStreamCommands<K, V>) sync.apply(connection));
 		} catch (Exception e) {
 			throw new ItemStreamException("Failed to initialize the reader", e);
 		}
 		this.open = true;
+	}
+
+	private void createGroup(RedisStreamCommands<K, V> commands) {
+		try {
+			commands.xgroupCreate(offset, consumerGroup, XGroupCreateArgs.Builder.mkstream(true));
+		} catch (RedisBusyException e) {
+			// Consumer Group name already exists, ignore
+		}
 	}
 
 	@Override

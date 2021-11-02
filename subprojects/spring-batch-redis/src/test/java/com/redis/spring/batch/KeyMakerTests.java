@@ -9,11 +9,11 @@ import com.redis.spring.batch.support.convert.KeyMaker;
 import java.util.HashMap;
 import java.util.Map;
 
-public class KeyMakerTests {
+class KeyMakerTests {
 
     @SuppressWarnings("unchecked")
     @Test
-    public void testSingleKeyConverter() {
+    void testSingleKeyConverter() {
         String prefix = "beer";
         String idField = "id";
         KeyMaker<Map<String, String>> keyMaker = KeyMaker.<Map<String, String>>builder().prefix(prefix).converters(m -> m.get(idField)).build();
@@ -27,7 +27,7 @@ public class KeyMakerTests {
 
     @SuppressWarnings("unchecked")
     @Test
-    public void testMultiKeyConverter() {
+    void testMultiKeyConverter() {
         String prefix = "inventory";
         Converter<Map<String, String>, String> storeExtractor = m -> m.get("store");
         Converter<Map<String, String>, String> skuExtractor = m -> m.get("sku");

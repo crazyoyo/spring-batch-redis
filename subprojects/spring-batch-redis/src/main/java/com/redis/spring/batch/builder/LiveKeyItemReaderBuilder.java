@@ -25,7 +25,6 @@ public class LiveKeyItemReaderBuilder {
 	public static final int DEFAULT_DATABASE = 0;
 	public static final String DEFAULT_KEY_PATTERN = "*";
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
-	public static final List<String> DEFAULT_PUBSUB_PATTERNS = pubSubPatterns(DEFAULT_DATABASE, DEFAULT_KEY_PATTERN);
 
 	private List<String> keyPatterns = Arrays.asList(DEFAULT_KEY_PATTERN);
 	private int database = DEFAULT_DATABASE;
