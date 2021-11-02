@@ -57,9 +57,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 	public static final Duration DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
 	public static final int DEFAULT_SKIP_LIMIT = 3;
-	public static final SkipPolicy DEFAULT_SKIP_POLICY = new LimitCheckingItemSkipPolicy(DEFAULT_SKIP_LIMIT,
-			Stream.of(RedisCommandExecutionException.class, RedisCommandTimeoutException.class, TimeoutException.class)
-					.collect(Collectors.toMap(t -> t, t -> true)));
+	public static final SkipPolicy DEFAULT_SKIP_POLICY = limitCheckingSkipPolicy(DEFAULT_SKIP_LIMIT);
 
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager transactionManager;
@@ -88,6 +86,12 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		this.transactionManager = transactionManager;
 		this.keyReader = keyReader;
 		this.valueReader = valueReader;
+	}
+
+	public static SkipPolicy limitCheckingSkipPolicy(int skipLimit) {
+		return new LimitCheckingItemSkipPolicy(skipLimit, Stream
+				.of(RedisCommandExecutionException.class, RedisCommandTimeoutException.class, TimeoutException.class)
+				.collect(Collectors.toMap(t -> t, t -> true)));
 	}
 
 	public void setThreads(int threads) {
