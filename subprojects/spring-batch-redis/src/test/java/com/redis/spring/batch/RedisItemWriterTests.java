@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -237,7 +238,7 @@ public class RedisItemWriterTests extends AbstractRedisTestBase {
 		run(redis, "value-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(redis);
 		List<String> keys = sync.keys("hash:*");
-		Assertions.assertEquals(count, keys.size());
+		Awaitility.await().until(() -> count == keys.size());
 	}
 
 }

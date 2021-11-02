@@ -14,11 +14,13 @@ import java.util.regex.Pattern;
 import com.redis.spring.batch.support.convert.GlobToRegexConverter;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.api.async.RedisServerAsyncCommands;
+import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -108,7 +110,11 @@ public class ScanSizeEstimator implements Callable<Long> {
 		return k -> pattern.matcher(k).matches();
 	}
 
-	public static ScanSizeEstimatorBuilder client(AbstractRedisClient client) {
+	public static ScanSizeEstimatorBuilder client(RedisClient client) {
+		return new ScanSizeEstimatorBuilder(client);
+	}
+
+	public static ScanSizeEstimatorBuilder client(RedisClusterClient client) {
 		return new ScanSizeEstimatorBuilder(client);
 	}
 

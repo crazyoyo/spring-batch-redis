@@ -31,6 +31,7 @@ import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisKeyCommands;
 import io.lettuce.core.api.sync.RedisSetCommands;
+import io.lettuce.core.cluster.RedisClusterClient;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -176,7 +177,10 @@ public class ReplicationTests extends AbstractRedisTestBase {
 	}
 
 	private ScanSizeEstimatorBuilder sizeEstimator(RedisServer server) {
-		return ScanSizeEstimator.client(clients.get(server));
+		if (server.isCluster()) {
+			return ScanSizeEstimator.client((RedisClusterClient) clients.get(server));
+		}
+		return ScanSizeEstimator.client((RedisClient) clients.get(server));
 	}
 
 }
