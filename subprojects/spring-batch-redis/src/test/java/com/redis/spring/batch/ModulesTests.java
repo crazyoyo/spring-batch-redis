@@ -21,7 +21,7 @@ import com.redis.testcontainers.RedisModulesContainer;
 class ModulesTests extends AbstractTestBase {
 
 	@Container
-	protected static final RedisModulesContainer REDIS = new RedisModulesContainer();
+	protected static final RedisModulesContainer REDIS = new RedisModulesContainer("preview");
 
 	private RedisModulesClient client;
 	private StatefulRedisModulesConnection<String, String> connection;
