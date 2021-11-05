@@ -79,7 +79,7 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 	}
 
 	public static class RedisItemWriterBuilder<K, V, T>
-			extends ItemWriterBuilder<K, V, T, RedisItemWriterBuilder<K, V, T>> {
+			extends BaseRedisItemWriterBuilder<K, V, T, RedisItemWriterBuilder<K, V, T>> {
 
 		public RedisItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
 				OperationExecutor<K, V, T> executor) {
@@ -118,12 +118,12 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 		}
 	}
 
-	public static class ItemWriterBuilder<K, V, T, B extends ItemWriterBuilder<K, V, T, B>>
+	public static class BaseRedisItemWriterBuilder<K, V, T, B extends BaseRedisItemWriterBuilder<K, V, T, B>>
 			extends RedisBuilder<K, V, B> {
 
 		protected OperationExecutor<K, V, T> executor;
 
-		public ItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
+		public BaseRedisItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
 				OperationExecutor<K, V, T> executor) {
 			super(client, codec);
 			this.executor = executor;
@@ -148,7 +148,7 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 	}
 
 	public static class DataStructureItemWriterBuilder<K, V>
-			extends ItemWriterBuilder<K, V, DataStructure<K>, DataStructureItemWriterBuilder<K, V>> {
+			extends BaseRedisItemWriterBuilder<K, V, DataStructure<K>, DataStructureItemWriterBuilder<K, V>> {
 
 		public DataStructureItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			super(client, codec, dataStructureOperationExecutor(client));

@@ -27,11 +27,13 @@ public class JobRepositoryBuilder<K, V, B extends JobRepositoryBuilder<K, V, B>>
 		return (B) this;
 	}
 
-	public void inMemory() throws Exception {
+	@SuppressWarnings("unchecked")
+	public B inMemoryJobs() throws Exception {
 		@SuppressWarnings("deprecation")
 		org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean bean = new org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean();
 		bean.afterPropertiesSet();
 		jobRepository = bean.getObject();
 		transactionManager = bean.getTransactionManager();
+		return (B) this;
 	}
 }
