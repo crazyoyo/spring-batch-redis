@@ -6,7 +6,6 @@ import org.springframework.batch.core.step.skip.SkipPolicy;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
-import com.redis.spring.batch.support.CommandBuilder;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.ValueReader;
 
@@ -14,23 +13,19 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.StringCodec;
 
 public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ValueReader<String, T>, B extends RedisItemReaderBuilder<T, R, B>>
-		extends CommandBuilder<String, String, B> {
+		extends JobRepositoryBuilder<String, String, B> {
 
 	protected final ValueReaderFactory<String, String, T, R> valueReaderFactory;
-	private int threads = RedisItemReader.DEFAULT_THREADS;
-	private int chunkSize = RedisItemReader.DEFAULT_CHUNK_SIZE;
-	private int valueQueueCapacity = RedisItemReader.DEFAULT_QUEUE_CAPACITY;
-	private Duration queuePollTimeout = RedisItemReader.DEFAULT_QUEUE_POLL_TIMEOUT;
-	private SkipPolicy skipPolicy = RedisItemReader.DEFAULT_SKIP_POLICY;
+	protected int threads = RedisItemReader.DEFAULT_THREADS;
+	protected int chunkSize = RedisItemReader.DEFAULT_CHUNK_SIZE;
+	protected int valueQueueCapacity = RedisItemReader.DEFAULT_QUEUE_CAPACITY;
+	protected Duration queuePollTimeout = RedisItemReader.DEFAULT_QUEUE_POLL_TIMEOUT;
+	protected SkipPolicy skipPolicy = RedisItemReader.DEFAULT_SKIP_POLICY;
 
 	public RedisItemReaderBuilder(AbstractRedisClient client,
 			ValueReaderFactory<String, String, T, R> valueReaderFactory) {
 		super(client, StringCodec.UTF8);
 		this.valueReaderFactory = valueReaderFactory;
-	}
-
-	protected R valueReader() {
-		return valueReaderFactory.create(connectionSupplier(), poolConfig, async());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -71,6 +66,10 @@ public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends Val
 		reader.setSkipPolicy(skipPolicy);
 		reader.setThreads(threads);
 		return reader;
+	}
+
+	protected R valueReader() {
+		return valueReaderFactory.create(connectionSupplier(), poolConfig, async());
 	}
 
 }

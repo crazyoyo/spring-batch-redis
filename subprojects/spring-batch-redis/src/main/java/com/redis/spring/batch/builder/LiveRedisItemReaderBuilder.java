@@ -1,17 +1,20 @@
 package com.redis.spring.batch.builder;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.core.convert.converter.Converter;
 
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
 import com.redis.spring.batch.support.FlushingStepBuilder;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.LiveKeyItemReader;
+import com.redis.spring.batch.support.LiveRedisClusterKeyItemReader;
 import com.redis.spring.batch.support.LiveRedisItemReader;
+import com.redis.spring.batch.support.LiveRedisKeyItemReader;
+import com.redis.spring.batch.support.ScanKeyItemReader;
 import com.redis.spring.batch.support.ValueReader;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -20,33 +23,31 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 
-@Setter
 @Accessors(fluent = true)
 public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ValueReader<String, T>>
 		extends RedisItemReaderBuilder<T, R, LiveRedisItemReaderBuilder<T, R>> {
 
-	private final JobRepository jobRepository;
-	private final PlatformTransactionManager transactionManager;
-	private List<String> keyPatterns = Arrays.asList(LiveKeyItemReaderBuilder.DEFAULT_KEY_PATTERN);
-	private int database = LiveKeyItemReaderBuilder.DEFAULT_DATABASE;
-	private int notificationQueueCapacity = LiveKeyItemReader.DEFAULT_QUEUE_CAPACITY;
+	public static final int DEFAULT_DATABASE = 0;
+	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
+	private static final Converter<String, String> STRING_KEY_EXTRACTOR = m -> m.substring(m.indexOf(":") + 1);
+
+	@Setter
 	private Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
+	@Setter
 	private Duration idleTimeout;
+	private List<String> keyPatterns = Arrays.asList(ScanKeyItemReader.DEFAULT_SCAN_MATCH);
+	@Setter
+	private int database = DEFAULT_DATABASE;
+	@Setter
+	private int notificationQueueCapacity = LiveKeyItemReader.DEFAULT_QUEUE_CAPACITY;
 
-	public LiveRedisItemReaderBuilder(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-			AbstractRedisClient client, ValueReaderFactory<String, String, T, R> valueReaderFactory) {
+	public LiveRedisItemReaderBuilder(AbstractRedisClient client,
+			ValueReaderFactory<String, String, T, R> valueReaderFactory) {
 		super(client, valueReaderFactory);
-		this.jobRepository = jobRepository;
-		this.transactionManager = transactionManager;
 	}
 
-	public LiveRedisItemReaderBuilder<T, R> flushingInterval(Duration flushingInterval) {
-		this.flushingInterval = flushingInterval;
-		return this;
-	}
-
-	public LiveRedisItemReaderBuilder<T, R> idleTimeout(Duration idleTimeout) {
-		this.idleTimeout = idleTimeout;
+	public LiveRedisItemReaderBuilder<T, R> keyPatterns(String... keyPatterns) {
+		this.keyPatterns = Arrays.asList(keyPatterns);
 		return this;
 	}
 
@@ -59,14 +60,34 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	}
 
 	public LiveKeyItemReader<String> keyReader() {
-		return keyReaderBuilder().database(database).keyPatterns(keyPatterns).queueCapacity(notificationQueueCapacity)
-				.build();
+		LiveKeyItemReader<String> reader = liveKeyItemReader();
+		reader.setQueueCapacity(notificationQueueCapacity);
+		return reader;
 	}
 
-	private LiveKeyItemReaderBuilder keyReaderBuilder() {
-		if (client instanceof RedisClusterClient) {
-			return LiveKeyItemReader.client((RedisClusterClient) client);
+	public static List<String> pubSubPatterns(int database, String... keyPatterns) {
+		List<String> patterns = new ArrayList<>();
+		for (String keyPattern : keyPatterns) {
+			patterns.add(pubSubPattern(database, keyPattern));
 		}
-		return LiveKeyItemReader.client((RedisClient) client);
+		return patterns;
 	}
+
+	private List<String> pubSubPatterns() {
+		return pubSubPatterns(database, keyPatterns.toArray(new String[0]));
+	}
+
+	public static String pubSubPattern(int database, String keyPattern) {
+		return String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern);
+	}
+
+	private LiveKeyItemReader<String> liveKeyItemReader() {
+		if (client instanceof RedisClusterClient) {
+			return new LiveRedisClusterKeyItemReader<>(((RedisClusterClient) client)::connectPubSub,
+					STRING_KEY_EXTRACTOR, pubSubPatterns());
+		}
+		return new LiveRedisKeyItemReader<>(((RedisClient) client)::connectPubSub, STRING_KEY_EXTRACTOR,
+				pubSubPatterns());
+	}
+
 }

@@ -1,4 +1,4 @@
-package com.redis.spring.batch.support;
+package com.redis.spring.batch.builder;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -15,13 +15,13 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.codec.RedisCodec;
 
-public class CommandBuilder<K, V, B extends CommandBuilder<K, V, B>> {
+public class RedisBuilder<K, V, B extends RedisBuilder<K, V, B>> {
 
 	protected final AbstractRedisClient client;
 	protected final RedisCodec<K, V> codec;
 	protected GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig = new GenericObjectPoolConfig<>();
 
-	public CommandBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+	public RedisBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		this.client = client;
 		this.codec = codec;
 	}

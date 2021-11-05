@@ -18,6 +18,8 @@ import org.testcontainers.junit.jupiter.Container;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructure.Type;
 import com.redis.spring.batch.support.KeyComparator;
+import com.redis.spring.batch.support.KeyComparator.KeyComparatorBuilder;
+import com.redis.spring.batch.support.KeyComparator.RightComparatorBuilder;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.LiveRedisItemReader;
 import com.redis.spring.batch.support.ScanSizeEstimator;
@@ -27,6 +29,7 @@ import com.redis.spring.batch.support.compare.KeyComparisonResults;
 import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisKeyCommands;
@@ -131,8 +134,7 @@ class ReplicationTests extends AbstractRedisTestBase {
 
 	private void compare(RedisServer server, String name) throws Exception {
 		Assertions.assertEquals(dbsize(server), targetConnection.sync().dbsize());
-		KeyComparator comparator = KeyComparator.builder(name(server, name), jobRepository, transactionManager)
-				.left(clients.get(server)).right(targetClient).build();
+		KeyComparator comparator = comparator(server, name).build();
 		comparator.addListener(new KeyComparisonLogger(log));
 		KeyComparisonResults results = comparator.call();
 		Assertions.assertTrue(results.isOK());
@@ -144,12 +146,23 @@ class ReplicationTests extends AbstractRedisTestBase {
 		String name = "comparator";
 		execute(dataGenerator(server, name + "-source-init").end(120));
 		execute(dataGenerator(targetClient, name(server, name) + "-target-init").end(100));
-		KeyComparator comparator = KeyComparator.builder(name(server, name), jobRepository, transactionManager)
-				.left(clients.get(server)).right(targetClient).build();
+		KeyComparator comparator = comparator(server, name).build();
 		KeyComparisonResults results = comparator.call();
 		Assertions.assertEquals(results.getSource(), results.getOK() + results.getMissing() + results.getValue());
 		Assertions.assertEquals(120, results.getMissing());
 		Assertions.assertEquals(300, results.getValue());
+	}
+
+	private KeyComparatorBuilder comparator(RedisServer server, String name) {
+		return configureJobRepository(comparator(server).right(targetClient).id(name(server, name)));
+	}
+
+	private RightComparatorBuilder comparator(RedisServer redis) {
+		AbstractRedisClient client = clients.get(redis);
+		if (client instanceof RedisClusterClient) {
+			return KeyComparator.left((RedisClusterClient) client);
+		}
+		return KeyComparator.left((RedisClient) client);
 	}
 
 	@SuppressWarnings("unchecked")

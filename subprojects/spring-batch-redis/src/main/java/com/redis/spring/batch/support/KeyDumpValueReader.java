@@ -10,6 +10,8 @@ import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
+import com.redis.spring.batch.builder.RedisBuilder;
+
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
@@ -57,7 +59,7 @@ public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyValue
 		return new KeyDumpValueReaderBuilder<>(client, StringCodec.UTF8);
 	}
 
-	public static class KeyDumpValueReaderBuilder<K, V> extends CommandBuilder<K, V, KeyDumpValueReaderBuilder<K, V>> {
+	public static class KeyDumpValueReaderBuilder<K, V> extends RedisBuilder<K, V, KeyDumpValueReaderBuilder<K, V>> {
 
 		public KeyDumpValueReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			super(client, codec);

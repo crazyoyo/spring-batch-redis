@@ -12,10 +12,6 @@ import java.util.stream.Stream;
 
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
-import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
@@ -25,17 +21,17 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.builder.RedisStreamItemReaderBuilder.OffsetStreamItemReaderBuilder;
 import com.redis.spring.batch.builder.ScanRedisItemReaderBuilder;
+import com.redis.spring.batch.builder.StreamItemReaderBuilder;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.DataStructureValueReader.DataStructureValueReaderFactory;
+import com.redis.spring.batch.support.JobRunner;
 import com.redis.spring.batch.support.KeyDumpValueReader;
 import com.redis.spring.batch.support.KeyDumpValueReader.KeyDumpValueReaderFactory;
 import com.redis.spring.batch.support.KeyValue;
@@ -44,9 +40,10 @@ import com.redis.spring.batch.support.Utils;
 import com.redis.spring.batch.support.ValueReader;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisCommandTimeoutException;
-import io.lettuce.core.XReadArgs.StreamOffset;
+import io.lettuce.core.cluster.RedisClusterClient;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -139,9 +136,8 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		valueQueue = new LinkedBlockingQueue<>(queueCapacity);
 		enqueuer = new RedisValueEnqueuer<>(valueReader, valueQueue);
 		Utils.createGaugeCollectionSize("reader.queue.size", valueQueue);
-		StepBuilderFactory stepBuilderFactory = new StepBuilderFactory(jobRepository, transactionManager);
-		FaultTolerantStepBuilder<K, K> stepBuilder = faultTolerantStepBuilder(
-				stepBuilderFactory.get(name).chunk(chunkSize));
+		JobRunner jobRunner = new JobRunner(jobRepository, transactionManager);
+		FaultTolerantStepBuilder<K, K> stepBuilder = faultTolerantStepBuilder(jobRunner.step(name).chunk(chunkSize));
 		stepBuilder.skipPolicy(skipPolicy);
 		stepBuilder.reader(keyReader).writer(enqueuer);
 		if (threads > 1) {
@@ -151,13 +147,9 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 			taskExecutor.afterPropertiesSet();
 			stepBuilder.taskExecutor(taskExecutor).throttleLimit(threads);
 		}
-		JobBuilderFactory jobBuilderFactory = new JobBuilderFactory(jobRepository);
-		Job job = jobBuilderFactory.get(name).start(stepBuilder.build()).build();
-		SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
-		jobLauncher.setJobRepository(jobRepository);
-		jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+		Job job = jobRunner.job(name).start(stepBuilder.build()).build();
 		try {
-			jobExecution = jobLauncher.run(job, new JobParameters());
+			jobExecution = jobRunner.runAsync(job);
 		} catch (Exception e) {
 			throw new ItemStreamException("Could not run job for reader " + name, e);
 		}
@@ -197,20 +189,34 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		jobExecution = null;
 	}
 
-	public static ScanRedisItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>> dataStructure(
-			JobRepository jobRepository, PlatformTransactionManager transactionManager, AbstractRedisClient client) {
-		return new ScanRedisItemReaderBuilder<>(jobRepository, transactionManager, client,
-				new DataStructureValueReaderFactory<>());
+	public static ItemReaderBuilder client(RedisClient client) {
+		return new ItemReaderBuilder(client);
 	}
 
-	public static ScanRedisItemReaderBuilder<KeyValue<String, byte[]>, KeyDumpValueReader<String, String>> keyDump(
-			JobRepository jobRepository, PlatformTransactionManager transactionManager, AbstractRedisClient client) {
-		return new ScanRedisItemReaderBuilder<>(jobRepository, transactionManager, client,
-				new KeyDumpValueReaderFactory<>());
+	public static ItemReaderBuilder client(RedisClusterClient client) {
+		return new ItemReaderBuilder(client);
 	}
 
-	public static OffsetStreamItemReaderBuilder stream(StreamOffset<String> offset) {
-		return new OffsetStreamItemReaderBuilder(offset);
+	public static class ItemReaderBuilder {
+
+		private final AbstractRedisClient client;
+
+		public ItemReaderBuilder(AbstractRedisClient client) {
+			this.client = client;
+		}
+
+		public ScanRedisItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>> dataStructure() {
+			return new ScanRedisItemReaderBuilder<>(client, new DataStructureValueReaderFactory<>());
+		}
+
+		public ScanRedisItemReaderBuilder<KeyValue<String, byte[]>, KeyDumpValueReader<String, String>> keyDump() {
+			return new ScanRedisItemReaderBuilder<>(client, new KeyDumpValueReaderFactory<>());
+		}
+
+		public StreamItemReaderBuilder stream(String name) {
+			return new StreamItemReaderBuilder(client, name);
+		}
+
 	}
 
 }

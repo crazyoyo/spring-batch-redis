@@ -29,6 +29,7 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import com.redis.spring.batch.builder.JobRepositoryBuilder;
 import com.redis.spring.batch.support.FlushingStepBuilder;
 import com.redis.spring.batch.support.PollableItemReader;
 import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
@@ -54,15 +55,15 @@ public abstract class AbstractTestBase {
 	private JobLauncher asyncJobLauncher;
 
 	@BeforeEach
-	public void setupAsyncJobLauncher() {
-		asyncJobLauncher = asyncJobLauncher();
+	private void createAsyncJobLauncher() {
+		SimpleJobLauncher launcher = new SimpleJobLauncher();
+		launcher.setJobRepository(jobRepository);
+		launcher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+		this.asyncJobLauncher = launcher;
 	}
 
-	private JobLauncher asyncJobLauncher() {
-		SimpleJobLauncher asyncJobLauncher = new SimpleJobLauncher();
-		asyncJobLauncher.setJobRepository(jobRepository);
-		asyncJobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-		return asyncJobLauncher;
+	protected <B extends JobRepositoryBuilder<String, String, B>> B configureJobRepository(B runner) {
+		return runner.jobRepository(jobRepository).transactionManager(transactionManager);
 	}
 
 	protected String name(RedisServer redis, String name) {
@@ -85,7 +86,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected JobExecution awaitTermination(JobExecution execution) {
-		Awaitility.await().timeout(Duration.ofSeconds(60)).until(() -> !execution.isRunning());
+		Awaitility.await().timeout(Duration.ofMinutes(1)).until(() -> !execution.isRunning());
 		return execution;
 	}
 

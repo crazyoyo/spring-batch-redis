@@ -11,6 +11,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+import com.redis.spring.batch.builder.RedisBuilder;
 import com.redis.spring.batch.support.convert.GlobToRegexConverter;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -120,7 +121,7 @@ public class ScanSizeEstimator implements Callable<Long> {
 
 	@Setter
 	@Accessors(fluent = true)
-	public static class ScanSizeEstimatorBuilder extends CommandBuilder<String, String, ScanSizeEstimatorBuilder> {
+	public static class ScanSizeEstimatorBuilder extends RedisBuilder<String, String, ScanSizeEstimatorBuilder> {
 
 		private int sampleSize = DEFAULT_SAMPLE_SIZE;
 		private String match;

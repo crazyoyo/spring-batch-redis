@@ -10,6 +10,8 @@ import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
+import com.redis.spring.batch.builder.RedisBuilder;
+
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisClient;
@@ -96,7 +98,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 	}
 
 	public static class DataStructureValueReaderBuilder<K, V>
-			extends CommandBuilder<K, V, DataStructureValueReaderBuilder<K, V>> {
+			extends RedisBuilder<K, V, DataStructureValueReaderBuilder<K, V>> {
 
 		public DataStructureValueReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			super(client, codec);

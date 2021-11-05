@@ -3,10 +3,6 @@ package com.redis.spring.batch;
 import java.util.Map;
 
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
-import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.json.JacksonJsonObjectReader;
@@ -23,6 +19,7 @@ import com.redis.lettucemod.api.search.Field;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.RedisItemWriter.RedisItemWriterBuilder;
 import com.redis.spring.batch.support.JacksonJsonNodeReader;
+import com.redis.spring.batch.support.JobRunner;
 import com.redis.spring.batch.support.convert.MapFlattener;
 import com.redis.spring.batch.support.operation.Hset;
 
@@ -79,22 +76,19 @@ public class Beers {
 				.<Map<String, String>>key(m -> PREFIX + m.get(ID.getName())).map(m -> m).build();
 		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(client, operation).build();
 		String name = "populate-beer-index";
-		StepBuilderFactory stepBuilderFactory = new StepBuilderFactory(jobRepository, transactionManager);
-		TaskletStep step = stepBuilderFactory.get(name).<Map<String, Object>, Map<String, String>>chunk(CHUNK_SIZE)
+		JobRunner jobRunner = new JobRunner(jobRepository, transactionManager);
+		TaskletStep step = jobRunner.step(name).<Map<String, Object>, Map<String, String>>chunk(CHUNK_SIZE)
 				.reader(reader).processor(new MapFlattener()).writer(writer).build();
-		Job job = new JobBuilderFactory(jobRepository).get(name).start(step).build();
-		SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
-		jobLauncher.setJobRepository(jobRepository);
-		jobLauncher.afterPropertiesSet();
-		jobLauncher.run(job, new JobParameters());
+		Job job = jobRunner.job(name).start(step).build();
+		jobRunner.run(job);
 	}
 
 	private static RedisItemWriterBuilder<String, String, Map<String, String>> redisItemWriter(
 			AbstractRedisClient client, Hset<String, String, Map<String, String>> operation) {
 		if (client instanceof RedisClusterClient) {
-			return RedisItemWriter.operation((RedisClusterClient) client, operation);
+			return RedisItemWriter.client((RedisClusterClient) client).operation(operation);
 		}
-		return RedisItemWriter.operation((RedisClient) client, operation);
+		return RedisItemWriter.client((RedisClient) client).operation(operation);
 	}
 
 }

@@ -1,8 +1,5 @@
 package com.redis.spring.batch.builder;
 
-import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.transaction.PlatformTransactionManager;
-
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
 import com.redis.spring.batch.support.KeyValue;
@@ -10,36 +7,21 @@ import com.redis.spring.batch.support.ScanKeyItemReader;
 import com.redis.spring.batch.support.ValueReader;
 
 import io.lettuce.core.AbstractRedisClient;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 
+@Setter
+@Accessors(fluent = true)
 public class ScanRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ValueReader<String, T>>
 		extends RedisItemReaderBuilder<T, R, ScanRedisItemReaderBuilder<T, R>> {
 
-	private final JobRepository jobRepository;
-	private final PlatformTransactionManager transactionManager;
 	private String scanMatch = ScanKeyItemReader.DEFAULT_SCAN_MATCH;
 	private long scanCount = ScanKeyItemReader.DEFAULT_SCAN_COUNT;
 	private String scanType;
 
-	public ScanRedisItemReaderBuilder(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-			AbstractRedisClient client, ValueReaderFactory<String, String, T, R> valueReaderFactory) {
+	public ScanRedisItemReaderBuilder(AbstractRedisClient client,
+			ValueReaderFactory<String, String, T, R> valueReaderFactory) {
 		super(client, valueReaderFactory);
-		this.jobRepository = jobRepository;
-		this.transactionManager = transactionManager;
-	}
-
-	public ScanRedisItemReaderBuilder<T, R> scanMatch(String scanMatch) {
-		this.scanMatch = scanMatch;
-		return this;
-	}
-
-	public ScanRedisItemReaderBuilder<T, R> scanCount(long scanCount) {
-		this.scanCount = scanCount;
-		return this;
-	}
-
-	public ScanRedisItemReaderBuilder<T, R> scanType(String scanType) {
-		this.scanType = scanType;
-		return this;
 	}
 
 	public RedisItemReader<String, T> build() {
@@ -51,6 +33,16 @@ public class ScanRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	}
 
 	public LiveRedisItemReaderBuilder<T, R> live() {
-		return new LiveRedisItemReaderBuilder<>(jobRepository, transactionManager, client, valueReaderFactory);
+		LiveRedisItemReaderBuilder<T, R> live = new LiveRedisItemReaderBuilder<>(client, valueReaderFactory);
+		live.keyPatterns(scanMatch);
+		live.jobRepository(jobRepository);
+		live.transactionManager(transactionManager);
+		live.chunkSize(chunkSize);
+		live.threads(threads);
+		live.valueQueueCapacity(valueQueueCapacity);
+		live.queuePollTimeout(queuePollTimeout);
+		live.skipPolicy(skipPolicy);
+		return live;
 	}
+
 }

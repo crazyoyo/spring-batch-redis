@@ -12,6 +12,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import com.redis.spring.batch.RedisItemReader.ItemReaderBuilder;
 import com.redis.spring.batch.RedisItemWriter.RedisItemWriterBuilder;
 import com.redis.spring.batch.builder.LiveRedisItemReaderBuilder;
 import com.redis.spring.batch.support.DataStructure;
@@ -87,31 +88,41 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 	}
 
 	protected GeneratorBuilder dataGenerator(RedisServer server, String name) {
-		return Generator.builder(name(server, name + "-generator"), jobRepository, transactionManager,
-				clients.get(server));
+		return dataGenerator(clients.get(server), name(server, name + "-generator"));
 	}
 
-	protected GeneratorBuilder dataGenerator(AbstractRedisClient client, String name) {
-		return Generator.builder(name + "-generator", jobRepository, transactionManager, client);
+	protected GeneratorBuilder dataGenerator(AbstractRedisClient client, String id) {
+		if (client instanceof RedisClusterClient) {
+			return configureJobRepository(Generator.builder((RedisClusterClient) client, id));
+		}
+		return configureJobRepository(Generator.builder((RedisClient) client, id));
 	}
 
 	protected LiveRedisItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisServer redis, String name,
-			int notificationQueueCapacity) {
-		return setName(configureLiveReader(
-				RedisItemReader.keyDump(jobRepository, transactionManager, clients.get(redis)).live(),
-				notificationQueueCapacity).build(), redis, name + "-live-key-dump");
+			int notificationQueueCapacity) throws Exception {
+		return setName(configureLiveReader(reader(redis).keyDump().live(), notificationQueueCapacity).build(), redis,
+				name + "-live-key-dump");
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	private <B extends LiveRedisItemReaderBuilder> B configureLiveReader(B builder, int notificationQueueCapacity) {
-		return (B) builder.idleTimeout(IDLE_TIMEOUT).notificationQueueCapacity(notificationQueueCapacity);
+	protected ItemReaderBuilder reader(RedisServer redis) {
+		AbstractRedisClient client = clients.get(redis);
+		if (client instanceof RedisClusterClient) {
+			return RedisItemReader.client((RedisClusterClient) client);
+		}
+		return RedisItemReader.client((RedisClient) client);
+	}
+
+	@SuppressWarnings("unchecked")
+	private <B extends LiveRedisItemReaderBuilder<?, ?>> B configureLiveReader(B builder,
+			int notificationQueueCapacity) {
+		return (B) configureJobRepository(builder).idleTimeout(IDLE_TIMEOUT)
+				.notificationQueueCapacity(notificationQueueCapacity);
 	}
 
 	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisServer server,
-			String name, int notificationQueueCapacity) {
-		return setName(configureLiveReader(
-				RedisItemReader.dataStructure(jobRepository, transactionManager, clients.get(server)).live(),
-				notificationQueueCapacity).build(), server, name + "-live-data-structure");
+			String name, int notificationQueueCapacity) throws Exception {
+		return setName(configureLiveReader(reader(server).dataStructure().live(), notificationQueueCapacity).build(),
+				server, name + "-live-data-structure");
 	}
 
 	private <T extends AbstractItemStreamItemReader<?>> T setName(T reader, RedisServer redis, String name) {
@@ -119,14 +130,14 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 		return reader;
 	}
 
-	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisServer redis, String name) {
-		return setName(RedisItemReader.dataStructure(jobRepository, transactionManager, clients.get(redis)).build(),
-				redis, name + "-data-structure");
+	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisServer redis, String name)
+			throws Exception {
+		return setName(configureJobRepository(reader(redis).dataStructure()).build(), redis, name + "-data-structure");
 	}
 
-	protected RedisItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisServer redis, String name) {
-		return setName(RedisItemReader.keyDump(jobRepository, transactionManager, clients.get(redis)).build(), redis,
-				name + "-key-dump");
+	protected RedisItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisServer redis, String name)
+			throws Exception {
+		return setName(configureJobRepository(reader(redis).keyDump()).build(), redis, name + "-key-dump");
 	}
 
 	protected RedisItemWriter<String, String, KeyValue<String, byte[]>> keyDumpWriter(RedisServer redis) {
@@ -135,9 +146,9 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 
 	protected RedisItemWriter<String, String, KeyValue<String, byte[]>> keyDumpWriter(AbstractRedisClient client) {
 		if (client instanceof RedisClusterClient) {
-			RedisItemWriter.keyDump((RedisClusterClient) client).build();
+			RedisItemWriter.client((RedisClusterClient) client).keyDump().build();
 		}
-		return RedisItemWriter.keyDump((RedisClient) client).build();
+		return RedisItemWriter.client((RedisClient) client).keyDump().build();
 	}
 
 	protected RedisItemWriter<String, String, DataStructure<String>> dataStructureWriter(RedisServer redis) {
@@ -146,9 +157,9 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 
 	protected RedisItemWriter<String, String, DataStructure<String>> dataStructureWriter(AbstractRedisClient client) {
 		if (client instanceof RedisClusterClient) {
-			return RedisItemWriter.dataStructure((RedisClusterClient) client).build();
+			return RedisItemWriter.client((RedisClusterClient) client).dataStructure().build();
 		}
-		return RedisItemWriter.dataStructure((RedisClient) client).build();
+		return RedisItemWriter.client((RedisClient) client).dataStructure().build();
 	}
 
 	protected DataStructureValueReader<String, String> dataStructureValueReader(RedisServer redis) {
@@ -168,9 +179,9 @@ public abstract class AbstractRedisTestBase extends AbstractTestBase {
 	protected <T> RedisItemWriterBuilder<String, String, T> redisItemWriter(RedisServer server,
 			RedisOperation<String, String, T> operation) {
 		if (server.isCluster()) {
-			return RedisItemWriter.operation((RedisClusterClient) clients.get(server), operation);
+			return RedisItemWriter.client((RedisClusterClient) clients.get(server)).operation(operation);
 		}
-		return RedisItemWriter.operation((RedisClient) clients.get(server), operation);
+		return RedisItemWriter.client((RedisClient) clients.get(server)).operation(operation);
 	}
 
 }

@@ -23,7 +23,6 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.convert.ArrayConverter;
 import com.redis.spring.batch.support.convert.GeoValueConverter;
-import com.redis.spring.batch.support.convert.KeyMaker;
 import com.redis.spring.batch.support.convert.ScoredValueConverter;
 import com.redis.spring.batch.support.operation.Geoadd;
 import com.redis.spring.batch.support.operation.Hset;
@@ -102,10 +101,9 @@ class RedisItemWriterTests extends AbstractRedisTestBase {
 			maps.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-		KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash")
-				.converters(h -> h.remove("id")).build();
 		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(server,
-				Hset.key(keyConverter).map(m -> m).build()).waitForReplication(1, 300).build();
+				Hset.<Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
+						.waitForReplication(1, 300).build();
 		JobExecution execution = run(server, "writer-wait", reader, writer);
 		Assertions.assertEquals(ExitStatus.FAILED.getExitCode(), execution.getExitStatus().getExitCode());
 		Assertions.assertEquals(1, execution.getAllFailureExceptions().size());
@@ -127,10 +125,8 @@ class RedisItemWriterTests extends AbstractRedisTestBase {
 			maps.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-		KeyMaker<Map<String, String>> keyConverter = KeyMaker.<Map<String, String>>builder().prefix("hash")
-				.converters(h -> h.remove("id")).build();
 		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(server,
-				Hset.key(keyConverter).map(m -> m).build()).build();
+				Hset.<Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build()).build();
 		run(server, "hash-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(server);
 		Assertions.assertEquals(maps.size(), sync.keys("hash:*").size());
@@ -171,7 +167,7 @@ class RedisItemWriterTests extends AbstractRedisTestBase {
 	@ParameterizedTest
 	@MethodSource("servers")
 	void testHashDelWriter(RedisServer server) throws Exception {
-		List<Map.Entry<String, Map<String, String>>> hashes = new ArrayList<>();
+		List<Entry<String, Map<String, String>>> hashes = new ArrayList<>();
 		RedisModulesCommands<String, String> commands = sync(server);
 		for (int index = 0; index < 100; index++) {
 			String key = String.valueOf(index);
@@ -184,10 +180,9 @@ class RedisItemWriterTests extends AbstractRedisTestBase {
 		}
 		RedisModulesCommands<String, String> sync = sync(server);
 		ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
-		KeyMaker<Map.Entry<String, Map<String, String>>> keyConverter = KeyMaker.<Map.Entry<String, Map<String, String>>>builder()
-				.prefix("hash").converters(Entry<String, Map<String, String>>::getKey).build();
-		RedisItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = redisItemWriter(server,
-				Hset.key(keyConverter).map(Map.Entry::getValue).build()).build();
+		RedisItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = redisItemWriter(server, Hset
+				.<Entry<String, Map<String, String>>>key(e -> "hash:" + e.getKey()).map(Map.Entry::getValue).build())
+						.build();
 		run(server, "hash-del-writer", reader, writer);
 		Assertions.assertEquals(50, sync.keys("hash:*").size());
 		Assertions.assertEquals(2, commands.hgetall("hash:50").size());

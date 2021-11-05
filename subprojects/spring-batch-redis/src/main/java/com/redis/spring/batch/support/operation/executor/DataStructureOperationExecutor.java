@@ -29,13 +29,16 @@ import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
 public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K, V, DataStructure<K>> {
 
-	private final long timeout;
-	private final Converter<StreamMessage<K, V>, XAddArgs> xAddArgs;
+	private Duration timeout;
+	private Converter<StreamMessage<K, V>, XAddArgs> xaddArgs = m -> new XAddArgs().id(m.getId());
 
-	public DataStructureOperationExecutor(Duration timeout, Converter<StreamMessage<K, V>, XAddArgs> xAddArgs) {
+	public void setTimeout(Duration timeout) {
 		Utils.assertPositive(timeout, "Timeout duration");
-		this.timeout = timeout.toMillis();
-		this.xAddArgs = xAddArgs;
+		this.timeout = timeout;
+	}
+
+	public void setXaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
+		this.xaddArgs = xaddArgs;
 	}
 
 	@Override
@@ -83,7 +86,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 			Collection<StreamMessage<K, V>> messages = (Collection<StreamMessage<K, V>>) ds.getValue();
 			for (StreamMessage<K, V> message : messages) {
 				streamFutures.add(((RedisStreamAsyncCommands<K, V>) commands).xadd(ds.getKey(),
-						xAddArgs.convert(message), message.getBody()));
+						xaddArgs.convert(message), message.getBody()));
 			}
 			flush(commands, streamFutures.toArray(new RedisFuture[0]));
 		}
@@ -94,7 +97,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	private void flush(BaseRedisAsyncCommands<K, V> commands, RedisFuture<?>... futures) {
 		commands.flushCommands();
-		LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures);
+		LettuceFutures.awaitAll(timeout.toMillis(), TimeUnit.MILLISECONDS, futures);
 	}
 
 }

@@ -14,10 +14,6 @@ import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.builder.LiveKeyItemReaderBuilder;
-
-import io.lettuce.core.RedisClient;
-import io.lettuce.core.cluster.RedisClusterClient;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -112,14 +108,6 @@ public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements 
 
 		void key(K key);
 
-	}
-
-	public static LiveKeyItemReaderBuilder client(RedisClient client) {
-		return new LiveKeyItemReaderBuilder(client);
-	}
-
-	public static LiveKeyItemReaderBuilder client(RedisClusterClient client) {
-		return new LiveKeyItemReaderBuilder(client);
 	}
 
 }

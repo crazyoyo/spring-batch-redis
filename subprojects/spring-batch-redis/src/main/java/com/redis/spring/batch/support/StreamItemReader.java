@@ -28,7 +28,7 @@ import io.lettuce.core.api.sync.RedisStreamCommands;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
+public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 		implements PollableItemReader<StreamMessage<K, V>> {
 
 	public enum AckPolicy {
@@ -49,7 +49,7 @@ public class RedisStreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
 	private boolean open;
 
-	public RedisStreamItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
+	public StreamItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
 			Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, StreamOffset<K> offset) {
 		super(connectionSupplier, poolConfig);
