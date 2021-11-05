@@ -62,8 +62,9 @@ public abstract class AbstractTestBase {
 		this.asyncJobLauncher = launcher;
 	}
 
-	protected <B extends JobRepositoryBuilder<String, String, B>> B configureJobRepository(B runner) {
-		return runner.jobRepository(jobRepository).transactionManager(transactionManager);
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	protected <B extends JobRepositoryBuilder> B configureJobRepository(B runner) {
+		return (B) runner.jobRepository(jobRepository).transactionManager(transactionManager);
 	}
 
 	protected String name(RedisServer redis, String name) {
