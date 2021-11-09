@@ -216,9 +216,11 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 	void testStreamReaderJob(RedisServer redis) throws Exception {
 		String name = "stream-reader-job";
 		execute(streamDataGenerator(redis, name));
+		RedisStreamCommands<String, String> sync = sync(redis);
+		Assertions.assertEquals(COUNT, sync.xlen(STREAM));
 		StreamItemReader<String, String> reader = streamReader(redis).build();
 		ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
-		awaitTermination(runFlushing(redis, name, reader, null, writer));
+		awaitTermination(runFlushing(redis, name, reader, null, writer), reader);
 		Assertions.assertEquals(COUNT, writer.getWrittenItems().size());
 		assertMessageBody(writer.getWrittenItems());
 	}

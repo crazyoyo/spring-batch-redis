@@ -40,7 +40,7 @@ import com.redis.testcontainers.RedisServer;
 public abstract class AbstractTestBase {
 
 	private static final int DEFAULT_CHUNK_SIZE = 50;
-	protected static final Duration IDLE_TIMEOUT = Duration.ofSeconds(3);
+	protected static final Duration IDLE_TIMEOUT = Duration.ofSeconds(1);
 
 	@Autowired
 	protected JobRepository jobRepository;
@@ -89,6 +89,11 @@ public abstract class AbstractTestBase {
 	protected JobExecution awaitTermination(JobExecution execution) {
 		Awaitility.await().timeout(Duration.ofMinutes(1)).until(() -> !execution.isRunning());
 		return execution;
+	}
+
+	protected void awaitTermination(JobExecution execution, PollableItemReader<?> reader) {
+		awaitTermination(execution);
+		Awaitility.await().until(() -> !reader.isOpen());
 	}
 
 	protected FlowBuilder<SimpleFlow> flow(RedisServer redis, String name) {

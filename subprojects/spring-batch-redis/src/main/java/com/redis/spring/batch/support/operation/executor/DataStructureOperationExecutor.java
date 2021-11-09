@@ -7,7 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.convert.converter.Converter;
 
 import com.redis.spring.batch.support.DataStructure;
@@ -15,6 +19,7 @@ import com.redis.spring.batch.support.Utils;
 
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
+import io.lettuce.core.RedisURI;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
@@ -29,8 +34,13 @@ import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
 public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K, V, DataStructure<K>> {
 
-	private Duration timeout;
+	private static final Logger log = LoggerFactory.getLogger(DataStructureOperationExecutor.class);
+
+	private static final int DEFAULT_BATCH_SIZE = 50;
+
+	private Duration timeout = RedisURI.DEFAULT_TIMEOUT_DURATION;
 	private Converter<StreamMessage<K, V>, XAddArgs> xaddArgs = m -> new XAddArgs().id(m.getId());
+	private int batchSize = DEFAULT_BATCH_SIZE;
 
 	public void setTimeout(Duration timeout) {
 		Utils.assertPositive(timeout, "Timeout duration");
@@ -39,6 +49,11 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	public void setXaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
 		this.xaddArgs = xaddArgs;
+	}
+
+	public void setBatchSize(int batchSize) {
+		Utils.assertPositive(batchSize, "Batch size");
+		this.batchSize = batchSize;
 	}
 
 	@Override
@@ -81,23 +96,44 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 					((RedisSortedSetAsyncCommands<K, V>) commands).zadd(ds.getKey(),
 							((Collection<ScoredValue<String>>) ds.getValue()).toArray(new ScoredValue[0])));
 		} else if (lowerCase.equals(DataStructure.STREAM)) {
-			List<RedisFuture<?>> streamFutures = new ArrayList<>();
-			streamFutures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
-			Collection<StreamMessage<K, V>> messages = (Collection<StreamMessage<K, V>>) ds.getValue();
-			for (StreamMessage<K, V> message : messages) {
-				streamFutures.add(((RedisStreamAsyncCommands<K, V>) commands).xadd(ds.getKey(),
-						xaddArgs.convert(message), message.getBody()));
-			}
-			flush(commands, streamFutures.toArray(new RedisFuture[0]));
+			RedisStreamAsyncCommands<K, V> streamCommands = (RedisStreamAsyncCommands<K, V>) commands;
+			flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
+			batches((List<StreamMessage<K, V>>) ds.getValue()).forEach(b -> {
+				List<RedisFuture<?>> streamFutures = new ArrayList<>();
+				for (StreamMessage<K, V> message : b) {
+					streamFutures.add(streamCommands.xadd(ds.getKey(), xaddArgs.convert(message), message.getBody()));
+				}
+				flush(commands, streamFutures);
+			});
 		}
 		if (ds.hasTTL()) {
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getAbsoluteTTL()));
 		}
 	}
 
+	public <T> Stream<List<T>> batches(List<T> source) {
+		int size = source.size();
+		if (size <= 0) {
+			return Stream.empty();
+		}
+		int fullChunks = (size - 1) / batchSize;
+		return IntStream.range(0, fullChunks + 1)
+				.mapToObj(n -> source.subList(n * batchSize, n == fullChunks ? size : (n + 1) * batchSize));
+	}
+
+	private void flush(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures) {
+		flush(commands, futures.toArray(new RedisFuture[0]));
+	}
+
 	private void flush(BaseRedisAsyncCommands<K, V> commands, RedisFuture<?>... futures) {
 		commands.flushCommands();
-		LettuceFutures.awaitAll(timeout.toMillis(), TimeUnit.MILLISECONDS, futures);
+		log.debug("Executing {} commands", futures.length);
+		boolean result = LettuceFutures.awaitAll(timeout.toMillis(), TimeUnit.MILLISECONDS, futures);
+		if (result) {
+			log.debug("Successfully executed {} commands", futures.length);
+		} else {
+			log.warn("Could not execute {} commands", futures.length);
+		}
 	}
 
 }
