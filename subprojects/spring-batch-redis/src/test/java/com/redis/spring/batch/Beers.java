@@ -73,7 +73,7 @@ public class Beers {
 			AbstractRedisClient client) throws Exception {
 		JsonItemReader<Map<String, Object>> reader = mapReader();
 		Hset<String, String, Map<String, String>> operation = Hset
-				.<Map<String, String>>key(m -> PREFIX + m.get(ID.getName())).map(m -> m).build();
+				.<String, String, Map<String, String>>key(m -> PREFIX + m.get(ID.getName())).map(m -> m).build();
 		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(client, operation).build();
 		String name = "populate-beer-index";
 		JobRunner jobRunner = new JobRunner(jobRepository, transactionManager);

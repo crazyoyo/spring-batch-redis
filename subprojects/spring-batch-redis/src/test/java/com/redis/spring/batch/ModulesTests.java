@@ -43,8 +43,9 @@ class ModulesTests extends AbstractTestBase {
 	@Test
 	void testJsonSet() throws Exception {
 		connection.sync().flushall();
-		JsonSet<String, String, JsonNode> jsonSet = JsonSet.<JsonNode>key(n -> "beer:" + n.get("id").asText()).path(".")
-				.value(JsonNode::toString).build();
+		JsonSet<String, String, JsonNode> jsonSet = JsonSet
+				.<String, String, JsonNode>key(n -> "beer:" + n.get("id").asText()).path(".").value(JsonNode::toString)
+				.build();
 		RedisItemWriter<String, String, JsonNode> writer = RedisItemWriter.client(client).operation(jsonSet).build();
 		run(REDIS, "json-set", Beers.jsonNodeReader(), writer);
 		Assertions.assertEquals(4432, connection.sync().keys("beer:*").size());

@@ -10,8 +10,6 @@ import com.redis.lettucemod.api.search.Suggestion;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 
 public class Sugadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
@@ -45,43 +43,46 @@ public class Sugadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		return ((RediSearchAsyncCommands<K, V>) commands).sugdel(key, suggestion.getString());
 	}
 
-	public static <T> SugaddSuggestionBuilder<T> key(String key) {
-		return new SugaddSuggestionBuilder<>(t -> key);
+	public static <K, V, T> SugaddSuggestionBuilder<K, V, T> key(K key) {
+		return key(t -> key);
 	}
 
-	public static <T> SugaddSuggestionBuilder<T> key(Converter<T, String> key) {
+	public static <K, V, T> SugaddSuggestionBuilder<K, V, T> key(Converter<T, K> key) {
 		return new SugaddSuggestionBuilder<>(key);
 	}
 
-	public static class SugaddSuggestionBuilder<T> {
+	public static class SugaddSuggestionBuilder<K, V, T> {
 
-		private final Converter<T, String> key;
+		private final Converter<T, K> key;
 
-		public SugaddSuggestionBuilder(Converter<T, String> key) {
+		public SugaddSuggestionBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		public SugaddBuilder<T> suggestion(Converter<T, Suggestion<String>> suggestion) {
+		public SugaddBuilder<K, V, T> suggestion(Converter<T, Suggestion<V>> suggestion) {
 			return new SugaddBuilder<>(key, suggestion);
 		}
 	}
 
-	@Setter
-	@Accessors(fluent = true)
-	public static class SugaddBuilder<T> extends DelBuilder<T, SugaddBuilder<T>> {
+	public static class SugaddBuilder<K, V, T> extends DelBuilder<K, V, T, SugaddBuilder<K, V, T>> {
 
-		private final Converter<T, String> key;
-		private final Converter<T, Suggestion<String>> suggestion;
+		private final Converter<T, K> key;
+		private final Converter<T, Suggestion<V>> suggestion;
 		private boolean increment;
 
-		public SugaddBuilder(Converter<T, String> key, Converter<T, Suggestion<String>> suggestion) {
+		public SugaddBuilder(Converter<T, K> key, Converter<T, Suggestion<V>> suggestion) {
 			super(suggestion);
 			this.key = key;
 			this.suggestion = suggestion;
 		}
 
+		public SugaddBuilder<K, V, T> increment(boolean increment) {
+			this.increment = increment;
+			return this;
+		}
+
 		@Override
-		public Sugadd<String, String, T> build() {
+		public Sugadd<K, V, T> build() {
 			return new Sugadd<>(key, del, suggestion, increment);
 		}
 	}

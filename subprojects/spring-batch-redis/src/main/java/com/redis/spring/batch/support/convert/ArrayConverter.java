@@ -1,28 +1,27 @@
 package com.redis.spring.batch.support.convert;
 
-import java.lang.reflect.Array;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 
 import org.springframework.core.convert.converter.Converter;
 
-public class ArrayConverter<S, E> implements Converter<S, E[]> {
+public class ArrayConverter<S, E> implements Converter<S, Collection<E>> {
 
-	private final Converter<S, ? extends E>[] elementArrayConverter;
-	private Class<E> type;
+	private final Collection<Converter<S, ? extends E>> converters;
 
 	@SuppressWarnings("unchecked")
-	public ArrayConverter(Class<E> type, Converter<S, ? extends E>... elements) {
-		this.type = type;
-		this.elementArrayConverter = elements;
+	public ArrayConverter(Converter<S, ? extends E>... elements) {
+		this.converters = Arrays.asList(elements);
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
-	public E[] convert(S source) {
-		E[] array = (E[]) Array.newInstance(type, this.elementArrayConverter.length);
-		for (int index = 0; index < array.length; index++) {
-			array[index] = this.elementArrayConverter[index].convert(source);
+	public Collection<E> convert(S source) {
+		Collection<E> target = new ArrayList<>();
+		for (Converter<S, ? extends E> converter : converters) {
+			target.add(converter.convert(source));
 		}
-		return array;
+		return target;
 	}
 
 }

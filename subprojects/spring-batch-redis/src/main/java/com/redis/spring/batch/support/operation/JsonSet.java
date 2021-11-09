@@ -32,49 +32,49 @@ public class JsonSet<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		return ((RedisJSONAsyncCommands<K, V>) commands).jsonDel(key, path.convert(item));
 	}
 
-	public static <T> PathJsonSetBuilder<T> key(Converter<T, String> key) {
+	public static <K, V, T> PathJsonSetBuilder<K, V, T> key(Converter<T, K> key) {
 		return new PathJsonSetBuilder<>(key);
 	}
 
-	public static class PathJsonSetBuilder<T> {
+	public static class PathJsonSetBuilder<K, V, T> {
 
-		private final Converter<T, String> key;
+		private final Converter<T, K> key;
 
-		public PathJsonSetBuilder(Converter<T, String> key) {
+		public PathJsonSetBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		public JsonSetValueBuilder<T> path(String path) {
+		public JsonSetValueBuilder<K, V, T> path(K path) {
 			return new JsonSetValueBuilder<>(key, t -> path);
 		}
 
-		public JsonSetValueBuilder<T> path(Converter<T, String> path) {
+		public JsonSetValueBuilder<K, V, T> path(Converter<T, K> path) {
 			return new JsonSetValueBuilder<>(key, path);
 		}
 	}
 
-	public static class JsonSetValueBuilder<T> {
+	public static class JsonSetValueBuilder<K, V, T> {
 
-		private final Converter<T, String> key;
-		private final Converter<T, String> path;
+		private final Converter<T, K> key;
+		private final Converter<T, K> path;
 
-		public JsonSetValueBuilder(Converter<T, String> key, Converter<T, String> path) {
+		public JsonSetValueBuilder(Converter<T, K> key, Converter<T, K> path) {
 			this.key = key;
 			this.path = path;
 		}
 
-		public <V> JsonSetBuilder<T> value(Converter<T, String> value) {
+		public JsonSetBuilder<K, V, T> value(Converter<T, V> value) {
 			return new JsonSetBuilder<>(key, path, value);
 		}
 	}
 
-	public static class JsonSetBuilder<T> extends DelBuilder<T, JsonSetBuilder<T>> {
+	public static class JsonSetBuilder<K, V, T> extends DelBuilder<K, V, T, JsonSetBuilder<K, V, T>> {
 
-		private final Converter<T, String> key;
-		private final Converter<T, String> path;
-		private final Converter<T, String> value;
+		private final Converter<T, K> key;
+		private final Converter<T, K> path;
+		private final Converter<T, V> value;
 
-		public JsonSetBuilder(Converter<T, String> key, Converter<T, String> path, Converter<T, String> value) {
+		public JsonSetBuilder(Converter<T, K> key, Converter<T, K> path, Converter<T, V> value) {
 			super(value);
 			this.key = key;
 			this.path = path;
@@ -82,7 +82,7 @@ public class JsonSet<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		}
 
 		@Override
-		public JsonSet<String, String, T> build() {
+		public JsonSet<K, V, T> build() {
 			return new JsonSet<>(key, del, path, value);
 		}
 

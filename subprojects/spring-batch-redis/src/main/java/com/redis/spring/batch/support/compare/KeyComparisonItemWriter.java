@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
@@ -19,12 +21,9 @@ import com.redis.spring.batch.support.Utils;
 import com.redis.spring.batch.support.ValueReader;
 import com.redis.spring.batch.support.compare.KeyComparison.Status;
 
-import lombok.Setter;
-import lombok.experimental.Accessors;
-import lombok.extern.slf4j.Slf4j;
-
-@Slf4j
 public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<DataStructure<K>> {
+
+	private static final Logger log = LoggerFactory.getLogger(KeyComparisonItemWriter.class);
 
 	private final KeyComparisonResults results = new KeyComparisonResults();
 	private final ValueReader<K, DataStructure<K>> valueReader;
@@ -151,8 +150,6 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 		return new KeyComparisonItemWriterBuilder<>(valueReader);
 	}
 
-	@Setter
-	@Accessors(fluent = true)
 	public static class KeyComparisonItemWriterBuilder<K> {
 
 		private static final Duration DEFAULT_TTL_TOLERANCE = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL
@@ -163,6 +160,11 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 
 		public KeyComparisonItemWriterBuilder(ValueReader<K, DataStructure<K>> valueReader) {
 			this.valueReader = valueReader;
+		}
+
+		public KeyComparisonItemWriterBuilder<K> tolerance(Duration ttlTolerance) {
+			this.ttlTolerance = ttlTolerance;
+			return this;
 		}
 
 		public KeyComparisonItemWriter<K> build() {

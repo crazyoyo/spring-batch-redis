@@ -20,10 +20,7 @@ import com.redis.spring.batch.support.ValueReader;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.cluster.RedisClusterClient;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 
-@Accessors(fluent = true)
 public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ValueReader<String, T>>
 		extends RedisItemReaderBuilder<T, R, LiveRedisItemReaderBuilder<T, R>> {
 
@@ -31,15 +28,31 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 	private static final Converter<String, String> STRING_KEY_EXTRACTOR = m -> m.substring(m.indexOf(":") + 1);
 
-	@Setter
 	private Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
-	@Setter
 	private Duration idleTimeout;
 	private List<String> keyPatterns = Arrays.asList(ScanKeyItemReader.DEFAULT_SCAN_MATCH);
-	@Setter
 	private int database = DEFAULT_DATABASE;
-	@Setter
 	private int notificationQueueCapacity = LiveKeyItemReader.DEFAULT_QUEUE_CAPACITY;
+
+	public LiveRedisItemReaderBuilder<T, R> flushingInterval(Duration flushingInterval) {
+		this.flushingInterval = flushingInterval;
+		return this;
+	}
+
+	public LiveRedisItemReaderBuilder<T, R> idleTimeout(Duration idleTimeout) {
+		this.idleTimeout = idleTimeout;
+		return this;
+	}
+
+	public LiveRedisItemReaderBuilder<T, R> database(int database) {
+		this.database = database;
+		return this;
+	}
+
+	public LiveRedisItemReaderBuilder<T, R> notificationQueueCapacity(int notificationQueueCapacity) {
+		this.notificationQueueCapacity = notificationQueueCapacity;
+		return this;
+	}
 
 	public LiveRedisItemReaderBuilder(AbstractRedisClient client,
 			ValueReaderFactory<String, String, T, R> valueReaderFactory) {

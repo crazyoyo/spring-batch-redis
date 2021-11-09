@@ -20,9 +20,7 @@ class FlushingStepTests extends AbstractTestBase {
 	void testReaderSkipPolicy() throws Exception {
 		String name = "skip-policy";
 		List<Integer> items = IntStream.range(0, 100).boxed().collect(Collectors.toList());
-		int interval = 2;
-		DelegatingPollableItemReader<Integer> reader = new DelegatingPollableItemReader<>(new ListItemReader<>(items),
-				TimeoutException::new, interval);
+		DelegatingPollableItemReader<Integer> reader = new DelegatingPollableItemReader<>(new ListItemReader<>(items));
 		ListItemWriter<Integer> writer = new ListItemWriter<>();
 		FlushingStepBuilder<Integer, Integer> stepBuilder = new FlushingStepBuilder<>(
 				stepBuilderFactory.get(name).<Integer, Integer>chunk(1).reader(reader).writer(writer));

@@ -10,11 +10,7 @@ import com.redis.spring.batch.support.StreamItemReader.AckPolicy;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.codec.StringCodec;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 
-@Setter
-@Accessors(fluent = true)
 public class StreamItemReaderBuilder extends RedisBuilder<String, String, StreamItemReaderBuilder> {
 
 	public static final String DEFAULT_CONSUMER_GROUP = ClassUtils.getShortName(StreamItemReader.class);
@@ -31,6 +27,36 @@ public class StreamItemReaderBuilder extends RedisBuilder<String, String, Stream
 	public StreamItemReaderBuilder(AbstractRedisClient client, String stream) {
 		super(client, StringCodec.UTF8);
 		this.stream = stream;
+	}
+
+	public StreamItemReaderBuilder offset(String offset) {
+		this.offset = offset;
+		return this;
+	}
+
+	public StreamItemReaderBuilder block(Duration block) {
+		this.block = block;
+		return this;
+	}
+
+	public StreamItemReaderBuilder count(long count) {
+		this.count = count;
+		return this;
+	}
+
+	public StreamItemReaderBuilder consumerGroup(String consumerGroup) {
+		this.consumerGroup = consumerGroup;
+		return this;
+	}
+
+	public StreamItemReaderBuilder consumer(String consumer) {
+		this.consumer = consumer;
+		return this;
+	}
+
+	public StreamItemReaderBuilder ackPolicy(AckPolicy ackPolicy) {
+		this.ackPolicy = ackPolicy;
+		return this;
 	}
 
 	public StreamItemReader<String, String> build() {

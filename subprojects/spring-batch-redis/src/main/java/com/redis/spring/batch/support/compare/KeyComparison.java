@@ -2,11 +2,6 @@ package com.redis.spring.batch.support.compare;
 
 import com.redis.spring.batch.support.DataStructure;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-
-@Data
-@AllArgsConstructor
 public class KeyComparison<K> {
 
 	public enum Status {
@@ -20,5 +15,36 @@ public class KeyComparison<K> {
 	private DataStructure<K> source;
 	private DataStructure<K> target;
 	private Status status;
+
+	public KeyComparison(DataStructure<K> source, DataStructure<K> target, Status status) {
+		super();
+		this.source = source;
+		this.target = target;
+		this.status = status;
+	}
+
+	public DataStructure<K> getSource() {
+		return source;
+	}
+
+	public void setSource(DataStructure<K> source) {
+		this.source = source;
+	}
+
+	public DataStructure<K> getTarget() {
+		return target;
+	}
+
+	public void setTarget(DataStructure<K> target) {
+		this.target = target;
+	}
+
+	public Status getStatus() {
+		return status;
+	}
+
+	public void setStatus(Status status) {
+		this.status = status;
+	}
 
 }

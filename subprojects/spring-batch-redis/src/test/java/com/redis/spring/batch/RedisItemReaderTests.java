@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -94,7 +93,7 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 	private void populateSource(RedisServer server, String name) throws Exception {
 		JsonItemReader<Map<String, Object>> reader = Beers.mapReader();
 		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(server,
-				Hset.<Map<String, String>>key(t -> t.get("id")).map(t -> t).build()).build();
+				Hset.<String, String, Map<String, String>>key(t -> t.get("id")).map(t -> t).build()).build();
 		run(server, name + "-populate", reader, new MapFlattener(), writer);
 	}
 
@@ -150,8 +149,7 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 		String name = "reader-ft";
 		execute(dataGenerator(redis, name).dataType(Type.STRING));
 		List<String> keys = IntStream.range(0, 100).boxed().map(i -> "string:" + i).collect(Collectors.toList());
-		DelegatingPollableItemReader<String> keyReader = DelegatingPollableItemReader.<String>builder()
-				.delegate(new ListItemReader<>(keys)).exceptionSupplier(TimeoutException::new).interval(2).build();
+		DelegatingPollableItemReader<String> keyReader = new DelegatingPollableItemReader<>(new ListItemReader<>(keys));
 		DataStructureValueReader<String, String> valueReader = dataStructureValueReader(redis);
 		RedisItemReader<String, DataStructure<String>> reader = new RedisItemReader<>(jobRepository, transactionManager,
 				keyReader, valueReader);

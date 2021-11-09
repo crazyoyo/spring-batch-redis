@@ -1,6 +1,7 @@
 package com.redis.spring.batch;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import org.springframework.batch.item.ItemReader;
@@ -9,22 +10,25 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.support.PollableItemReader;
 
-import lombok.Builder;
-
 public class DelegatingPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T>
 		implements PollableItemReader<T> {
 
 	private final ItemReader<T> delegate;
-	private final Supplier<Exception> exceptionSupplier;
-	private final long interval;
+	private Supplier<Exception> exceptionSupplier = () -> new TimeoutException();
+	private long interval = 2;
 	private boolean open;
 
-	@Builder
-	public DelegatingPollableItemReader(ItemReader<T> delegate, Supplier<Exception> exceptionSupplier, long interval) {
+	public DelegatingPollableItemReader(ItemReader<T> delegate) {
 		setName(ClassUtils.getShortName(DelegatingPollableItemReader.class));
 		this.delegate = delegate;
-		this.exceptionSupplier = exceptionSupplier;
+	}
+
+	public void setInterval(long interval) {
 		this.interval = interval;
+	}
+
+	public void setExceptionSupplier(Supplier<Exception> exceptionSupplier) {
+		this.exceptionSupplier = exceptionSupplier;
 	}
 
 	@Override
@@ -44,7 +48,6 @@ public class DelegatingPollableItemReader<T> extends AbstractItemCountingItemStr
 	@Override
 	protected void doOpen() {
 		this.open = true;
-		;
 	}
 
 	@Override

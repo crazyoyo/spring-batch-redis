@@ -12,9 +12,9 @@ public interface RedisOperation<K, V, T> {
 
 	RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item);
 
-	interface RedisOperationBuilder<T> {
+	interface RedisOperationBuilder<K, V, T> {
 
-		RedisOperation<String, String, T> build();
+		RedisOperation<K, V, T> build();
 
 	}
 
@@ -34,7 +34,7 @@ public interface RedisOperation<K, V, T> {
 
 	}
 
-	abstract class DelBuilder<T, B extends DelBuilder<T, B>> implements RedisOperationBuilder<T> {
+	abstract class DelBuilder<K, V, T, B extends DelBuilder<K, V, T, B>> implements RedisOperationBuilder<K, V, T> {
 
 		protected Predicate<T> del;
 
@@ -50,7 +50,7 @@ public interface RedisOperation<K, V, T> {
 
 	}
 
-	abstract class RemoveBuilder<T, B extends RemoveBuilder<T, B>> extends DelBuilder<T, B> {
+	abstract class RemoveBuilder<K, V, T, B extends RemoveBuilder<K, V, T, B>> extends DelBuilder<K, V, T, B> {
 
 		protected Predicate<T> remove = t -> false;
 

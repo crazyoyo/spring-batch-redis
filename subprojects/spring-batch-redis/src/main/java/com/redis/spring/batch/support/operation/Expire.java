@@ -32,36 +32,36 @@ public class Expire<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		return ((RedisKeyAsyncCommands<K, V>) commands).pexpire(key, millis);
 	}
 
-	public static <T> ExpireMillisBuilder<T> key(Converter<T, String> key) {
+	public static <K, V, T> ExpireMillisBuilder<K, V, T> key(Converter<T, K> key) {
 		return new ExpireMillisBuilder<>(key);
 	}
 
-	public static class ExpireMillisBuilder<T> {
+	public static class ExpireMillisBuilder<K, V, T> {
 
-		private final Converter<T, String> key;
+		private final Converter<T, K> key;
 
-		public ExpireMillisBuilder(Converter<T, String> key) {
+		public ExpireMillisBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		public ExpireBuilder<T> millis(Converter<T, Long> millis) {
+		public ExpireBuilder<K, V, T> millis(Converter<T, Long> millis) {
 			return new ExpireBuilder<>(key, millis);
 		}
 	}
 
-	public static class ExpireBuilder<T> extends DelBuilder<T, ExpireBuilder<T>> {
+	public static class ExpireBuilder<K, V, T> extends DelBuilder<K, V, T, ExpireBuilder<K, V, T>> {
 
-		private final Converter<T, String> key;
+		private final Converter<T, K> key;
 		private final Converter<T, Long> millis;
 
-		public ExpireBuilder(Converter<T, String> key, Converter<T, Long> millis) {
+		public ExpireBuilder(Converter<T, K> key, Converter<T, Long> millis) {
 			super(millis);
 			this.key = key;
 			this.millis = millis;
 		}
 
 		@Override
-		public Expire<String, String, T> build() {
+		public Expire<K, V, T> build() {
 			return new Expire<>(key, del, millis);
 		}
 

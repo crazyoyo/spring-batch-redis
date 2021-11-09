@@ -32,10 +32,7 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 
-@Setter
 public class Generator implements Callable<JobExecution> {
 
 	private static final String NAME = "generator";
@@ -70,6 +67,38 @@ public class Generator implements Callable<JobExecution> {
 		this.id = id;
 		this.jobRepository = jobRepository;
 		this.transactionManager = transactionManager;
+	}
+
+	public void setChunkSize(int chunkSize) {
+		this.chunkSize = chunkSize;
+	}
+
+	public void setDataTypes(List<Type> dataTypes) {
+		this.dataTypes = dataTypes;
+	}
+
+	public void setSequence(Range<Long> sequence) {
+		this.sequence = sequence;
+	}
+
+	public void setKeyPrefix(String keyPrefix) {
+		this.keyPrefix = keyPrefix;
+	}
+
+	public void setExpiration(Range<Long> expiration) {
+		this.expiration = expiration;
+	}
+
+	public void setCollectionCardinality(Range<Long> collectionCardinality) {
+		this.collectionCardinality = collectionCardinality;
+	}
+
+	public void setStringValueSize(Range<Integer> stringValueSize) {
+		this.stringValueSize = stringValueSize;
+	}
+
+	public void setZsetScore(Range<Double> zsetScore) {
+		this.zsetScore = zsetScore;
 	}
 
 	@Override
@@ -160,30 +189,57 @@ public class Generator implements Callable<JobExecution> {
 		return new GeneratorBuilder(client, id);
 	}
 
-	@Accessors(fluent = true)
 	public static class GeneratorBuilder extends JobRepositoryBuilder<String, String, GeneratorBuilder> {
 
 		private final String id;
 
-		@Setter
 		private int chunkSize = DEFAULT_CHUNK_SIZE;
 		private List<Type> dataTypes = new ArrayList<>();
-		@Setter
 		private Range<Long> sequence = DEFAULT_SEQUENCE;
-		@Setter
 		private String keyPrefix;
-		@Setter
 		private Range<Long> expiration;
-		@Setter
 		private Range<Long> collectionCardinality = DEFAULT_COLLECTION_CARDINALITY;
-		@Setter
 		private Range<Integer> stringValueSize = DEFAULT_STRING_VALUE_SIZE;
-		@Setter
 		private Range<Double> zsetScore = DEFAULT_ZSET_SCORE;
 
 		public GeneratorBuilder(AbstractRedisClient client, String id) {
 			super(client, StringCodec.UTF8);
 			this.id = id;
+		}
+
+		public GeneratorBuilder chunkSize(int chunkSize) {
+			this.chunkSize = chunkSize;
+			return this;
+		}
+
+		public GeneratorBuilder sequence(Range<Long> sequence) {
+			this.sequence = sequence;
+			return this;
+		}
+
+		public GeneratorBuilder keyPrefix(String keyPrefix) {
+			this.keyPrefix = keyPrefix;
+			return this;
+		}
+
+		public GeneratorBuilder expiration(Range<Long> expiration) {
+			this.expiration = expiration;
+			return this;
+		}
+
+		public GeneratorBuilder collectionCardinality(Range<Long> collectionCardinality) {
+			this.collectionCardinality = collectionCardinality;
+			return this;
+		}
+
+		public GeneratorBuilder stringValueSize(Range<Integer> stringValueSize) {
+			this.stringValueSize = stringValueSize;
+			return this;
+		}
+
+		public GeneratorBuilder zsetScore(Range<Double> zsetScore) {
+			this.zsetScore = zsetScore;
+			return this;
 		}
 
 		public GeneratorBuilder dataType(Type type) {

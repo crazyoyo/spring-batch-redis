@@ -4,85 +4,74 @@ import java.util.function.Predicate;
 
 import org.springframework.core.convert.converter.Converter;
 
-import com.redis.spring.batch.support.convert.ArrayConverter;
-
-import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 
 public class Lpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 
-	private final Converter<T, V[]> memberArrayConverter;
+	private final Converter<T, V> memberConverter;
 
-	public Lpush(Converter<T, K> key, Predicate<T> delete, Predicate<T> remove, Converter<T, V[]> members) {
+	public Lpush(Converter<T, K> key, Predicate<T> delete, Predicate<T> remove, Converter<T, V> member) {
 		super(key, delete, remove);
-		this.memberArrayConverter = members;
+		this.memberConverter = member;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
 	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		return ((RedisListAsyncCommands<K, V>) commands).lpush(key, memberArrayConverter.convert(item));
+		V member = memberConverter.convert(item);
+		if (member == null) {
+			return null;
+		}
+		return ((RedisListAsyncCommands<K, V>) commands).lpush(key, member);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
 	protected RedisFuture<Long> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		V[] members = this.memberArrayConverter.convert(item);
-		if (members == null) {
+		V member = this.memberConverter.convert(item);
+		if (member == null) {
 			return null;
 		}
-		if (members.length > 1) {
-			throw new RedisCommandExecutionException("Removal of multiple list members is not supported");
-		}
-		return ((RedisListAsyncCommands<K, V>) commands).lrem(key, 1, members[0]);
+		return ((RedisListAsyncCommands<K, V>) commands).lrem(key, 1, member);
 	}
 
-	public static <T> LpushMemberBuilder<T> key(String key) {
+	public static <K, V, T> RpushMemberBuilder<K, V, T> key(K key) {
 		return key(t -> key);
 	}
 
-	public static <T> LpushMemberBuilder<T> key(Converter<T, String> key) {
-		return new LpushMemberBuilder<>(key);
+	public static <K, V, T> RpushMemberBuilder<K, V, T> key(Converter<T, K> key) {
+		return new RpushMemberBuilder<>(key);
 	}
 
-	public static class LpushMemberBuilder<T> {
+	public static class RpushMemberBuilder<K, V, T> {
 
-		private final Converter<T, String> key;
+		private final Converter<T, K> key;
 
-		public LpushMemberBuilder(Converter<T, String> key) {
+		public RpushMemberBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		@SuppressWarnings("unchecked")
-		public LpushBuilder<T> members(Converter<T, String>... members) {
-			return new LpushBuilder<>(key, new ArrayConverter<>(String.class, members));
-		}
-
-		public LpushBuilder<T> members(Converter<T, String[]> members) {
-			return new LpushBuilder<>(key, members);
+		public RpushBuilder<K, V, T> member(Converter<T, V> member) {
+			return new RpushBuilder<>(key, member);
 		}
 	}
 
-	@Setter
-	@Accessors(fluent = true)
-	public static class LpushBuilder<T> extends RemoveBuilder<T, LpushBuilder<T>> {
+	public static class RpushBuilder<K, V, T> extends RemoveBuilder<K, V, T, RpushBuilder<K, V, T>> {
 
-		private final Converter<T, String> key;
-		private final Converter<T, String[]> members;
+		private final Converter<T, K> key;
+		private final Converter<T, V> member;
 
-		public LpushBuilder(Converter<T, String> key, Converter<T, String[]> members) {
-			super(members);
+		public RpushBuilder(Converter<T, K> key, Converter<T, V> member) {
+			super(member);
 			this.key = key;
-			this.members = members;
+			this.member = member;
 		}
 
 		@Override
-		public Lpush<String, String, T> build() {
-			return new Lpush<>(key, del, remove, members);
+		public Lpush<K, V, T> build() {
+			return new Lpush<>(key, del, remove, member);
 		}
 
 	}

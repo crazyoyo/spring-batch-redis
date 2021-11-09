@@ -10,8 +10,6 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 
 public class Xadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
@@ -32,43 +30,46 @@ public class Xadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.convert(item), body.convert(item));
 	}
 
-	public static <T> XaddBodyBuilder<T> key(String key) {
+	public static <K, V, T> XaddBodyBuilder<K, V, T> key(K key) {
 		return key(t -> key);
 	}
 
-	public static <T> XaddBodyBuilder<T> key(Converter<T, String> key) {
+	public static <K, V, T> XaddBodyBuilder<K, V, T> key(Converter<T, K> key) {
 		return new XaddBodyBuilder<>(key);
 	}
 
-	public static class XaddBodyBuilder<T> {
+	public static class XaddBodyBuilder<K, V, T> {
 
-		private final Converter<T, String> key;
+		private final Converter<T, K> key;
 
-		public XaddBodyBuilder(Converter<T, String> key) {
+		public XaddBodyBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		public XaddBuilder<T> body(Converter<T, Map<String, String>> body) {
+		public XaddBuilder<K, V, T> body(Converter<T, Map<K, V>> body) {
 			return new XaddBuilder<>(key, body);
 		}
 	}
 
-	@Setter
-	@Accessors(fluent = true)
-	public static class XaddBuilder<T> extends DelBuilder<T, XaddBuilder<T>> {
+	public static class XaddBuilder<K, V, T> extends DelBuilder<K, V, T, XaddBuilder<K, V, T>> {
 
-		private final Converter<T, String> key;
-		private final Converter<T, Map<String, String>> body;
+		private final Converter<T, K> key;
+		private final Converter<T, Map<K, V>> body;
 		private XAddArgs args;
 
-		public XaddBuilder(Converter<T, String> key, Converter<T, Map<String, String>> body) {
+		public XaddBuilder(Converter<T, K> key, Converter<T, Map<K, V>> body) {
 			super(body);
 			this.key = key;
 			this.body = body;
 		}
 
+		public Xadd.XaddBuilder<K, V, T> args(XAddArgs args) {
+			this.args = args;
+			return this;
+		}
+
 		@Override
-		public Xadd<String, String, T> build() {
+		public Xadd<K, V, T> build() {
 			return new Xadd<>(key, del, body, t -> args);
 		}
 	}

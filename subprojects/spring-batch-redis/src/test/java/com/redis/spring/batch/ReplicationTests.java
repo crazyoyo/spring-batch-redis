@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
@@ -35,10 +37,10 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisKeyCommands;
 import io.lettuce.core.api.sync.RedisSetCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 class ReplicationTests extends AbstractRedisTestBase {
+
+	private static final Logger log = LoggerFactory.getLogger(ReplicationTests.class);
 
 	@Container
 	private static final RedisContainer TARGET = new RedisContainer();

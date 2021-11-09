@@ -1,9 +1,10 @@
 package com.redis.spring.batch.support;
 
-import io.micrometer.core.instrument.Metrics;
-import io.micrometer.core.instrument.Tag;
-import io.micrometer.core.instrument.Timer;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.metrics.BatchMetrics;
@@ -23,190 +24,195 @@ import org.springframework.classify.BinaryExceptionClassifier;
 import org.springframework.classify.Classifier;
 import org.springframework.util.Assert;
 
-import java.time.Duration;
-import java.util.concurrent.TimeUnit;
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.Tag;
+import io.micrometer.core.instrument.Timer;
 
 /**
- * Fault-tolrent implementation of the ChunkProvider interface, that allows for skipping or retry of items that cause exceptions, as well as incomplete chunks when timeout is reached.
+ * Fault-tolrent implementation of the ChunkProvider interface, that allows for
+ * skipping or retry of items that cause exceptions, as well as incomplete
+ * chunks when timeout is reached.
  */
-@Slf4j
 public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 
-    /**
-     * Hard limit for number of read skips in the same chunk. Should be
-     * sufficiently high that it is only encountered in a runaway step where all
-     * items are skipped before the chunk can complete (leading to a potential
-     * heap memory problem).
-     */
-    public static final int DEFAULT_MAX_SKIPS_ON_READ = 100;
+	private static final Logger log = LoggerFactory.getLogger(FlushingChunkProvider.class);
 
-    private final RepeatOperations repeatOperations;
+	/**
+	 * Hard limit for number of read skips in the same chunk. Should be sufficiently
+	 * high that it is only encountered in a runaway step where all items are
+	 * skipped before the chunk can complete (leading to a potential heap memory
+	 * problem).
+	 */
+	public static final int DEFAULT_MAX_SKIPS_ON_READ = 100;
 
-    private SkipPolicy skipPolicy = new LimitCheckingItemSkipPolicy();
-    private Classifier<Throwable, Boolean> rollbackClassifier = new BinaryExceptionClassifier(true);
-    private int maxSkipsOnRead = DEFAULT_MAX_SKIPS_ON_READ;
-    private long flushingInterval; // millis
-    private long idleTimeout; // millis
-    private long lastActivity = 0;
+	private final RepeatOperations repeatOperations;
 
-    public FlushingChunkProvider(ItemReader<? extends I> itemReader, RepeatOperations repeatOperations) {
-        super(itemReader, repeatOperations);
-        Assert.isTrue(itemReader instanceof PollableItemReader, "Reader must extend PollableItemReader");
-        this.repeatOperations = repeatOperations;
-    }
+	private SkipPolicy skipPolicy = new LimitCheckingItemSkipPolicy();
+	private Classifier<Throwable, Boolean> rollbackClassifier = new BinaryExceptionClassifier(true);
+	private int maxSkipsOnRead = DEFAULT_MAX_SKIPS_ON_READ;
+	private long flushingInterval; // millis
+	private long idleTimeout; // millis
+	private long lastActivity = 0;
 
+	public FlushingChunkProvider(ItemReader<? extends I> itemReader, RepeatOperations repeatOperations) {
+		super(itemReader, repeatOperations);
+		Assert.isTrue(itemReader instanceof PollableItemReader, "Reader must extend PollableItemReader");
+		this.repeatOperations = repeatOperations;
+	}
 
-    /**
-     * @param maxSkipsOnRead the maximum number of skips on read
-     */
-    public void setMaxSkipsOnRead(int maxSkipsOnRead) {
-        this.maxSkipsOnRead = maxSkipsOnRead;
-    }
+	/**
+	 * @param maxSkipsOnRead the maximum number of skips on read
+	 */
+	public void setMaxSkipsOnRead(int maxSkipsOnRead) {
+		this.maxSkipsOnRead = maxSkipsOnRead;
+	}
 
-    /**
-     * The policy that determines whether exceptions can be skipped on read.
-     *
-     * @param skipPolicy instance of {@link SkipPolicy} to be used by FaultTolerantChunkProvider.
-     */
-    public void setSkipPolicy(SkipPolicy skipPolicy) {
-        this.skipPolicy = skipPolicy;
-    }
+	/**
+	 * The policy that determines whether exceptions can be skipped on read.
+	 *
+	 * @param skipPolicy instance of {@link SkipPolicy} to be used by
+	 *                   FaultTolerantChunkProvider.
+	 */
+	public void setSkipPolicy(SkipPolicy skipPolicy) {
+		this.skipPolicy = skipPolicy;
+	}
 
-    /**
-     * Classifier to determine whether exceptions have been marked as
-     * no-rollback (as opposed to skippable). If encountered they are simply
-     * ignored, unless also skippable.
-     *
-     * @param rollbackClassifier the rollback classifier to set
-     */
-    public void setRollbackClassifier(Classifier<Throwable, Boolean> rollbackClassifier) {
-        this.rollbackClassifier = rollbackClassifier;
-    }
+	/**
+	 * Classifier to determine whether exceptions have been marked as no-rollback
+	 * (as opposed to skippable). If encountered they are simply ignored, unless
+	 * also skippable.
+	 *
+	 * @param rollbackClassifier the rollback classifier to set
+	 */
+	public void setRollbackClassifier(Classifier<Throwable, Boolean> rollbackClassifier) {
+		this.rollbackClassifier = rollbackClassifier;
+	}
 
-    public void setFlushingInterval(Duration flushingInterval) {
-    	Utils.assertPositive(flushingInterval, "Flushing interval");
-        this.flushingInterval = flushingInterval.toMillis();
-    }
+	public void setFlushingInterval(Duration flushingInterval) {
+		Utils.assertPositive(flushingInterval, "Flushing interval");
+		this.flushingInterval = flushingInterval.toMillis();
+	}
 
-    public void setIdleTimeout(Duration idleTimeout) {
-        this.idleTimeout = idleTimeout == null ? Long.MAX_VALUE : idleTimeout.toMillis();
-    }
+	public void setIdleTimeout(Duration idleTimeout) {
+		this.idleTimeout = idleTimeout == null ? Long.MAX_VALUE : idleTimeout.toMillis();
+	}
 
-    private void stopTimer(Timer.Sample sample, StepExecution stepExecution, String status) {
-        sample.stop(BatchMetrics.createTimer("item.read", "Item reading duration", Tag.of("job.name", stepExecution.getJobExecution().getJobInstance().getJobName()), Tag.of("step.name", stepExecution.getStepName()), Tag.of("status", status)));
-    }
+	private void stopTimer(Timer.Sample sample, StepExecution stepExecution, String status) {
+		sample.stop(BatchMetrics.createTimer("item.read", "Item reading duration",
+				Tag.of("job.name", stepExecution.getJobExecution().getJobInstance().getJobName()),
+				Tag.of("step.name", stepExecution.getStepName()), Tag.of("status", status)));
+	}
 
-    @Override
-    public Chunk<I> provide(StepContribution contribution) {
-        long start = System.currentTimeMillis();
-        if (lastActivity == 0) {
-            lastActivity = start;
-        }
-        final Chunk<I> inputs = new Chunk<>();
-        repeatOperations.iterate(context -> {
-            long pollingTimeout = flushingInterval - (System.currentTimeMillis() - start);
-            if (pollingTimeout < 0) {
-                return RepeatStatus.FINISHED;
-            }
-            Timer.Sample sample = Timer.start(Metrics.globalRegistry);
-            I item;
-            try {
-                item = read(contribution, inputs, pollingTimeout);
-            } catch (SkipOverflowException e) {
-                // read() tells us about an excess of skips by throwing an exception
-                stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_FAILURE);
-                return RepeatStatus.FINISHED;
-            }
-            if (item == null) {
-                long idleDuration = System.currentTimeMillis() - lastActivity;
-                if (idleDuration > idleTimeout) {
-                    log.debug("End of stream: idle for {} ms", idleDuration);
-                    inputs.setEnd();
-                }
-                return RepeatStatus.CONTINUABLE;
-            }
-            stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_SUCCESS);
-            inputs.add(item);
-            contribution.incrementReadCount();
-            lastActivity = System.currentTimeMillis();
-            return RepeatStatus.CONTINUABLE;
-        });
-        return inputs;
-    }
+	@Override
+	public Chunk<I> provide(StepContribution contribution) {
+		long start = System.currentTimeMillis();
+		if (lastActivity == 0) {
+			lastActivity = start;
+		}
+		final Chunk<I> inputs = new Chunk<>();
+		repeatOperations.iterate(context -> {
+			long pollingTimeout = flushingInterval - (System.currentTimeMillis() - start);
+			if (pollingTimeout < 0) {
+				return RepeatStatus.FINISHED;
+			}
+			Timer.Sample sample = Timer.start(Metrics.globalRegistry);
+			I item;
+			try {
+				item = read(contribution, inputs, pollingTimeout);
+			} catch (SkipOverflowException e) {
+				// read() tells us about an excess of skips by throwing an exception
+				stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_FAILURE);
+				return RepeatStatus.FINISHED;
+			}
+			if (item == null) {
+				long idleDuration = System.currentTimeMillis() - lastActivity;
+				if (idleDuration > idleTimeout) {
+					log.debug("End of stream: idle for {} ms", idleDuration);
+					inputs.setEnd();
+				}
+				return RepeatStatus.CONTINUABLE;
+			}
+			stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_SUCCESS);
+			inputs.add(item);
+			contribution.incrementReadCount();
+			lastActivity = System.currentTimeMillis();
+			return RepeatStatus.CONTINUABLE;
+		});
+		return inputs;
+	}
 
-    protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) {
-        while (true) {
-            try {
-                return doRead(timeout);
-            } catch (Exception e) {
+	protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) {
+		while (true) {
+			try {
+				return doRead(timeout);
+			} catch (Exception e) {
 
-                if (shouldSkip(skipPolicy, e, contribution.getStepSkipCount())) {
+				if (shouldSkip(skipPolicy, e, contribution.getStepSkipCount())) {
 
-                    // increment skip count and try again
-                    contribution.incrementReadSkipCount();
-                    chunk.skip(e);
+					// increment skip count and try again
+					contribution.incrementReadSkipCount();
+					chunk.skip(e);
 
-                    if (chunk.getErrors().size() >= maxSkipsOnRead) {
-                        throw new SkipOverflowException("Too many skips on read");
-                    }
+					if (chunk.getErrors().size() >= maxSkipsOnRead) {
+						throw new SkipOverflowException("Too many skips on read");
+					}
 
-                    logger.debug("Skipping failed input", e);
-                } else {
-                    if (rollbackClassifier.classify(e)) {
-                        throw new NonSkippableReadException("Non-skippable exception during read", e);
-                    }
-                    logger.debug("No-rollback for non-skippable exception (ignored)", e);
-                }
+					logger.debug("Skipping failed input", e);
+				} else {
+					if (rollbackClassifier.classify(e)) {
+						throw new NonSkippableReadException("Non-skippable exception during read", e);
+					}
+					logger.debug("No-rollback for non-skippable exception (ignored)", e);
+				}
 
-            }
-        }
-    }
+			}
+		}
+	}
 
-    @SuppressWarnings("unchecked")
-    protected final I doRead(long timeout) throws Exception {
-        try {
-            getListener().beforeRead();
-            I item = ((PollableItemReader<I>) itemReader).poll(timeout, TimeUnit.MILLISECONDS);
-            if (item != null) {
-                getListener().afterRead(item);
-            }
-            return item;
-        } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug(e.getMessage() + " : " + e.getClass().getName());
-            }
-            getListener().onReadError(e);
-            throw e;
-        }
-    }
+	@SuppressWarnings("unchecked")
+	protected final I doRead(long timeout) throws Exception {
+		try {
+			getListener().beforeRead();
+			I item = ((PollableItemReader<I>) itemReader).poll(timeout, TimeUnit.MILLISECONDS);
+			if (item != null) {
+				getListener().afterRead(item);
+			}
+			return item;
+		} catch (Exception e) {
+			if (log.isDebugEnabled()) {
+				log.debug(e.getMessage() + " : " + e.getClass().getName());
+			}
+			getListener().onReadError(e);
+			throw e;
+		}
+	}
 
+	/**
+	 * Convenience method for calling process skip policy.
+	 *
+	 * @param policy    the skip policy
+	 * @param e         the cause of the skip
+	 * @param skipCount the current skip count
+	 */
+	private boolean shouldSkip(SkipPolicy policy, Throwable e, int skipCount) {
+		try {
+			return policy.shouldSkip(e, skipCount);
+		} catch (SkipException ex) {
+			throw ex;
+		} catch (RuntimeException ex) {
+			throw new SkipPolicyFailedException("Fatal exception in SkipPolicy.", ex, e);
+		}
+	}
 
-    /**
-     * Convenience method for calling process skip policy.
-     *
-     * @param policy    the skip policy
-     * @param e         the cause of the skip
-     * @param skipCount the current skip count
-     */
-    private boolean shouldSkip(SkipPolicy policy, Throwable e, int skipCount) {
-        try {
-            return policy.shouldSkip(e, skipCount);
-        } catch (SkipException ex) {
-            throw ex;
-        } catch (RuntimeException ex) {
-            throw new SkipPolicyFailedException("Fatal exception in SkipPolicy.", ex, e);
-        }
-    }
-
-    @Override
-    public void postProcess(StepContribution contribution, Chunk<I> chunk) {
-        for (Exception e : chunk.getErrors()) {
-            try {
-                getListener().onSkipInRead(e);
-            } catch (RuntimeException ex) {
-                throw new SkipListenerFailedException("Fatal exception in SkipListener.", ex, e);
-            }
-        }
-    }
+	@Override
+	public void postProcess(StepContribution contribution, Chunk<I> chunk) {
+		for (Exception e : chunk.getErrors()) {
+			try {
+				getListener().onSkipInRead(e);
+			} catch (RuntimeException ex) {
+				throw new SkipListenerFailedException("Fatal exception in SkipListener.", ex, e);
+			}
+		}
+	}
 
 }

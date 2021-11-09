@@ -23,8 +23,6 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.api.async.RedisServerAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 
 public class ScanSizeEstimator implements Callable<Long> {
 
@@ -119,8 +117,6 @@ public class ScanSizeEstimator implements Callable<Long> {
 		return new ScanSizeEstimatorBuilder(client);
 	}
 
-	@Setter
-	@Accessors(fluent = true)
 	public static class ScanSizeEstimatorBuilder extends RedisBuilder<String, String, ScanSizeEstimatorBuilder> {
 
 		private int sampleSize = DEFAULT_SAMPLE_SIZE;
@@ -129,6 +125,21 @@ public class ScanSizeEstimator implements Callable<Long> {
 
 		public ScanSizeEstimatorBuilder(AbstractRedisClient client) {
 			super(client, StringCodec.UTF8);
+		}
+
+		public ScanSizeEstimator.ScanSizeEstimatorBuilder sampleSize(int sampleSize) {
+			this.sampleSize = sampleSize;
+			return this;
+		}
+
+		public ScanSizeEstimator.ScanSizeEstimatorBuilder match(String match) {
+			this.match = match;
+			return this;
+		}
+
+		public ScanSizeEstimator.ScanSizeEstimatorBuilder type(String type) {
+			this.type = type;
+			return this;
 		}
 
 		public ScanSizeEstimator build() {

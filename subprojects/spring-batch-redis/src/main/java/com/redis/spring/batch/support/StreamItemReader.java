@@ -12,6 +12,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
@@ -25,11 +27,11 @@ import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 		implements PollableItemReader<StreamMessage<K, V>> {
+
+	private static final Logger log = LoggerFactory.getLogger(StreamItemReader.class);
 
 	public enum AckPolicy {
 		AUTO, MANUAL

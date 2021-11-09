@@ -21,13 +21,9 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 
-import lombok.Getter;
-
 public class JobRunner {
 
-	@Getter
 	private final JobRepository jobRepository;
-	@Getter
 	private final PlatformTransactionManager transactionManager;
 	private final JobBuilderFactory jobBuilderFactory;
 	private final StepBuilderFactory stepBuilderFactory;
@@ -43,7 +39,14 @@ public class JobRunner {
 		this.stepBuilderFactory = new StepBuilderFactory(jobRepository, transactionManager);
 		this.syncLauncher = launcher(new SyncTaskExecutor());
 		this.asyncLauncher = launcher(new SimpleAsyncTaskExecutor());
-
+	}
+	
+	public JobRepository getJobRepository() {
+		return jobRepository;
+	}
+	
+	public PlatformTransactionManager getTransactionManager() {
+		return transactionManager;
 	}
 
 	private SimpleJobLauncher launcher(TaskExecutor taskExecutor) {

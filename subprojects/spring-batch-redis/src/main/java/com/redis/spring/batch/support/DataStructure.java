@@ -7,9 +7,7 @@ import java.util.Set;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
-import lombok.EqualsAndHashCode;
 
-@EqualsAndHashCode(callSuper = true)
 public class DataStructure<K> extends KeyValue<K, Object> {
 
 	public enum Type {

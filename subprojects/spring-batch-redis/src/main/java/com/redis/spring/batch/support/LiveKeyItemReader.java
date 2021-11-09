@@ -8,16 +8,17 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.ClassUtils;
 
-import lombok.extern.slf4j.Slf4j;
-
-@Slf4j
 public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements PollableItemReader<K> {
+
+	private static final Logger log = LoggerFactory.getLogger(LiveKeyItemReader.class);
 
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 	public static final Duration DEFAULT_DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);

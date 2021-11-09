@@ -17,11 +17,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.item.support.ListItemReader;
-import org.springframework.core.convert.converter.Converter;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.support.DataStructure;
-import com.redis.spring.batch.support.convert.ArrayConverter;
 import com.redis.spring.batch.support.convert.GeoValueConverter;
 import com.redis.spring.batch.support.convert.ScoredValueConverter;
 import com.redis.spring.batch.support.operation.Geoadd;
@@ -31,15 +29,10 @@ import com.redis.spring.batch.support.operation.Zadd;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.GeoArgs;
-import io.lettuce.core.GeoValue;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisCommandExecutionException;
-import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
-import lombok.Builder;
-import lombok.Data;
 
-@SuppressWarnings("unchecked")
 class RedisItemWriterTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
@@ -55,7 +48,7 @@ class RedisItemWriterTests extends AbstractRedisTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
 		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(redis,
-				Xadd.<Map<String, String>>key(stream).body(t -> t).build()).build();
+				Xadd.<String, String, Map<String, String>>key(stream).body(t -> t).build()).build();
 		run(redis, "stream-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(redis);
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -78,7 +71,7 @@ class RedisItemWriterTests extends AbstractRedisTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
 		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(REDIS,
-				Xadd.<Map<String, String>>key(stream).body(t -> t).build()).multiExec().build();
+				Xadd.<String, String, Map<String, String>>key(stream).body(t -> t).build()).multiExec().build();
 		run(REDIS, "stream-tx-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(REDIS);
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -102,7 +95,7 @@ class RedisItemWriterTests extends AbstractRedisTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
 		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(server,
-				Hset.<Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
+				Hset.<String, String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
 						.waitForReplication(1, 300).build();
 		JobExecution execution = run(server, "writer-wait", reader, writer);
 		Assertions.assertEquals(ExitStatus.FAILED.getExitCode(), execution.getExitStatus().getExitCode());
@@ -126,7 +119,8 @@ class RedisItemWriterTests extends AbstractRedisTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
 		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(server,
-				Hset.<Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build()).build();
+				Hset.<String, String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
+						.build();
 		run(server, "hash-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(server);
 		Assertions.assertEquals(maps.size(), sync.keys("hash:*").size());
@@ -137,26 +131,41 @@ class RedisItemWriterTests extends AbstractRedisTestBase {
 		}
 	}
 
-	@Data
-	@Builder
 	private static class Geo {
-		private final String member;
-		private final double longitude;
-		private final double latitude;
+		private String member;
+		private double longitude;
+		private double latitude;
+
+		public Geo(String member, double longitude, double latitude) {
+			this.member = member;
+			this.longitude = longitude;
+			this.latitude = latitude;
+		}
+
+		public String getMember() {
+			return member;
+		}
+
+		public double getLongitude() {
+			return longitude;
+		}
+
+		public double getLatitude() {
+			return latitude;
+		}
+
 	}
 
-	@SuppressWarnings("rawtypes")
 	@ParameterizedTest
 	@MethodSource("servers")
 	void testGeoaddWriter(RedisServer redis) throws Exception {
-		ListItemReader<Geo> reader = new ListItemReader<>(Arrays.asList(
-				Geo.builder().longitude(-118.476056).latitude(33.985728).member("Venice Breakwater").build(),
-				Geo.builder().longitude(-73.667022).latitude(40.582739).member("Long Beach National").build()));
-		Converter<Geo, GeoValue<String>> value = new GeoValueConverter<>(Geo::getMember, Geo::getLongitude,
+		ListItemReader<Geo> reader = new ListItemReader<>(
+				Arrays.asList(new Geo("Venice Breakwater", -118.476056, 33.985728),
+						new Geo("Long Beach National", -73.667022, 40.582739)));
+		GeoValueConverter<String, Geo> value = new GeoValueConverter<>(Geo::getMember, Geo::getLongitude,
 				Geo::getLatitude);
-		Converter<Geo, GeoValue<String>[]> converter = (Converter) new ArrayConverter<>(GeoValue.class, value);
 		RedisItemWriter<String, String, Geo> writer = redisItemWriter(redis,
-				Geoadd.<Geo>key("geoset").values(converter).build()).build();
+				Geoadd.<String, String, Geo>key("geoset").value(value).build()).build();
 		run(redis, "geoadd-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(redis);
 		Set<String> radius1 = sync.georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
@@ -180,34 +189,47 @@ class RedisItemWriterTests extends AbstractRedisTestBase {
 		}
 		RedisModulesCommands<String, String> sync = sync(server);
 		ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
-		RedisItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = redisItemWriter(server, Hset
-				.<Entry<String, Map<String, String>>>key(e -> "hash:" + e.getKey()).map(Map.Entry::getValue).build())
-						.build();
+		RedisItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = redisItemWriter(server,
+				Hset.<String, String, Entry<String, Map<String, String>>>key(e -> "hash:" + e.getKey())
+						.map(Map.Entry::getValue).build()).build();
 		run(server, "hash-del-writer", reader, writer);
 		Assertions.assertEquals(50, sync.keys("hash:*").size());
 		Assertions.assertEquals(2, commands.hgetall("hash:50").size());
 	}
 
-	@Data
-	@Builder
 	private static class ZValue {
-		private final String member;
-		private final double score;
+
+		private String member;
+		private double score;
+
+		public ZValue(String member, double score) {
+			super();
+			this.member = member;
+			this.score = score;
+		}
+
+		public String getMember() {
+			return member;
+		}
+
+		public double getScore() {
+			return score;
+		}
+
 	}
 
-	@SuppressWarnings("rawtypes")
 	@ParameterizedTest
 	@MethodSource("servers")
 	void testSortedSetWriter(RedisServer server) throws Exception {
 		List<ZValue> values = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
-			values.add(ZValue.builder().member(String.valueOf(index)).score(index % 10).build());
+			values.add(new ZValue(String.valueOf(index), index % 10));
 		}
-		Converter<ZValue, ScoredValue<String>[]> converter = (Converter) new ArrayConverter<>(ScoredValue.class,
-				new ScoredValueConverter<>(ZValue::getMember, ZValue::getScore));
 		ListItemReader<ZValue> reader = new ListItemReader<>(values);
+		ScoredValueConverter<String, ZValue> converter = new ScoredValueConverter<>(ZValue::getMember,
+				ZValue::getScore);
 		RedisItemWriter<String, String, ZValue> writer = redisItemWriter(server,
-				Zadd.<ZValue>key("zset").values(converter).build()).build();
+				Zadd.<String, String, ZValue>key("zset").value(converter).build()).build();
 		run(server, "sorted-set-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = sync(server);
 		Assertions.assertEquals(1, sync.dbsize());

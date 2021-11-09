@@ -40,7 +40,7 @@ import com.redis.testcontainers.RedisServer;
 public abstract class AbstractTestBase {
 
 	private static final int DEFAULT_CHUNK_SIZE = 50;
-	protected static final Duration IDLE_TIMEOUT = Duration.ofSeconds(1);
+	protected static final Duration IDLE_TIMEOUT = Duration.ofSeconds(3);
 
 	@Autowired
 	protected JobRepository jobRepository;
