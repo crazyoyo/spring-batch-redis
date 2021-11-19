@@ -39,7 +39,7 @@ import io.micrometer.core.instrument.search.Search;
 import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-class StandaloneRedisTests extends AbstractTestBase {
+class ModulesTests extends AbstractTestBase {
 
 	@Container
 	protected static final RedisModulesContainer REDIS = new RedisModulesContainer("preview");
