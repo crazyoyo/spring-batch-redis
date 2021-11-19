@@ -2,7 +2,7 @@ package com.redis.spring.batch.support.convert;
 
 import org.springframework.core.convert.converter.Converter;
 
-import com.redis.lettucemod.api.search.Suggestion;
+import com.redis.lettucemod.search.Suggestion;
 
 public class SuggestionConverter<V, T> implements Converter<T, Suggestion<V>> {
 

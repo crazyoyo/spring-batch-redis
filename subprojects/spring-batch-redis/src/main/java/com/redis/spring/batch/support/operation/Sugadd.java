@@ -6,7 +6,7 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.async.RediSearchAsyncCommands;
-import com.redis.lettucemod.api.search.Suggestion;
+import com.redis.lettucemod.search.Suggestion;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;

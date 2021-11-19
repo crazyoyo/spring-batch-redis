@@ -1,7 +1,8 @@
 package com.redis.spring.batch.support.convert;
 
-import com.redis.lettucemod.api.timeseries.Sample;
 import org.springframework.core.convert.converter.Converter;
+
+import com.redis.lettucemod.timeseries.Sample;
 
 public class SampleConverter<T> implements Converter<T, Sample> {
 

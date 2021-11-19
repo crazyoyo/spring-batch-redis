@@ -1,21 +1,21 @@
-package com.redis.spring.batch;
+package com.redis.spring.batch.test;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.support.DataStructure.Type;
 import com.redis.spring.batch.support.generator.Generator;
-import com.redis.testcontainers.RedisServer;
+import com.redis.testcontainers.junit.jupiter.RedisTestContext;
+import com.redis.testcontainers.junit.jupiter.RedisTestContextsSource;
 
 class GeneratorTests extends AbstractRedisTestBase {
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testDefaults(RedisServer redis) throws Exception {
-		execute(dataGenerator(redis, "defaults"));
-		RedisModulesCommands<String, String> sync = sync(redis);
+	@RedisTestContextsSource
+	void testDefaults(RedisTestContext context) throws Exception {
+		execute(dataGenerator(context, "defaults"));
+		RedisModulesCommands<String, String> sync = context.sync();
 		long expectedCount = Generator.DEFAULT_SEQUENCE.getMaximum() - Generator.DEFAULT_SEQUENCE.getMinimum();
 		long actualStringCount = sync.keys("string:*").size();
 		Assertions.assertEquals(expectedCount, actualStringCount);
@@ -23,11 +23,11 @@ class GeneratorTests extends AbstractRedisTestBase {
 	}
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testToOption(RedisServer redis) throws Exception {
+	@RedisTestContextsSource
+	void testToOption(RedisTestContext context) throws Exception {
 		int count = 123;
-		execute(dataGenerator(redis, "to-options").end(count));
-		RedisModulesCommands<String, String> sync = sync(redis);
+		execute(dataGenerator(context, "to-options").end(count));
+		RedisModulesCommands<String, String> sync = context.sync();
 		int actualStringCount = sync.keys("string:*").size();
 		Assertions.assertEquals(count, actualStringCount);
 		Assertions.assertEquals(count * Type.values().length, sync.dbsize());

@@ -6,7 +6,7 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
-import com.redis.lettucemod.api.timeseries.Sample;
+import com.redis.lettucemod.timeseries.Sample;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;

@@ -36,9 +36,5 @@ projects {
 }
 
 enforce {
-    mergeStrategy = 'append'
-
-    rule(enforcer.rules.ForceDependencies) { r ->
-        r.dependencies.addAll "org.objenesis:objenesis:3.2"
-    }
+    enabled = false
 }

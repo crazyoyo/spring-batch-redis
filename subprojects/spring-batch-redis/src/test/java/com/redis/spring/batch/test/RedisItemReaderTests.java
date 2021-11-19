@@ -1,27 +1,23 @@
-package com.redis.spring.batch;
+package com.redis.spring.batch.test;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.commons.lang3.Range;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.json.JsonItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.builder.StreamItemReaderBuilder;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructure.Type;
@@ -32,69 +28,56 @@ import com.redis.spring.batch.support.LiveRedisItemReader;
 import com.redis.spring.batch.support.PollableItemReader;
 import com.redis.spring.batch.support.StreamItemReader;
 import com.redis.spring.batch.support.StreamItemReader.AckPolicy;
-import com.redis.spring.batch.support.convert.MapFlattener;
 import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
-import com.redis.spring.batch.support.operation.Hset;
-import com.redis.testcontainers.RedisServer;
+import com.redis.testcontainers.junit.jupiter.RedisTestContext;
+import com.redis.testcontainers.junit.jupiter.RedisTestContextsSource;
 
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.models.stream.PendingMessages;
-import io.micrometer.core.instrument.Clock;
-import io.micrometer.core.instrument.Metrics;
-import io.micrometer.core.instrument.search.Search;
-import io.micrometer.core.instrument.simple.SimpleConfig;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class RedisItemReaderTests extends AbstractRedisTestBase {
 
 	private static final String STREAM = "stream:1";
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testFlushingStep(RedisServer redis) throws Exception {
+	@RedisTestContextsSource
+	void testFlushingStep(RedisTestContext context) throws Exception {
 		String name = "flushing-step";
-		PollableItemReader<String> reader = keyspaceNotificationReader(redis);
+		PollableItemReader<String> reader = keyspaceNotificationReader(context);
 		ListItemWriter<String> writer = new ListItemWriter<>();
-		JobExecution execution = runFlushing(redis, name, reader, null, writer);
-		execute(dataGenerator(redis, name).end(3).dataType(Type.STRING).dataType(Type.HASH));
+		JobExecution execution = runFlushing(context, name, reader, null, writer);
+		execute(dataGenerator(context, name).end(3).dataType(Type.STRING).dataType(Type.HASH));
 		awaitTermination(execution);
-		Assertions.assertEquals(dbsize(redis), writer.getWrittenItems().size());
+		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
 	}
 
-	private LiveKeyItemReader<String> keyspaceNotificationReader(RedisServer redis) {
-		return reader(redis).dataStructure().live().keyReader();
+	private LiveKeyItemReader<String> keyspaceNotificationReader(RedisTestContext context) {
+		return reader(context).dataStructure().live().keyReader();
 	}
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testKeyspaceNotificationReader(RedisServer redis) throws Exception {
+	@RedisTestContextsSource
+	void testKeyspaceNotificationReader(RedisTestContext context) throws Exception {
 		String name = "keyspace-notification-reader";
-		LiveKeyItemReader<String> keyReader = keyspaceNotificationReader(redis);
+		LiveKeyItemReader<String> keyReader = keyspaceNotificationReader(context);
 		keyReader.open(new ExecutionContext());
-		execute(dataGenerator(redis, name).dataType(Type.HASH).dataType(Type.STRING).dataType(Type.LIST)
+		execute(dataGenerator(context, name).dataType(Type.HASH).dataType(Type.STRING).dataType(Type.LIST)
 				.dataType(Type.SET).dataType(Type.ZSET).end(2));
 		ListItemWriter<String> writer = new ListItemWriter<>();
-		run(redis, name, keyReader, writer);
-		Assertions.assertEquals(dbsize(redis), writer.getWrittenItems().size());
+		run(context, name, keyReader, writer);
+		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
 	}
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testDataStructureReader(RedisServer redis) throws Exception {
+	@RedisTestContextsSource
+	void testDataStructureReader(RedisTestContext context) throws Exception {
 		String name = "ds-reader";
-		populateSource(redis, name);
-		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis, name);
+		dataGenerator(context, name).build().call();
+		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(context, name);
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
-		run(redis, name, reader, writer);
-		Assertions.assertEquals(dbsize(redis), writer.getWrittenItems().size());
-	}
-
-	private void populateSource(RedisServer server, String name) throws Exception {
-		JsonItemReader<Map<String, Object>> reader = Beers.mapReader();
-		RedisItemWriter<String, String, Map<String, String>> writer = redisItemWriter(server,
-				Hset.<String, String, Map<String, String>>key(t -> t.get("id")).map(t -> t).build()).build();
-		run(server, name + "-populate", reader, new MapFlattener(), writer);
+		run(context, name, reader, writer);
+		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
 	}
 
 	private static class SynchronizedListItemWriter<T> implements ItemWriter<T> {
@@ -112,11 +95,11 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 	}
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testMultiThreadedReader(RedisServer redis) throws Exception {
+	@RedisTestContextsSource
+	void testMultiThreadedReader(RedisTestContext context) throws Exception {
 		String name = "multi-threaded-reader";
-		populateSource(redis, name);
-		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis, name);
+		dataGenerator(context, name).build().call();
+		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(context, name);
 		SynchronizedItemStreamReader<DataStructure<String>> synchronizedReader = new SynchronizedItemStreamReader<>();
 		synchronizedReader.setDelegate(reader);
 		synchronizedReader.afterPropertiesSet();
@@ -126,64 +109,40 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 		taskExecutor.setMaxPoolSize(threads);
 		taskExecutor.setCorePoolSize(threads);
 		taskExecutor.afterPropertiesSet();
-		launch(job(redis, name, step(redis, name, synchronizedReader, null, writer).taskExecutor(taskExecutor)
+		launch(job(context, name, step(context, name, synchronizedReader, null, writer).taskExecutor(taskExecutor)
 				.throttleLimit(threads).build()).build());
-		Assertions.assertEquals(dbsize(redis), writer.getWrittenItems().size());
+		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
 	}
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testLiveReader(RedisServer redis) throws Exception {
+	@RedisTestContextsSource
+	void testLiveReader(RedisTestContext context) throws Exception {
 		String name = "live-reader";
-		LiveRedisItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(redis, name, 10000);
+		LiveRedisItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(context, name, 10000);
 		ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
-		JobExecution execution = runFlushing(redis, name, reader, null, writer);
-		execute(dataGenerator(redis, name).end(123).dataType(Type.HASH).dataType(Type.STRING));
+		JobExecution execution = runFlushing(context, name, reader, null, writer);
+		execute(dataGenerator(context, name).end(123).dataType(Type.HASH).dataType(Type.STRING));
 		awaitTermination(execution);
-		Assertions.assertEquals(dbsize(redis), writer.getWrittenItems().size());
+		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
 	}
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testKeyValueItemReaderFaultTolerance(RedisServer redis) throws Exception {
+	@RedisTestContextsSource
+	void testKeyValueItemReaderFaultTolerance(RedisTestContext context) throws Exception {
 		String name = "reader-ft";
-		execute(dataGenerator(redis, name).dataType(Type.STRING));
+		execute(dataGenerator(context, name).dataType(Type.STRING));
 		List<String> keys = IntStream.range(0, 100).boxed().map(i -> "string:" + i).collect(Collectors.toList());
 		DelegatingPollableItemReader<String> keyReader = new DelegatingPollableItemReader<>(new ListItemReader<>(keys));
-		DataStructureValueReader<String, String> valueReader = dataStructureValueReader(redis);
+		DataStructureValueReader<String, String> valueReader = dataStructureValueReader(context);
 		RedisItemReader<String, DataStructure<String>> reader = new RedisItemReader<>(jobRepository, transactionManager,
 				keyReader, valueReader);
 		reader.setChunkSize(1);
 		reader.setQueueCapacity(1000);
 		reader.setSkipPolicy(new AlwaysSkipItemSkipPolicy());
-		reader.setName(name(redis, name + "-reader"));
+		reader.setName(name(context, name + "-reader"));
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
-		run(redis, name, reader, writer);
+		run(context, name, reader, writer);
 		Assertions.assertEquals(50, writer.getWrittenItems().size());
-	}
-
-	@Test
-	void testMetrics() throws Exception {
-		Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
-		SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
-			@Override
-			public String get(String key) {
-				return null;
-			}
-
-			@Override
-			public Duration step() {
-				return Duration.ofMillis(1);
-			}
-		}, Clock.SYSTEM);
-		Metrics.addRegistry(registry);
-		dataGenerator(REDIS, "metrics").build().call();
-		RedisItemReader<String, DataStructure<String>> reader = configureJobRepository(reader(REDIS).dataStructure())
-				.build();
-		reader.open(new ExecutionContext());
-		Search search = registry.find("spring.batch.redis.reader.queue.size");
-		Assertions.assertNotNull(search.gauge());
-		reader.close();
 	}
 
 	private static final long COUNT = 100;
@@ -196,8 +155,8 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 	}
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testStreamReader(RedisServer redis) throws Exception {
+	@RedisTestContextsSource
+	void testStreamReader(RedisTestContext redis) throws Exception {
 		String name = "stream-reader";
 		execute(streamDataGenerator(redis, name));
 		StreamItemReader<String, String> reader = streamReader(redis).build();
@@ -207,17 +166,16 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 		assertMessageBody(messages);
 	}
 
-	private GeneratorBuilder streamDataGenerator(RedisServer redis, String name) {
+	private GeneratorBuilder streamDataGenerator(RedisTestContext redis, String name) {
 		return dataGenerator(redis, name).dataType(Type.STREAM).end(1).collectionCardinality(Range.is(COUNT));
 	}
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testStreamReaderJob(RedisServer redis) throws Exception {
+	@RedisTestContextsSource
+	void testStreamReaderJob(RedisTestContext redis) throws Exception {
 		String name = "stream-reader-job";
 		execute(streamDataGenerator(redis, name));
-		RedisStreamCommands<String, String> sync = sync(redis);
-		Assertions.assertEquals(COUNT, sync.xlen(STREAM));
+		Assertions.assertEquals(COUNT, redis.sync().xlen(STREAM));
 		StreamItemReader<String, String> reader = streamReader(redis).build();
 		ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
 		awaitTermination(runFlushing(redis, name, reader, null, writer), reader);
@@ -226,8 +184,8 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 	}
 
 	@ParameterizedTest
-	@MethodSource("servers")
-	void testMultipleStreamReaders(RedisServer redis) throws Exception {
+	@RedisTestContextsSource
+	void testMultipleStreamReaders(RedisTestContext redis) throws Exception {
 		String name = "multiple-stream-readers";
 		String consumerGroup = "consumerGroup";
 		execute(streamDataGenerator(redis, name));
@@ -244,7 +202,7 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 		Assertions.assertEquals(COUNT, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
 		assertMessageBody(writer1.getWrittenItems());
 		assertMessageBody(writer2.getWrittenItems());
-		RedisStreamCommands<String, String> sync = sync(redis);
+		RedisStreamCommands<String, String> sync = redis.sync();
 		PendingMessages pendingMessages = sync.xpending(STREAM, consumerGroup);
 		Assertions.assertEquals(COUNT, pendingMessages.getCount());
 		reader1.open(new ExecutionContext());
@@ -255,7 +213,7 @@ class RedisItemReaderTests extends AbstractRedisTestBase {
 		Assertions.assertEquals(0, pendingMessages.getCount());
 	}
 
-	private StreamItemReaderBuilder streamReader(RedisServer server) {
+	private StreamItemReaderBuilder streamReader(RedisTestContext server) {
 		return reader(server).stream(STREAM);
 	}
 

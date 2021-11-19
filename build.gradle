@@ -42,6 +42,10 @@ config {
             }
         }
     }
+    
+    testing {
+        jar = true
+    }
 }
 
 allprojects {

@@ -1,4 +1,4 @@
-package com.redis.spring.batch;
+package com.redis.spring.batch.test;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;

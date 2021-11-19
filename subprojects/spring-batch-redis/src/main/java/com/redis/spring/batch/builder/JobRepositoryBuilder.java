@@ -14,6 +14,14 @@ public class JobRepositoryBuilder<K, V, B extends JobRepositoryBuilder<K, V, B>>
 	public JobRepositoryBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		super(client, codec);
 	}
+	
+	public JobRepository getJobRepository() {
+		return jobRepository;
+	}
+	
+	public PlatformTransactionManager getTransactionManager() {
+		return transactionManager;
+	}
 
 	@SuppressWarnings("unchecked")
 	public B jobRepository(JobRepository jobRepository) {

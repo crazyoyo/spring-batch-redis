@@ -1,4 +1,4 @@
-package com.redis.spring.batch;
+package com.redis.spring.batch.test;
 
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.launch.JobLauncher;

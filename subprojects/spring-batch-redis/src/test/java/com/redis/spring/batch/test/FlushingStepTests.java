@@ -1,6 +1,8 @@
-package com.redis.spring.batch;
+package com.redis.spring.batch.test;
 
 import java.time.Duration;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
@@ -13,8 +15,14 @@ import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 
 import com.redis.spring.batch.support.FlushingStepBuilder;
+import com.redis.testcontainers.RedisServer;
 
 class FlushingStepTests extends AbstractTestBase {
+
+	@Override
+	protected Collection<RedisServer> servers() {
+		return Collections.emptyList();
+	}
 
 	@Test
 	void testReaderSkipPolicy() throws Exception {
