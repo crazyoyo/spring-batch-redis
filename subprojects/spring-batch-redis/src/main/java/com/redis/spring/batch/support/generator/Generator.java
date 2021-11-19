@@ -20,7 +20,6 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.util.Assert;
 
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.builder.JobRepositoryBuilder;
@@ -43,62 +42,32 @@ public class Generator implements Callable<JobExecution> {
 	public static final Range<Integer> DEFAULT_STRING_VALUE_SIZE = Range.is(100);
 	public static final Range<Double> DEFAULT_ZSET_SCORE = Range.between(0D, 100D);
 
+	private final AbstractRedisClient client;
 	private final String id;
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager transactionManager;
-	private final AbstractRedisClient client;
+	private final int chunkSize;
+	private final List<Type> dataTypes;
+	private final Range<Long> sequence;
+	private final String keyPrefix;
+	private final Range<Long> expiration;
+	private final Range<Long> collectionCardinality;
+	private final Range<Integer> stringValueSize;
+	private final Range<Double> zsetScore;
 
-	private int chunkSize = DEFAULT_CHUNK_SIZE;
-	private List<Type> dataTypes;
-	private Range<Long> sequence = DEFAULT_SEQUENCE;
-	private String keyPrefix;
-	private Range<Long> expiration;
-	private Range<Long> collectionCardinality = DEFAULT_COLLECTION_CARDINALITY;
-	private Range<Integer> stringValueSize = DEFAULT_STRING_VALUE_SIZE;
-	private Range<Double> zsetScore = DEFAULT_ZSET_SCORE;
-
-	public Generator(AbstractRedisClient client, String id, JobRepository jobRepository,
-			PlatformTransactionManager transactionManager) {
-		Assert.notNull(client, "A Redis client is required");
-		Assert.notNull(id, "A generator ID is required");
-		Assert.notNull(jobRepository, "A job repository is required");
-		Assert.notNull(transactionManager, "A platform transaction manager is required");
-		this.client = client;
-		this.id = id;
-		this.jobRepository = jobRepository;
-		this.transactionManager = transactionManager;
-	}
-
-	public void setChunkSize(int chunkSize) {
-		this.chunkSize = chunkSize;
-	}
-
-	public void setDataTypes(List<Type> dataTypes) {
-		this.dataTypes = dataTypes;
-	}
-
-	public void setSequence(Range<Long> sequence) {
-		this.sequence = sequence;
-	}
-
-	public void setKeyPrefix(String keyPrefix) {
-		this.keyPrefix = keyPrefix;
-	}
-
-	public void setExpiration(Range<Long> expiration) {
-		this.expiration = expiration;
-	}
-
-	public void setCollectionCardinality(Range<Long> collectionCardinality) {
-		this.collectionCardinality = collectionCardinality;
-	}
-
-	public void setStringValueSize(Range<Integer> stringValueSize) {
-		this.stringValueSize = stringValueSize;
-	}
-
-	public void setZsetScore(Range<Double> zsetScore) {
-		this.zsetScore = zsetScore;
+	private Generator(GeneratorBuilder builder) {
+		this.client = builder.getClient();
+		this.id = builder.id;
+		this.jobRepository = builder.getJobRepository();
+		this.transactionManager = builder.getTransactionManager();
+		this.chunkSize = builder.chunkSize;
+		this.dataTypes = builder.dataTypes;
+		this.sequence = builder.sequence;
+		this.keyPrefix = builder.keyPrefix;
+		this.expiration = builder.expiration;
+		this.collectionCardinality = builder.collectionCardinality;
+		this.stringValueSize = builder.stringValueSize;
+		this.zsetScore = builder.zsetScore;
 	}
 
 	@Override
@@ -106,29 +75,21 @@ public class Generator implements Callable<JobExecution> {
 			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
 		JobRunner helper = new JobRunner(jobRepository, transactionManager);
 		String name = id + "-" + NAME;
-		Type[] types = dataTypes();
-		SimpleFlow[] subFlows = new SimpleFlow[types.length];
-		for (int index = 0; index < types.length; index++) {
-			Type type = types[index];
+		List<Type> types = dataTypes.isEmpty() ? Arrays.asList(Type.values()) : dataTypes;
+		List<SimpleFlow> subFlows = new ArrayList<>();
+		for (Type type : types) {
 			String flowName = type + "-" + name;
-			subFlows[index] = helper.flow(flowName)
-					.start(chunk(helper.step(flowName)).reader(reader(type)).writer(writer()).build()).build();
+			subFlows.add(helper.flow(flowName)
+					.start(chunk(helper.step(flowName)).reader(reader(type)).writer(writer()).build()).build());
 		}
 		SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
-		SimpleFlow flow = helper.flow(name).split(taskExecutor).add(subFlows).build();
+		SimpleFlow flow = helper.flow(name).split(taskExecutor).add(subFlows.toArray(new SimpleFlow[0])).build();
 		Job job = helper.job(name).start(flow).build().build();
 		return helper.run(job);
 	}
 
 	private SimpleStepBuilder<DataStructure<String>, DataStructure<String>> chunk(StepBuilder step) {
 		return step.chunk(chunkSize);
-	}
-
-	private Type[] dataTypes() {
-		if (dataTypes == null || dataTypes.isEmpty()) {
-			return Type.values();
-		}
-		return dataTypes.toArray(new Type[0]);
 	}
 
 	private ItemWriter<DataStructure<String>> writer() {
@@ -181,12 +142,25 @@ public class Generator implements Callable<JobExecution> {
 		reader.setExpiration(expiration);
 	}
 
-	public static GeneratorBuilder builder(RedisClient client, String id) {
-		return new GeneratorBuilder(client, id);
+	public static ClientGeneratorBuilder client(RedisClient client) {
+		return new ClientGeneratorBuilder(client);
 	}
 
-	public static GeneratorBuilder builder(RedisClusterClient client, String id) {
-		return new GeneratorBuilder(client, id);
+	public static ClientGeneratorBuilder client(RedisClusterClient client) {
+		return new ClientGeneratorBuilder(client);
+	}
+
+	public static class ClientGeneratorBuilder {
+
+		private final AbstractRedisClient client;
+
+		public ClientGeneratorBuilder(AbstractRedisClient client) {
+			this.client = client;
+		}
+
+		public GeneratorBuilder id(String id) {
+			return new GeneratorBuilder(client, id);
+		}
 	}
 
 	public static class GeneratorBuilder extends JobRepositoryBuilder<String, String, GeneratorBuilder> {
@@ -248,7 +222,7 @@ public class Generator implements Callable<JobExecution> {
 		}
 
 		public GeneratorBuilder dataTypes(Type... types) {
-			this.dataTypes = new ArrayList<>(Arrays.asList(types));
+			this.dataTypes.addAll(Arrays.asList(types));
 			return this;
 		}
 
@@ -263,16 +237,7 @@ public class Generator implements Callable<JobExecution> {
 		}
 
 		public Generator build() {
-			Generator generator = new Generator(client, id, jobRepository, transactionManager);
-			generator.setChunkSize(chunkSize);
-			generator.setCollectionCardinality(collectionCardinality);
-			generator.setDataTypes(dataTypes);
-			generator.setExpiration(expiration);
-			generator.setKeyPrefix(keyPrefix);
-			generator.setSequence(sequence);
-			generator.setStringValueSize(stringValueSize);
-			generator.setZsetScore(zsetScore);
-			return generator;
+			return new Generator(this);
 		}
 	}
 

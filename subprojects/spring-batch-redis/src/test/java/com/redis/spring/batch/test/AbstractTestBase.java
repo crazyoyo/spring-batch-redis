@@ -45,6 +45,7 @@ import com.redis.spring.batch.support.LiveRedisItemReader;
 import com.redis.spring.batch.support.PollableItemReader;
 import com.redis.spring.batch.support.RedisOperation;
 import com.redis.spring.batch.support.generator.Generator;
+import com.redis.spring.batch.support.generator.Generator.ClientGeneratorBuilder;
 import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
 import com.redis.testcontainers.junit.jupiter.AbstractTestcontainersRedisTestBase;
 import com.redis.testcontainers.junit.jupiter.RedisTestContext;
@@ -229,14 +230,14 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected GeneratorBuilder dataGenerator(RedisTestContext context, String name) {
-		return dataGenerator(context.getClient(), name(context, name + "-generator"));
+		return configureJobRepository(dataGenerator(context.getClient()).id(name(context, name + "-generator")));
 	}
 
-	protected GeneratorBuilder dataGenerator(AbstractRedisClient client, String id) {
+	protected ClientGeneratorBuilder dataGenerator(AbstractRedisClient client) {
 		if (client instanceof RedisClusterClient) {
-			return configureJobRepository(Generator.builder((RedisClusterClient) client, id));
+			return Generator.client((RedisClusterClient) client);
 		}
-		return configureJobRepository(Generator.builder((RedisClient) client, id));
+		return Generator.client((RedisClient) client);
 	}
 
 	protected LiveRedisItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisTestContext redis,

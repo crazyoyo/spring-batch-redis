@@ -25,6 +25,14 @@ public class RedisBuilder<K, V, B extends RedisBuilder<K, V, B>> {
 		this.client = client;
 		this.codec = codec;
 	}
+	
+	public AbstractRedisClient getClient() {
+		return client;
+	}
+	
+	public RedisCodec<K, V> getCodec() {
+		return codec;
+	}
 
 	@SuppressWarnings("unchecked")
 	public B poolConfig(GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig) {
