@@ -62,7 +62,7 @@ public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements 
 		}
 		listeners.forEach(l -> l.key(key));
 		if (!queue.offer(key)) {
-			log.debug("Could not add key: queue full (size={})", queue.size());
+			log.warn("Could not add key because queue is full. Queue size: {}", queue.size());
 		}
 	}
 

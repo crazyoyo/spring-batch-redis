@@ -9,8 +9,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.TimeoutException;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -86,13 +86,15 @@ class BatchTests extends AbstractTestBase {
 	private static final Logger log = LoggerFactory.getLogger(BatchTests.class);
 
 	@Container
-	protected static final RedisContainer REDIS = new RedisContainer().withKeyspaceNotifications();
+	protected static final RedisContainer REDIS = new RedisContainer(
+			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG)).withKeyspaceNotifications();
 	@Container
-	protected static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer()
-			.withKeyspaceNotifications();
-
+	protected static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer(
+			RedisClusterContainer.DEFAULT_IMAGE_NAME.withTag(RedisClusterContainer.DEFAULT_TAG))
+					.withKeyspaceNotifications();
 	@Container
-	private static final RedisContainer TARGET = new RedisContainer();
+	private static final RedisContainer TARGET = new RedisContainer(
+			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 
 	@Override
 	protected Collection<RedisServer> testServers() {

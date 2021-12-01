@@ -131,10 +131,10 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	@Override
 	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
 		if (jobExecution != null) {
-			log.info("Already opened, skipping");
+			log.debug("Already opened, skipping");
 			return;
 		}
-		log.info("Opening {}", name);
+		log.debug("Opening {}", name);
 		valueQueue = new LinkedBlockingQueue<>(queueCapacity);
 		enqueuer = new RedisValueEnqueuer<>(valueReader, valueQueue);
 		Utils.createGaugeCollectionSize("reader.queue.size", valueQueue);
@@ -180,10 +180,10 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	@Override
 	public synchronized void close() {
 		if (jobExecution == null) {
-			log.info("Already closed, skipping");
+			log.debug("Already closed, skipping");
 			return;
 		}
-		log.info("Closing {}", name);
+		log.debug("Closing {}", name);
 		super.close();
 		if (!valueQueue.isEmpty()) {
 			log.warn("Closing {} with {} items still in queue", ClassUtils.getShortName(getClass()), valueQueue.size());

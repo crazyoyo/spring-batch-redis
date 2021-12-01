@@ -33,7 +33,7 @@ public class ConnectionPoolItemStream<K, V> extends ItemStreamSupport {
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		if (pool == null) {
-			log.info("Creating connection pool");
+			log.debug("Creating connection pool");
 			this.pool = ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, poolConfig);
 		}
 	}
@@ -46,7 +46,7 @@ public class ConnectionPoolItemStream<K, V> extends ItemStreamSupport {
 	@Override
 	public synchronized void close() {
 		if (pool != null) {
-			log.info("Closing connection pool");
+			log.debug("Closing connection pool");
 			pool.close();
 			pool = null;
 		}

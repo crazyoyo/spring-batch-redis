@@ -26,7 +26,7 @@ public class StreamGeneratorItemReader
 		for (int elementIndex = 0; elementIndex < cardinality(); elementIndex++) {
 			messages.add(new StreamMessage<>(stream, null, map()));
 		}
-		log.debug("Generated {} stream messages", messages.size());
+		log.trace("Generated {} stream messages", messages.size());
 		return messages;
 	}
 

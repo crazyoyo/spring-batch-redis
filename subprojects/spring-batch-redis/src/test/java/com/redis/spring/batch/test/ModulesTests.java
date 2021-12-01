@@ -42,7 +42,8 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 class ModulesTests extends AbstractTestBase {
 
 	@Container
-	protected static final RedisModulesContainer REDIS = new RedisModulesContainer("preview");
+	protected static final RedisModulesContainer REDIS = new RedisModulesContainer(
+			RedisModulesContainer.DEFAULT_IMAGE_NAME.withTag("preview"));
 
 	@Override
 	protected Collection<RedisServer> servers() {

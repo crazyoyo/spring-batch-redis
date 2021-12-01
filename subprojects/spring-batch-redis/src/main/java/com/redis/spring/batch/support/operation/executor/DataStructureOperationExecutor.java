@@ -127,10 +127,10 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	private void flush(BaseRedisAsyncCommands<K, V> commands, RedisFuture<?>... futures) {
 		commands.flushCommands();
-		log.debug("Executing {} commands", futures.length);
+		log.trace("Executing {} commands", futures.length);
 		boolean result = LettuceFutures.awaitAll(timeout.toMillis(), TimeUnit.MILLISECONDS, futures);
 		if (result) {
-			log.debug("Successfully executed {} commands", futures.length);
+			log.trace("Successfully executed {} commands", futures.length);
 		} else {
 			log.warn("Could not execute {} commands", futures.length);
 		}

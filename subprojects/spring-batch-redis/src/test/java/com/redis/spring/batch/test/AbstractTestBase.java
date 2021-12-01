@@ -87,7 +87,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected static String name(RedisTestContext context, String name) {
-		return context.getServer().getRedisURI() + "-" + name;
+		return context.getRedisURI() + "-" + name;
 	}
 
 	protected <I, O> JobExecution launch(Job job) throws JobExecutionException {
@@ -204,7 +204,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected static DataStructureValueReader<String, String> dataStructureValueReader(RedisTestContext context) {
-		if (context.getServer().isCluster()) {
+		if (context.isCluster()) {
 			return DataStructureValueReader.client(context.getRedisClusterClient()).build();
 		}
 		return DataStructureValueReader.client(context.getRedisClient()).build();

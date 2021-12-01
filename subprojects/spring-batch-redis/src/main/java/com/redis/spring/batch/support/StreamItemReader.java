@@ -161,7 +161,7 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 					.collect(Collectors.groupingBy(StreamMessage::getStream));
 			for (Map.Entry<K, List<StreamMessage<K, V>>> entry : streams.entrySet()) {
 				String[] messageIds = entry.getValue().stream().map(StreamMessage::getId).toArray(String[]::new);
-				log.info("Ack'ing message ids: {}", Arrays.asList(messageIds));
+				log.debug("Ack'ing message ids: {}", Arrays.asList(messageIds));
 				commands.xack(entry.getKey(), consumerGroup, messageIds);
 			}
 		}
