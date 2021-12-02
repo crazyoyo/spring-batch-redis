@@ -5,13 +5,11 @@ import java.util.List;
 
 import org.apache.commons.lang3.Range;
 
-import com.redis.spring.batch.support.DataStructure.Type;
-
 public abstract class CollectionGeneratorItemReader<T> extends DataStructureGeneratorItemReader<T> {
 
 	private Range<Long> cardinality = Generator.DEFAULT_COLLECTION_CARDINALITY;
 
-	protected CollectionGeneratorItemReader(Type type) {
+	protected CollectionGeneratorItemReader(String type) {
 		super(type);
 	}
 

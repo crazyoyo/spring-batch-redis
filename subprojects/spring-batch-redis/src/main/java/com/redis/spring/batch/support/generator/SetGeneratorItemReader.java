@@ -3,12 +3,12 @@ package com.redis.spring.batch.support.generator;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.redis.spring.batch.support.DataStructure.Type;
+import com.redis.spring.batch.support.DataStructure;
 
 public class SetGeneratorItemReader extends CollectionGeneratorItemReader<Set<String>> {
 
 	public SetGeneratorItemReader() {
-		super(Type.SET);
+		super(DataStructure.SET);
 	}
 
 	@Override

@@ -1,6 +1,8 @@
 package com.redis.spring.batch.support;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -10,21 +12,19 @@ import io.lettuce.core.StreamMessage;
 
 public class DataStructure<K> extends KeyValue<K, Object> {
 
-	public enum Type {
-
-		HASH, LIST, SET, STREAM, STRING, ZSET
-
-	}
-
-	public final static String STRING = "string";
-	public final static String LIST = "list";
-	public final static String SET = "set";
-	public final static String ZSET = "zset";
-	public final static String HASH = "hash";
-	public final static String STREAM = "stream";
+	public static final String STRING = "string";
+	public static final String LIST = "list";
+	public static final String SET = "set";
+	public static final String ZSET = "zset";
+	public static final String HASH = "hash";
+	public static final String STREAM = "stream";
 	public static final String NONE = "none";
 
 	private String type;
+
+	public static Set<String> types() {
+		return new LinkedHashSet<>(Arrays.asList(STRING, HASH, SET, ZSET, LIST, STREAM));
+	}
 
 	public DataStructure() {
 	}
@@ -44,27 +44,27 @@ public class DataStructure<K> extends KeyValue<K, Object> {
 		this.type = type;
 	}
 
-	public static <K, V> DataStructure<K> string(K key, V value) {
+	public static <K, V> DataStructure<K> createString(K key, V value) {
 		return new DataStructure<>(STRING, key, value);
 	}
 
-	public static <K, V> DataStructure<K> hash(K key, Map<K, V> value) {
+	public static <K, V> DataStructure<K> createHash(K key, Map<K, V> value) {
 		return new DataStructure<>(HASH, key, value);
 	}
 
-	public static <K, V> DataStructure<K> set(K key, Set<V> value) {
+	public static <K, V> DataStructure<K> createSet(K key, Set<V> value) {
 		return new DataStructure<>(SET, key, value);
 	}
 
-	public static <K, V> DataStructure<K> zset(K key, Collection<ScoredValue<V>> value) {
+	public static <K, V> DataStructure<K> createZset(K key, Collection<ScoredValue<V>> value) {
 		return new DataStructure<>(ZSET, key, value);
 	}
 
-	public static <K, V> DataStructure<K> list(K key, List<V> value) {
+	public static <K, V> DataStructure<K> createList(K key, List<V> value) {
 		return new DataStructure<>(LIST, key, value);
 	}
 
-	public static <K, V> DataStructure<K> stream(K key, Collection<StreamMessage<K, V>> value) {
+	public static <K, V> DataStructure<K> createStream(K key, Collection<StreamMessage<K, V>> value) {
 		return new DataStructure<>(STREAM, key, value);
 	}
 

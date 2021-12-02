@@ -2,7 +2,9 @@ package com.redis.spring.batch.support.generator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 
 import org.apache.commons.lang3.Range;
@@ -24,7 +26,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.builder.JobRepositoryBuilder;
 import com.redis.spring.batch.support.DataStructure;
-import com.redis.spring.batch.support.DataStructure.Type;
 import com.redis.spring.batch.support.JobRunner;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -47,7 +48,7 @@ public class Generator implements Callable<JobExecution> {
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager transactionManager;
 	private final int chunkSize;
-	private final List<Type> dataTypes;
+	private final Set<String> dataTypes;
 	private final Range<Long> sequence;
 	private final String keyPrefix;
 	private final Range<Long> expiration;
@@ -75,9 +76,9 @@ public class Generator implements Callable<JobExecution> {
 			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
 		JobRunner helper = new JobRunner(jobRepository, transactionManager);
 		String name = id + "-" + NAME;
-		List<Type> types = dataTypes.isEmpty() ? Arrays.asList(Type.values()) : dataTypes;
+		Set<String> types = dataTypes.isEmpty() ? DataStructure.types() : dataTypes;
 		List<SimpleFlow> subFlows = new ArrayList<>();
-		for (Type type : types) {
+		for (String type : types) {
 			String flowName = type + "-" + name;
 			subFlows.add(helper.flow(flowName)
 					.start(chunk(helper.step(flowName)).reader(reader(type)).writer(writer()).build()).build());
@@ -99,36 +100,37 @@ public class Generator implements Callable<JobExecution> {
 		return RedisItemWriter.client((RedisClient) client).dataStructure().xaddArgs(m -> null).build();
 	}
 
-	private ItemReader<DataStructure<String>> reader(Type type) {
+	private ItemReader<DataStructure<String>> reader(String type) {
 		switch (type) {
-		case HASH:
+		case DataStructure.HASH:
 			HashGeneratorItemReader hashReader = new HashGeneratorItemReader();
 			configureDataStructure(hashReader);
 			return hashReader;
-		case LIST:
+		case DataStructure.LIST:
 			ListGeneratorItemReader listReader = new ListGeneratorItemReader();
 			configureCollection(listReader);
 			return listReader;
-		case SET:
+		case DataStructure.SET:
 			SetGeneratorItemReader setReader = new SetGeneratorItemReader();
 			configureCollection(setReader);
 			return setReader;
-		case STREAM:
+		case DataStructure.STREAM:
 			StreamGeneratorItemReader streamReader = new StreamGeneratorItemReader();
 			configureCollection(streamReader);
 			return streamReader;
-		case STRING:
+		case DataStructure.STRING:
 			StringGeneratorItemReader stringReader = new StringGeneratorItemReader();
 			stringReader.setValueSize(stringValueSize);
 			configureDataStructure(stringReader);
 			return stringReader;
-		case ZSET:
+		case DataStructure.ZSET:
 			ZsetGeneratorItemReader zsetReader = new ZsetGeneratorItemReader();
 			zsetReader.setScore(zsetScore);
 			configureCollection(zsetReader);
 			return zsetReader;
+		default:
+			throw new UnsupportedOperationException(String.format("Data type '%s' is not supported", type));
 		}
-		throw new UnsupportedOperationException(String.format("Data type '%s' is not supported", type));
 	}
 
 	private void configureCollection(CollectionGeneratorItemReader<?> reader) {
@@ -168,7 +170,7 @@ public class Generator implements Callable<JobExecution> {
 		private final String id;
 
 		private int chunkSize = DEFAULT_CHUNK_SIZE;
-		private List<Type> dataTypes = new ArrayList<>();
+		private Set<String> dataTypes = new LinkedHashSet<>();
 		private Range<Long> sequence = DEFAULT_SEQUENCE;
 		private String keyPrefix;
 		private Range<Long> expiration;
@@ -216,12 +218,12 @@ public class Generator implements Callable<JobExecution> {
 			return this;
 		}
 
-		public GeneratorBuilder dataType(Type type) {
+		public GeneratorBuilder dataType(String type) {
 			this.dataTypes.add(type);
 			return this;
 		}
 
-		public GeneratorBuilder dataTypes(Type... types) {
+		public GeneratorBuilder dataTypes(String... types) {
 			this.dataTypes.addAll(Arrays.asList(types));
 			return this;
 		}

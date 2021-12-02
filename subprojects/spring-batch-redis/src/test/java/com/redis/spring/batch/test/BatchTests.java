@@ -40,7 +40,6 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.builder.StreamItemReaderBuilder;
 import com.redis.spring.batch.support.DataStructure;
-import com.redis.spring.batch.support.DataStructure.Type;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.FlushingStepBuilder;
 import com.redis.spring.batch.support.KeyComparator;
@@ -115,7 +114,7 @@ class BatchTests extends AbstractTestBase {
 		PollableItemReader<String> reader = keyspaceNotificationReader(context);
 		ListItemWriter<String> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(context, name, reader, null, writer);
-		execute(dataGenerator(context, name).end(3).dataType(Type.STRING).dataType(Type.HASH));
+		execute(dataGenerator(context, name).end(3).dataType(DataStructure.STRING).dataType(DataStructure.HASH));
 		awaitTermination(execution);
 		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
 	}
@@ -130,8 +129,8 @@ class BatchTests extends AbstractTestBase {
 		String name = "keyspace-notification-reader";
 		LiveKeyItemReader<String> keyReader = keyspaceNotificationReader(context);
 		keyReader.open(new ExecutionContext());
-		execute(dataGenerator(context, name).dataType(Type.HASH).dataType(Type.STRING).dataType(Type.LIST)
-				.dataType(Type.SET).dataType(Type.ZSET).end(2));
+		execute(dataGenerator(context, name).dataType(DataStructure.HASH).dataType(DataStructure.STRING)
+				.dataType(DataStructure.LIST).dataType(DataStructure.SET).dataType(DataStructure.ZSET).end(2));
 		ListItemWriter<String> writer = new ListItemWriter<>();
 		run(context, name, keyReader, writer);
 		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
@@ -189,7 +188,7 @@ class BatchTests extends AbstractTestBase {
 		LiveRedisItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(context, name, 10000);
 		ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(context, name, reader, null, writer);
-		execute(dataGenerator(context, name).end(123).dataType(Type.HASH).dataType(Type.STRING));
+		execute(dataGenerator(context, name).end(123).dataType(DataStructure.HASH).dataType(DataStructure.STRING));
 		awaitTermination(execution);
 		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
 	}
@@ -198,7 +197,7 @@ class BatchTests extends AbstractTestBase {
 	@RedisTestContextsSource
 	void testKeyValueItemReaderFaultTolerance(RedisTestContext context) throws Exception {
 		String name = "reader-ft";
-		execute(dataGenerator(context, name).dataType(Type.STRING));
+		execute(dataGenerator(context, name).dataType(DataStructure.STRING));
 		List<String> keys = IntStream.range(0, 100).boxed().map(i -> "string:" + i).collect(Collectors.toList());
 		DelegatingPollableItemReader<String> keyReader = new DelegatingPollableItemReader<>(new ListItemReader<>(keys));
 		DataStructureValueReader<String, String> valueReader = dataStructureValueReader(context);
@@ -235,7 +234,7 @@ class BatchTests extends AbstractTestBase {
 	}
 
 	private GeneratorBuilder streamDataGenerator(RedisTestContext redis, String name) {
-		return dataGenerator(redis, name).dataType(Type.STREAM).end(1)
+		return dataGenerator(redis, name).dataType(DataStructure.STREAM).end(1)
 				.collectionCardinality(org.apache.commons.lang3.Range.is(COUNT));
 	}
 
@@ -472,7 +471,7 @@ class BatchTests extends AbstractTestBase {
 			Map<String, String> map = new HashMap<>();
 			map.put("field1", "value1");
 			map.put("field2", "value2");
-			list.add(DataStructure.hash("hash:" + index, map));
+			list.add(DataStructure.createHash("hash:" + index, map));
 		}
 		ListItemReader<DataStructure<String>> reader = new ListItemReader<>(list);
 		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureWriter(context);
@@ -549,8 +548,9 @@ class BatchTests extends AbstractTestBase {
 				.add(liveReplicationFlow, replicationFlow).build()).build().build();
 		JobExecution execution = launchAsync(job);
 		awaitOpen(liveReader);
-		execute(dataGenerator(server, "live-" + name).chunkSize(1).dataType(Type.HASH).dataType(Type.LIST)
-				.dataType(Type.SET).dataType(Type.STRING).dataType(Type.ZSET).between(3000, 4000));
+		execute(dataGenerator(server, "live-" + name).chunkSize(1).dataType(DataStructure.HASH)
+				.dataType(DataStructure.LIST).dataType(DataStructure.SET).dataType(DataStructure.STRING)
+				.dataType(DataStructure.ZSET).between(3000, 4000));
 		awaitTermination(execution);
 		compare(server, name);
 	}
@@ -599,7 +599,7 @@ class BatchTests extends AbstractTestBase {
 	@RedisTestContextsSource
 	void testScanSizeEstimator(RedisTestContext server) throws Exception {
 		String pattern = "hash:*";
-		execute(dataGenerator(server, "scan-size-estimator").end(12345).dataType(Type.HASH));
+		execute(dataGenerator(server, "scan-size-estimator").end(12345).dataType(DataStructure.HASH));
 		long expectedCount = server.sync().keys(pattern).size();
 		long matchCount = sizeEstimator(server).sampleSize(1000).match(pattern).build().call();
 		Assertions.assertEquals(expectedCount, matchCount, expectedCount / 10);
@@ -622,7 +622,7 @@ class BatchTests extends AbstractTestBase {
 		long expectedCount = Generator.DEFAULT_SEQUENCE.getMaximum() - Generator.DEFAULT_SEQUENCE.getMinimum();
 		long actualStringCount = sync.keys("string:*").size();
 		Assertions.assertEquals(expectedCount, actualStringCount);
-		Assertions.assertEquals(expectedCount * Type.values().length, sync.dbsize());
+		Assertions.assertEquals(expectedCount * DataStructure.types().size(), sync.dbsize());
 	}
 
 	@ParameterizedTest
@@ -633,7 +633,7 @@ class BatchTests extends AbstractTestBase {
 		RedisModulesCommands<String, String> sync = context.sync();
 		int actualStringCount = sync.keys("string:*").size();
 		Assertions.assertEquals(count, actualStringCount);
-		Awaitility.await().until(() -> count * Type.values().length == sync.dbsize());
+		Awaitility.await().until(() -> count * DataStructure.types().size() == sync.dbsize());
 		Assertions.assertEquals(Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum(), sync.scard("set:100"));
 		Assertions.assertEquals(Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum(), sync.llen("list:101"));
 		Assertions.assertEquals(Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum(), sync.zcard("zset:102"));

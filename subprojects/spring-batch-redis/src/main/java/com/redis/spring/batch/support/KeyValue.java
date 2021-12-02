@@ -62,7 +62,7 @@ public class KeyValue<K, T> {
 		return absoluteTTL;
 	}
 
-	public void setAbsoluteTTL(Long absoluteTTL) {
+	public void setAbsoluteTTL(long absoluteTTL) {
 		this.absoluteTTL = absoluteTTL;
 	}
 
