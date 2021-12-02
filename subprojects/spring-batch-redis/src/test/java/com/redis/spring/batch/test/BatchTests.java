@@ -581,14 +581,15 @@ class BatchTests extends AbstractTestBase {
 				.add(liveReplicationFlow, replicationFlow).build()).build().build();
 		JobExecution execution = launchAsync(job);
 		awaitOpen(liveReader);
-		execute(dataGenerator(server, "live-" + name).chunkSize(1).type(Type.HASH).type(Type.LIST).type(Type.SET)
-				.type(Type.STRING).type(Type.ZSET).between(3000, 4000));
+		GeneratorBuilder liveGenerator = dataGenerator(server, "live-" + name).chunkSize(1)
+				.types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).between(3000, 4000);
+		execute(liveGenerator);
 		awaitTermination(execution);
 		awaitClosed(writer);
 		awaitClosed(liveWriter);
 		compare(server, name);
 	}
-	
+
 	private void compare(RedisTestContext server, String name) throws Exception {
 		Assertions.assertEquals(server.sync().dbsize(), getContext(TARGET).sync().dbsize());
 		KeyComparator comparator = comparator(server, name).build();

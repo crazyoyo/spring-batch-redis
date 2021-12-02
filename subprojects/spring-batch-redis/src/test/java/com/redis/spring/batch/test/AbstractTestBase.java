@@ -5,11 +5,13 @@ import java.time.Duration;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.runner.RunWith;
+import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.job.builder.FlowBuilder;
@@ -108,6 +110,9 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected static JobExecution awaitTermination(JobExecution execution) {
 		Awaitility.await().timeout(Duration.ofMinutes(1)).until(() -> !execution.isRunning());
+		for (StepExecution stepExecution : execution.getStepExecutions()) {
+			Awaitility.await().until(() -> stepExecution.getStatus() == BatchStatus.COMPLETED);
+		}
 		return execution;
 	}
 
@@ -161,8 +166,8 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	protected static void awaitOpen(PollableItemReader<?> reader) {
 		Awaitility.await().until(reader::isOpen);
 	}
-	
-	protected  static void awaitClosed(ConnectionPoolItemStream<?, ?> itemStream) {
+
+	protected static void awaitClosed(ConnectionPoolItemStream<?, ?> itemStream) {
 		Awaitility.await().until(itemStream::isClosed);
 	}
 

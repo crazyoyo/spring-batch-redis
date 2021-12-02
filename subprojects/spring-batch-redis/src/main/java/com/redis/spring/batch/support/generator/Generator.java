@@ -19,7 +19,6 @@ import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -76,26 +75,26 @@ public class Generator implements Callable<JobExecution> {
 	@Override
 	public JobExecution call() throws JobExecutionAlreadyRunningException, JobRestartException,
 			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
-		JobRunner helper = new JobRunner(jobRepository, transactionManager);
+		JobRunner jobRunner = new JobRunner(jobRepository, transactionManager);
 		String name = id + "-" + NAME;
 		Set<Type> readerTypes = this.types.isEmpty() ? new LinkedHashSet<>(Arrays.asList(Type.values())) : this.types;
 		List<SimpleFlow> subFlows = new ArrayList<>();
 		for (Type type : readerTypes) {
 			String flowName = type + "-" + name;
-			subFlows.add(helper.flow(flowName)
-					.start(chunk(helper.step(flowName)).reader(reader(type)).writer(writer()).build()).build());
+			subFlows.add(jobRunner.flow(flowName)
+					.start(chunk(jobRunner.step(flowName)).reader(reader(type)).writer(writer()).build()).build());
 		}
 		SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
-		SimpleFlow flow = helper.flow(name).split(taskExecutor).add(subFlows.toArray(new SimpleFlow[0])).build();
-		Job job = helper.job(name).start(flow).build().build();
-		return helper.run(job);
+		SimpleFlow flow = jobRunner.flow(name).split(taskExecutor).add(subFlows.toArray(new SimpleFlow[0])).build();
+		Job job = jobRunner.job(name).start(flow).build().build();
+		return jobRunner.run(job);
 	}
 
 	private SimpleStepBuilder<DataStructure<String>, DataStructure<String>> chunk(StepBuilder step) {
 		return step.chunk(chunkSize);
 	}
 
-	private ItemWriter<DataStructure<String>> writer() {
+	private RedisItemWriter<String, String, DataStructure<String>> writer() {
 		if (client instanceof RedisClusterClient) {
 			return RedisItemWriter.client((RedisClusterClient) client).dataStructure().xaddArgs(m -> null).build();
 		}
@@ -218,7 +217,7 @@ public class Generator implements Callable<JobExecution> {
 			return this;
 		}
 
-		public GeneratorBuilder dataTypes(Type... types) {
+		public GeneratorBuilder types(Type... types) {
 			this.types.addAll(Arrays.asList(types));
 			return this;
 		}
