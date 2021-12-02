@@ -37,6 +37,7 @@ import com.redis.spring.batch.RedisItemWriter.OperationItemWriterBuilder;
 import com.redis.spring.batch.RedisItemWriter.RedisItemWriterBuilder;
 import com.redis.spring.batch.builder.JobRepositoryBuilder;
 import com.redis.spring.batch.builder.LiveRedisItemReaderBuilder;
+import com.redis.spring.batch.support.ConnectionPoolItemStream;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.FlushingStepBuilder;
@@ -159,6 +160,10 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected static void awaitOpen(PollableItemReader<?> reader) {
 		Awaitility.await().until(reader::isOpen);
+	}
+	
+	protected  static void awaitClosed(ConnectionPoolItemStream<?, ?> itemStream) {
+		Awaitility.await().until(itemStream::isClosed);
 	}
 
 	protected <I, O> FlushingStepBuilder<I, O> flushingStep(RedisTestContext redis, String name,

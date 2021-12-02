@@ -38,6 +38,10 @@ public class ConnectionPoolItemStream<K, V> extends ItemStreamSupport {
 		}
 	}
 
+	public boolean isClosed() {
+		return pool == null;
+	}
+
 	@Override
 	public void update(ExecutionContext executionContext) throws ItemStreamException {
 		// do nothing

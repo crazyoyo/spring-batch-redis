@@ -570,8 +570,8 @@ class BatchTests extends AbstractTestBase {
 	}
 
 	private <T extends KeyValue<String, ?>> void liveReplication(String name, RedisTestContext server,
-			RedisItemReader<String, T> reader, ItemWriter<T> writer, LiveRedisItemReader<String, T> liveReader,
-			ItemWriter<T> liveWriter) throws Exception {
+			RedisItemReader<String, T> reader, RedisItemWriter<String, String, T> writer,
+			LiveRedisItemReader<String, T> liveReader, RedisItemWriter<String, String, T> liveWriter) throws Exception {
 		execute(dataGenerator(server, name).end(3000));
 		TaskletStep replicationStep = step(server, name, reader, null, writer).build();
 		SimpleFlow replicationFlow = flow(server, "scan-" + name).start(replicationStep).build();
@@ -584,9 +584,11 @@ class BatchTests extends AbstractTestBase {
 		execute(dataGenerator(server, "live-" + name).chunkSize(1).type(Type.HASH).type(Type.LIST).type(Type.SET)
 				.type(Type.STRING).type(Type.ZSET).between(3000, 4000));
 		awaitTermination(execution);
+		awaitClosed(writer);
+		awaitClosed(liveWriter);
 		compare(server, name);
 	}
-
+	
 	private void compare(RedisTestContext server, String name) throws Exception {
 		Assertions.assertEquals(server.sync().dbsize(), getContext(TARGET).sync().dbsize());
 		KeyComparator comparator = comparator(server, name).build();
