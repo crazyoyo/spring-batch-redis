@@ -7,7 +7,7 @@ import com.redis.spring.batch.support.DataStructure;
 
 public class StringGeneratorItemReader extends DataStructureGeneratorItemReader<String> {
 
-	private Range<Integer> valueSize = Generator.DEFAULT_STRING_VALUE_SIZE;
+	protected Range<Integer> valueSize = Generator.DEFAULT_STRING_VALUE_SIZE;
 
 	public StringGeneratorItemReader() {
 		super(DataStructure.STRING);

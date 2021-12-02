@@ -35,6 +35,10 @@ import io.lettuce.core.codec.StringCodec;
 
 public class Generator implements Callable<JobExecution> {
 
+	public enum Type {
+		STRING, LIST, SET, ZSET, HASH, STREAM;
+	}
+
 	private static final String NAME = "generator";
 
 	public static final int DEFAULT_CHUNK_SIZE = 50;
@@ -48,9 +52,8 @@ public class Generator implements Callable<JobExecution> {
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager transactionManager;
 	private final int chunkSize;
-	private final Set<String> dataTypes;
+	private final Set<Type> types;
 	private final Range<Long> sequence;
-	private final String keyPrefix;
 	private final Range<Long> expiration;
 	private final Range<Long> collectionCardinality;
 	private final Range<Integer> stringValueSize;
@@ -62,9 +65,8 @@ public class Generator implements Callable<JobExecution> {
 		this.jobRepository = builder.getJobRepository();
 		this.transactionManager = builder.getTransactionManager();
 		this.chunkSize = builder.chunkSize;
-		this.dataTypes = builder.dataTypes;
+		this.types = builder.types;
 		this.sequence = builder.sequence;
-		this.keyPrefix = builder.keyPrefix;
 		this.expiration = builder.expiration;
 		this.collectionCardinality = builder.collectionCardinality;
 		this.stringValueSize = builder.stringValueSize;
@@ -76,9 +78,9 @@ public class Generator implements Callable<JobExecution> {
 			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
 		JobRunner helper = new JobRunner(jobRepository, transactionManager);
 		String name = id + "-" + NAME;
-		Set<String> types = dataTypes.isEmpty() ? DataStructure.types() : dataTypes;
+		Set<Type> readerTypes = this.types.isEmpty() ? new LinkedHashSet<>(Arrays.asList(Type.values())) : this.types;
 		List<SimpleFlow> subFlows = new ArrayList<>();
-		for (String type : types) {
+		for (Type type : readerTypes) {
 			String flowName = type + "-" + name;
 			subFlows.add(helper.flow(flowName)
 					.start(chunk(helper.step(flowName)).reader(reader(type)).writer(writer()).build()).build());
@@ -100,30 +102,30 @@ public class Generator implements Callable<JobExecution> {
 		return RedisItemWriter.client((RedisClient) client).dataStructure().xaddArgs(m -> null).build();
 	}
 
-	private ItemReader<DataStructure<String>> reader(String type) {
+	private ItemReader<DataStructure<String>> reader(Type type) {
 		switch (type) {
-		case DataStructure.HASH:
+		case HASH:
 			HashGeneratorItemReader hashReader = new HashGeneratorItemReader();
 			configureDataStructure(hashReader);
 			return hashReader;
-		case DataStructure.LIST:
+		case LIST:
 			ListGeneratorItemReader listReader = new ListGeneratorItemReader();
 			configureCollection(listReader);
 			return listReader;
-		case DataStructure.SET:
+		case SET:
 			SetGeneratorItemReader setReader = new SetGeneratorItemReader();
 			configureCollection(setReader);
 			return setReader;
-		case DataStructure.STREAM:
+		case STREAM:
 			StreamGeneratorItemReader streamReader = new StreamGeneratorItemReader();
 			configureCollection(streamReader);
 			return streamReader;
-		case DataStructure.STRING:
+		case STRING:
 			StringGeneratorItemReader stringReader = new StringGeneratorItemReader();
 			stringReader.setValueSize(stringValueSize);
 			configureDataStructure(stringReader);
 			return stringReader;
-		case DataStructure.ZSET:
+		case ZSET:
 			ZsetGeneratorItemReader zsetReader = new ZsetGeneratorItemReader();
 			zsetReader.setScore(zsetScore);
 			configureCollection(zsetReader);
@@ -140,7 +142,6 @@ public class Generator implements Callable<JobExecution> {
 
 	private void configureDataStructure(DataStructureGeneratorItemReader<?> reader) {
 		reader.setSequence(sequence);
-		reader.setKeyPrefix(keyPrefix);
 		reader.setExpiration(expiration);
 	}
 
@@ -170,9 +171,8 @@ public class Generator implements Callable<JobExecution> {
 		private final String id;
 
 		private int chunkSize = DEFAULT_CHUNK_SIZE;
-		private Set<String> dataTypes = new LinkedHashSet<>();
+		private Set<Type> types = new LinkedHashSet<>();
 		private Range<Long> sequence = DEFAULT_SEQUENCE;
-		private String keyPrefix;
 		private Range<Long> expiration;
 		private Range<Long> collectionCardinality = DEFAULT_COLLECTION_CARDINALITY;
 		private Range<Integer> stringValueSize = DEFAULT_STRING_VALUE_SIZE;
@@ -190,11 +190,6 @@ public class Generator implements Callable<JobExecution> {
 
 		public GeneratorBuilder sequence(Range<Long> sequence) {
 			this.sequence = sequence;
-			return this;
-		}
-
-		public GeneratorBuilder keyPrefix(String keyPrefix) {
-			this.keyPrefix = keyPrefix;
 			return this;
 		}
 
@@ -218,13 +213,13 @@ public class Generator implements Callable<JobExecution> {
 			return this;
 		}
 
-		public GeneratorBuilder dataType(String type) {
-			this.dataTypes.add(type);
+		public GeneratorBuilder type(Type type) {
+			this.types.add(type);
 			return this;
 		}
 
-		public GeneratorBuilder dataTypes(String... types) {
-			this.dataTypes.addAll(Arrays.asList(types));
+		public GeneratorBuilder dataTypes(Type... types) {
+			this.types.addAll(Arrays.asList(types));
 			return this;
 		}
 

@@ -15,7 +15,6 @@ public abstract class DataStructureGeneratorItemReader<T>
 		extends AbstractItemCountingItemStreamItemReader<DataStructure<String>> {
 
 	private final String type;
-	private String keyPrefix;
 	private Range<Long> sequence = Generator.DEFAULT_SEQUENCE;
 	private Range<Long> expiration;
 
@@ -24,10 +23,6 @@ public abstract class DataStructureGeneratorItemReader<T>
 		setName(ClassUtils.getShortName(getClass()));
 		setMaxItemCount();
 		this.type = type;
-	}
-
-	public void setKeyPrefix(String keyPrefix) {
-		this.keyPrefix = keyPrefix;
 	}
 
 	public void setSequence(Range<Long> sequence) {
@@ -55,14 +50,7 @@ public abstract class DataStructureGeneratorItemReader<T>
 	}
 
 	private String key() {
-		return type + ":" + prefix(String.valueOf(index()));
-	}
-
-	private String prefix(String id) {
-		if (keyPrefix == null) {
-			return id;
-		}
-		return keyPrefix + ":" + id;
+		return type + ":" + String.valueOf(index());
 	}
 
 	protected long index() {
