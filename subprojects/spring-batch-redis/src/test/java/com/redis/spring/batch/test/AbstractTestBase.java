@@ -111,7 +111,8 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	protected static JobExecution awaitTermination(JobExecution execution) {
 		Awaitility.await().timeout(Duration.ofMinutes(1)).until(() -> !execution.isRunning());
 		for (StepExecution stepExecution : execution.getStepExecutions()) {
-			Awaitility.await().until(() -> stepExecution.getStatus() == BatchStatus.COMPLETED);
+			Awaitility.await().until(() -> stepExecution.getStatus() == BatchStatus.COMPLETED
+					|| stepExecution.getStatus() == BatchStatus.FAILED);
 		}
 		return execution;
 	}
