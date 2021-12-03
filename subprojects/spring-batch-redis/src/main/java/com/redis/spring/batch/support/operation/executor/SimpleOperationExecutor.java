@@ -6,6 +6,7 @@ import java.util.concurrent.Future;
 
 import com.redis.spring.batch.support.RedisOperation;
 
+import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public class SimpleOperationExecutor<K, V, T> implements OperationExecutor<K, V, T> {
@@ -20,7 +21,11 @@ public class SimpleOperationExecutor<K, V, T> implements OperationExecutor<K, V,
 	public List<Future<?>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
 		List<Future<?>> futures = new ArrayList<>();
 		for (T item : items) {
-			futures.add(operation.execute(commands, item));
+			RedisFuture<?> future = operation.execute(commands, item);
+			if (future == null) {
+				continue;
+			}
+			futures.add(future);
 		}
 		return futures;
 	}
