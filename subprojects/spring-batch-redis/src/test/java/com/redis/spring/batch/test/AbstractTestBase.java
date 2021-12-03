@@ -119,6 +119,10 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected static void awaitTermination(JobExecution execution, PollableItemReader<?> reader) {
 		awaitTermination(execution);
+		awaitClosed(reader);
+	}
+
+	protected static void awaitClosed(PollableItemReader<?> reader) {
 		Awaitility.await().until(() -> !reader.isOpen());
 	}
 
