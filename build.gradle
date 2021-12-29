@@ -62,12 +62,19 @@ subprojects {
             description = project.project_description
         }
     }
+    
+    dependencies {
+        compileOnly group: 'com.google.code.findbugs', name: 'jsr305', version: jsr305Version
+    }
+    
     test {
         useJUnitPlatform()
     }
+    
     bootJar {
         enabled = false
     }
+    
     jar {
         enabled = true
         archiveClassifier = ''

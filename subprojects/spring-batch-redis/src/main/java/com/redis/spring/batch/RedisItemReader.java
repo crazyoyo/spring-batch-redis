@@ -77,6 +77,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	private SkipPolicy skipPolicy = DEFAULT_SKIP_POLICY;
 	private JobExecution jobExecution;
 	private String name;
+	private boolean open;
 
 	public RedisItemReader(JobRepository jobRepository, PlatformTransactionManager transactionManager,
 			ItemReader<K> keyReader, ValueReader<K, T> valueReader) {
@@ -170,6 +171,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 				} catch (JobExecutionException e) {
 					throw new ItemStreamException(String.format("Could not run job %s", name), e);
 				}
+				open = true;
 			}
 			threadCount.incrementAndGet();
 			super.open(executionContext);
@@ -215,7 +217,12 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 				log.warn("Closing {} with {} items still in queue", ClassUtils.getShortName(getClass()),
 						valueQueue.size());
 			}
+			open = false;
 		}
+	}
+	
+	public boolean isOpen() {
+		return open;
 	}
 
 	public static ItemReaderBuilder client(RedisClient client) {
