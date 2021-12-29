@@ -152,7 +152,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected static void awaitClosed(ConnectionPoolItemStream<?, ?> itemStream) {
-		Awaitility.await().until(itemStream::isClosed);
+		Awaitility.await().until(() -> !itemStream.isOpen());
 	}
 
 	protected <I, O> FlushingStepBuilder<I, O> flushingStep(RedisTestContext redis, String name,

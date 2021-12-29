@@ -580,6 +580,8 @@ class BatchTests extends AbstractTestBase {
 				.add(liveReplicationFlow, replicationFlow).build()).build().build();
 		JobExecution execution = launchAsync(job);
 		Awaitility.await().until(liveReader::isOpen);
+		Awaitility.await().until(liveWriter::isOpen);
+		Thread.sleep(100);
 		GeneratorBuilder liveGenerator = dataGenerator(server, "live-" + name).chunkSize(1)
 				.types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).between(3000, 4000);
 		execute(liveGenerator);

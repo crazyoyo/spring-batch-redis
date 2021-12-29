@@ -43,8 +43,8 @@ public class ConnectionPoolItemStream<K, V> extends ItemStreamSupport {
 		}
 	}
 
-	public boolean isClosed() {
-		return pool == null || pool.isClosed();
+	public boolean isOpen() {
+		return pool != null && !pool.isClosed();
 	}
 
 	protected StatefulConnection<K, V> borrowConnection() throws Exception {
