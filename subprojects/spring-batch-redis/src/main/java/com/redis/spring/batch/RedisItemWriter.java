@@ -61,7 +61,7 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 	@Override
 	public void write(List<? extends T> items) throws Exception {
 		log.trace("Getting connection from pool");
-		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+		try (StatefulConnection<K, V> connection = borrowConnection()) {
 			BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
 			commands.setAutoFlushCommands(false);
 			try {

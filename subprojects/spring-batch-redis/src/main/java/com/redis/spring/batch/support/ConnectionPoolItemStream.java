@@ -1,5 +1,6 @@
 package com.redis.spring.batch.support;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -18,9 +19,11 @@ public class ConnectionPoolItemStream<K, V> extends ItemStreamSupport {
 
 	private static final Logger log = LoggerFactory.getLogger(ConnectionPoolItemStream.class);
 
+	private final AtomicInteger threadCount = new AtomicInteger();
 	private final Supplier<StatefulConnection<K, V>> connectionSupplier;
 	private final GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig;
-	protected GenericObjectPool<StatefulConnection<K, V>> pool;
+
+	private GenericObjectPool<StatefulConnection<K, V>> pool;
 
 	protected ConnectionPoolItemStream(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig) {
@@ -31,15 +34,21 @@ public class ConnectionPoolItemStream<K, V> extends ItemStreamSupport {
 	}
 
 	@Override
-	public synchronized void open(ExecutionContext executionContext) {
-		if (pool == null) {
-			log.debug("Creating connection pool");
-			this.pool = ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, poolConfig);
+	public void open(ExecutionContext executionContext) {
+		threadCount.incrementAndGet();
+		synchronized (threadCount) {
+			if (pool == null) {
+				pool = ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, poolConfig);
+			}
 		}
 	}
 
 	public boolean isClosed() {
-		return pool == null;
+		return pool == null || pool.isClosed();
+	}
+
+	protected StatefulConnection<K, V> borrowConnection() throws Exception {
+		return pool.borrowObject();
 	}
 
 	@Override
@@ -48,11 +57,16 @@ public class ConnectionPoolItemStream<K, V> extends ItemStreamSupport {
 	}
 
 	@Override
-	public synchronized void close() {
-		if (pool != null) {
-			log.debug("Closing connection pool");
-			pool.close();
-			pool = null;
+	public void close() {
+		if (threadCount.decrementAndGet() > 0) {
+			return;
+		}
+		synchronized (threadCount) {
+			if (pool != null) {
+				log.debug("Closing connection pool");
+				pool.close();
+				pool = null;
+			}
 		}
 	}
 

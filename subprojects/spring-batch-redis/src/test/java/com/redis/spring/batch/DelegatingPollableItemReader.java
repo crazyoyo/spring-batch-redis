@@ -1,4 +1,4 @@
-package com.redis.spring.batch.test;
+package com.redis.spring.batch;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -16,7 +16,6 @@ public class DelegatingPollableItemReader<T> extends AbstractItemCountingItemStr
 	private final ItemReader<T> delegate;
 	private Supplier<Exception> exceptionSupplier = () -> new TimeoutException();
 	private long interval = 2;
-	private boolean open;
 
 	public DelegatingPollableItemReader(ItemReader<T> delegate) {
 		setName(ClassUtils.getShortName(DelegatingPollableItemReader.class));
@@ -46,18 +45,13 @@ public class DelegatingPollableItemReader<T> extends AbstractItemCountingItemStr
 	}
 
 	@Override
-	protected void doOpen() {
-		this.open = true;
+	protected void doOpen() throws Exception {
+		// do nothing
 	}
 
 	@Override
-	protected void doClose() {
-		this.open = false;
-	}
-
-	@Override
-	public boolean isOpen() {
-		return open;
+	protected void doClose() throws Exception {
+		// do nothing
 	}
 
 }

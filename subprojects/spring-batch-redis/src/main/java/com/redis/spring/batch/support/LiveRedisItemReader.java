@@ -20,7 +20,6 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 	private final LiveKeyItemReader<K> keyReader;
 	private Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
 	private Duration idleTimeout;
-	private boolean open;
 
 	public LiveRedisItemReader(JobRepository jobRepository, PlatformTransactionManager transactionManager,
 			LiveKeyItemReader<K> keyReader, ValueReader<K, T> valueReader) {
@@ -40,18 +39,6 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
 		super.open(executionContext);
 		keyReader.addListener(deduplicator);
-		this.open = true;
-	}
-
-	@Override
-	public synchronized void close() {
-		super.close();
-		this.open = false;
-	}
-
-	@Override
-	public boolean isOpen() {
-		return open;
 	}
 
 	@Override
@@ -60,7 +47,7 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 	}
 
 	@Override
-	protected FaultTolerantStepBuilder<K, K> faultTolerantStepBuilder(SimpleStepBuilder<K, K> stepBuilder) {
+	protected FaultTolerantStepBuilder<K, K> faultTolerant(SimpleStepBuilder<K, K> stepBuilder) {
 		return new FlushingStepBuilder<>(stepBuilder).flushingInterval(flushingInterval).idleTimeout(idleTimeout);
 	}
 

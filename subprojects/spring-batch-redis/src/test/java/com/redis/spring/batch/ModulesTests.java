@@ -1,4 +1,4 @@
-package com.redis.spring.batch.test;
+package com.redis.spring.batch;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -21,8 +21,6 @@ import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.search.IndexInfo;
 import com.redis.lettucemod.test.Beers;
-import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.operation.JsonSet;
 import com.redis.spring.batch.support.operation.Xadd;

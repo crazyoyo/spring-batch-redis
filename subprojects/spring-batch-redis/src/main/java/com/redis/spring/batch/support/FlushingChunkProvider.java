@@ -63,6 +63,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	/**
 	 * @param maxSkipsOnRead the maximum number of skips on read
 	 */
+	@Override
 	public void setMaxSkipsOnRead(int maxSkipsOnRead) {
 		this.maxSkipsOnRead = maxSkipsOnRead;
 	}
@@ -73,6 +74,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	 * @param skipPolicy instance of {@link SkipPolicy} to be used by
 	 *                   FaultTolerantChunkProvider.
 	 */
+	@Override
 	public void setSkipPolicy(SkipPolicy skipPolicy) {
 		this.skipPolicy = skipPolicy;
 	}
@@ -84,6 +86,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	 *
 	 * @param rollbackClassifier the rollback classifier to set
 	 */
+	@Override
 	public void setRollbackClassifier(Classifier<Throwable, Boolean> rollbackClassifier) {
 		this.rollbackClassifier = rollbackClassifier;
 	}
@@ -147,7 +150,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 				return doRead(timeout);
 			} catch (Exception e) {
 
-				if (shouldSkip(skipPolicy, e, contribution.getStepSkipCount())) {
+				if (shouldPolicySkip(skipPolicy, e, contribution.getStepSkipCount())) {
 
 					// increment skip count and try again
 					contribution.incrementReadSkipCount();
@@ -159,7 +162,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 
 					logger.debug("Skipping failed input", e);
 				} else {
-					if (rollbackClassifier.classify(e)) {
+					if (Boolean.TRUE.equals(rollbackClassifier.classify(e))) {
 						throw new NonSkippableReadException("Non-skippable exception during read", e);
 					}
 					logger.debug("No-rollback for non-skippable exception (ignored)", e);
@@ -180,7 +183,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 			return item;
 		} catch (Exception e) {
 			if (log.isDebugEnabled()) {
-				log.debug(e.getMessage() + " : " + e.getClass().getName());
+				log.debug("{} : {}", e.getMessage(), e.getClass().getName());
 			}
 			getListener().onReadError(e);
 			throw e;
@@ -194,7 +197,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	 * @param e         the cause of the skip
 	 * @param skipCount the current skip count
 	 */
-	private boolean shouldSkip(SkipPolicy policy, Throwable e, int skipCount) {
+	private boolean shouldPolicySkip(SkipPolicy policy, Throwable e, int skipCount) {
 		try {
 			return policy.shouldSkip(e, skipCount);
 		} catch (SkipException ex) {

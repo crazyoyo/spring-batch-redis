@@ -2,18 +2,15 @@ package com.redis.spring.batch.support;
 
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
-import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
-import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
@@ -40,11 +37,11 @@ public class JobRunner {
 		this.syncLauncher = launcher(new SyncTaskExecutor());
 		this.asyncLauncher = launcher(new SimpleAsyncTaskExecutor());
 	}
-	
+
 	public JobRepository getJobRepository() {
 		return jobRepository;
 	}
-	
+
 	public PlatformTransactionManager getTransactionManager() {
 		return transactionManager;
 	}
@@ -56,11 +53,6 @@ public class JobRunner {
 		return launcher;
 	}
 
-	public JobExecution run(Job job) throws JobExecutionAlreadyRunningException, JobRestartException,
-			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
-		return syncLauncher.run(job, new JobParameters());
-	}
-
 	public JobBuilder job(String name) {
 		return jobBuilderFactory.get(name);
 	}
@@ -69,13 +61,16 @@ public class JobRunner {
 		return stepBuilderFactory.get(name);
 	}
 
-	public JobExecution runAsync(Job job) throws JobExecutionAlreadyRunningException, JobRestartException,
-			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
-		return asyncLauncher.run(job, new JobParameters());
-	}
-
 	public FlowBuilder<SimpleFlow> flow(String name) {
 		return new FlowBuilder<>(name);
+	}
+
+	public JobExecution run(Job job) throws JobExecutionException {
+		return syncLauncher.run(job, new JobParameters());
+	}
+
+	public JobExecution runAsync(Job job) throws JobExecutionException {
+		return asyncLauncher.run(job, new JobParameters());
 	}
 
 }

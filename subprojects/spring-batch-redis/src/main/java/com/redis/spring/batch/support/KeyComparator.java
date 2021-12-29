@@ -6,11 +6,8 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobParametersInvalidException;
-import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
-import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
+import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
@@ -68,8 +65,7 @@ public class KeyComparator implements Callable<KeyComparisonResults> {
 	}
 
 	@Override
-	public KeyComparisonResults call() throws JobExecutionAlreadyRunningException, JobRestartException,
-			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
+	public KeyComparisonResults call() throws JobExecutionException {
 		String name = id + "-" + NAME;
 		KeyComparisonItemWriter<String> writer = KeyComparisonItemWriter.valueReader(right.getValueReader()).build();
 		writer.setListeners(listeners);

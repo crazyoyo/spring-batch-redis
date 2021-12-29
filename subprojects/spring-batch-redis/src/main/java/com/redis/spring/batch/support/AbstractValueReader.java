@@ -45,7 +45,7 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 			} catch (IOException e) {
 				throw new ItemStreamException("Could not load LUA script file " + ABSTTL_LUA);
 			}
-			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+			try (StatefulConnection<K, V> connection = borrowConnection()) {
 				long timeout = connection.getTimeout().toMillis();
 				RedisFuture<String> load = ((RedisScriptingAsyncCommands<K, V>) async.apply(connection))
 						.scriptLoad(bytes);
@@ -63,7 +63,7 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 
 	@Override
 	public List<T> read(List<? extends K> keys) throws Exception {
-		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+		try (StatefulConnection<K, V> connection = borrowConnection()) {
 			BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
 			commands.setAutoFlushCommands(false);
 			try {

@@ -10,12 +10,9 @@ import java.util.concurrent.Callable;
 import org.apache.commons.lang3.Range;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParametersInvalidException;
+import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
-import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
-import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemReader;
@@ -73,8 +70,7 @@ public class Generator implements Callable<JobExecution> {
 	}
 
 	@Override
-	public JobExecution call() throws JobExecutionAlreadyRunningException, JobRestartException,
-			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
+	public JobExecution call() throws JobExecutionException {
 		JobRunner jobRunner = new JobRunner(jobRepository, transactionManager);
 		String name = id + "-" + NAME;
 		Set<Type> readerTypes = this.types.isEmpty() ? new LinkedHashSet<>(Arrays.asList(Type.values())) : this.types;

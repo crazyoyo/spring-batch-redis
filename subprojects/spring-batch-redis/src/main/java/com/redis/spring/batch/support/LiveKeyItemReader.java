@@ -29,7 +29,6 @@ public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements 
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 	private Duration defaultQueuePollTimeout = DEFAULT_DEFAULT_QUEUE_POLL_TIMEOUT;
 
-	private boolean open;
 	private BlockingQueue<K> queue;
 
 	protected LiveKeyItemReader(Converter<K, K> keyExtractor, List<K> patterns) {
@@ -73,13 +72,11 @@ public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements 
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
-		if (open) {
-			return;
+		if (queue == null) {
+			this.queue = new LinkedBlockingQueue<>(queueCapacity);
+			Utils.createGaugeCollectionSize("reader.notification.queue.size", queue);
+			doOpen();
 		}
-		this.queue = new LinkedBlockingQueue<>(queueCapacity);
-		Utils.createGaugeCollectionSize("reader.notification.queue.size", queue);
-		doOpen();
-		open = true;
 	}
 
 	protected abstract void doOpen();
@@ -91,19 +88,17 @@ public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements 
 
 	@Override
 	public synchronized void close() throws ItemStreamException {
-		if (!open) {
+		if (queue == null) {
 			return;
 		}
+		if (!queue.isEmpty()) {
+			log.warn("Closing {} with {} items still in queue", ClassUtils.getShortName(getClass()), queue.size());
+		}
 		doClose();
-		open = false;
+		queue = null;
 	}
 
 	protected abstract void doClose();
-
-	@Override
-	public boolean isOpen() {
-		return open;
-	}
 
 	public static interface KeyListener<K> {
 

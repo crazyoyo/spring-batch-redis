@@ -24,7 +24,6 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 	private long count = DEFAULT_SCAN_COUNT;
 	private String type;
 
-	private StatefulConnection<K, V> connection;
 	private ScanIterator<K> scanIterator;
 
 	public ScanKeyItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
@@ -51,8 +50,7 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		if (connection == null) {
-			connection = connectionSupplier.get();
+		if (scanIterator == null) {
 			KeyScanArgs args = KeyScanArgs.Builder.limit(count);
 			if (match != null) {
 				args.match(match);
@@ -60,7 +58,7 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 			if (type != null) {
 				args.type(type);
 			}
-			scanIterator = ScanIterator.scan((RedisKeyCommands<K, V>) sync.apply(connection), args);
+			scanIterator = ScanIterator.scan((RedisKeyCommands<K, V>) sync.apply(connectionSupplier.get()), args);
 		}
 	}
 
@@ -74,10 +72,10 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 
 	@Override
 	public synchronized void close() {
-		if (connection != null) {
-			connection.close();
-		}
 		super.close();
+		if (scanIterator != null) {
+			scanIterator = null;
+		}
 	}
 
 }

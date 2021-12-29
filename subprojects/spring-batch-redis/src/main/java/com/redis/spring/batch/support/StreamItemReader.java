@@ -49,7 +49,6 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	private K consumer;
 	private AckPolicy ackPolicy = DEFAULT_ACK_POLICY;
 	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
-	private boolean open;
 
 	public StreamItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
@@ -83,33 +82,18 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public synchronized void open(ExecutionContext executionContext) {
+	public void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-			createGroup((RedisStreamCommands<K, V>) sync.apply(connection));
-		} catch (Exception e) {
-			throw new ItemStreamException("Failed to initialize the reader", e);
+		synchronized (sync) {
+			try (StatefulConnection<K, V> connection = borrowConnection()) {
+				RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
+				commands.xgroupCreate(offset, consumerGroup, XGroupCreateArgs.Builder.mkstream(true));
+			} catch (RedisBusyException e) {
+				// Consumer Group name already exists, ignore
+			} catch (Exception e) {
+				throw new ItemStreamException("Failed to initialize the reader", e);
+			}
 		}
-		this.open = true;
-	}
-
-	private void createGroup(RedisStreamCommands<K, V> commands) {
-		try {
-			commands.xgroupCreate(offset, consumerGroup, XGroupCreateArgs.Builder.mkstream(true));
-		} catch (RedisBusyException e) {
-			// Consumer Group name already exists, ignore
-		}
-	}
-
-	@Override
-	public synchronized void close() {
-		super.close();
-		this.open = false;
-	}
-
-	@Override
-	public boolean isOpen() {
-		return open;
 	}
 
 	@Override
@@ -139,12 +123,12 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 		if (blockInMillis != null) {
 			args.block(blockInMillis);
 		}
-		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+		try (StatefulConnection<K, V> connection = borrowConnection()) {
 			RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
 			List<StreamMessage<K, V>> messages = commands.xreadgroup(Consumer.from(consumerGroup, consumer), args,
 					StreamOffset.lastConsumed(offset.getName()));
 			if (ackPolicy == AckPolicy.AUTO) {
-				ack(messages);
+				ack(messages, commands);
 			}
 			return messages;
 		}
@@ -155,15 +139,19 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 		if (messages.isEmpty()) {
 			return;
 		}
-		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+		try (StatefulConnection<K, V> connection = borrowConnection()) {
 			RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
-			Map<K, List<StreamMessage<K, V>>> streams = messages.stream()
-					.collect(Collectors.groupingBy(StreamMessage::getStream));
-			for (Map.Entry<K, List<StreamMessage<K, V>>> entry : streams.entrySet()) {
-				String[] messageIds = entry.getValue().stream().map(StreamMessage::getId).toArray(String[]::new);
-				log.debug("Ack'ing message ids: {}", Arrays.asList(messageIds));
-				commands.xack(entry.getKey(), consumerGroup, messageIds);
-			}
+			ack(messages, commands);
+		}
+	}
+
+	private void ack(List<? extends StreamMessage<K, V>> messages, RedisStreamCommands<K, V> commands) {
+		Map<K, List<StreamMessage<K, V>>> streams = messages.stream()
+				.collect(Collectors.groupingBy(StreamMessage::getStream));
+		for (Map.Entry<K, List<StreamMessage<K, V>>> entry : streams.entrySet()) {
+			String[] messageIds = entry.getValue().stream().map(StreamMessage::getId).toArray(String[]::new);
+			log.debug("Ack'ing message ids: {}", Arrays.asList(messageIds));
+			commands.xack(entry.getKey(), consumerGroup, messageIds);
 		}
 	}
 

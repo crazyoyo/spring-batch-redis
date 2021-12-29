@@ -1,4 +1,4 @@
-package com.redis.spring.batch.test;
+package com.redis.spring.batch;
 
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -37,8 +37,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.testcontainers.junit.jupiter.Container;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.builder.StreamItemReaderBuilder;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
@@ -253,7 +251,8 @@ class BatchTests extends AbstractTestBase {
 		Assertions.assertEquals(COUNT, redis.sync().xlen(STREAM));
 		StreamItemReader<String, String> reader = streamReader(redis).build();
 		ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
-		awaitTermination(runFlushing(redis, name, reader, null, writer), reader);
+		JobExecution execution = runFlushing(redis, name, reader, null, writer);
+		awaitTermination(execution);
 		Assertions.assertEquals(COUNT, writer.getWrittenItems().size());
 		assertMessageBody(writer.getWrittenItems());
 	}
@@ -483,7 +482,6 @@ class BatchTests extends AbstractTestBase {
 		ListItemReader<DataStructure<String>> reader = new ListItemReader<>(list);
 		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureWriter(context);
 		run(context, "value-writer", reader, writer);
-		awaitClosed(writer);
 		RedisModulesCommands<String, String> sync = context.sync();
 		List<String> keys = sync.keys("hash:*");
 		Awaitility.await().until(() -> count == keys.size());
@@ -581,7 +579,7 @@ class BatchTests extends AbstractTestBase {
 		Job job = job(server, name).start(flow(server, name).split(new SimpleAsyncTaskExecutor())
 				.add(liveReplicationFlow, replicationFlow).build()).build().build();
 		JobExecution execution = launchAsync(job);
-		awaitOpen(liveReader);
+		// TODO awaitOpen(liveReader);
 		GeneratorBuilder liveGenerator = dataGenerator(server, "live-" + name).chunkSize(1)
 				.types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).between(3000, 4000);
 		execute(liveGenerator);

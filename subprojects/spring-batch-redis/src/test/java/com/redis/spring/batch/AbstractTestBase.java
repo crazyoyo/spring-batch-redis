@@ -1,17 +1,15 @@
-package com.redis.spring.batch.test;
+package com.redis.spring.batch;
 
 import java.time.Duration;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.runner.RunWith;
-import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.Step;
-import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.job.builder.FlowBuilder;
@@ -32,9 +30,7 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemReader.ItemReaderBuilder;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.OperationItemWriterBuilder;
 import com.redis.spring.batch.RedisItemWriter.RedisItemWriterBuilder;
 import com.redis.spring.batch.builder.JobRepositoryBuilder;
@@ -94,36 +90,26 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected <I, O> JobExecution launch(Job job) throws JobExecutionException {
-		return awaitTermination(jobLauncher.run(job, new JobParameters()));
+		return jobLauncher.run(job, new JobParameters());
 	}
 
 	protected <I, O> JobExecution launchAsync(Job job) throws JobExecutionException {
 		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
-		awaitRunning(execution);
-		return execution;
+		Awaitility.await().until(() -> execution.isRunning() || execution.getStatus().isUnsuccessful());
+		return checkUnsuccessful(execution);
 	}
 
-	protected static JobExecution awaitRunning(JobExecution execution) {
-		Awaitility.await().until(execution::isRunning);
-		return execution;
+	protected static JobExecution awaitTermination(JobExecution execution) throws JobExecutionException {
+		Awaitility.await().timeout(Duration.ofMinutes(1))
+				.until(() -> !execution.isRunning() || execution.getStatus().isUnsuccessful());
+		return checkUnsuccessful(execution);
 	}
 
-	protected static JobExecution awaitTermination(JobExecution execution) {
-		Awaitility.await().timeout(Duration.ofMinutes(1)).until(() -> !execution.isRunning());
-		for (StepExecution stepExecution : execution.getStepExecutions()) {
-			Awaitility.await().until(() -> stepExecution.getStatus() == BatchStatus.COMPLETED
-					|| stepExecution.getStatus() == BatchStatus.FAILED);
+	private static JobExecution checkUnsuccessful(JobExecution execution) throws JobExecutionException {
+		if (execution.getStatus().isUnsuccessful()) {
+			throw new JobExecutionException(String.format("Status of job %s", execution.getJobInstance().getJobName()));
 		}
 		return execution;
-	}
-
-	protected static void awaitTermination(JobExecution execution, PollableItemReader<?> reader) {
-		awaitTermination(execution);
-		awaitClosed(reader);
-	}
-
-	protected static void awaitClosed(PollableItemReader<?> reader) {
-		Awaitility.await().until(() -> !reader.isOpen());
 	}
 
 	protected static FlowBuilder<SimpleFlow> flow(RedisTestContext context, String name) {
@@ -162,14 +148,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	protected <I, O> JobExecution runFlushing(RedisTestContext redis, String name,
 			PollableItemReader<? extends I> reader, ItemProcessor<I, O> processor, ItemWriter<O> writer)
 			throws JobExecutionException {
-		JobExecution execution = launchAsync(
-				job(redis, name, flushingStep(redis, name, reader, processor, writer).build()).build());
-		awaitOpen(reader);
-		return execution;
-	}
-
-	protected static void awaitOpen(PollableItemReader<?> reader) {
-		Awaitility.await().until(reader::isOpen);
+		return launchAsync(job(redis, name, flushingStep(redis, name, reader, processor, writer).build()).build());
 	}
 
 	protected static void awaitClosed(ConnectionPoolItemStream<?, ?> itemStream) {
@@ -245,7 +224,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected GeneratorBuilder dataGenerator(RedisTestContext context, String name) {
-		return configureJobRepository(dataGenerator(context.getClient()).id(name(context, name + "-generator")));
+		return configureJobRepository(dataGenerator(context.getClient()).id(name(context, name)));
 	}
 
 	protected ClientGeneratorBuilder dataGenerator(AbstractRedisClient client) {
