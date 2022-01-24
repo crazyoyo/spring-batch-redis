@@ -35,10 +35,8 @@ import com.redis.spring.batch.builder.ScanRedisItemReaderBuilder;
 import com.redis.spring.batch.builder.StreamItemReaderBuilder;
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.DataStructureValueReader;
-import com.redis.spring.batch.support.DataStructureValueReader.DataStructureValueReaderFactory;
 import com.redis.spring.batch.support.JobRunner;
 import com.redis.spring.batch.support.KeyDumpValueReader;
-import com.redis.spring.batch.support.KeyDumpValueReader.KeyDumpValueReaderFactory;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.RedisValueEnqueuer;
 import com.redis.spring.batch.support.Utils;
@@ -220,7 +218,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 			open = false;
 		}
 	}
-	
+
 	public boolean isOpen() {
 		return open;
 	}
@@ -242,11 +240,11 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		}
 
 		public ScanRedisItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>> dataStructure() {
-			return new ScanRedisItemReaderBuilder<>(client, new DataStructureValueReaderFactory<>());
+			return new ScanRedisItemReaderBuilder<>(client, (s, c, a) -> new DataStructureValueReader<>(s, c, a));
 		}
 
 		public ScanRedisItemReaderBuilder<KeyValue<String, byte[]>, KeyDumpValueReader<String, String>> keyDump() {
-			return new ScanRedisItemReaderBuilder<>(client, new KeyDumpValueReaderFactory<>());
+			return new ScanRedisItemReaderBuilder<>(client, KeyDumpValueReader::new);
 		}
 
 		public StreamItemReaderBuilder stream(String name) {

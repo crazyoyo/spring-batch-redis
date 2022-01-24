@@ -2,12 +2,12 @@ package com.redis.spring.batch.support.generator;
 
 import java.util.List;
 
-import com.redis.spring.batch.support.DataStructure;
+import com.redis.spring.batch.support.DataStructure.Type;
 
 public class ListGeneratorItemReader extends CollectionGeneratorItemReader<List<String>> {
 
 	public ListGeneratorItemReader() {
-		super(DataStructure.LIST);
+		super(Type.LIST);
 	}
 
 	@Override

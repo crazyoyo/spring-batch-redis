@@ -5,7 +5,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.Range;
 
-import com.redis.spring.batch.support.DataStructure;
+import com.redis.spring.batch.support.DataStructure.Type;
 
 import io.lettuce.core.ScoredValue;
 
@@ -14,7 +14,7 @@ public class ZsetGeneratorItemReader extends CollectionGeneratorItemReader<Colle
 	private Range<Double> score = Generator.DEFAULT_ZSET_SCORE;
 
 	public ZsetGeneratorItemReader() {
-		super(DataStructure.ZSET);
+		super(Type.ZSET);
 	}
 
 	public void setScore(Range<Double> score) {

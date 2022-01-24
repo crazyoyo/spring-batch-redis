@@ -10,15 +10,16 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.support.DataStructure;
+import com.redis.spring.batch.support.DataStructure.Type;
 
 public abstract class DataStructureGeneratorItemReader<T>
 		extends AbstractItemCountingItemStreamItemReader<DataStructure<String>> {
 
-	private final String type;
+	private final Type type;
 	private Range<Long> sequence = Generator.DEFAULT_SEQUENCE;
 	private Range<Long> expiration;
 
-	protected DataStructureGeneratorItemReader(String type) {
+	protected DataStructureGeneratorItemReader(Type type) {
 		Assert.notNull(type, "A data structure type is required");
 		setName(ClassUtils.getShortName(getClass()));
 		setMaxItemCount();
@@ -42,7 +43,7 @@ public abstract class DataStructureGeneratorItemReader<T>
 	protected DataStructure<String> doRead() throws Exception {
 		String key = key();
 		T value = value();
-		DataStructure<String> dataStructure = new DataStructure<>(type, key, value);
+		DataStructure<String> dataStructure = new DataStructure<>(key, value, type);
 		if (expiration != null) {
 			dataStructure.setAbsoluteTTL(System.currentTimeMillis() + randomLong(expiration));
 		}
@@ -50,7 +51,7 @@ public abstract class DataStructureGeneratorItemReader<T>
 	}
 
 	private String key() {
-		return type + ":" + String.valueOf(index());
+		return type.name().toLowerCase() + ":" + index();
 	}
 
 	protected long index() {

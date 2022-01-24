@@ -13,7 +13,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
-import org.testcontainers.junit.jupiter.Container;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,8 +25,8 @@ import com.redis.spring.batch.support.operation.JsonSet;
 import com.redis.spring.batch.support.operation.Xadd;
 import com.redis.testcontainers.RedisModulesContainer;
 import com.redis.testcontainers.RedisServer;
-import com.redis.testcontainers.junit.jupiter.RedisTestContext;
-import com.redis.testcontainers.junit.jupiter.RedisTestContextsSource;
+import com.redis.testcontainers.junit.RedisTestContext;
+import com.redis.testcontainers.junit.RedisTestContextsSource;
 
 import io.lettuce.core.Range;
 import io.lettuce.core.StreamMessage;
@@ -39,12 +38,11 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class ModulesTests extends AbstractTestBase {
 
-	@Container
 	protected static final RedisModulesContainer REDIS = new RedisModulesContainer(
-			RedisModulesContainer.DEFAULT_IMAGE_NAME.withTag("preview"));
+			RedisModulesContainer.DEFAULT_IMAGE_NAME.withTag(RedisModulesContainer.DEFAULT_TAG));
 
 	@Override
-	protected Collection<RedisServer> servers() {
+	protected Collection<RedisServer> redisServers() {
 		return Arrays.asList(REDIS);
 	}
 

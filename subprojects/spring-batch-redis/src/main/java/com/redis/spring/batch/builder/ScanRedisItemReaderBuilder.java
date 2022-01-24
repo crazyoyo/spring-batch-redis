@@ -1,7 +1,7 @@
 package com.redis.spring.batch.builder;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
+import com.redis.spring.batch.support.AbstractValueReader.ValueReaderBuilder;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.ScanKeyItemReader;
 import com.redis.spring.batch.support.ValueReader;
@@ -16,7 +16,7 @@ public class ScanRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	private String type;
 
 	public ScanRedisItemReaderBuilder(AbstractRedisClient client,
-			ValueReaderFactory<String, String, T, R> valueReaderFactory) {
+			ValueReaderBuilder<String, String, T, R> valueReaderFactory) {
 		super(client, valueReaderFactory);
 	}
 

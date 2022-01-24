@@ -34,11 +34,11 @@ import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.testcontainers.junit.jupiter.Container;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.builder.StreamItemReaderBuilder;
 import com.redis.spring.batch.support.DataStructure;
+import com.redis.spring.batch.support.DataStructure.Type;
 import com.redis.spring.batch.support.DataStructureValueReader;
 import com.redis.spring.batch.support.FlushingStepBuilder;
 import com.redis.spring.batch.support.KeyComparator;
@@ -58,7 +58,6 @@ import com.redis.spring.batch.support.convert.GeoValueConverter;
 import com.redis.spring.batch.support.convert.ScoredValueConverter;
 import com.redis.spring.batch.support.generator.Generator;
 import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
-import com.redis.spring.batch.support.generator.Generator.Type;
 import com.redis.spring.batch.support.operation.Geoadd;
 import com.redis.spring.batch.support.operation.Hset;
 import com.redis.spring.batch.support.operation.Xadd;
@@ -66,8 +65,8 @@ import com.redis.spring.batch.support.operation.Zadd;
 import com.redis.testcontainers.RedisClusterContainer;
 import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
-import com.redis.testcontainers.junit.jupiter.RedisTestContext;
-import com.redis.testcontainers.junit.jupiter.RedisTestContextsSource;
+import com.redis.testcontainers.junit.RedisTestContext;
+import com.redis.testcontainers.junit.RedisTestContextsSource;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.GeoArgs;
@@ -89,28 +88,24 @@ class BatchTests extends AbstractTestBase {
 
 	private static final Logger log = LoggerFactory.getLogger(BatchTests.class);
 
-	@Container
 	protected static final RedisContainer REDIS = new RedisContainer(
 			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG)).withKeyspaceNotifications();
-	@Container
 	protected static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer(
 			RedisClusterContainer.DEFAULT_IMAGE_NAME.withTag(RedisClusterContainer.DEFAULT_TAG))
 					.withKeyspaceNotifications();
-	@Container
 	private static final RedisContainer TARGET = new RedisContainer(
 			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
+	private static final String STREAM = "stream:1";
 
 	@Override
-	protected Collection<RedisServer> testServers() {
-		return Arrays.asList(REDIS, REDIS_CLUSTER);
-	}
-
-	@Override
-	protected Collection<RedisServer> servers() {
+	protected Collection<RedisServer> redisServers() {
 		return Arrays.asList(REDIS, REDIS_CLUSTER, TARGET);
 	}
 
-	private static final String STREAM = "stream:1";
+	@Override
+	protected Collection<RedisServer> testRedisServers() {
+		return Arrays.asList(REDIS, REDIS_CLUSTER);
+	}
 
 	@ParameterizedTest
 	@RedisTestContextsSource
@@ -639,7 +634,7 @@ class BatchTests extends AbstractTestBase {
 		long expectedCount = server.sync().keys(pattern).size();
 		long matchCount = sizeEstimator(server).sampleSize(1000).match(pattern).build().call();
 		Assertions.assertEquals(expectedCount, matchCount, expectedCount / 10);
-		long typeSize = sizeEstimator(server).sampleSize(1000).type(DataStructure.HASH).build().call();
+		long typeSize = sizeEstimator(server).sampleSize(1000).type(Type.HASH.name().toLowerCase()).build().call();
 		Assertions.assertEquals(expectedCount, typeSize, expectedCount / 10);
 	}
 
@@ -658,7 +653,7 @@ class BatchTests extends AbstractTestBase {
 		long expectedCount = Generator.DEFAULT_SEQUENCE.getMaximum() - Generator.DEFAULT_SEQUENCE.getMinimum();
 		long actualStringCount = sync.keys("string:*").size();
 		Assertions.assertEquals(expectedCount, actualStringCount);
-		Assertions.assertEquals(expectedCount * DataStructure.types().size(), sync.dbsize());
+		Assertions.assertEquals(expectedCount * DataStructure.TYPES.size(), sync.dbsize());
 	}
 
 	@ParameterizedTest
@@ -669,7 +664,7 @@ class BatchTests extends AbstractTestBase {
 		RedisModulesCommands<String, String> sync = context.sync();
 		int actualStringCount = sync.keys("string:*").size();
 		Assertions.assertEquals(count, actualStringCount);
-		Awaitility.await().until(() -> count * DataStructure.types().size() == sync.dbsize());
+		Awaitility.await().until(() -> count * DataStructure.TYPES.size() == sync.dbsize());
 		Assertions.assertEquals(Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum(), sync.scard("set:100"));
 		Assertions.assertEquals(Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum(), sync.llen("list:101"));
 		Assertions.assertEquals(Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum(), sync.zcard("zset:102"));
@@ -688,5 +683,9 @@ class BatchTests extends AbstractTestBase {
 				.skipPolicy(new AlwaysSkipItemSkipPolicy());
 		launch(jobBuilderFactory.get(name).start(stepBuilder.build()).build());
 		Assertions.assertEquals(items.size(), writer.getWrittenItems().size() * 2);
+	}
+
+	public static void main(String[] args) {
+		System.out.println(System.getenv());
 	}
 }

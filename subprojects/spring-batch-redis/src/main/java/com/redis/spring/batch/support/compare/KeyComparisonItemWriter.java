@@ -13,7 +13,6 @@ import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
-import org.springframework.util.ObjectUtils;
 
 import com.redis.spring.batch.support.DataStructure;
 import com.redis.spring.batch.support.FlushingStepBuilder;
@@ -106,18 +105,6 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 	}
 
 	private Status compare(DataStructure<K> source, DataStructure<K> target) {
-		if (DataStructure.NONE.equalsIgnoreCase(source.getType())) {
-			if (DataStructure.NONE.equalsIgnoreCase(target.getType())) {
-				return Status.OK;
-			}
-			return Status.TYPE;
-		}
-		if (DataStructure.NONE.equalsIgnoreCase(target.getType())) {
-			return Status.MISSING;
-		}
-		if (!ObjectUtils.nullSafeEquals(source.getType(), target.getType())) {
-			return Status.TYPE;
-		}
 		if (source.getValue() == null) {
 			if (target.getValue() == null) {
 				return Status.OK;
@@ -126,6 +113,9 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 		}
 		if (target.getValue() == null) {
 			return Status.MISSING;
+		}
+		if (source.getType() != target.getType()) {
+			return Status.TYPE;
 		}
 		if (Objects.deepEquals(source.getValue(), target.getValue())) {
 			if (source.hasTTL()) {

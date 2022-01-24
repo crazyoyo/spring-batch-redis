@@ -6,7 +6,7 @@ import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.redis.spring.batch.support.DataStructure;
+import com.redis.spring.batch.support.DataStructure.Type;
 
 import io.lettuce.core.StreamMessage;
 
@@ -16,7 +16,7 @@ public class StreamGeneratorItemReader
 	private static final Logger log = LoggerFactory.getLogger(StreamGeneratorItemReader.class);
 
 	public StreamGeneratorItemReader() {
-		super(DataStructure.STREAM);
+		super(Type.STREAM);
 	}
 
 	@Override

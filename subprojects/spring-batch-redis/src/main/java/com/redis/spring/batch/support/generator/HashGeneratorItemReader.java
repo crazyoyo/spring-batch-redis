@@ -2,12 +2,12 @@ package com.redis.spring.batch.support.generator;
 
 import java.util.Map;
 
-import com.redis.spring.batch.support.DataStructure;
+import com.redis.spring.batch.support.DataStructure.Type;
 
 public class HashGeneratorItemReader extends DataStructureGeneratorItemReader<Map<String, String>> {
 
 	public HashGeneratorItemReader() {
-		super(DataStructure.HASH);
+		super(Type.HASH);
 	}
 
 	@Override

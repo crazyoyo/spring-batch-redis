@@ -11,6 +11,7 @@ import java.util.function.Supplier;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
 import com.redis.spring.batch.builder.RedisBuilder;
+import com.redis.spring.batch.support.DataStructure.Type;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Range;
@@ -51,10 +52,10 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 		List<RedisFuture<?>> valueFutures = new ArrayList<>(keys.size());
 		for (int index = 0; index < keys.size(); index++) {
 			K key = keys.get(index);
-			String type = typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
+			Type type = DataStructure.type(typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS));
 			valueFutures.add(value(commands, key, type));
 			ttlFutures.add(absoluteTTL(commands, key));
-			dataStructures.add(new DataStructure<>(type, key));
+			dataStructures.add(new DataStructure<>(key, type));
 		}
 		commands.flushCommands();
 		for (int index = 0; index < dataStructures.size(); index++) {
@@ -70,19 +71,19 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 	}
 
 	@SuppressWarnings("unchecked")
-	private RedisFuture<?> value(BaseRedisAsyncCommands<K, V> commands, K key, String type) {
-		switch (type.toLowerCase()) {
-		case DataStructure.HASH:
+	private RedisFuture<?> value(BaseRedisAsyncCommands<K, V> commands, K key, Type type) {
+		switch (type) {
+		case HASH:
 			return ((RedisHashAsyncCommands<K, V>) commands).hgetall(key);
-		case DataStructure.LIST:
+		case LIST:
 			return ((RedisListAsyncCommands<K, V>) commands).lrange(key, 0, -1);
-		case DataStructure.SET:
+		case SET:
 			return ((RedisSetAsyncCommands<K, V>) commands).smembers(key);
-		case DataStructure.STREAM:
+		case STREAM:
 			return ((RedisStreamAsyncCommands<K, V>) commands).xrange(key, Range.create("-", "+"));
-		case DataStructure.STRING:
+		case STRING:
 			return ((RedisStringAsyncCommands<K, V>) commands).get(key);
-		case DataStructure.ZSET:
+		case ZSET:
 			return ((RedisSortedSetAsyncCommands<K, V>) commands).zrangeWithScores(key, 0, -1);
 		default:
 			return null;
@@ -106,17 +107,6 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 
 		public DataStructureValueReader<K, V> build() {
 			return new DataStructureValueReader<>(connectionSupplier(), poolConfig, async());
-		}
-	}
-
-	public static class DataStructureValueReaderFactory<K, V>
-			implements ValueReaderFactory<K, V, DataStructure<K>, DataStructureValueReader<K, V>> {
-
-		@Override
-		public DataStructureValueReader<K, V> create(Supplier<StatefulConnection<K, V>> connectionSupplier,
-				GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-				Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
-			return new DataStructureValueReader<>(connectionSupplier, poolConfig, async);
 		}
 
 	}

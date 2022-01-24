@@ -7,7 +7,7 @@ import java.util.List;
 
 import org.springframework.core.convert.converter.Converter;
 
-import com.redis.spring.batch.support.AbstractValueReader.ValueReaderFactory;
+import com.redis.spring.batch.support.AbstractValueReader.ValueReaderBuilder;
 import com.redis.spring.batch.support.FlushingStepBuilder;
 import com.redis.spring.batch.support.KeyValue;
 import com.redis.spring.batch.support.LiveKeyItemReader;
@@ -55,7 +55,7 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 	}
 
 	public LiveRedisItemReaderBuilder(AbstractRedisClient client,
-			ValueReaderFactory<String, String, T, R> valueReaderFactory) {
+			ValueReaderBuilder<String, String, T, R> valueReaderFactory) {
 		super(client, valueReaderFactory);
 	}
 

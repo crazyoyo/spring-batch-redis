@@ -22,6 +22,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.builder.JobRepositoryBuilder;
 import com.redis.spring.batch.support.DataStructure;
+import com.redis.spring.batch.support.DataStructure.Type;
 import com.redis.spring.batch.support.JobRunner;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -30,10 +31,6 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 
 public class Generator implements Callable<JobExecution> {
-
-	public enum Type {
-		STRING, LIST, SET, ZSET, HASH, STREAM;
-	}
 
 	private static final String NAME = "generator";
 
@@ -73,10 +70,10 @@ public class Generator implements Callable<JobExecution> {
 	public JobExecution call() throws JobExecutionException {
 		JobRunner jobRunner = new JobRunner(jobRepository, transactionManager);
 		String name = id + "-" + NAME;
-		Set<Type> readerTypes = this.types.isEmpty() ? new LinkedHashSet<>(Arrays.asList(Type.values())) : this.types;
+		Set<Type> readerTypes = this.types.isEmpty() ? DataStructure.TYPES : this.types;
 		List<SimpleFlow> subFlows = new ArrayList<>();
 		for (Type type : readerTypes) {
-			String flowName = type + "-" + name;
+			String flowName = type.name().toLowerCase() + "-" + name;
 			subFlows.add(jobRunner.flow(flowName)
 					.start(chunk(jobRunner.step(flowName)).reader(reader(type)).writer(writer()).build()).build());
 		}

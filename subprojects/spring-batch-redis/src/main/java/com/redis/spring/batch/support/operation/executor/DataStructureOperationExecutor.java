@@ -74,28 +74,31 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
 			return;
 		}
-		if (ds.getType() == null) {
-			return;
-		}
-		String lowerCase = ds.getType().toLowerCase();
-		if (lowerCase.equals(DataStructure.HASH)) {
+		switch (ds.getType()) {
+		case HASH:
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
 			futures.add(((RedisHashAsyncCommands<K, V>) commands).hset(ds.getKey(), (Map<K, V>) ds.getValue()));
-		} else if (lowerCase.equals(DataStructure.STRING)) {
-			futures.add(((RedisStringAsyncCommands<K, V>) commands).set(ds.getKey(), (V) ds.getValue()));
-		} else if (lowerCase.equals(DataStructure.LIST)) {
+			break;
+		case STRING:
+			V string = (V) ds.getValue();
+			futures.add(((RedisStringAsyncCommands<K, V>) commands).set(ds.getKey(), string));
+			break;
+		case LIST:
 			flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()),
 					((RedisListAsyncCommands<K, V>) commands).rpush(ds.getKey(),
 							(V[]) ((Collection<V>) ds.getValue()).toArray()));
-		} else if (lowerCase.equals(DataStructure.SET)) {
+			break;
+		case SET:
 			flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()),
 					((RedisSetAsyncCommands<K, V>) commands).sadd(ds.getKey(),
 							(V[]) ((Collection<V>) ds.getValue()).toArray()));
-		} else if (lowerCase.equals(DataStructure.ZSET)) {
+			break;
+		case ZSET:
 			flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()),
 					((RedisSortedSetAsyncCommands<K, V>) commands).zadd(ds.getKey(),
 							((Collection<ScoredValue<String>>) ds.getValue()).toArray(new ScoredValue[0])));
-		} else if (lowerCase.equals(DataStructure.STREAM)) {
+			break;
+		case STREAM:
 			RedisStreamAsyncCommands<K, V> streamCommands = (RedisStreamAsyncCommands<K, V>) commands;
 			flush(commands, ((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
 			batches((List<StreamMessage<K, V>>) ds.getValue()).forEach(b -> {
@@ -105,6 +108,9 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 				}
 				flush(commands, streamFutures);
 			});
+			break;
+		case NONE:
+			break;
 		}
 		if (ds.hasTTL()) {
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getAbsoluteTTL()));

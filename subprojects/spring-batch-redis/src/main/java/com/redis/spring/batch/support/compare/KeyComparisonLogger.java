@@ -12,8 +12,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.redis.spring.batch.support.DataStructure;
-
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
@@ -46,22 +44,22 @@ public class KeyComparisonLogger implements KeyComparisonListener<String> {
 			break;
 		case VALUE:
 			switch (comparison.getSource().getType()) {
-			case DataStructure.SET:
+			case SET:
 				showSetDiff(comparison);
 				break;
-			case DataStructure.LIST:
+			case LIST:
 				showListDiff(comparison);
 				break;
-			case DataStructure.ZSET:
+			case ZSET:
 				showSortedSetDiff(comparison);
 				break;
-			case DataStructure.STREAM:
+			case STREAM:
 				showStreamDiff(comparison);
 				break;
-			case DataStructure.STRING:
+			case STRING:
 				showStringDiff(comparison);
 				break;
-			case DataStructure.HASH:
+			case HASH:
 				showHashDiff(comparison);
 				break;
 			default:

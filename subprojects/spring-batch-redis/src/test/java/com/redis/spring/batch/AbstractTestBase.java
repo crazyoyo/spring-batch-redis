@@ -46,8 +46,8 @@ import com.redis.spring.batch.support.RedisOperation;
 import com.redis.spring.batch.support.generator.Generator;
 import com.redis.spring.batch.support.generator.Generator.ClientGeneratorBuilder;
 import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
-import com.redis.testcontainers.junit.jupiter.AbstractTestcontainersRedisTestBase;
-import com.redis.testcontainers.junit.jupiter.RedisTestContext;
+import com.redis.testcontainers.junit.AbstractTestcontainersRedisTestBase;
+import com.redis.testcontainers.junit.RedisTestContext;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;

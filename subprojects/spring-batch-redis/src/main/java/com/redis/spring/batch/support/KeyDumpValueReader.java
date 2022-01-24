@@ -68,17 +68,6 @@ public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyValue
 		public KeyDumpValueReader<K, V> build() {
 			return new KeyDumpValueReader<>(connectionSupplier(), poolConfig, async());
 		}
-	}
-
-	public static class KeyDumpValueReaderFactory<K, V>
-			implements ValueReaderFactory<K, V, KeyValue<K, byte[]>, KeyDumpValueReader<K, V>> {
-
-		@Override
-		public KeyDumpValueReader<K, V> create(Supplier<StatefulConnection<K, V>> connectionSupplier,
-				GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-				Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
-			return new KeyDumpValueReader<>(connectionSupplier, poolConfig, async);
-		}
 
 	}
 
