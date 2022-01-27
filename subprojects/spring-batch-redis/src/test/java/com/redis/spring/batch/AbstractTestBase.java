@@ -30,28 +30,29 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import com.redis.spring.batch.RedisItemReader.ItemReaderBuilder;
-import com.redis.spring.batch.RedisItemWriter.OperationItemWriterBuilder;
-import com.redis.spring.batch.RedisItemWriter.RedisItemWriterBuilder;
-import com.redis.spring.batch.builder.JobRepositoryBuilder;
-import com.redis.spring.batch.builder.LiveRedisItemReaderBuilder;
+import com.redis.spring.batch.RedisItemReader.Builder;
+import com.redis.spring.batch.RedisItemWriter.OperationBuilder;
+import com.redis.spring.batch.generator.Generator;
+import com.redis.spring.batch.generator.Generator.ClientGeneratorBuilder;
+import com.redis.spring.batch.generator.Generator.GeneratorBuilder;
+import com.redis.spring.batch.reader.DataStructureIntrospectingValueReader;
+import com.redis.spring.batch.reader.DataStructureValueReader;
+import com.redis.spring.batch.reader.FlushingStepBuilder;
+import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.LiveRedisItemReaderBuilder;
+import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.ScanRedisItemReaderBuilder;
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
-import com.redis.spring.batch.support.DataStructure;
-import com.redis.spring.batch.support.DataStructureValueReader;
-import com.redis.spring.batch.support.FlushingStepBuilder;
-import com.redis.spring.batch.support.KeyValue;
-import com.redis.spring.batch.support.LiveRedisItemReader;
-import com.redis.spring.batch.support.PollableItemReader;
-import com.redis.spring.batch.support.RedisOperation;
-import com.redis.spring.batch.support.generator.Generator;
-import com.redis.spring.batch.support.generator.Generator.ClientGeneratorBuilder;
-import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
+import com.redis.spring.batch.support.JobRepositoryBuilder;
+import com.redis.spring.batch.support.RedisConnectionBuilder;
+import com.redis.spring.batch.writer.RedisOperation;
 import com.redis.testcontainers.junit.AbstractTestcontainersRedisTestBase;
 import com.redis.testcontainers.junit.RedisTestContext;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.codec.StringCodec;
 
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
@@ -165,7 +166,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		awaitTermination(generator.build().call());
 	}
 
-	protected static OperationItemWriterBuilder<String, String> writer(RedisTestContext context) {
+	protected static OperationBuilder<String, String> writer(RedisTestContext context) {
 		if (context.isCluster()) {
 			return RedisItemWriter.client(context.getRedisClusterClient());
 		}
@@ -180,7 +181,9 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisTestContext redis, String name)
 			throws Exception {
-		return setName(configureJobRepository(reader(redis).dataStructure()).build(), redis, name + "-data-structure");
+		ScanRedisItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>> reader = new ScanRedisItemReaderBuilder<>(
+				redis.getClient(), DataStructureIntrospectingValueReader::new);
+		return setName(configureJobRepository(reader).build(), redis, name + "-data-structure");
 	}
 
 	protected RedisItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisTestContext redis, String name)
@@ -198,25 +201,20 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected static DataStructureValueReader<String, String> dataStructureValueReader(RedisTestContext context) {
-		if (context.isCluster()) {
-			return DataStructureValueReader.client(context.getRedisClusterClient()).build();
-		}
-		return DataStructureValueReader.client(context.getRedisClient()).build();
+		return dataStructureValueReader(context.getClient());
 	}
 
 	protected static DataStructureValueReader<String, String> dataStructureValueReader(AbstractRedisClient client) {
-		if (client instanceof RedisClusterClient) {
-			return DataStructureValueReader.client((RedisClusterClient) client).build();
-		}
-		return DataStructureValueReader.client((RedisClient) client).build();
+		RedisConnectionBuilder<String, String, ?> builder = new RedisConnectionBuilder<>(client, StringCodec.UTF8);
+		return new DataStructureValueReader<>(builder.connectionSupplier(), builder.getPoolConfig(), builder.async());
 	}
 
-	protected static <T> RedisItemWriterBuilder<String, String, T> operationWriter(RedisTestContext context,
+	protected static <T> RedisItemWriter.Builder<String, String, T> operationWriter(RedisTestContext context,
 			RedisOperation<String, String, T> operation) {
 		return writer(context).operation(operation);
 	}
 
-	protected static ItemReaderBuilder reader(RedisTestContext context) {
+	protected static Builder reader(RedisTestContext context) {
 		if (context.isCluster()) {
 			return RedisItemReader.client(context.getRedisClusterClient());
 		}

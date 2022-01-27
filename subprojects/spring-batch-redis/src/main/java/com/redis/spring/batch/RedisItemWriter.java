@@ -1,5 +1,6 @@
 package com.redis.spring.batch;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -16,20 +17,17 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.spring.batch.builder.RedisBuilder;
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
-import com.redis.spring.batch.support.DataStructure;
-import com.redis.spring.batch.support.KeyValue;
-import com.redis.spring.batch.support.RedisOperation;
-import com.redis.spring.batch.support.operation.JsonSet;
-import com.redis.spring.batch.support.operation.RestoreReplace;
-import com.redis.spring.batch.support.operation.Sugadd;
-import com.redis.spring.batch.support.operation.TsAdd;
-import com.redis.spring.batch.support.operation.executor.DataStructureOperationExecutor;
-import com.redis.spring.batch.support.operation.executor.MultiExecOperationExecutor;
-import com.redis.spring.batch.support.operation.executor.OperationExecutor;
-import com.redis.spring.batch.support.operation.executor.SimpleOperationExecutor;
-import com.redis.spring.batch.support.operation.executor.WaitForReplicationOperationExecutor;
+import com.redis.spring.batch.writer.AbstractRedisItemWriterBuilder;
+import com.redis.spring.batch.writer.DataStructureOperationExecutor;
+import com.redis.spring.batch.writer.OperationExecutor;
+import com.redis.spring.batch.writer.RedisOperation;
+import com.redis.spring.batch.writer.SimpleOperationExecutor;
+import com.redis.spring.batch.writer.DataStructureOperationExecutor.DataStructureOperation;
+import com.redis.spring.batch.writer.operation.JsonSet;
+import com.redis.spring.batch.writer.operation.RestoreReplace;
+import com.redis.spring.batch.writer.operation.Sugadd;
+import com.redis.spring.batch.writer.operation.TsAdd;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
@@ -64,8 +62,9 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 		try (StatefulConnection<K, V> connection = borrowConnection()) {
 			BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
 			commands.setAutoFlushCommands(false);
+			List<Future<?>> futures = new ArrayList<>();
 			try {
-				List<Future<?>> futures = executor.execute(commands, items);
+				executor.execute(commands, items, futures);
 				commands.flushCommands();
 				LettuceFutures.awaitAll(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS,
 						futures.toArray(new Future[0]));
@@ -76,100 +75,73 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 		}
 	}
 
-	public static OperationItemWriterBuilder<String, String> client(RedisClient client) {
-		return new OperationItemWriterBuilder<>(client, StringCodec.UTF8);
-	}
+	public static class DataStructureBuilder<K, V>
+			extends AbstractRedisItemWriterBuilder<K, V, DataStructure<K>, DataStructureBuilder<K, V>> {
 
-	public static OperationItemWriterBuilder<String, String> client(RedisClusterClient client) {
-		return new OperationItemWriterBuilder<>(client, StringCodec.UTF8);
-	}
-
-	public static class RedisItemWriterBuilder<K, V, T>
-			extends BaseRedisItemWriterBuilder<K, V, T, RedisItemWriterBuilder<K, V, T>> {
-
-		public RedisItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
-				OperationExecutor<K, V, T> executor) {
-			super(client, codec, executor);
+		public DataStructureBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+			super(client, codec, operationExecutor(client));
 		}
 
-	}
-
-	public static class OperationItemWriterBuilder<K, V> {
-
-		private final AbstractRedisClient client;
-		private final RedisCodec<K, V> codec;
-
-		public OperationItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			this.client = client;
-			this.codec = codec;
-		}
-
-		public <T> RedisItemWriterBuilder<K, V, T> operation(RedisOperation<K, V, T> operation) {
-			if (operation instanceof JsonSet || operation instanceof TsAdd || operation instanceof Sugadd) {
-				Assert.isTrue(client instanceof RedisModulesClusterClient || client instanceof RedisModulesClient,
-						"A Redis modules client is required for operation "
-								+ ClassUtils.getShortName(operation.getClass()));
-			}
-			return new RedisItemWriterBuilder<>(client, codec, new SimpleOperationExecutor<>(operation));
-		}
-
-		public DataStructureItemWriterBuilder<K, V> dataStructure() {
-			return new DataStructureItemWriterBuilder<>(client, codec);
-		}
-
-		public RedisItemWriterBuilder<K, V, KeyValue<K, byte[]>> keyDump() {
-			RestoreReplace<K, V, KeyValue<K, byte[]>> operation = new RestoreReplace<>(KeyValue::getKey,
-					KeyValue<K, byte[]>::getValue, KeyValue::getAbsoluteTTL);
-			return new RedisItemWriterBuilder<>(client, codec, new SimpleOperationExecutor<>(operation));
-		}
-	}
-
-	public static class BaseRedisItemWriterBuilder<K, V, T, B extends BaseRedisItemWriterBuilder<K, V, T, B>>
-			extends RedisBuilder<K, V, B> {
-
-		protected OperationExecutor<K, V, T> executor;
-
-		public BaseRedisItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
-				OperationExecutor<K, V, T> executor) {
-			super(client, codec);
-			this.executor = executor;
-		}
-
-		@SuppressWarnings("unchecked")
-		public B multiExec() {
-			this.executor = new MultiExecOperationExecutor<>(executor);
-			return (B) this;
-		}
-
-		@SuppressWarnings("unchecked")
-		public B waitForReplication(int replicas, long timeout) {
-			this.executor = new WaitForReplicationOperationExecutor<>(executor, replicas, timeout);
-			return (B) this;
-		}
-
-		public RedisItemWriter<K, V, T> build() {
-			return new RedisItemWriter<>(connectionSupplier(), poolConfig, super.async(), executor);
-		}
-
-	}
-
-	public static class DataStructureItemWriterBuilder<K, V>
-			extends BaseRedisItemWriterBuilder<K, V, DataStructure<K>, DataStructureItemWriterBuilder<K, V>> {
-
-		public DataStructureItemWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec, dataStructureOperationExecutor(client));
-		}
-
-		private static <K, V> OperationExecutor<K, V, DataStructure<K>> dataStructureOperationExecutor(
-				AbstractRedisClient client) {
+		private static <K, V> OperationExecutor<K, V, DataStructure<K>> operationExecutor(AbstractRedisClient client) {
 			DataStructureOperationExecutor<K, V> executor = new DataStructureOperationExecutor<>();
 			executor.setTimeout(client.getDefaultTimeout());
 			return executor;
 		}
 
-		public DataStructureItemWriterBuilder<K, V> xaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
+		public DataStructureBuilder<K, V> xaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
 			((DataStructureOperationExecutor<K, V>) executor).setXaddArgs(xaddArgs);
 			return this;
+		}
+
+		public DataStructureBuilder<K, V> hyperLogLogOperation(DataStructureOperation<K, V> hyperLogLogOperation) {
+			((DataStructureOperationExecutor<K, V>) executor).setHyperLogLogOperation(hyperLogLogOperation);
+			return this;
+		}
+
+	}
+
+	public static class OperationBuilder<K, V> {
+
+		private final AbstractRedisClient client;
+		private final RedisCodec<K, V> codec;
+
+		public OperationBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+			this.client = client;
+			this.codec = codec;
+		}
+
+		public <T> Builder<K, V, T> operation(RedisOperation<K, V, T> operation) {
+			if (operation instanceof JsonSet || operation instanceof TsAdd || operation instanceof Sugadd) {
+				Assert.isTrue(client instanceof RedisModulesClusterClient || client instanceof RedisModulesClient,
+						"A Redis modules client is required for operation "
+								+ ClassUtils.getShortName(operation.getClass()));
+			}
+			return new Builder<>(client, codec, new SimpleOperationExecutor<>(operation));
+		}
+
+		public DataStructureBuilder<K, V> dataStructure() {
+			return new DataStructureBuilder<>(client, codec);
+		}
+
+		public Builder<K, V, KeyValue<K, byte[]>> keyDump() {
+			RestoreReplace<K, V, KeyValue<K, byte[]>> operation = new RestoreReplace<>(KeyValue::getKey,
+					KeyValue<K, byte[]>::getValue, KeyValue::getAbsoluteTTL);
+			return new Builder<>(client, codec, new SimpleOperationExecutor<>(operation));
+		}
+	}
+
+	public static OperationBuilder<String, String> client(RedisClient client) {
+		return new OperationBuilder<>(client, StringCodec.UTF8);
+	}
+
+	public static OperationBuilder<String, String> client(RedisClusterClient client) {
+		return new OperationBuilder<>(client, StringCodec.UTF8);
+	}
+
+	public static class Builder<K, V, T> extends AbstractRedisItemWriterBuilder<K, V, T, Builder<K, V, T>> {
+
+		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec, OperationExecutor<K, V, T> executor) {
+			super(client, codec, executor);
 		}
 
 	}

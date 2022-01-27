@@ -36,32 +36,29 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.spring.batch.builder.StreamItemReaderBuilder;
-import com.redis.spring.batch.support.DataStructure;
-import com.redis.spring.batch.support.DataStructure.Type;
-import com.redis.spring.batch.support.DataStructureValueReader;
-import com.redis.spring.batch.support.FlushingStepBuilder;
-import com.redis.spring.batch.support.KeyComparator;
-import com.redis.spring.batch.support.KeyComparator.KeyComparatorBuilder;
-import com.redis.spring.batch.support.KeyComparator.RightComparatorBuilder;
-import com.redis.spring.batch.support.KeyValue;
-import com.redis.spring.batch.support.LiveKeyItemReader;
-import com.redis.spring.batch.support.LiveRedisItemReader;
-import com.redis.spring.batch.support.PollableItemReader;
-import com.redis.spring.batch.support.ScanSizeEstimator;
-import com.redis.spring.batch.support.ScanSizeEstimator.ScanSizeEstimatorBuilder;
-import com.redis.spring.batch.support.StreamItemReader;
-import com.redis.spring.batch.support.StreamItemReader.AckPolicy;
-import com.redis.spring.batch.support.compare.KeyComparisonLogger;
-import com.redis.spring.batch.support.compare.KeyComparisonResults;
-import com.redis.spring.batch.support.convert.GeoValueConverter;
-import com.redis.spring.batch.support.convert.ScoredValueConverter;
-import com.redis.spring.batch.support.generator.Generator;
-import com.redis.spring.batch.support.generator.Generator.GeneratorBuilder;
-import com.redis.spring.batch.support.operation.Geoadd;
-import com.redis.spring.batch.support.operation.Hset;
-import com.redis.spring.batch.support.operation.Xadd;
-import com.redis.spring.batch.support.operation.Zadd;
+import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.RedisScanSizeEstimator.ScanSizeEstimatorBuilder;
+import com.redis.spring.batch.compare.KeyComparator;
+import com.redis.spring.batch.compare.KeyComparisonLogger;
+import com.redis.spring.batch.compare.KeyComparisonResults;
+import com.redis.spring.batch.compare.KeyComparator.KeyComparatorBuilder;
+import com.redis.spring.batch.compare.KeyComparator.RightComparatorBuilder;
+import com.redis.spring.batch.convert.GeoValueConverter;
+import com.redis.spring.batch.convert.ScoredValueConverter;
+import com.redis.spring.batch.generator.Generator;
+import com.redis.spring.batch.generator.Generator.GeneratorBuilder;
+import com.redis.spring.batch.reader.DataStructureValueReader;
+import com.redis.spring.batch.reader.FlushingStepBuilder;
+import com.redis.spring.batch.reader.LiveKeyItemReader;
+import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.StreamItemReader;
+import com.redis.spring.batch.reader.StreamItemReaderBuilder;
+import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
+import com.redis.spring.batch.writer.operation.Geoadd;
+import com.redis.spring.batch.writer.operation.Hset;
+import com.redis.spring.batch.writer.operation.Xadd;
+import com.redis.spring.batch.writer.operation.Zadd;
 import com.redis.testcontainers.RedisClusterContainer;
 import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
@@ -139,6 +136,17 @@ class BatchTests extends AbstractTestBase {
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void testDataStructureReader(RedisTestContext context) throws Exception {
+		String name = "ds-reader";
+		dataGenerator(context, name).build().call();
+		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(context, name);
+		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
+		run(context, name, reader, writer);
+		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
+	}
+	
+	@ParameterizedTest
+	@RedisTestContextsSource
+	void testDataStructureIntrospectingReader(RedisTestContext context) throws Exception {
 		String name = "ds-reader";
 		dataGenerator(context, name).build().call();
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(context, name);
@@ -603,7 +611,7 @@ class BatchTests extends AbstractTestBase {
 		KeyComparator comparator = comparator(server, name).build();
 		KeyComparisonResults results = comparator.call();
 		Assertions.assertEquals(results.getSource(), results.getOK() + results.getMissing() + results.getValue());
-		Assertions.assertEquals(120, results.getMissing());
+		Assertions.assertEquals(140, results.getMissing());
 		Assertions.assertEquals(300, results.getValue());
 	}
 
@@ -640,9 +648,9 @@ class BatchTests extends AbstractTestBase {
 
 	private ScanSizeEstimatorBuilder sizeEstimator(RedisTestContext server) {
 		if (server.isCluster()) {
-			return ScanSizeEstimator.client(server.getRedisClusterClient());
+			return RedisScanSizeEstimator.client(server.getRedisClusterClient());
 		}
-		return ScanSizeEstimator.client(server.getRedisClient());
+		return RedisScanSizeEstimator.client(server.getRedisClient());
 	}
 
 	@ParameterizedTest

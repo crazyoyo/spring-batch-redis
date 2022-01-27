@@ -8,7 +8,7 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.support.PollableItemReader;
+import com.redis.spring.batch.reader.PollableItemReader;
 
 public class DelegatingPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T>
 		implements PollableItemReader<T> {

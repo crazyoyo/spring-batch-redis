@@ -10,7 +10,7 @@ import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Tag;
 
 /**
- * Helper class for spring-batch-redis metrics.
+ * Helper class for Spring Batch Redis
  * 
  * @author Julien Ruaux
  */
