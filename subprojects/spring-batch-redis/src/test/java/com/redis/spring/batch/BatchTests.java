@@ -21,9 +21,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
@@ -39,10 +39,10 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.DataStructure.Type;
 import com.redis.spring.batch.RedisScanSizeEstimator.ScanSizeEstimatorBuilder;
 import com.redis.spring.batch.compare.KeyComparator;
-import com.redis.spring.batch.compare.KeyComparisonLogger;
-import com.redis.spring.batch.compare.KeyComparisonResults;
 import com.redis.spring.batch.compare.KeyComparator.KeyComparatorBuilder;
 import com.redis.spring.batch.compare.KeyComparator.RightComparatorBuilder;
+import com.redis.spring.batch.compare.KeyComparisonLogger;
+import com.redis.spring.batch.compare.KeyComparisonResults;
 import com.redis.spring.batch.convert.GeoValueConverter;
 import com.redis.spring.batch.convert.ScoredValueConverter;
 import com.redis.spring.batch.generator.Generator;
@@ -53,8 +53,9 @@ import com.redis.spring.batch.reader.LiveKeyItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
-import com.redis.spring.batch.reader.StreamItemReaderBuilder;
 import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
+import com.redis.spring.batch.reader.StreamItemReaderBuilder;
+import com.redis.spring.batch.support.JobRunner;
 import com.redis.spring.batch.writer.operation.Geoadd;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.Xadd;
@@ -70,7 +71,6 @@ import io.lettuce.core.GeoArgs;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisClient;
-import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -112,7 +112,7 @@ class BatchTests extends AbstractTestBase {
 		ListItemWriter<String> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(context, name, reader, null, writer);
 		execute(dataGenerator(context, name).end(3).type(Type.STRING).type(Type.HASH));
-		awaitTermination(execution);
+		JobRunner.awaitTermination(execution);
 		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
 	}
 
@@ -143,7 +143,7 @@ class BatchTests extends AbstractTestBase {
 		run(context, name, reader, writer);
 		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
 	}
-	
+
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void testDataStructureIntrospectingReader(RedisTestContext context) throws Exception {
@@ -197,7 +197,7 @@ class BatchTests extends AbstractTestBase {
 		ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(context, name, reader, null, writer);
 		execute(dataGenerator(context, name).end(123).type(Type.HASH).type(Type.STRING));
-		awaitTermination(execution);
+		JobRunner.awaitTermination(execution);
 		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
 	}
 
@@ -255,7 +255,7 @@ class BatchTests extends AbstractTestBase {
 		StreamItemReader<String, String> reader = streamReader(redis).build();
 		ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(redis, name, reader, null, writer);
-		awaitTermination(execution);
+		JobRunner.awaitTermination(execution);
 		Assertions.assertEquals(COUNT, writer.getWrittenItems().size());
 		assertMessageBody(writer.getWrittenItems());
 	}
@@ -274,8 +274,8 @@ class BatchTests extends AbstractTestBase {
 		JobExecution execution1 = runFlushing(redis, "stream-reader-1", reader1, null, writer1);
 		ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
 		JobExecution execution2 = runFlushing(redis, "stream-reader-2", reader2, null, writer2);
-		awaitTermination(execution1);
-		awaitTermination(execution2);
+		JobRunner.awaitTermination(execution1);
+		JobRunner.awaitTermination(execution2);
 		Assertions.assertEquals(COUNT, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
 		assertMessageBody(writer1.getWrittenItems());
 		assertMessageBody(writer2.getWrittenItems());
@@ -333,13 +333,14 @@ class BatchTests extends AbstractTestBase {
 		RedisItemWriter<String, String, Map<String, String>> writer = operationWriter(context,
 				Hset.<String, String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
 						.waitForReplication(1, 300).build();
-		JobExecution execution = run(context, "writer-wait", reader, writer);
-		Assertions.assertEquals(ExitStatus.FAILED.getExitCode(), execution.getExitStatus().getExitCode());
-		Assertions.assertEquals(1, execution.getAllFailureExceptions().size());
-		Assertions.assertEquals(RedisCommandExecutionException.class,
-				execution.getAllFailureExceptions().get(0).getClass());
-		Assertions.assertEquals("Insufficient replication level - expected: 1, actual: 0",
-				execution.getAllFailureExceptions().get(0).getMessage());
+		Assertions.assertThrows(JobExecutionException.class, () -> run(context, "writer-wait", reader, writer),
+				"Insufficient replication level - expected: 1, actual: 0");
+//		Assertions.assertEquals(ExitStatus.FAILED.getExitCode(), execution.getExitStatus().getExitCode());
+//		Assertions.assertEquals(1, execution.getAllFailureExceptions().size());
+//		Assertions.assertEquals(RedisCommandExecutionException.class,
+//				execution.getAllFailureExceptions().get(0).getClass());
+//		Assertions.assertEquals("Insufficient replication level - expected: 1, actual: 0",
+//				execution.getAllFailureExceptions().get(0).getMessage());
 	}
 
 	@ParameterizedTest
@@ -511,7 +512,7 @@ class BatchTests extends AbstractTestBase {
 				dataStructureWriter(getContext(TARGET)));
 		log.info("Removing from set");
 		sync.srem(key, "5");
-		awaitTermination(execution);
+		JobRunner.awaitTermination(execution);
 		Set<String> source = sync.smembers(key);
 		Set<String> target = getContext(TARGET).sync().smembers(key);
 		Assertions.assertEquals(source, target);
@@ -588,7 +589,7 @@ class BatchTests extends AbstractTestBase {
 		Builder liveGenerator = dataGenerator(server, "live-" + name).chunkSize(1)
 				.types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).between(3000, 4000);
 		execute(liveGenerator);
-		awaitTermination(execution);
+		JobRunner.awaitTermination(execution);
 		awaitClosed(writer);
 		awaitClosed(liveWriter);
 		compare(server, name);

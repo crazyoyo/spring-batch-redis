@@ -43,6 +43,7 @@ import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ScanRedisItemReaderBuilder;
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
 import com.redis.spring.batch.support.JobRepositoryBuilder;
+import com.redis.spring.batch.support.JobRunner;
 import com.redis.spring.batch.support.RedisConnectionBuilder;
 import com.redis.spring.batch.writer.RedisOperation;
 import com.redis.testcontainers.junit.AbstractTestcontainersRedisTestBase;
@@ -90,26 +91,11 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected <I, O> JobExecution launch(Job job) throws JobExecutionException {
-		return jobLauncher.run(job, new JobParameters());
+		return JobRunner.awaitTermination(jobLauncher.run(job, new JobParameters()));
 	}
 
 	protected <I, O> JobExecution launchAsync(Job job) throws JobExecutionException {
-		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
-		Awaitility.await().until(() -> execution.isRunning() || execution.getStatus().isUnsuccessful());
-		return checkUnsuccessful(execution);
-	}
-
-	protected static JobExecution awaitTermination(JobExecution execution) throws JobExecutionException {
-		Awaitility.await().timeout(Duration.ofMinutes(1))
-				.until(() -> !execution.isRunning() || execution.getStatus().isUnsuccessful());
-		return checkUnsuccessful(execution);
-	}
-
-	private static JobExecution checkUnsuccessful(JobExecution execution) throws JobExecutionException {
-		if (execution.getStatus().isUnsuccessful()) {
-			throw new JobExecutionException(String.format("Status of job %s", execution.getJobInstance().getJobName()));
-		}
-		return execution;
+		return JobRunner.awaitRunning(asyncJobLauncher.run(job, new JobParameters()));
 	}
 
 	protected static FlowBuilder<SimpleFlow> flow(RedisTestContext context, String name) {
@@ -161,8 +147,8 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return new FlushingStepBuilder<>(step(redis, name, reader, processor, writer)).idleTimeout(IDLE_TIMEOUT);
 	}
 
-	protected static void execute(Generator.Builder generator) throws Exception {
-		awaitTermination(generator.build().call());
+	protected static JobExecution execute(Generator.Builder generator) throws Exception {
+		return JobRunner.awaitTermination(generator.build().call());
 	}
 
 	protected static OperationBuilder<String, String> writer(RedisTestContext context) {
@@ -246,8 +232,8 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisTestContext context,
 			String name, int notificationQueueCapacity) throws Exception {
-		return setName(configureLiveReader(reader(context).dataStructureIntrospect().live(), notificationQueueCapacity).build(),
-				context, name + "-live-data-structure");
+		return setName(configureLiveReader(reader(context).dataStructureIntrospect().live(), notificationQueueCapacity)
+				.build(), context, name + "-live-data-structure");
 	}
 
 	protected void flushAll(RedisTestContext context) {

@@ -1,5 +1,8 @@
 package com.redis.spring.batch.support;
 
+import java.time.Duration;
+
+import org.awaitility.Awaitility;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -66,11 +69,30 @@ public class JobRunner {
 	}
 
 	public JobExecution run(Job job) throws JobExecutionException {
-		return syncLauncher.run(job, new JobParameters());
+		return awaitTermination(syncLauncher.run(job, new JobParameters()));
+	}
+
+	public static JobExecution awaitTermination(JobExecution execution) throws JobExecutionException {
+		Awaitility.await().timeout(Duration.ofMinutes(1))
+				.until(() -> !execution.isRunning() || execution.getStatus().isUnsuccessful());
+		return checkUnsuccessful(execution);
 	}
 
 	public JobExecution runAsync(Job job) throws JobExecutionException {
 		return asyncLauncher.run(job, new JobParameters());
+	}
+
+	public static JobExecution awaitRunning(JobExecution execution) throws JobExecutionException {
+		Awaitility.await().until(() -> execution.isRunning() || execution.getStatus().isUnsuccessful());
+		return checkUnsuccessful(execution);
+	}
+
+	private static JobExecution checkUnsuccessful(JobExecution execution) throws JobExecutionException {
+		if (execution.getStatus().isUnsuccessful()) {
+			throw new JobExecutionException(String.format("Status of job '%s': %s",
+					execution.getJobInstance().getJobName(), execution.getStatus()));
+		}
+		return execution;
 	}
 
 }
