@@ -34,7 +34,6 @@ import com.redis.spring.batch.RedisItemReader.Builder;
 import com.redis.spring.batch.RedisItemWriter.OperationBuilder;
 import com.redis.spring.batch.generator.Generator;
 import com.redis.spring.batch.generator.Generator.ClientGeneratorBuilder;
-import com.redis.spring.batch.generator.Generator.GeneratorBuilder;
 import com.redis.spring.batch.reader.DataStructureIntrospectingValueReader;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.FlushingStepBuilder;
@@ -162,7 +161,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return new FlushingStepBuilder<>(step(redis, name, reader, processor, writer)).idleTimeout(IDLE_TIMEOUT);
 	}
 
-	protected static void execute(GeneratorBuilder generator) throws Exception {
+	protected static void execute(Generator.Builder generator) throws Exception {
 		awaitTermination(generator.build().call());
 	}
 
@@ -221,7 +220,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return RedisItemReader.client(context.getRedisClient());
 	}
 
-	protected GeneratorBuilder dataGenerator(RedisTestContext context, String name) {
+	protected Generator.Builder dataGenerator(RedisTestContext context, String name) {
 		return configureJobRepository(dataGenerator(context.getClient()).id(name(context, name)));
 	}
 
@@ -247,7 +246,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisTestContext context,
 			String name, int notificationQueueCapacity) throws Exception {
-		return setName(configureLiveReader(reader(context).dataStructure().live(), notificationQueueCapacity).build(),
+		return setName(configureLiveReader(reader(context).dataStructureIntrospect().live(), notificationQueueCapacity).build(),
 				context, name + "-live-data-structure");
 	}
 

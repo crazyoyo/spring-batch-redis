@@ -131,7 +131,7 @@ public class KeyComparator implements Callable<KeyComparisonResults> {
 		}
 
 		private RedisItemReader<String, DataStructure<String>> reader(AbstractRedisClient client) {
-			return readerBuilder(client).dataStructure().chunkSize(chunkSize).jobRepository(jobRepository)
+			return readerBuilder(client).dataStructureIntrospect().chunkSize(chunkSize).jobRepository(jobRepository)
 					.transactionManager(transactionManager).build();
 		}
 

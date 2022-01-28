@@ -46,7 +46,7 @@ import com.redis.spring.batch.compare.KeyComparator.RightComparatorBuilder;
 import com.redis.spring.batch.convert.GeoValueConverter;
 import com.redis.spring.batch.convert.ScoredValueConverter;
 import com.redis.spring.batch.generator.Generator;
-import com.redis.spring.batch.generator.Generator.GeneratorBuilder;
+import com.redis.spring.batch.generator.Generator.Builder;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.FlushingStepBuilder;
 import com.redis.spring.batch.reader.LiveKeyItemReader;
@@ -117,7 +117,7 @@ class BatchTests extends AbstractTestBase {
 	}
 
 	private LiveKeyItemReader<String> keyspaceNotificationReader(RedisTestContext context) {
-		return reader(context).dataStructure().live().keyReader();
+		return reader(context).dataStructureIntrospect().live().keyReader();
 	}
 
 	@ParameterizedTest
@@ -241,7 +241,7 @@ class BatchTests extends AbstractTestBase {
 		assertMessageBody(messages);
 	}
 
-	private GeneratorBuilder streamDataGenerator(RedisTestContext redis, String name) {
+	private Builder streamDataGenerator(RedisTestContext redis, String name) {
 		return dataGenerator(redis, name).type(Type.STREAM).end(1)
 				.collectionCardinality(org.apache.commons.lang3.Range.is(COUNT));
 	}
@@ -585,7 +585,7 @@ class BatchTests extends AbstractTestBase {
 		Awaitility.await().until(liveReader::isOpen);
 		Awaitility.await().until(liveWriter::isOpen);
 		Thread.sleep(100);
-		GeneratorBuilder liveGenerator = dataGenerator(server, "live-" + name).chunkSize(1)
+		Builder liveGenerator = dataGenerator(server, "live-" + name).chunkSize(1)
 				.types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).between(3000, 4000);
 		execute(liveGenerator);
 		awaitTermination(execution);

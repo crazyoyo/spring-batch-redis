@@ -54,7 +54,7 @@ public class Generator implements Callable<JobExecution> {
 	private final Range<Integer> stringValueSize;
 	private final Range<Double> zsetScore;
 
-	private Generator(GeneratorBuilder builder) {
+	private Generator(Builder builder) {
 		this.client = builder.getClient();
 		this.id = builder.id;
 		this.jobRepository = builder.getJobRepository();
@@ -154,12 +154,12 @@ public class Generator implements Callable<JobExecution> {
 			this.client = client;
 		}
 
-		public GeneratorBuilder id(String id) {
-			return new GeneratorBuilder(client, id);
+		public Builder id(String id) {
+			return new Builder(client, id);
 		}
 	}
 
-	public static class GeneratorBuilder extends JobRepositoryBuilder<String, String, GeneratorBuilder> {
+	public static class Builder extends JobRepositoryBuilder<String, String, Builder> {
 
 		private final String id;
 
@@ -171,57 +171,57 @@ public class Generator implements Callable<JobExecution> {
 		private Range<Integer> stringValueSize = DEFAULT_STRING_VALUE_SIZE;
 		private Range<Double> zsetScore = DEFAULT_ZSET_SCORE;
 
-		public GeneratorBuilder(AbstractRedisClient client, String id) {
+		public Builder(AbstractRedisClient client, String id) {
 			super(client, StringCodec.UTF8);
 			this.id = id;
 		}
 
-		public GeneratorBuilder chunkSize(int chunkSize) {
+		public Builder chunkSize(int chunkSize) {
 			this.chunkSize = chunkSize;
 			return this;
 		}
 
-		public GeneratorBuilder sequence(Range<Long> sequence) {
+		public Builder sequence(Range<Long> sequence) {
 			this.sequence = sequence;
 			return this;
 		}
 
-		public GeneratorBuilder expiration(Range<Long> expiration) {
+		public Builder expiration(Range<Long> expiration) {
 			this.expiration = expiration;
 			return this;
 		}
 
-		public GeneratorBuilder collectionCardinality(Range<Long> collectionCardinality) {
+		public Builder collectionCardinality(Range<Long> collectionCardinality) {
 			this.collectionCardinality = collectionCardinality;
 			return this;
 		}
 
-		public GeneratorBuilder stringValueSize(Range<Integer> stringValueSize) {
+		public Builder stringValueSize(Range<Integer> stringValueSize) {
 			this.stringValueSize = stringValueSize;
 			return this;
 		}
 
-		public GeneratorBuilder zsetScore(Range<Double> zsetScore) {
+		public Builder zsetScore(Range<Double> zsetScore) {
 			this.zsetScore = zsetScore;
 			return this;
 		}
 
-		public GeneratorBuilder type(Type type) {
+		public Builder type(Type type) {
 			this.types.add(type);
 			return this;
 		}
 
-		public GeneratorBuilder types(Type... types) {
+		public Builder types(Type... types) {
 			this.types.addAll(Arrays.asList(types));
 			return this;
 		}
 
-		public GeneratorBuilder end(long end) {
+		public Builder end(long end) {
 			sequence(Range.between(0L, end));
 			return this;
 		}
 
-		public GeneratorBuilder between(long start, long end) {
+		public Builder between(long start, long end) {
 			sequence(Range.between(start, end));
 			return this;
 		}
