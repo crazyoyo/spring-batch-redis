@@ -10,21 +10,21 @@ import com.redis.spring.batch.reader.AbstractValueReader.ValueReaderBuilder;
 import com.redis.spring.batch.support.JobRepositoryBuilder;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.codec.StringCodec;
+import io.lettuce.core.codec.RedisCodec;
 
-public class RedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ValueReader<String, T>, B extends RedisItemReaderBuilder<T, R, B>>
-		extends JobRepositoryBuilder<String, String, B> {
+public class RedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>, R extends ValueReader<K, T>, B extends RedisItemReaderBuilder<K, V, T, R, B>>
+		extends JobRepositoryBuilder<K, V, B> {
 
-	protected final ValueReaderBuilder<String, String, T, R> valueReaderFactory;
+	protected final ValueReaderBuilder<K, V, T, R> valueReaderFactory;
 	protected int threads = RedisItemReader.DEFAULT_THREADS;
 	protected int chunkSize = RedisItemReader.DEFAULT_CHUNK_SIZE;
 	protected int valueQueueCapacity = RedisItemReader.DEFAULT_QUEUE_CAPACITY;
 	protected Duration queuePollTimeout = RedisItemReader.DEFAULT_QUEUE_POLL_TIMEOUT;
 	protected SkipPolicy skipPolicy = RedisItemReader.DEFAULT_SKIP_POLICY;
 
-	public RedisItemReaderBuilder(AbstractRedisClient client,
-			ValueReaderBuilder<String, String, T, R> valueReaderFactory) {
-		super(client, StringCodec.UTF8);
+	public RedisItemReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
+			ValueReaderBuilder<K, V, T, R> valueReaderFactory) {
+		super(client, codec);
 		this.valueReaderFactory = valueReaderFactory;
 	}
 

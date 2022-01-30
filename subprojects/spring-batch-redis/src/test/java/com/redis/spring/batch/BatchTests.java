@@ -37,6 +37,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.RedisItemWriter.OperationBuilder;
 import com.redis.spring.batch.RedisScanSizeEstimator.ScanSizeEstimatorBuilder;
 import com.redis.spring.batch.compare.KeyComparator;
 import com.redis.spring.batch.compare.KeyComparator.KeyComparatorBuilder;
@@ -52,6 +53,7 @@ import com.redis.spring.batch.reader.FlushingStepBuilder;
 import com.redis.spring.batch.reader.LiveKeyItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.ScanRedisItemReaderBuilder;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
 import com.redis.spring.batch.reader.StreamItemReaderBuilder;
@@ -79,6 +81,7 @@ import io.lettuce.core.api.sync.RedisSetCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.models.stream.PendingMessages;
 
 class BatchTests extends AbstractTestBase {
@@ -117,7 +120,7 @@ class BatchTests extends AbstractTestBase {
 	}
 
 	private LiveKeyItemReader<String> keyspaceNotificationReader(RedisTestContext context) {
-		return reader(context).dataStructureIntrospect().live().keyReader();
+		return reader(context).dataStructure().live().keyReader();
 	}
 
 	@ParameterizedTest
@@ -597,7 +600,7 @@ class BatchTests extends AbstractTestBase {
 
 	private void compare(RedisTestContext server, String name) throws Exception {
 		Assertions.assertEquals(server.sync().dbsize(), getContext(TARGET).sync().dbsize());
-		KeyComparator comparator = comparator(server, name).build();
+		KeyComparator<String, String> comparator = comparator(server, name).build();
 		comparator.addListener(new KeyComparisonLogger(log));
 		KeyComparisonResults results = comparator.call();
 		Assertions.assertTrue(results.isOK());
@@ -609,16 +612,16 @@ class BatchTests extends AbstractTestBase {
 		String name = "comparator";
 		execute(dataGenerator(server, name + "-source-init").end(120));
 		execute(dataGenerator(getContext(TARGET), name(server, name) + "-target-init").end(100));
-		KeyComparator comparator = comparator(server, name).build();
+		KeyComparator<String, String> comparator = comparator(server, name).build();
 		KeyComparisonResults results = comparator.call();
 		Assertions.assertEquals(results.getSource(), results.getOK() + results.getMissing() + results.getValue());
-		Assertions.assertEquals(140, results.getMissing());
+		Assertions.assertEquals(120, results.getMissing());
 		Assertions.assertEquals(300, results.getValue());
 	}
 
-	private KeyComparatorBuilder comparator(RedisTestContext server, String name) {
-		RightComparatorBuilder rightBuilder = comparator(server);
-		KeyComparatorBuilder builder;
+	private KeyComparatorBuilder<String, String> comparator(RedisTestContext server, String name) {
+		RightComparatorBuilder<String, String> rightBuilder = comparator(server);
+		KeyComparatorBuilder<String, String> builder;
 		if (getContext(TARGET).isCluster()) {
 			builder = rightBuilder.right(getContext(TARGET).getRedisClusterClient());
 		} else {
@@ -627,12 +630,12 @@ class BatchTests extends AbstractTestBase {
 		return configureJobRepository(builder.id(name(server, name)));
 	}
 
-	private RightComparatorBuilder comparator(RedisTestContext context) {
+	private RightComparatorBuilder<String, String> comparator(RedisTestContext context) {
 		AbstractRedisClient client = context.getClient();
 		if (client instanceof RedisClusterClient) {
-			return KeyComparator.left((RedisClusterClient) client);
+			return KeyComparator.left((RedisClusterClient) client, StringCodec.UTF8);
 		}
-		return KeyComparator.left((RedisClient) client);
+		return KeyComparator.left((RedisClient) client, StringCodec.UTF8);
 	}
 
 	@ParameterizedTest
@@ -694,7 +697,41 @@ class BatchTests extends AbstractTestBase {
 		Assertions.assertEquals(items.size(), writer.getWrittenItems().size() * 2);
 	}
 
-	public static void main(String[] args) {
-		System.out.println(System.getenv());
+	@ParameterizedTest
+	@RedisTestContextsSource
+	void testHyperLogLogReplication(RedisTestContext server) throws Exception {
+		String name = "testHyperLogLogReplication";
+		String key1 = "hll:1";
+		server.sync().pfadd(key1, "member:1", "member:2");
+		String key2 = "hll:2";
+		server.sync().pfadd(key2, "member:1", "member:2", "member:3");
+		RedisItemReader<byte[], DataStructure<byte[]>> reader = binaryDataStructureReader(server, name);
+		reader.setName(name(server, name + "-reader"));
+		RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = binaryDataStructureWriter(getContext(TARGET));
+		run(server, name, reader, writer);
+		RedisModulesCommands<String, String> sourceSync = server.sync();
+		RedisModulesCommands<String, String> targetSync = getContext(TARGET).sync();
+		Assertions.assertEquals(sourceSync.pfcount(key1), targetSync.pfcount(key1));
 	}
+
+	protected static RedisItemWriter<byte[], byte[], DataStructure<byte[]>> binaryDataStructureWriter(
+			RedisTestContext context) {
+		return binaryWriter(context).dataStructure().build();
+	}
+
+	protected static OperationBuilder<byte[], byte[]> binaryWriter(RedisTestContext context) {
+		if (context.isCluster()) {
+			return RedisItemWriter.client(context.getRedisClusterClient(), ByteArrayCodec.INSTANCE);
+		}
+		return RedisItemWriter.client(context.getRedisClient(), ByteArrayCodec.INSTANCE);
+	}
+
+	protected RedisItemReader<byte[], DataStructure<byte[]>> binaryDataStructureReader(RedisTestContext redis,
+			String name) throws Exception {
+		return setName(configureJobRepository(
+				new ScanRedisItemReaderBuilder<byte[], byte[], DataStructure<byte[]>, DataStructureValueReader<byte[], byte[]>>(
+						redis.getClient(), ByteArrayCodec.INSTANCE, DataStructureValueReader::new)).build(),
+				redis, name + "-data-structure");
+	}
+
 }

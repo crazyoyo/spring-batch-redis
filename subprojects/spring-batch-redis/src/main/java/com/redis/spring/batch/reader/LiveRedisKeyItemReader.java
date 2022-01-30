@@ -1,6 +1,5 @@
 package com.redis.spring.batch.reader;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -20,30 +19,28 @@ public class LiveRedisKeyItemReader<K, V> extends LiveKeyItemReader<K> {
 	private StatefulRedisPubSubConnection<K, V> connection;
 
 	public LiveRedisKeyItemReader(Supplier<StatefulRedisPubSubConnection<K, V>> connectionSupplier,
-			Converter<K, K> keyExtractor, List<K> patterns) {
+			Converter<K, K> keyExtractor, K[] patterns) {
 		super(keyExtractor, patterns);
 		Assert.notNull(connectionSupplier, "A pub/sub connection supplier is required");
 		this.connectionSupplier = connectionSupplier;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	protected synchronized void doOpen() {
 		connection = connectionSupplier.get();
 		log.debug("Adding listener");
 		connection.addListener(listener);
 		log.debug("Subscribing to channel patterns {}", patterns);
-		connection.sync().psubscribe((K[]) patterns.toArray());
+		connection.sync().psubscribe(patterns);
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	protected synchronized void doClose() {
 		if (connection == null) {
 			return;
 		}
 		log.debug("Unsubscribing from channel pattern {}", patterns);
-		connection.sync().punsubscribe((K[]) patterns.toArray());
+		connection.sync().punsubscribe(patterns);
 		log.debug("Removing listener");
 		connection.removeListener(listener);
 		connection.close();

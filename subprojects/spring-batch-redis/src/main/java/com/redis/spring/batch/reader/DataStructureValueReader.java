@@ -70,6 +70,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 
 	/**
 	 * Sets the value of a data structure
+	 * 
 	 * @param dataStructure the data structure to set the value of
 	 * @param value         data structure value, not null
 	 */
@@ -88,7 +89,6 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 			return ((RedisSetAsyncCommands<K, V>) commands).smembers(key);
 		case STREAM:
 			return ((RedisStreamAsyncCommands<K, V>) commands).xrange(key, Range.create("-", "+"));
-		case HYPERLOGLOG:
 		case STRING:
 			return ((RedisStringAsyncCommands<K, V>) commands).get(key);
 		case ZSET:

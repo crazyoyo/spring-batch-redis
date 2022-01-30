@@ -23,7 +23,6 @@ import com.redis.spring.batch.writer.DataStructureOperationExecutor;
 import com.redis.spring.batch.writer.OperationExecutor;
 import com.redis.spring.batch.writer.RedisOperation;
 import com.redis.spring.batch.writer.SimpleOperationExecutor;
-import com.redis.spring.batch.writer.DataStructureOperationExecutor.DataStructureOperation;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.RestoreReplace;
 import com.redis.spring.batch.writer.operation.Sugadd;
@@ -93,11 +92,6 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 			return this;
 		}
 
-		public DataStructureBuilder<K, V> hyperLogLogOperation(DataStructureOperation<K, V> hyperLogLogOperation) {
-			((DataStructureOperationExecutor<K, V>) executor).setHyperLogLogOperation(hyperLogLogOperation);
-			return this;
-		}
-
 	}
 
 	public static class OperationBuilder<K, V> {
@@ -136,6 +130,14 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 
 	public static OperationBuilder<String, String> client(RedisClusterClient client) {
 		return new OperationBuilder<>(client, StringCodec.UTF8);
+	}
+
+	public static <K, V> OperationBuilder<K, V> client(RedisClient client, RedisCodec<K, V> codec) {
+		return new OperationBuilder<>(client, codec);
+	}
+
+	public static <K, V> OperationBuilder<K, V> client(RedisClusterClient client, RedisCodec<K, V> codec) {
+		return new OperationBuilder<>(client, codec);
 	}
 
 	public static class Builder<K, V, T> extends AbstractRedisItemWriterBuilder<K, V, T, Builder<K, V, T>> {

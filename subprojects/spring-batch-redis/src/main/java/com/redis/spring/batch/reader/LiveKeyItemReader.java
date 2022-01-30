@@ -3,7 +3,6 @@ package com.redis.spring.batch.reader;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -27,13 +26,13 @@ public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements 
 
 	private final Collection<KeyListener<K>> listeners = new ArrayList<>();
 	private final Converter<K, K> keyExtractor;
-	protected final List<K> patterns;
+	protected final K[] patterns;
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 	private Duration defaultQueuePollTimeout = DEFAULT_DEFAULT_QUEUE_POLL_TIMEOUT;
 
 	private BlockingQueue<K> queue;
 
-	protected LiveKeyItemReader(Converter<K, K> keyExtractor, List<K> patterns) {
+	protected LiveKeyItemReader(Converter<K, K> keyExtractor, K[] patterns) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.keyExtractor = keyExtractor;
 		this.patterns = patterns;

@@ -2,7 +2,6 @@ package com.redis.spring.batch.reader;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.core.convert.converter.Converter;
@@ -13,9 +12,11 @@ import com.redis.spring.batch.reader.AbstractValueReader.ValueReaderBuilder;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 
-public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends ValueReader<String, T>>
-		extends RedisItemReaderBuilder<T, R, LiveRedisItemReaderBuilder<T, R>> {
+public class LiveRedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>, R extends ValueReader<K, T>>
+		extends RedisItemReaderBuilder<K, V, T, R, LiveRedisItemReaderBuilder<K, V, T, R>> {
 
 	public static final int DEFAULT_DATABASE = 0;
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
@@ -23,50 +24,50 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 
 	private Duration flushingInterval = FlushingStepBuilder.DEFAULT_FLUSHING_INTERVAL;
 	private Duration idleTimeout;
-	private List<String> keyPatterns = Arrays.asList(ScanKeyItemReader.DEFAULT_SCAN_MATCH);
+	private String[] keyPatterns = new String[] { ScanKeyItemReader.DEFAULT_SCAN_MATCH };
 	private int database = DEFAULT_DATABASE;
 	private int notificationQueueCapacity = LiveKeyItemReader.DEFAULT_QUEUE_CAPACITY;
 
-	public LiveRedisItemReaderBuilder<T, R> flushingInterval(Duration flushingInterval) {
+	public LiveRedisItemReaderBuilder<K, V, T, R> flushingInterval(Duration flushingInterval) {
 		this.flushingInterval = flushingInterval;
 		return this;
 	}
 
-	public LiveRedisItemReaderBuilder<T, R> idleTimeout(Duration idleTimeout) {
+	public LiveRedisItemReaderBuilder<K, V, T, R> idleTimeout(Duration idleTimeout) {
 		this.idleTimeout = idleTimeout;
 		return this;
 	}
 
-	public LiveRedisItemReaderBuilder<T, R> database(int database) {
+	public LiveRedisItemReaderBuilder<K, V, T, R> database(int database) {
 		this.database = database;
 		return this;
 	}
 
-	public LiveRedisItemReaderBuilder<T, R> notificationQueueCapacity(int notificationQueueCapacity) {
+	public LiveRedisItemReaderBuilder<K, V, T, R> notificationQueueCapacity(int notificationQueueCapacity) {
 		this.notificationQueueCapacity = notificationQueueCapacity;
 		return this;
 	}
 
-	public LiveRedisItemReaderBuilder(AbstractRedisClient client,
-			ValueReaderBuilder<String, String, T, R> valueReaderFactory) {
-		super(client, valueReaderFactory);
+	public LiveRedisItemReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
+			ValueReaderBuilder<K, V, T, R> valueReaderFactory) {
+		super(client, codec, valueReaderFactory);
 	}
 
-	public LiveRedisItemReaderBuilder<T, R> keyPatterns(String... keyPatterns) {
-		this.keyPatterns = Arrays.asList(keyPatterns);
+	public LiveRedisItemReaderBuilder<K, V, T, R> keyPatterns(String... keyPatterns) {
+		this.keyPatterns = keyPatterns;
 		return this;
 	}
 
-	public LiveRedisItemReader<String, T> build() {
-		LiveRedisItemReader<String, T> reader = new LiveRedisItemReader<>(jobRepository, transactionManager,
-				keyReader(), valueReader());
+	public LiveRedisItemReader<K, T> build() {
+		LiveRedisItemReader<K, T> reader = new LiveRedisItemReader<>(jobRepository, transactionManager, keyReader(),
+				valueReader());
 		reader.setFlushingInterval(flushingInterval);
 		reader.setIdleTimeout(idleTimeout);
 		return configure(reader);
 	}
 
-	public LiveKeyItemReader<String> keyReader() {
-		LiveKeyItemReader<String> reader = liveKeyItemReader();
+	public LiveKeyItemReader<K> keyReader() {
+		LiveKeyItemReader<K> reader = liveKeyItemReader();
 		reader.setQueueCapacity(notificationQueueCapacity);
 		return reader;
 	}
@@ -79,21 +80,34 @@ public class LiveRedisItemReaderBuilder<T extends KeyValue<String, ?>, R extends
 		return patterns;
 	}
 
-	private List<String> pubSubPatterns() {
-		return pubSubPatterns(database, keyPatterns.toArray(new String[0]));
+	@SuppressWarnings("unchecked")
+	private K[] pubSubPatterns() {
+		return (K[]) pubSubPatterns(database, keyPatterns).stream().map(this::convertStringKey).toArray();
+	}
+
+	private K convertStringKey(String key) {
+		return codec.decodeKey(StringCodec.UTF8.encodeKey(key));
+	}
+
+	private String convertKey(K key) {
+		return StringCodec.UTF8.decodeKey(codec.encodeKey(key));
 	}
 
 	public static String pubSubPattern(int database, String keyPattern) {
 		return String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern);
 	}
 
-	private LiveKeyItemReader<String> liveKeyItemReader() {
+	private LiveKeyItemReader<K> liveKeyItemReader() {
 		if (client instanceof RedisClusterClient) {
-			return new LiveRedisClusterKeyItemReader<>(((RedisClusterClient) client)::connectPubSub,
-					STRING_KEY_EXTRACTOR, pubSubPatterns());
+			return new LiveRedisClusterKeyItemReader<K, V>(() -> ((RedisClusterClient) client).connectPubSub(codec),
+					keyExtractor(), pubSubPatterns());
 		}
-		return new LiveRedisKeyItemReader<>(((RedisClient) client)::connectPubSub, STRING_KEY_EXTRACTOR,
+		return new LiveRedisKeyItemReader<>(() -> ((RedisClient) client).connectPubSub(codec), keyExtractor(),
 				pubSubPatterns());
+	}
+
+	private Converter<K, K> keyExtractor() {
+		return k -> convertStringKey(STRING_KEY_EXTRACTOR.convert(convertKey(k)));
 	}
 
 }

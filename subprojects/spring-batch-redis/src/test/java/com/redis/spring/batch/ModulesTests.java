@@ -85,8 +85,8 @@ class ModulesTests extends AbstractTestBase {
 		}, Clock.SYSTEM);
 		Metrics.addRegistry(registry);
 		dataGenerator(context, "metrics").build().call();
-		RedisItemReader<String, DataStructure<String>> reader = configureJobRepository(
-				reader(context).dataStructureIntrospect()).build();
+		RedisItemReader<String, DataStructure<String>> reader = configureJobRepository(reader(context).dataStructure())
+				.build();
 		reader.open(new ExecutionContext());
 		Search search = registry.find("spring.batch.redis.reader.queue.size");
 		Assertions.assertNotNull(search.gauge());

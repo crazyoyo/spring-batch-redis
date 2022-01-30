@@ -31,7 +31,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.reader.DataStructureIntrospectingValueReader;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.KeyDumpValueReader;
 import com.redis.spring.batch.reader.RedisValueEnqueuer;
@@ -46,6 +45,8 @@ import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 
 public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemStreamItemReader<T> {
 
@@ -222,32 +223,40 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		return open;
 	}
 
-	public static Builder client(RedisClient client) {
-		return new Builder(client);
+	public static Builder<String, String> client(RedisClient client) {
+		return new Builder<>(client, StringCodec.UTF8);
 	}
 
-	public static Builder client(RedisClusterClient client) {
-		return new Builder(client);
+	public static Builder<String, String> client(RedisClusterClient client) {
+		return new Builder<>(client, StringCodec.UTF8);
 	}
 
-	public static class Builder {
+	public static <K, V> Builder<K, V> client(RedisClient client, RedisCodec<K, V> codec) {
+		return new Builder<>(client, codec);
+	}
+
+	public static <K, V> Builder<K, V> client(RedisClusterClient client, RedisCodec<K, V> codec) {
+		return new Builder<>(client, codec);
+	}
+
+	public static class Builder<K, V> {
 
 		private final AbstractRedisClient client;
+		private final RedisCodec<K, V> codec;
 
-		public Builder(AbstractRedisClient client) {
+		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			this.client = client;
+			this.codec = codec;
 		}
 
-		public ScanRedisItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>> dataStructure() {
-			return new ScanRedisItemReaderBuilder<>(client, DataStructureValueReader::new);
+		public ScanRedisItemReaderBuilder<K, V, DataStructure<K>, DataStructureValueReader<K, V>> dataStructure() {
+			return new ScanRedisItemReaderBuilder<K, V, DataStructure<K>, DataStructureValueReader<K, V>>(client, codec,
+					DataStructureValueReader::new);
 		}
 
-		public ScanRedisItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>> dataStructureIntrospect() {
-			return new ScanRedisItemReaderBuilder<>(client, DataStructureIntrospectingValueReader::new);
-		}
-
-		public ScanRedisItemReaderBuilder<KeyValue<String, byte[]>, KeyDumpValueReader<String, String>> keyDump() {
-			return new ScanRedisItemReaderBuilder<>(client, KeyDumpValueReader::new);
+		public ScanRedisItemReaderBuilder<K, V, KeyValue<K, byte[]>, KeyDumpValueReader<K, V>> keyDump() {
+			return new ScanRedisItemReaderBuilder<K, V, KeyValue<K, byte[]>, KeyDumpValueReader<K, V>>(client, codec,
+					KeyDumpValueReader::new);
 		}
 
 		public StreamItemReaderBuilder stream(String name) {

@@ -44,7 +44,6 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 	private Converter<StreamMessage<K, V>, XAddArgs> xaddArgs = m -> new XAddArgs().id(m.getId());
 	private int batchSize = DEFAULT_BATCH_SIZE;
 	private DataStructureOperation<K, V> hashOperation = new HashOperation<>();
-	private DataStructureOperation<K, V> hyperLogLogOperation = new PfaddStringOperation<>();
 	private DataStructureOperation<K, V> listOperation = new ListOperation<>();
 	private DataStructureOperation<K, V> setOperation = new SetOperation<>();
 	private DataStructureOperation<K, V> streamOperation = new StreamOperation();
@@ -53,10 +52,6 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	public void setHashOperation(DataStructureOperation<K, V> hashOperation) {
 		this.hashOperation = hashOperation;
-	}
-
-	public void setHyperLogLogOperation(DataStructureOperation<K, V> hyperLogLogOperation) {
-		this.hyperLogLogOperation = hyperLogLogOperation;
 	}
 
 	public void setListOperation(DataStructureOperation<K, V> listOperation) {
@@ -113,9 +108,6 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		switch (ds.getType()) {
 		case HASH:
 			hashOperation.execute(commands, ds, futures);
-			break;
-		case HYPERLOGLOG:
-			hyperLogLogOperation.execute(commands, ds, futures);
 			break;
 		case STRING:
 			stringOperation.execute(commands, ds, futures);

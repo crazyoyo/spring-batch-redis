@@ -13,7 +13,7 @@ import io.lettuce.core.StreamMessage;
 public class DataStructure<K> extends KeyValue<K, Object> {
 
 	public enum Type {
-		STRING, HYPERLOGLOG, LIST, SET, ZSET, HASH, STREAM, NONE
+		STRING, LIST, SET, ZSET, HASH, STREAM, NONE
 	}
 
 	public static final Set<Type> TYPES = Collections.unmodifiableSet(EnumSet.complementOf(EnumSet.of(Type.NONE)));

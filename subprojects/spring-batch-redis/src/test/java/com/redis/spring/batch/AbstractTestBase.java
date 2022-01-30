@@ -34,7 +34,6 @@ import com.redis.spring.batch.RedisItemReader.Builder;
 import com.redis.spring.batch.RedisItemWriter.OperationBuilder;
 import com.redis.spring.batch.generator.Generator;
 import com.redis.spring.batch.generator.Generator.ClientGeneratorBuilder;
-import com.redis.spring.batch.reader.DataStructureIntrospectingValueReader;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.FlushingStepBuilder;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
@@ -158,7 +157,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return RedisItemWriter.client(context.getRedisClient());
 	}
 
-	private static <T extends AbstractItemStreamItemReader<?>> T setName(T reader, RedisTestContext redis,
+	protected static <T extends AbstractItemStreamItemReader<?>> T setName(T reader, RedisTestContext redis,
 			String name) {
 		reader.setName(name(redis, name + "-reader"));
 		return reader;
@@ -166,9 +165,10 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisTestContext redis, String name)
 			throws Exception {
-		ScanRedisItemReaderBuilder<DataStructure<String>, DataStructureValueReader<String, String>> reader = new ScanRedisItemReaderBuilder<>(
-				redis.getClient(), DataStructureIntrospectingValueReader::new);
-		return setName(configureJobRepository(reader).build(), redis, name + "-data-structure");
+		return setName(configureJobRepository(
+				new ScanRedisItemReaderBuilder<String, String, DataStructure<String>, DataStructureValueReader<String, String>>(
+						redis.getClient(), StringCodec.UTF8, DataStructureValueReader::new)).build(),
+				redis, name + "-data-structure");
 	}
 
 	protected RedisItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisTestContext redis, String name)
@@ -199,7 +199,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return writer(context).operation(operation);
 	}
 
-	protected static Builder reader(RedisTestContext context) {
+	protected static Builder<String, String> reader(RedisTestContext context) {
 		if (context.isCluster()) {
 			return RedisItemReader.client(context.getRedisClusterClient());
 		}
@@ -224,7 +224,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	@SuppressWarnings("unchecked")
-	private <B extends LiveRedisItemReaderBuilder<?, ?>> B configureLiveReader(B builder,
+	private <B extends LiveRedisItemReaderBuilder<String, String, ?, ?>> B configureLiveReader(B builder,
 			int notificationQueueCapacity) {
 		return (B) configureJobRepository(builder).idleTimeout(IDLE_TIMEOUT)
 				.notificationQueueCapacity(notificationQueueCapacity);
@@ -232,8 +232,8 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisTestContext context,
 			String name, int notificationQueueCapacity) throws Exception {
-		return setName(configureLiveReader(reader(context).dataStructureIntrospect().live(), notificationQueueCapacity)
-				.build(), context, name + "-live-data-structure");
+		return setName(configureLiveReader(reader(context).dataStructure().live(), notificationQueueCapacity).build(),
+				context, name + "-live-data-structure");
 	}
 
 	protected void flushAll(RedisTestContext context) {

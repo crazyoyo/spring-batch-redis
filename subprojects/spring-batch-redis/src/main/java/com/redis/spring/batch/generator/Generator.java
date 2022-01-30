@@ -20,11 +20,10 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.DataStructure;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.DataStructureBuilder;
 import com.redis.spring.batch.support.JobRepositoryBuilder;
-import com.redis.spring.batch.writer.DataStructureOperationExecutor.PfaddMembersOperation;
 import com.redis.spring.batch.support.JobRunner;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -77,7 +76,7 @@ public class Generator implements Callable<JobExecution> {
 		for (Type type : readerTypes) {
 			String flowName = type.name().toLowerCase() + "-" + name;
 			RedisItemWriter<String, String, DataStructure<String>> writer = new DataStructureBuilder<>(client,
-					StringCodec.UTF8).xaddArgs(m -> null).hyperLogLogOperation(new PfaddMembersOperation<>()).build();
+					StringCodec.UTF8).xaddArgs(m -> null).build();
 			subFlows.add(jobRunner.flow(flowName)
 					.start(chunk(jobRunner.step(flowName)).reader(reader(type)).writer(writer).build()).build());
 		}
@@ -109,10 +108,6 @@ public class Generator implements Callable<JobExecution> {
 			StreamGeneratorItemReader streamReader = new StreamGeneratorItemReader();
 			configureCollection(streamReader);
 			return streamReader;
-		case HYPERLOGLOG:
-			HyperLogLogGeneratorItemReader hllReader = new HyperLogLogGeneratorItemReader();
-			configureCollection(hllReader);
-			return hllReader;
 		case STRING:
 			StringGeneratorItemReader stringReader = new StringGeneratorItemReader();
 			stringReader.setValueSize(stringValueSize);
