@@ -81,7 +81,6 @@ import io.lettuce.core.api.sync.RedisSetCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.ByteArrayCodec;
-import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.models.stream.PendingMessages;
 
 class BatchTests extends AbstractTestBase {
@@ -246,7 +245,7 @@ class BatchTests extends AbstractTestBase {
 
 	private Builder streamDataGenerator(RedisTestContext redis, String name) {
 		return dataGenerator(redis, name).type(Type.STREAM).end(1)
-				.collectionCardinality(org.apache.commons.lang3.Range.is(COUNT));
+				.collectionCardinality(com.redis.spring.batch.generator.Range.is(COUNT));
 	}
 
 	@ParameterizedTest
@@ -293,7 +292,7 @@ class BatchTests extends AbstractTestBase {
 		Assertions.assertEquals(0, pendingMessages.getCount());
 	}
 
-	private StreamItemReaderBuilder streamReader(RedisTestContext server) {
+	private StreamItemReaderBuilder<String, String> streamReader(RedisTestContext server) {
 		return reader(server).stream(STREAM);
 	}
 
@@ -600,7 +599,7 @@ class BatchTests extends AbstractTestBase {
 
 	private void compare(RedisTestContext server, String name) throws Exception {
 		Assertions.assertEquals(server.sync().dbsize(), getContext(TARGET).sync().dbsize());
-		KeyComparator<String, String> comparator = comparator(server, name).build();
+		KeyComparator comparator = comparator(server, name).build();
 		comparator.addListener(new KeyComparisonLogger(log));
 		KeyComparisonResults results = comparator.call();
 		Assertions.assertTrue(results.isOK());
@@ -612,16 +611,16 @@ class BatchTests extends AbstractTestBase {
 		String name = "comparator";
 		execute(dataGenerator(server, name + "-source-init").end(120));
 		execute(dataGenerator(getContext(TARGET), name(server, name) + "-target-init").end(100));
-		KeyComparator<String, String> comparator = comparator(server, name).build();
+		KeyComparator comparator = comparator(server, name).build();
 		KeyComparisonResults results = comparator.call();
 		Assertions.assertEquals(results.getSource(), results.getOK() + results.getMissing() + results.getValue());
 		Assertions.assertEquals(120, results.getMissing());
 		Assertions.assertEquals(300, results.getValue());
 	}
 
-	private KeyComparatorBuilder<String, String> comparator(RedisTestContext server, String name) {
-		RightComparatorBuilder<String, String> rightBuilder = comparator(server);
-		KeyComparatorBuilder<String, String> builder;
+	private KeyComparatorBuilder comparator(RedisTestContext server, String name) {
+		RightComparatorBuilder rightBuilder = comparator(server);
+		KeyComparatorBuilder builder;
 		if (getContext(TARGET).isCluster()) {
 			builder = rightBuilder.right(getContext(TARGET).getRedisClusterClient());
 		} else {
@@ -630,12 +629,12 @@ class BatchTests extends AbstractTestBase {
 		return configureJobRepository(builder.id(name(server, name)));
 	}
 
-	private RightComparatorBuilder<String, String> comparator(RedisTestContext context) {
+	private RightComparatorBuilder comparator(RedisTestContext context) {
 		AbstractRedisClient client = context.getClient();
 		if (client instanceof RedisClusterClient) {
-			return KeyComparator.left((RedisClusterClient) client, StringCodec.UTF8);
+			return KeyComparator.left((RedisClusterClient) client);
 		}
-		return KeyComparator.left((RedisClient) client, StringCodec.UTF8);
+		return KeyComparator.left((RedisClient) client);
 	}
 
 	@ParameterizedTest
@@ -728,8 +727,8 @@ class BatchTests extends AbstractTestBase {
 
 	protected RedisItemReader<byte[], DataStructure<byte[]>> binaryDataStructureReader(RedisTestContext redis,
 			String name) throws Exception {
-		return setName(configureJobRepository(
-				new ScanRedisItemReaderBuilder<byte[], byte[], DataStructure<byte[]>, DataStructureValueReader<byte[], byte[]>>(
+		return setName(
+				configureJobRepository(new ScanRedisItemReaderBuilder<byte[], byte[], DataStructure<byte[]>>(
 						redis.getClient(), ByteArrayCodec.INSTANCE, DataStructureValueReader::new)).build(),
 				redis, name + "-data-structure");
 	}

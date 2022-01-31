@@ -165,8 +165,8 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisTestContext redis, String name)
 			throws Exception {
-		return setName(configureJobRepository(
-				new ScanRedisItemReaderBuilder<String, String, DataStructure<String>, DataStructureValueReader<String, String>>(
+		return setName(
+				configureJobRepository(new ScanRedisItemReaderBuilder<String, String, DataStructure<String>>(
 						redis.getClient(), StringCodec.UTF8, DataStructureValueReader::new)).build(),
 				redis, name + "-data-structure");
 	}
@@ -224,7 +224,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	@SuppressWarnings("unchecked")
-	private <B extends LiveRedisItemReaderBuilder<String, String, ?, ?>> B configureLiveReader(B builder,
+	private <B extends LiveRedisItemReaderBuilder<String, String, ?>> B configureLiveReader(B builder,
 			int notificationQueueCapacity) {
 		return (B) configureJobRepository(builder).idleTimeout(IDLE_TIMEOUT)
 				.notificationQueueCapacity(notificationQueueCapacity);

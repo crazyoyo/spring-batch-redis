@@ -14,6 +14,7 @@ import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 
 public class RedisConnectionBuilder<K, V, B extends RedisConnectionBuilder<K, V, B>> {
 
@@ -63,6 +64,14 @@ public class RedisConnectionBuilder<K, V, B extends RedisConnectionBuilder<K, V,
 			return c -> ((StatefulRedisClusterConnection<K, V>) c).async();
 		}
 		return c -> ((StatefulRedisConnection<K, V>) c).async();
+	}
+
+	protected K encodeKey(String key) {
+		return codec.decodeKey(StringCodec.UTF8.encodeKey(key));
+	}
+
+	protected String decodeKey(K key) {
+		return StringCodec.UTF8.decodeKey(codec.encodeKey(key));
 	}
 
 }

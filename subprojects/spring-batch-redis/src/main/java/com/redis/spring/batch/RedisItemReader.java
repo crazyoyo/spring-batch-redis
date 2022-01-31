@@ -249,18 +249,16 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 			this.codec = codec;
 		}
 
-		public ScanRedisItemReaderBuilder<K, V, DataStructure<K>, DataStructureValueReader<K, V>> dataStructure() {
-			return new ScanRedisItemReaderBuilder<K, V, DataStructure<K>, DataStructureValueReader<K, V>>(client, codec,
-					DataStructureValueReader::new);
+		public ScanRedisItemReaderBuilder<K, V, DataStructure<K>> dataStructure() {
+			return new ScanRedisItemReaderBuilder<K, V, DataStructure<K>>(client, codec, DataStructureValueReader::new);
 		}
 
-		public ScanRedisItemReaderBuilder<K, V, KeyValue<K, byte[]>, KeyDumpValueReader<K, V>> keyDump() {
-			return new ScanRedisItemReaderBuilder<K, V, KeyValue<K, byte[]>, KeyDumpValueReader<K, V>>(client, codec,
-					KeyDumpValueReader::new);
+		public ScanRedisItemReaderBuilder<K, V, KeyValue<K, byte[]>> keyDump() {
+			return new ScanRedisItemReaderBuilder<K, V, KeyValue<K, byte[]>>(client, codec, KeyDumpValueReader::new);
 		}
 
-		public StreamItemReaderBuilder stream(String name) {
-			return new StreamItemReaderBuilder(client, name);
+		public StreamItemReaderBuilder<K, V> stream(K name) {
+			return new StreamItemReaderBuilder<>(client, codec, name);
 		}
 
 	}

@@ -12,10 +12,10 @@ import com.redis.spring.batch.support.JobRepositoryBuilder;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public class RedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>, R extends ValueReader<K, T>, B extends RedisItemReaderBuilder<K, V, T, R, B>>
+public class RedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>, B extends RedisItemReaderBuilder<K, V, T, B>>
 		extends JobRepositoryBuilder<K, V, B> {
 
-	protected final ValueReaderBuilder<K, V, T, R> valueReaderFactory;
+	protected final ValueReaderBuilder<K, V, T> valueReaderFactory;
 	protected int threads = RedisItemReader.DEFAULT_THREADS;
 	protected int chunkSize = RedisItemReader.DEFAULT_CHUNK_SIZE;
 	protected int valueQueueCapacity = RedisItemReader.DEFAULT_QUEUE_CAPACITY;
@@ -23,7 +23,7 @@ public class RedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>, R extends Va
 	protected SkipPolicy skipPolicy = RedisItemReader.DEFAULT_SKIP_POLICY;
 
 	public RedisItemReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
-			ValueReaderBuilder<K, V, T, R> valueReaderFactory) {
+			ValueReaderBuilder<K, V, T> valueReaderFactory) {
 		super(client, codec);
 		this.valueReaderFactory = valueReaderFactory;
 	}
@@ -68,7 +68,7 @@ public class RedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>, R extends Va
 		return reader;
 	}
 
-	protected R valueReader() {
+	protected ValueReader<K, T> valueReader() {
 		return valueReaderFactory.create(connectionSupplier(), poolConfig, async());
 	}
 

@@ -14,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.convert.converter.Converter;
 
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.spring.batch.DataStructure;
 import com.redis.spring.batch.support.Utils;
 
@@ -25,7 +24,6 @@ import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisHLLAsyncCommands;
 import io.lettuce.core.api.async.RedisHashAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
@@ -238,26 +236,6 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		@Override
 		public void execute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
 			futures.add(((RedisStringAsyncCommands<K, V>) commands).set(ds.getKey(), (V) ds.getValue()));
-		}
-	}
-
-	public static class PfaddStringOperation<K, V> extends DelOperation<K, V> {
-
-		@SuppressWarnings("unchecked")
-		@Override
-		public void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
-			futures.add(((RedisModulesAsyncCommands<K, V>) commands).pfaddNoValue(ds.getKey()));
-			futures.add(((RedisStringAsyncCommands<K, V>) commands).set(ds.getKey(), (V) ds.getValue()));
-		}
-	}
-
-	public static class PfaddMembersOperation<K, V> extends DelOperation<K, V> {
-
-		@SuppressWarnings("unchecked")
-		@Override
-		public void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
-			futures.add(((RedisHLLAsyncCommands<K, V>) commands).pfadd(ds.getKey(),
-					(V[]) ((Collection<V>) ds.getValue()).toArray()));
 		}
 	}
 

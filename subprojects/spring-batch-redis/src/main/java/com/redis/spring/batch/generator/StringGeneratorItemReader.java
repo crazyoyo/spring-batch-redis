@@ -1,11 +1,14 @@
 package com.redis.spring.batch.generator;
 
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.lang3.Range;
+import java.util.Random;
 
 import com.redis.spring.batch.DataStructure.Type;
 
 public class StringGeneratorItemReader extends DataStructureGeneratorItemReader<String> {
+
+	private final Random random = new Random();
+	private static final int LEFT_LIMIT = 48; // numeral '0'
+	private static final int RIGHT_LIMIT = 122; // letter 'z'
 
 	protected Range<Integer> valueSize = Generator.DEFAULT_STRING_VALUE_SIZE;
 
@@ -19,7 +22,10 @@ public class StringGeneratorItemReader extends DataStructureGeneratorItemReader<
 
 	@Override
 	protected String value() {
-		return RandomStringUtils.randomAscii(valueSize.getMinimum(), valueSize.getMaximum());
+		int length = random.nextInt(valueSize.getMinimum(), valueSize.getMaximum() + 1);
+		return random.ints(LEFT_LIMIT, RIGHT_LIMIT + 1).filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
+				.limit(length).collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+				.toString();
 	}
 
 }

@@ -19,16 +19,16 @@ import com.redis.spring.batch.compare.KeyComparison.Status;
 import com.redis.spring.batch.reader.ValueReader;
 import com.redis.spring.batch.support.Utils;
 
-public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<DataStructure<K>> {
+public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataStructure<String>> {
 
 	private static final Logger log = LoggerFactory.getLogger(KeyComparisonItemWriter.class);
 
 	private final KeyComparisonResults results = new KeyComparisonResults();
-	private final ValueReader<K, DataStructure<K>> valueReader;
+	private final ValueReader<String, DataStructure<String>> valueReader;
 	private final long ttlTolerance;
-	private List<KeyComparisonListener<K>> listeners = new ArrayList<>();
+	private List<KeyComparisonListener> listeners = new ArrayList<>();
 
-	public KeyComparisonItemWriter(ValueReader<K, DataStructure<K>> valueReader, Duration ttlTolerance) {
+	public KeyComparisonItemWriter(ValueReader<String, DataStructure<String>> valueReader, Duration ttlTolerance) {
 		setName(ClassUtils.getShortName(getClass()));
 		Assert.notNull(valueReader, "A value reader is required");
 		Utils.assertPositive(ttlTolerance, "TTL tolerance");
@@ -36,11 +36,11 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 		this.ttlTolerance = ttlTolerance.toMillis();
 	}
 
-	public void addListener(KeyComparisonListener<K> listener) {
+	public void addListener(KeyComparisonListener listener) {
 		this.listeners.add(listener);
 	}
 
-	public void setListeners(List<KeyComparisonListener<K>> listeners) {
+	public void setListeners(List<KeyComparisonListener> listeners) {
 		this.listeners = listeners;
 	}
 
@@ -69,8 +69,8 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 	}
 
 	@Override
-	public void write(List<? extends DataStructure<K>> sourceItems) throws Exception {
-		List<DataStructure<K>> targetItems = valueReader
+	public void write(List<? extends DataStructure<String>> sourceItems) throws Exception {
+		List<DataStructure<String>> targetItems = valueReader
 				.read(sourceItems.stream().map(DataStructure::getKey).collect(Collectors.toList()));
 		if (targetItems == null || targetItems.size() != sourceItems.size()) {
 			log.warn("Missing values in value reader response");
@@ -78,11 +78,11 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 		}
 		results.addAndGetSource(sourceItems.size());
 		for (int index = 0; index < sourceItems.size(); index++) {
-			DataStructure<K> source = sourceItems.get(index);
-			DataStructure<K> target = targetItems.get(index);
+			DataStructure<String> source = sourceItems.get(index);
+			DataStructure<String> target = targetItems.get(index);
 			Status status = compare(source, target);
 			increment(status);
-			KeyComparison<K> comparison = new KeyComparison<>(source, target, status);
+			KeyComparison comparison = new KeyComparison(source, target, status);
 			listeners.forEach(c -> c.keyComparison(comparison));
 		}
 	}
@@ -103,7 +103,7 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 		throw new IllegalArgumentException("Unknown status: " + status);
 	}
 
-	private Status compare(DataStructure<K> source, DataStructure<K> target) {
+	private Status compare(DataStructure<String> source, DataStructure<String> target) {
 		if (source.getValue() == null) {
 			if (target.getValue() == null) {
 				return Status.OK;
@@ -135,28 +135,28 @@ public class KeyComparisonItemWriter<K> extends AbstractItemStreamItemWriter<Dat
 		return results;
 	}
 
-	public static <K> KeyComparisonItemWriterBuilder<K> valueReader(ValueReader<K, DataStructure<K>> valueReader) {
-		return new KeyComparisonItemWriterBuilder<>(valueReader);
+	public static KeyComparisonItemWriterBuilder valueReader(ValueReader<String, DataStructure<String>> valueReader) {
+		return new KeyComparisonItemWriterBuilder(valueReader);
 	}
 
-	public static class KeyComparisonItemWriterBuilder<K> {
+	public static class KeyComparisonItemWriterBuilder {
 
 		private static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
-		private final ValueReader<K, DataStructure<K>> valueReader;
+		private final ValueReader<String, DataStructure<String>> valueReader;
 		private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-		public KeyComparisonItemWriterBuilder(ValueReader<K, DataStructure<K>> valueReader) {
+		public KeyComparisonItemWriterBuilder(ValueReader<String, DataStructure<String>> valueReader) {
 			this.valueReader = valueReader;
 		}
 
-		public KeyComparisonItemWriterBuilder<K> tolerance(Duration ttlTolerance) {
+		public KeyComparisonItemWriterBuilder tolerance(Duration ttlTolerance) {
 			this.ttlTolerance = ttlTolerance;
 			return this;
 		}
 
-		public KeyComparisonItemWriter<K> build() {
-			return new KeyComparisonItemWriter<>(valueReader, ttlTolerance);
+		public KeyComparisonItemWriter build() {
+			return new KeyComparisonItemWriter(valueReader, ttlTolerance);
 		}
 	}
 

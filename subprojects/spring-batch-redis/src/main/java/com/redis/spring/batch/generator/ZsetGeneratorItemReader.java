@@ -3,8 +3,6 @@ package com.redis.spring.batch.generator;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.Range;
-
 import com.redis.spring.batch.DataStructure.Type;
 
 import io.lettuce.core.ScoredValue;

@@ -2,7 +2,7 @@ package com.redis.spring.batch.compare;
 
 import com.redis.spring.batch.DataStructure;
 
-public class KeyComparison<K> {
+public class KeyComparison {
 
 	public enum Status {
 		OK, // No difference
@@ -12,30 +12,30 @@ public class KeyComparison<K> {
 		VALUE // Value mismatch
 	}
 
-	private DataStructure<K> source;
-	private DataStructure<K> target;
+	private DataStructure<String> source;
+	private DataStructure<String> target;
 	private Status status;
 
-	public KeyComparison(DataStructure<K> source, DataStructure<K> target, Status status) {
+	public KeyComparison(DataStructure<String> source, DataStructure<String> target, Status status) {
 		super();
 		this.source = source;
 		this.target = target;
 		this.status = status;
 	}
 
-	public DataStructure<K> getSource() {
+	public DataStructure<String> getSource() {
 		return source;
 	}
 
-	public void setSource(DataStructure<K> source) {
+	public void setSource(DataStructure<String> source) {
 		this.source = source;
 	}
 
-	public DataStructure<K> getTarget() {
+	public DataStructure<String> getTarget() {
 		return target;
 	}
 
-	public void setTarget(DataStructure<K> target) {
+	public void setTarget(DataStructure<String> target) {
 		this.target = target;
 	}
 

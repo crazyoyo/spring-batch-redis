@@ -1,7 +1,7 @@
 package com.redis.spring.batch.compare;
 
-public interface KeyComparisonListener<K> {
+public interface KeyComparisonListener {
 
-	void keyComparison(KeyComparison<K> comparison);
+	void keyComparison(KeyComparison comparison);
 
 }

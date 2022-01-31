@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,7 +15,13 @@ import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
 @SuppressWarnings("unchecked")
-public class KeyComparisonLogger implements KeyComparisonListener<String> {
+public class KeyComparisonLogger implements KeyComparisonListener {
+
+	/**
+	 * Represents a failed index search.
+	 * 
+	 */
+	public static final int INDEX_NOT_FOUND = -1;
 
 	private final Logger log;
 
@@ -29,7 +34,7 @@ public class KeyComparisonLogger implements KeyComparisonListener<String> {
 	}
 
 	@Override
-	public void keyComparison(KeyComparison<String> comparison) {
+	public void keyComparison(KeyComparison comparison) {
 		switch (comparison.getStatus()) {
 		case MISSING:
 			log.warn("Missing key '{}'", comparison.getSource().getKey());
@@ -71,7 +76,7 @@ public class KeyComparisonLogger implements KeyComparisonListener<String> {
 		}
 	}
 
-	private void showHashDiff(KeyComparison<String> comparison) {
+	private void showHashDiff(KeyComparison comparison) {
 		Map<String, String> sourceHash = (Map<String, String>) comparison.getSource().getValue();
 		Map<String, String> targetHash = (Map<String, String>) comparison.getTarget().getValue();
 		Map<String, String> diff = new HashMap<>();
@@ -82,14 +87,61 @@ public class KeyComparisonLogger implements KeyComparisonListener<String> {
 		log.warn("Mismatch for hash '{}' on fields: {}", comparison.getSource().getKey(), diff.keySet());
 	}
 
-	private void showStringDiff(KeyComparison<String> comparison) {
+	private void showStringDiff(KeyComparison comparison) {
 		String sourceString = (String) comparison.getSource().getValue();
 		String targetString = (String) comparison.getTarget().getValue();
-		int diffIndex = StringUtils.indexOfDifference(sourceString, targetString);
+		int diffIndex = indexOfDifference(sourceString, targetString);
 		log.warn("Mismatch for string '{}' at offset {}", comparison.getSource().getKey(), diffIndex);
 	}
 
-	private void showListDiff(KeyComparison<String> comparison) {
+	/**
+	 * <p>
+	 * Compares two CharSequences, and returns the index at which the CharSequences
+	 * begin to differ.
+	 * </p>
+	 *
+	 * <p>
+	 * For example, {@code indexOfDifference("i am a machine", "i am a robot") -> 7}
+	 * </p>
+	 *
+	 * <pre>
+	 * StringUtils.indexOfDifference(null, null) = -1
+	 * StringUtils.indexOfDifference("", "") = -1
+	 * StringUtils.indexOfDifference("", "abc") = 0
+	 * StringUtils.indexOfDifference("abc", "") = 0
+	 * StringUtils.indexOfDifference("abc", "abc") = -1
+	 * StringUtils.indexOfDifference("ab", "abxyz") = 2
+	 * StringUtils.indexOfDifference("abcde", "abxyz") = 2
+	 * StringUtils.indexOfDifference("abcde", "xyz") = 0
+	 * </pre>
+	 *
+	 * @param cs1 the first CharSequence, may be null
+	 * @param cs2 the second CharSequence, may be null
+	 * @return the index where cs1 and cs2 begin to differ; -1 if they are equal
+	 * @since 2.0
+	 * @since 3.0 Changed signature from indexOfDifference(String, String) to
+	 *        indexOfDifference(CharSequence, CharSequence)
+	 */
+	private static int indexOfDifference(final CharSequence cs1, final CharSequence cs2) {
+		if (cs1 == cs2) {
+			return INDEX_NOT_FOUND;
+		}
+		if (cs1 == null || cs2 == null) {
+			return 0;
+		}
+		int i;
+		for (i = 0; i < cs1.length() && i < cs2.length(); ++i) {
+			if (cs1.charAt(i) != cs2.charAt(i)) {
+				break;
+			}
+		}
+		if (i < cs2.length() || i < cs1.length()) {
+			return i;
+		}
+		return INDEX_NOT_FOUND;
+	}
+
+	private void showListDiff(KeyComparison comparison) {
 		List<String> sourceList = (List<String>) comparison.getSource().getValue();
 		List<String> targetList = (List<String>) comparison.getTarget().getValue();
 		if (sourceList.size() != targetList.size()) {
@@ -106,7 +158,7 @@ public class KeyComparisonLogger implements KeyComparisonListener<String> {
 		log.warn("Mismatch for list '{}' at indexes {}", comparison.getSource().getKey(), diff);
 	}
 
-	private void showSetDiff(KeyComparison<String> comparison) {
+	private void showSetDiff(KeyComparison comparison) {
 		Set<String> sourceSet = (Set<String>) comparison.getSource().getValue();
 		Set<String> targetSet = (Set<String>) comparison.getTarget().getValue();
 		Set<String> missing = new HashSet<>(sourceSet);
@@ -116,7 +168,7 @@ public class KeyComparisonLogger implements KeyComparisonListener<String> {
 		log.warn("Mismatch for set '{}': {} <> {}", comparison.getSource().getKey(), missing, extra);
 	}
 
-	private void showSortedSetDiff(KeyComparison<String> comparison) {
+	private void showSortedSetDiff(KeyComparison comparison) {
 		List<ScoredValue<String>> sourceList = (List<ScoredValue<String>>) comparison.getSource().getValue();
 		List<ScoredValue<String>> targetList = (List<ScoredValue<String>>) comparison.getTarget().getValue();
 		List<ScoredValue<String>> missing = new ArrayList<>(sourceList);
@@ -131,7 +183,7 @@ public class KeyComparisonLogger implements KeyComparisonListener<String> {
 		return list.stream().map(v -> v.getValue() + "@" + v.getScore()).collect(Collectors.toList());
 	}
 
-	private void showStreamDiff(KeyComparison<String> comparison) {
+	private void showStreamDiff(KeyComparison comparison) {
 		List<StreamMessage<String, String>> sourceMessages = (List<StreamMessage<String, String>>) comparison
 				.getSource().getValue();
 		List<StreamMessage<String, String>> targetMessages = (List<StreamMessage<String, String>>) comparison
