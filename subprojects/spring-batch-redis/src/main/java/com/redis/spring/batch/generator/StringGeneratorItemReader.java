@@ -22,7 +22,7 @@ public class StringGeneratorItemReader extends DataStructureGeneratorItemReader<
 
 	@Override
 	protected String value() {
-		int length = random.nextInt(valueSize.getMinimum(), valueSize.getMaximum() + 1);
+		int length = random.nextInt((int) valueSize.getMinimum(), valueSize.getMaximum() + 1);
 		return random.ints(LEFT_LIMIT, RIGHT_LIMIT + 1).filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
 				.limit(length).collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
 				.toString();
