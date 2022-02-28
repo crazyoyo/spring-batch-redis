@@ -155,7 +155,10 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		@Override
 		protected void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
-			futures.add(((RedisHashAsyncCommands<K, V>) commands).hset(ds.getKey(), (Map<K, V>) ds.getValue()));
+			Map<K, V> map = (Map<K, V>) ds.getValue();
+			if (!map.isEmpty()) {
+				futures.add(((RedisHashAsyncCommands<K, V>) commands).hset(ds.getKey(), map));
+			}
 		}
 	}
 
@@ -163,8 +166,10 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		@SuppressWarnings("unchecked")
 		@Override
 		protected void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
-			futures.add(((RedisListAsyncCommands<K, V>) commands).rpush(ds.getKey(),
-					(V[]) ((Collection<V>) ds.getValue()).toArray()));
+			Collection<V> list = (Collection<V>) ds.getValue();
+			if (!list.isEmpty()) {
+				futures.add(((RedisListAsyncCommands<K, V>) commands).rpush(ds.getKey(), (V[]) list.toArray()));
+			}
 		}
 	}
 
@@ -172,8 +177,10 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		@SuppressWarnings("unchecked")
 		@Override
 		protected void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
-			futures.add(((RedisSetAsyncCommands<K, V>) commands).sadd(ds.getKey(),
-					(V[]) ((Collection<V>) ds.getValue()).toArray()));
+			Collection<V> set = (Collection<V>) ds.getValue();
+			if (!set.isEmpty()) {
+				futures.add(((RedisSetAsyncCommands<K, V>) commands).sadd(ds.getKey(), (V[]) set.toArray()));
+			}
 
 		}
 	}
@@ -183,8 +190,11 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		@SuppressWarnings("unchecked")
 		@Override
 		protected void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
-			futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(ds.getKey(),
-					((Collection<ScoredValue<String>>) ds.getValue()).toArray(new ScoredValue[0])));
+			Collection<ScoredValue<String>> zset = (Collection<ScoredValue<String>>) ds.getValue();
+			if (!zset.isEmpty()) {
+				futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(ds.getKey(),
+						zset.toArray(new ScoredValue[0])));
+			}
 		}
 	}
 
