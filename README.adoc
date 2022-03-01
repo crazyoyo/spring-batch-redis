@@ -67,7 +67,8 @@ NOTE: `StreamMessage` and `ScoredValue` are Lettuce core types (`io.lettuce.core
 
 == Item Writers
 
-`RedisItemWriter`s can perform both inserts or deletes depending on the value and TTL in the incoming object.  If value is null or TTL is -2 then the `DEL` command is called, otherwise a write is performed.
+`RedisItemWriter`s can perform both inserts or deletes depending on the value and TTL in the incoming object. 
+If value is null or TTL is -2 then the `DEL` command is called, otherwise a write is performed.
 
 Item writers support two different data types:
 
