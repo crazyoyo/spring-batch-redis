@@ -1,5 +1,7 @@
 package com.redis.spring.batch.reader;
 
+import java.util.Optional;
+
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.reader.AbstractValueReader.ValueReaderBuilder;
@@ -12,7 +14,8 @@ public class ScanRedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>>
 
 	private String match = ScanKeyItemReader.DEFAULT_SCAN_MATCH;
 	private long count = ScanKeyItemReader.DEFAULT_SCAN_COUNT;
-	private String type;
+	private Optional<String> type = Optional.empty();
+	
 
 	public ScanRedisItemReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
 			ValueReaderBuilder<K, V, T> valueReaderFactory) {
@@ -30,7 +33,7 @@ public class ScanRedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>>
 	}
 
 	public ScanRedisItemReaderBuilder<K, V, T> type(String type) {
-		this.type = type;
+		this.type = Optional.of(type);
 		return this;
 	}
 

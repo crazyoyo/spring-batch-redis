@@ -1,7 +1,8 @@
-package com.redis.spring.batch.reader;
+package com.redis.spring.batch.step;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,36 +14,58 @@ import org.springframework.batch.core.step.item.ChunkProvider;
 import org.springframework.batch.core.step.item.FaultTolerantChunkProvider;
 import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.repeat.CompletionPolicy;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.support.Utils;
 
-public class FlushingStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
+public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 
-	private static final Logger log = LoggerFactory.getLogger(FlushingStepBuilder.class);
+	private static final Logger log = LoggerFactory.getLogger(FlushingSimpleStepBuilder.class);
 
 	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 
 	private Duration flushingInterval = DEFAULT_FLUSHING_INTERVAL;
-	private Duration idleTimeout; // no idle stream detection by default
+	private Optional<Duration> idleTimeout = Optional.empty(); // no idle stream detection by default
 
-	public FlushingStepBuilder(StepBuilderHelper<?> parent) {
+	public FlushingSimpleStepBuilder(StepBuilderHelper<?> parent) {
 		super(parent);
 	}
 
-	public FlushingStepBuilder(SimpleStepBuilder<I, O> parent) {
+	public FlushingSimpleStepBuilder(SimpleStepBuilder<I, O> parent) {
 		super(parent);
 	}
 
-	public FlushingStepBuilder<I, O> flushingInterval(Duration flushingInterval) {
+	@Override
+	public FlushingSimpleStepBuilder<I, O> chunk(int chunkSize) {
+		return (FlushingSimpleStepBuilder<I, O>) super.chunk(chunkSize);
+	}
+
+	@Override
+	public FlushingSimpleStepBuilder<I, O> chunk(CompletionPolicy completionPolicy) {
+		return (FlushingSimpleStepBuilder<I, O>) super.chunk(completionPolicy);
+	}
+
+	public FlushingSimpleStepBuilder<I, O> flushingInterval(Duration flushingInterval) {
 		Utils.assertPositive(flushingInterval, "Flushing interval");
 		this.flushingInterval = flushingInterval;
 		return this;
 	}
 
-	public FlushingStepBuilder<I, O> idleTimeout(Duration idleTimeout) {
+	public FlushingSimpleStepBuilder<I, O> idleTimeout(Optional<Duration> idleTimeout) {
 		this.idleTimeout = idleTimeout;
 		return this;
+	}
+
+	public FlushingSimpleStepBuilder<I, O> idleTimeout(Duration idleTimeout) {
+		this.idleTimeout = Optional.of(idleTimeout);
+		return this;
+	}
+
+	@Override
+	public FlushingSimpleStepBuilder<I, O> faultTolerant() {
+		return (FlushingSimpleStepBuilder<I, O>) super.faultTolerant();
 	}
 
 	@Override
@@ -69,9 +92,9 @@ public class FlushingStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 	}
 
 	@Override
-	public FlushingStepBuilder<I, O> reader(ItemReader<? extends I> reader) {
+	public FlushingSimpleStepBuilder<I, O> reader(ItemReader<? extends I> reader) {
 		Assert.state(reader instanceof PollableItemReader, "Reader must be an instance of PollableItemReader");
-		return (FlushingStepBuilder<I, O>) super.reader(reader);
+		return (FlushingSimpleStepBuilder<I, O>) super.reader(reader);
 	}
 
 }

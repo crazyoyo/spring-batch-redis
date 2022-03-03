@@ -13,6 +13,7 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.support.Utils;
@@ -33,6 +34,7 @@ public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements 
 	private BlockingQueue<K> queue;
 
 	protected LiveKeyItemReader(Converter<K, K> keyExtractor, K[] patterns) {
+		Assert.notNull(patterns, "Patterns must not be null");
 		setName(ClassUtils.getShortName(getClass()));
 		this.keyExtractor = keyExtractor;
 		this.patterns = patterns;

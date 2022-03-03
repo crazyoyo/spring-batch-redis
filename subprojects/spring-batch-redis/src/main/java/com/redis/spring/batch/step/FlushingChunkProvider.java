@@ -1,6 +1,7 @@
-package com.redis.spring.batch.reader;
+package com.redis.spring.batch.step;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -24,6 +25,7 @@ import org.springframework.classify.BinaryExceptionClassifier;
 import org.springframework.classify.Classifier;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.support.Utils;
 
 import io.micrometer.core.instrument.Metrics;
@@ -53,7 +55,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	private Classifier<Throwable, Boolean> rollbackClassifier = new BinaryExceptionClassifier(true);
 	private int maxSkipsOnRead = DEFAULT_MAX_SKIPS_ON_READ;
 	private long flushingInterval; // millis
-	private long idleTimeout; // millis
+	private long idleTimeout = Long.MAX_VALUE; // millis, no idle stream detection by default
 	private long lastActivity = 0;
 
 	public FlushingChunkProvider(ItemReader<? extends I> itemReader, RepeatOperations repeatOperations) {
@@ -98,8 +100,12 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 		this.flushingInterval = flushingInterval.toMillis();
 	}
 
-	public void setIdleTimeout(Duration idleTimeout) {
-		this.idleTimeout = idleTimeout == null ? Long.MAX_VALUE : idleTimeout.toMillis();
+	public void setIdleTimeout(Optional<Duration> idleTimeout) {
+		Assert.notNull(idleTimeout, "Idle timeout must not be null");
+		if (idleTimeout.isPresent()) {
+			Utils.assertPositive(idleTimeout.get(), "Idle timeout");
+			this.idleTimeout = idleTimeout.get().toMillis();
+		}
 	}
 
 	private void stopTimer(Timer.Sample sample, StepExecution stepExecution, String status) {

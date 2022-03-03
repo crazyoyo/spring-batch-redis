@@ -38,7 +38,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.DataStructure.Type;
 import com.redis.spring.batch.RedisItemWriter.OperationBuilder;
-import com.redis.spring.batch.RedisScanSizeEstimator.ScanSizeEstimatorBuilder;
+import com.redis.spring.batch.RedisScanSizeEstimator.Builder;
 import com.redis.spring.batch.compare.KeyComparator;
 import com.redis.spring.batch.compare.KeyComparator.KeyComparatorBuilder;
 import com.redis.spring.batch.compare.KeyComparator.RightComparatorBuilder;
@@ -47,9 +47,7 @@ import com.redis.spring.batch.compare.KeyComparisonResults;
 import com.redis.spring.batch.convert.GeoValueConverter;
 import com.redis.spring.batch.convert.ScoredValueConverter;
 import com.redis.spring.batch.generator.Generator;
-import com.redis.spring.batch.generator.Generator.Builder;
 import com.redis.spring.batch.reader.DataStructureValueReader;
-import com.redis.spring.batch.reader.FlushingStepBuilder;
 import com.redis.spring.batch.reader.LiveKeyItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
@@ -57,6 +55,7 @@ import com.redis.spring.batch.reader.ScanRedisItemReaderBuilder;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
 import com.redis.spring.batch.reader.StreamItemReaderBuilder;
+import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.spring.batch.support.JobRunner;
 import com.redis.spring.batch.writer.operation.Geoadd;
 import com.redis.spring.batch.writer.operation.Hset;
@@ -243,7 +242,7 @@ class BatchTests extends AbstractTestBase {
 		assertMessageBody(messages);
 	}
 
-	private Builder streamDataGenerator(RedisTestContext redis, String name) {
+	private Generator.Builder streamDataGenerator(RedisTestContext redis, String name) {
 		return dataGenerator(redis, name).type(Type.STREAM).end(1)
 				.collectionCardinality(com.redis.spring.batch.generator.Range.is(COUNT));
 	}
@@ -588,7 +587,7 @@ class BatchTests extends AbstractTestBase {
 		Awaitility.await().until(liveReader::isOpen);
 		Awaitility.await().until(liveWriter::isOpen);
 		Thread.sleep(100);
-		Builder liveGenerator = dataGenerator(server, "live-" + name).chunkSize(1)
+		Generator.Builder liveGenerator = dataGenerator(server, "live-" + name).chunkSize(1)
 				.types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).between(3000, 4000);
 		execute(liveGenerator);
 		JobRunner.awaitTermination(execution);
@@ -649,7 +648,7 @@ class BatchTests extends AbstractTestBase {
 		Assertions.assertEquals(expectedCount, typeSize, expectedCount / 10);
 	}
 
-	private ScanSizeEstimatorBuilder sizeEstimator(RedisTestContext server) {
+	private Builder sizeEstimator(RedisTestContext server) {
 		if (server.isCluster()) {
 			return RedisScanSizeEstimator.client(server.getRedisClusterClient());
 		}
@@ -688,7 +687,7 @@ class BatchTests extends AbstractTestBase {
 		List<Integer> items = IntStream.range(0, 100).boxed().collect(Collectors.toList());
 		DelegatingPollableItemReader<Integer> reader = new DelegatingPollableItemReader<>(new ListItemReader<>(items));
 		ListItemWriter<Integer> writer = new ListItemWriter<>();
-		FlushingStepBuilder<Integer, Integer> stepBuilder = new FlushingStepBuilder<>(
+		FlushingSimpleStepBuilder<Integer, Integer> stepBuilder = new FlushingSimpleStepBuilder<>(
 				stepBuilderFactory.get(name).<Integer, Integer>chunk(1).reader(reader).writer(writer));
 		stepBuilder.idleTimeout(Duration.ofMillis(100)).skip(TimeoutException.class)
 				.skipPolicy(new AlwaysSkipItemSkipPolicy());

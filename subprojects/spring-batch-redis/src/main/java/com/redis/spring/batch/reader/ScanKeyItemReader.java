@@ -1,5 +1,6 @@
 package com.redis.spring.batch.reader;
 
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -24,7 +25,7 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 
 	private String match = DEFAULT_SCAN_MATCH;
 	private long count = DEFAULT_SCAN_COUNT;
-	private String type;
+	private Optional<String> type = Optional.empty();
 
 	private ScanIterator<K> scanIterator;
 
@@ -44,7 +45,7 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 		this.count = count;
 	}
 
-	public void setType(String type) {
+	public void setType(Optional<String> type) {
 		this.type = type;
 	}
 
@@ -53,13 +54,8 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
 		if (scanIterator == null) {
-			KeyScanArgs args = KeyScanArgs.Builder.limit(count);
-			if (match != null) {
-				args.match(match);
-			}
-			if (type != null) {
-				args.type(type);
-			}
+			KeyScanArgs args = KeyScanArgs.Builder.limit(count).match(match);
+			type.ifPresent(args::type);
 			scanIterator = ScanIterator.scan((RedisKeyCommands<K, V>) sync.apply(connectionSupplier.get()), args);
 		}
 	}

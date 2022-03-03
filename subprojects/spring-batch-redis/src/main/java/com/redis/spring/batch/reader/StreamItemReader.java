@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -19,6 +20,7 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
 
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
+import com.redis.spring.batch.support.Utils;
 
 import io.lettuce.core.Consumer;
 import io.lettuce.core.RedisBusyException;
@@ -46,7 +48,7 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync;
 	private final StreamOffset<K> offset;
 	private long count = DEFAULT_COUNT;
-	private Duration block = DEFAULT_BLOCK;
+	private Optional<Duration> block = Optional.of(DEFAULT_BLOCK);
 	private K consumerGroup;
 	private K consumer;
 	private AckPolicy ackPolicy = DEFAULT_ACK_POLICY;
@@ -79,7 +81,8 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	}
 
 	public void setBlock(Duration block) {
-		this.block = block;
+		Utils.assertPositive(block, "Block");
+		this.block = Optional.of(block);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -106,7 +109,7 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	@Override
 	public StreamMessage<K, V> poll(long timeout, TimeUnit unit) throws Exception {
 		if (!iterator.hasNext()) {
-			List<StreamMessage<K, V>> messages = readMessages(unit.toMillis(timeout));
+			List<StreamMessage<K, V>> messages = readMessages(Optional.of(unit.toMillis(timeout)));
 			if (messages == null || messages.isEmpty()) {
 				return null;
 			}
@@ -116,15 +119,13 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	}
 
 	public List<StreamMessage<K, V>> readMessages() throws Exception {
-		return readMessages(block == null ? null : block.toMillis());
+		return readMessages(block.map(Duration::toMillis));
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<StreamMessage<K, V>> readMessages(Long blockInMillis) throws Exception {
+	private List<StreamMessage<K, V>> readMessages(Optional<Long> blockInMillis) throws Exception {
 		XReadArgs args = XReadArgs.Builder.count(count);
-		if (blockInMillis != null) {
-			args.block(blockInMillis);
-		}
+		blockInMillis.ifPresent(args::block);
 		try (StatefulConnection<K, V> connection = borrowConnection()) {
 			RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
 			List<StreamMessage<K, V>> messages = commands.xreadgroup(Consumer.from(consumerGroup, consumer), args,

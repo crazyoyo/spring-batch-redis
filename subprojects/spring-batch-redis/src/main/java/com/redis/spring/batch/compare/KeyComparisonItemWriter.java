@@ -135,22 +135,22 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 		return results;
 	}
 
-	public static KeyComparisonItemWriterBuilder valueReader(ValueReader<String, DataStructure<String>> valueReader) {
-		return new KeyComparisonItemWriterBuilder(valueReader);
+	public static Builder valueReader(ValueReader<String, DataStructure<String>> valueReader) {
+		return new Builder(valueReader);
 	}
 
-	public static class KeyComparisonItemWriterBuilder {
+	public static class Builder {
 
 		private static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
 		private final ValueReader<String, DataStructure<String>> valueReader;
 		private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-		public KeyComparisonItemWriterBuilder(ValueReader<String, DataStructure<String>> valueReader) {
+		public Builder(ValueReader<String, DataStructure<String>> valueReader) {
 			this.valueReader = valueReader;
 		}
 
-		public KeyComparisonItemWriterBuilder tolerance(Duration ttlTolerance) {
+		public Builder tolerance(Duration ttlTolerance) {
 			this.ttlTolerance = ttlTolerance;
 			return this;
 		}

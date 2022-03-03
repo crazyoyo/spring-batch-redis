@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
@@ -47,7 +48,7 @@ public class Generator implements Callable<JobExecution> {
 	private final int chunkSize;
 	private final Set<Type> types;
 	private final Range<Long> sequence;
-	private final Range<Long> expiration;
+	private final Optional<Range<Long>> expiration;
 	private final Range<Long> collectionCardinality;
 	private final Range<Integer> stringValueSize;
 	private final Range<Double> zsetScore;
@@ -160,7 +161,7 @@ public class Generator implements Callable<JobExecution> {
 		private int chunkSize = DEFAULT_CHUNK_SIZE;
 		private Set<Type> types = new LinkedHashSet<>();
 		private Range<Long> sequence = DEFAULT_SEQUENCE;
-		private Range<Long> expiration;
+		private Optional<Range<Long>> expiration = Optional.empty();
 		private Range<Long> collectionCardinality = DEFAULT_COLLECTION_CARDINALITY;
 		private Range<Integer> stringValueSize = DEFAULT_STRING_VALUE_SIZE;
 		private Range<Double> zsetScore = DEFAULT_ZSET_SCORE;
@@ -181,7 +182,7 @@ public class Generator implements Callable<JobExecution> {
 		}
 
 		public Builder expiration(Range<Long> expiration) {
-			this.expiration = expiration;
+			this.expiration = Optional.of(expiration);
 			return this;
 		}
 

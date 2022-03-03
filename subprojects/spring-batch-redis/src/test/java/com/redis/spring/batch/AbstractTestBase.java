@@ -35,11 +35,11 @@ import com.redis.spring.batch.RedisItemWriter.OperationBuilder;
 import com.redis.spring.batch.generator.Generator;
 import com.redis.spring.batch.generator.Generator.ClientGeneratorBuilder;
 import com.redis.spring.batch.reader.DataStructureValueReader;
-import com.redis.spring.batch.reader.FlushingStepBuilder;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReaderBuilder;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ScanRedisItemReaderBuilder;
+import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
 import com.redis.spring.batch.support.JobRepositoryBuilder;
 import com.redis.spring.batch.support.JobRunner;
@@ -140,10 +140,10 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		Awaitility.await().until(() -> !itemStream.isOpen());
 	}
 
-	protected <I, O> FlushingStepBuilder<I, O> flushingStep(RedisTestContext redis, String name,
+	protected <I, O> FlushingSimpleStepBuilder<I, O> flushingStep(RedisTestContext redis, String name,
 			PollableItemReader<? extends I> reader, ItemProcessor<I, O> processor, ItemWriter<O> writer)
 			throws JobExecutionException {
-		return new FlushingStepBuilder<>(step(redis, name, reader, processor, writer)).idleTimeout(IDLE_TIMEOUT);
+		return new FlushingSimpleStepBuilder<>(step(redis, name, reader, processor, writer)).idleTimeout(IDLE_TIMEOUT);
 	}
 
 	protected static JobExecution execute(Generator.Builder generator) throws Exception {

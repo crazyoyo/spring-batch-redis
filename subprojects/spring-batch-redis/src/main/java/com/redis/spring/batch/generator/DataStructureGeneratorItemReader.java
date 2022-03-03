@@ -2,6 +2,7 @@ package com.redis.spring.batch.generator;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
@@ -16,7 +17,7 @@ public abstract class DataStructureGeneratorItemReader<T>
 
 	private final Type type;
 	private Range<Long> sequence = Generator.DEFAULT_SEQUENCE;
-	private Range<Long> expiration;
+	private Optional<Range<Long>> expiration = Optional.empty();
 
 	protected DataStructureGeneratorItemReader(Type type) {
 		Assert.notNull(type, "A data structure type is required");
@@ -30,8 +31,12 @@ public abstract class DataStructureGeneratorItemReader<T>
 		setMaxItemCount();
 	}
 
-	public void setExpiration(Range<Long> expiration) {
+	public void setExpiration(Optional<Range<Long>> expiration) {
 		this.expiration = expiration;
+	}
+
+	public void setExpiration(Range<Long> expiration) {
+		this.expiration = Optional.of(expiration);
 	}
 
 	private void setMaxItemCount() {
@@ -43,8 +48,8 @@ public abstract class DataStructureGeneratorItemReader<T>
 		String key = key();
 		T value = value();
 		DataStructure<String> dataStructure = new DataStructure<>(key, value, type);
-		if (expiration != null) {
-			dataStructure.setAbsoluteTTL(System.currentTimeMillis() + randomLong(expiration));
+		if (expiration.isPresent()) {
+			dataStructure.setAbsoluteTTL(System.currentTimeMillis() + randomLong(expiration.get()));
 		}
 		return dataStructure;
 	}

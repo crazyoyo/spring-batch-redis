@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -33,8 +34,8 @@ public class RedisScanSizeEstimator implements Callable<Long> {
 	private final Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async;
 
 	private int sampleSize = DEFAULT_SAMPLE_SIZE;
-	private String match;
-	private String type;
+	private Optional<String> match = Optional.empty();
+	private Optional<String> type = Optional.empty();
 
 	public RedisScanSizeEstimator(Supplier<StatefulConnection<String, String>> connectionSupplier,
 			Function<StatefulConnection<String, String>, BaseRedisAsyncCommands<String, String>> async) {
@@ -46,11 +47,11 @@ public class RedisScanSizeEstimator implements Callable<Long> {
 		this.sampleSize = sampleSize;
 	}
 
-	public void setMatch(String match) {
+	public void setMatch(Optional<String> match) {
 		this.match = match;
 	}
 
-	public void setType(String type) {
+	public void setType(Optional<String> type) {
 		this.type = type;
 	}
 
@@ -64,7 +65,7 @@ public class RedisScanSizeEstimator implements Callable<Long> {
 			if (dbsize == null) {
 				return null;
 			}
-			if (match == null && type == null) {
+			if (match.isEmpty() && type.isEmpty()) {
 				return dbsize;
 			}
 			commands.setAutoFlushCommands(false);
@@ -83,16 +84,16 @@ public class RedisScanSizeEstimator implements Callable<Long> {
 					continue;
 				}
 				keyTypeFutures.put(key,
-						type == null ? null : ((RedisKeyAsyncCommands<String, String>) commands).type(key));
+						type.isEmpty() ? null : ((RedisKeyAsyncCommands<String, String>) commands).type(key));
 			}
 			commands.flushCommands();
-			Predicate<String> matchPredicate = predicate(match);
+			Predicate<String> matchPredicate = matchPredicate();
 			for (Map.Entry<String, RedisFuture<String>> entry : keyTypeFutures.entrySet()) {
 				if (!matchPredicate.test(entry.getKey())) {
 					continue;
 				}
-				if (type == null
-						|| type.equalsIgnoreCase(entry.getValue().get(commandTimeout, TimeUnit.MILLISECONDS))) {
+				if (type.isEmpty()
+						|| type.get().equalsIgnoreCase(entry.getValue().get(commandTimeout, TimeUnit.MILLISECONDS))) {
 					matchCount++;
 				}
 			}
@@ -102,44 +103,44 @@ public class RedisScanSizeEstimator implements Callable<Long> {
 
 	}
 
-	private Predicate<String> predicate(String match) {
-		if (match == null) {
+	private Predicate<String> matchPredicate() {
+		if (match.isEmpty()) {
 			return k -> true;
 		}
-		Pattern pattern = Pattern.compile(GlobToRegexConverter.convert(match));
+		Pattern pattern = Pattern.compile(GlobToRegexConverter.convert(match.get()));
 		return k -> pattern.matcher(k).matches();
 	}
 
-	public static ScanSizeEstimatorBuilder client(RedisClient client) {
-		return new ScanSizeEstimatorBuilder(client);
+	public static Builder client(RedisClient client) {
+		return new Builder(client);
 	}
 
-	public static ScanSizeEstimatorBuilder client(RedisClusterClient client) {
-		return new ScanSizeEstimatorBuilder(client);
+	public static Builder client(RedisClusterClient client) {
+		return new Builder(client);
 	}
 
-	public static class ScanSizeEstimatorBuilder extends RedisConnectionBuilder<String, String, ScanSizeEstimatorBuilder> {
+	public static class Builder extends RedisConnectionBuilder<String, String, Builder> {
 
 		private int sampleSize = DEFAULT_SAMPLE_SIZE;
-		private String match;
-		private String type;
+		private Optional<String> match = Optional.empty();
+		private Optional<String> type = Optional.empty();
 
-		public ScanSizeEstimatorBuilder(AbstractRedisClient client) {
+		public Builder(AbstractRedisClient client) {
 			super(client, StringCodec.UTF8);
 		}
 
-		public RedisScanSizeEstimator.ScanSizeEstimatorBuilder sampleSize(int sampleSize) {
+		public RedisScanSizeEstimator.Builder sampleSize(int sampleSize) {
 			this.sampleSize = sampleSize;
 			return this;
 		}
 
-		public RedisScanSizeEstimator.ScanSizeEstimatorBuilder match(String match) {
-			this.match = match;
+		public RedisScanSizeEstimator.Builder match(String match) {
+			this.match = Optional.of(match);
 			return this;
 		}
 
-		public RedisScanSizeEstimator.ScanSizeEstimatorBuilder type(String type) {
-			this.type = type;
+		public RedisScanSizeEstimator.Builder type(String type) {
+			this.type = Optional.of(type);
 			return this;
 		}
 

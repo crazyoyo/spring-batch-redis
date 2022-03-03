@@ -7,8 +7,6 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
-import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
@@ -21,12 +19,12 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.step.FlushingStepBuilder;
+
 public class JobRunner {
 
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager transactionManager;
-	private final JobBuilderFactory jobBuilderFactory;
-	private final StepBuilderFactory stepBuilderFactory;
 	private final SimpleJobLauncher syncLauncher;
 	private final SimpleJobLauncher asyncLauncher;
 
@@ -35,8 +33,6 @@ public class JobRunner {
 		Assert.notNull(transactionManager, "A transaction manager is required");
 		this.jobRepository = jobRepository;
 		this.transactionManager = transactionManager;
-		this.jobBuilderFactory = new JobBuilderFactory(jobRepository);
-		this.stepBuilderFactory = new StepBuilderFactory(jobRepository, transactionManager);
 		this.syncLauncher = launcher(new SyncTaskExecutor());
 		this.asyncLauncher = launcher(new SimpleAsyncTaskExecutor());
 	}
@@ -57,15 +53,19 @@ public class JobRunner {
 	}
 
 	public JobBuilder job(String name) {
-		return jobBuilderFactory.get(name);
-	}
-
-	public StepBuilder step(String name) {
-		return stepBuilderFactory.get(name);
+		return new JobBuilder(name).repository(jobRepository);
 	}
 
 	public FlowBuilder<SimpleFlow> flow(String name) {
 		return new FlowBuilder<>(name);
+	}
+
+	public StepBuilder step(String name) {
+		return new StepBuilder(name).repository(jobRepository).transactionManager(transactionManager);
+	}
+
+	public FlushingStepBuilder flushingStep(String name) {
+		return new FlushingStepBuilder(name).repository(jobRepository).transactionManager(transactionManager);
 	}
 
 	public JobExecution run(Job job) throws JobExecutionException {
