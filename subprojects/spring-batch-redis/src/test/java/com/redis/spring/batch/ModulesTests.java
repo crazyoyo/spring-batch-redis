@@ -20,6 +20,8 @@ import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.search.IndexInfo;
 import com.redis.lettucemod.test.Beers;
+import com.redis.lettucemod.timeseries.CreateOptions;
+import com.redis.lettucemod.timeseries.CreateOptions.DuplicatePolicy;
 import com.redis.spring.batch.compare.KeyComparator;
 import com.redis.spring.batch.compare.KeyComparisonResults;
 import com.redis.spring.batch.writer.operation.JsonSet;
@@ -151,15 +153,15 @@ class ModulesTests extends AbstractTestBase {
 		run(server, name, reader, dataStructureWriter(target));
 		compare(name, server, target);
 	}
-	
+
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void testTimeSeriesReplication(RedisTestContext server) throws Exception {
 		String name = "ts-replication";
 		String key = "ts:1";
-		server.sync().addAutoTimestamp(key, 1);
-		server.sync().addAutoTimestamp(key, 2);
-		server.sync().addAutoTimestamp(key, 3);
+		server.sync().add(key, 1000, 1, CreateOptions.<String, String>builder().policy(DuplicatePolicy.LAST).build());
+		server.sync().add(key, 1001, 2);
+		server.sync().add(key, 1003, 3);
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server, name);
 		RedisTestContext target = getContext(TARGET);
 		run(server, name, reader, dataStructureWriter(target));
