@@ -2,7 +2,7 @@ package com.redis.spring.batch.generator;
 
 import java.util.Map;
 
-import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.generator.Generator.Type;
 
 public class HashGeneratorItemReader extends DataStructureGeneratorItemReader<Map<String, String>> {
 

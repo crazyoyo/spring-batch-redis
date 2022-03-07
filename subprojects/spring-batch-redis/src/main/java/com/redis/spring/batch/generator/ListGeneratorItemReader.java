@@ -2,7 +2,7 @@ package com.redis.spring.batch.generator;
 
 import java.util.List;
 
-import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.generator.Generator.Type;
 
 public class ListGeneratorItemReader extends CollectionGeneratorItemReader<List<String>> {
 

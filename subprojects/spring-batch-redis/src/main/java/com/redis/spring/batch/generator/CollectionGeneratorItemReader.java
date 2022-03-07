@@ -3,7 +3,7 @@ package com.redis.spring.batch.generator;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.generator.Generator.Type;
 
 public abstract class CollectionGeneratorItemReader<T> extends DataStructureGeneratorItemReader<T> {
 

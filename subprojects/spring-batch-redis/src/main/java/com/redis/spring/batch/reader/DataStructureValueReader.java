@@ -10,8 +10,10 @@ import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
+import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
+import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
+import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.spring.batch.DataStructure;
-import com.redis.spring.batch.DataStructure.Type;
 
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
@@ -26,6 +28,8 @@ import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
 public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, DataStructure<K>> {
+
+	private static final RangeOptions RANGE_OPTIONS = RangeOptions.builder().build();
 
 	public DataStructureValueReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
@@ -47,7 +51,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 		List<RedisFuture<?>> valueFutures = new ArrayList<>(keys.size());
 		for (int index = 0; index < keys.size(); index++) {
 			K key = keys.get(index);
-			Type type = DataStructure.type(typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS));
+			String type = typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
 			valueFutures.add(value(commands, key, type));
 			ttlFutures.add(absoluteTTL(commands, key));
 			dataStructures.add(new DataStructure<>(key, type));
@@ -79,20 +83,27 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 	}
 
 	@SuppressWarnings("unchecked")
-	private RedisFuture<?> value(BaseRedisAsyncCommands<K, V> commands, K key, Type type) {
-		switch (type) {
-		case HASH:
+	private RedisFuture<?> value(BaseRedisAsyncCommands<K, V> commands, K key, String type) {
+		if (type == null) {
+			return null;
+		}
+		switch (type.toLowerCase()) {
+		case DataStructure.TYPE_HASH:
 			return ((RedisHashAsyncCommands<K, V>) commands).hgetall(key);
-		case LIST:
+		case DataStructure.TYPE_LIST:
 			return ((RedisListAsyncCommands<K, V>) commands).lrange(key, 0, -1);
-		case SET:
+		case DataStructure.TYPE_SET:
 			return ((RedisSetAsyncCommands<K, V>) commands).smembers(key);
-		case STREAM:
+		case DataStructure.TYPE_STREAM:
 			return ((RedisStreamAsyncCommands<K, V>) commands).xrange(key, Range.create("-", "+"));
-		case STRING:
+		case DataStructure.TYPE_STRING:
 			return ((RedisStringAsyncCommands<K, V>) commands).get(key);
-		case ZSET:
+		case DataStructure.TYPE_ZSET:
 			return ((RedisSortedSetAsyncCommands<K, V>) commands).zrangeWithScores(key, 0, -1);
+		case DataStructure.TYPE_JSON:
+			return ((RedisJSONAsyncCommands<K, V>) commands).jsonGet(key);
+		case DataStructure.TYPE_TIMESERIES:
+			return ((RedisTimeSeriesAsyncCommands<K, V>) commands).range(key, RANGE_OPTIONS);
 		default:
 			return null;
 		}

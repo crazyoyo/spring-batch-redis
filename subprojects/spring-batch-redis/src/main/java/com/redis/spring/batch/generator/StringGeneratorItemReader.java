@@ -2,7 +2,7 @@ package com.redis.spring.batch.generator;
 
 import java.util.Random;
 
-import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.generator.Generator.Type;
 
 public class StringGeneratorItemReader extends DataStructureGeneratorItemReader<String> {
 

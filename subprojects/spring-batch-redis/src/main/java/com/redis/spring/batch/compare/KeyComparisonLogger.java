@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.redis.spring.batch.DataStructure;
+
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
@@ -48,26 +50,27 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 					comparison.getSource().getType(), comparison.getTarget().getType());
 			break;
 		case VALUE:
-			switch (comparison.getSource().getType()) {
-			case SET:
+			switch (comparison.getSource().getType().toLowerCase()) {
+			case DataStructure.TYPE_SET:
 				showSetDiff(comparison);
 				break;
-			case LIST:
+			case DataStructure.TYPE_LIST:
 				showListDiff(comparison);
 				break;
-			case ZSET:
+			case DataStructure.TYPE_ZSET:
 				showSortedSetDiff(comparison);
 				break;
-			case STREAM:
+			case DataStructure.TYPE_STREAM:
 				showStreamDiff(comparison);
 				break;
-			case STRING:
+			case DataStructure.TYPE_STRING:
 				showStringDiff(comparison);
 				break;
-			case HASH:
+			case DataStructure.TYPE_HASH:
 				showHashDiff(comparison);
 				break;
 			default:
+				log.warn("Value mismatch for {} '{}'", comparison.getSource().getType(), comparison.getSource().getKey());
 				break;
 			}
 			break;
@@ -84,14 +87,14 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		diff.putAll(targetHash);
 		diff.entrySet()
 				.removeAll(sourceHash.size() <= targetHash.size() ? sourceHash.entrySet() : targetHash.entrySet());
-		log.warn("Mismatch for hash '{}' on fields: {}", comparison.getSource().getKey(), diff.keySet());
+		log.warn("Value mismatch for hash '{}' on fields: {}", comparison.getSource().getKey(), diff.keySet());
 	}
 
 	private void showStringDiff(KeyComparison comparison) {
 		String sourceString = (String) comparison.getSource().getValue();
 		String targetString = (String) comparison.getTarget().getValue();
 		int diffIndex = indexOfDifference(sourceString, targetString);
-		log.warn("Mismatch for string '{}' at offset {}", comparison.getSource().getKey(), diffIndex);
+		log.warn("Value mismatch for string '{}' at offset {}", comparison.getSource().getKey(), diffIndex);
 	}
 
 	/**
@@ -155,7 +158,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 				diff.add(String.valueOf(index));
 			}
 		}
-		log.warn("Mismatch for list '{}' at indexes {}", comparison.getSource().getKey(), diff);
+		log.warn("Value mismatch for list '{}' at indexes {}", comparison.getSource().getKey(), diff);
 	}
 
 	private void showSetDiff(KeyComparison comparison) {
@@ -165,7 +168,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		missing.removeAll(targetSet);
 		Set<String> extra = new HashSet<>(targetSet);
 		extra.removeAll(sourceSet);
-		log.warn("Mismatch for set '{}': {} <> {}", comparison.getSource().getKey(), missing, extra);
+		log.warn("Value mismatch for set '{}': {} <> {}", comparison.getSource().getKey(), missing, extra);
 	}
 
 	private void showSortedSetDiff(KeyComparison comparison) {
@@ -175,7 +178,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		missing.removeAll(targetList);
 		List<ScoredValue<String>> extra = new ArrayList<>(targetList);
 		extra.removeAll(sourceList);
-		log.warn("Mismatch for sorted set '{}': {} <> {}", comparison.getSource().getKey(), print(missing),
+		log.warn("Value mismatch for sorted set '{}': {} <> {}", comparison.getSource().getKey(), print(missing),
 				print(extra));
 	}
 
@@ -192,7 +195,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		missing.removeAll(targetMessages);
 		List<StreamMessage<String, String>> extra = new ArrayList<>(targetMessages);
 		extra.removeAll(sourceMessages);
-		log.warn("Mismatch for stream '{}': {} <> {}", comparison.getSource().getKey(),
+		log.warn("Value mismatch for stream '{}': {} <> {}", comparison.getSource().getKey(),
 				missing.stream().map(StreamMessage::getId).collect(Collectors.toList()),
 				extra.stream().map(StreamMessage::getId).collect(Collectors.toList()));
 	}

@@ -3,7 +3,7 @@ package com.redis.spring.batch.generator;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.generator.Generator.Type;
 
 public class SetGeneratorItemReader extends CollectionGeneratorItemReader<Set<String>> {
 

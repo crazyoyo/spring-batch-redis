@@ -20,6 +20,8 @@ import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.search.IndexInfo;
 import com.redis.lettucemod.test.Beers;
+import com.redis.spring.batch.compare.KeyComparator;
+import com.redis.spring.batch.compare.KeyComparisonResults;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.testcontainers.RedisModulesContainer;
@@ -37,12 +39,22 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class ModulesTests extends AbstractTestBase {
 
-	protected static final RedisModulesContainer REDIS = new RedisModulesContainer(
+	protected static final RedisModulesContainer REDISMOD = new RedisModulesContainer(
 			RedisModulesContainer.DEFAULT_IMAGE_NAME.withTag(RedisModulesContainer.DEFAULT_TAG));
+
+	private static final RedisModulesContainer TARGET = new RedisModulesContainer(
+			RedisModulesContainer.DEFAULT_IMAGE_NAME.withTag(RedisModulesContainer.DEFAULT_TAG));
+
+	private static final String JSON_BEER_1 = "{\"id\":\"1\",\"brewery_id\":\"812\",\"name\":\"Hocus Pocus\",\"abv\":\"4.5\",\"ibu\":\"0\",\"srm\":\"0\",\"upc\":\"0\",\"filepath\":\"\",\"descript\":\"Our take on a classic summer ale.  A toast to weeds, rays, and summer haze.  A light, crisp ale for mowing lawns, hitting lazy fly balls, and communing with nature, Hocus Pocus is offered up as a summer sacrifice to clodless days.\\n\\nIts malty sweetness finishes tart and crisp and is best apprediated with a wedge of orange.\",\"add_user\":\"0\",\"last_mod\":\"2010-07-22 20:00:20 UTC\",\"style_name\":\"Light American Wheat Ale or Lager\",\"cat_name\":\"Other Style\"}";
 
 	@Override
 	protected Collection<RedisServer> redisServers() {
-		return Arrays.asList(REDIS);
+		return Arrays.asList(REDISMOD, TARGET);
+	}
+
+	@Override
+	protected Collection<RedisServer> testRedisServers() {
+		return Arrays.asList(REDISMOD);
 	}
 
 	@ParameterizedTest
@@ -55,8 +67,7 @@ class ModulesTests extends AbstractTestBase {
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
 		run(context, "json-set", reader, writer);
 		Assertions.assertEquals(4432, context.sync().keys("beer:*").size());
-		String beer1 = "{\"id\":\"1\",\"brewery_id\":\"812\",\"name\":\"Hocus Pocus\",\"abv\":\"4.5\",\"ibu\":\"0\",\"srm\":\"0\",\"upc\":\"0\",\"filepath\":\"\",\"descript\":\"Our take on a classic summer ale.  A toast to weeds, rays, and summer haze.  A light, crisp ale for mowing lawns, hitting lazy fly balls, and communing with nature, Hocus Pocus is offered up as a summer sacrifice to clodless days.\\n\\nIts malty sweetness finishes tart and crisp and is best apprediated with a wedge of orange.\",\"add_user\":\"0\",\"last_mod\":\"2010-07-22 20:00:20 UTC\",\"style_name\":\"Light American Wheat Ale or Lager\",\"cat_name\":\"Other Style\"}";
-		Assertions.assertEquals(new ObjectMapper().readTree(beer1),
+		Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
 				new ObjectMapper().readTree(context.sync().jsonGet("beer:1")));
 	}
 
@@ -115,5 +126,43 @@ class ModulesTests extends AbstractTestBase {
 			StreamMessage<String, String> message = xrange.get(index);
 			Assertions.assertEquals(messages.get(index), message.getBody());
 		}
+	}
+
+	@ParameterizedTest
+	@RedisTestContextsSource
+	void testComparator(RedisTestContext server) throws Exception {
+		String name = "ts-comparator";
+		RedisTestContext target = getContext(TARGET);
+		server.sync().addAutoTimestamp("ts:1", 123);
+		KeyComparator comparator = comparator(name, server, target).build();
+		KeyComparisonResults results = comparator.call();
+		Assertions.assertEquals(1, results.getMissing());
+	}
+
+	@ParameterizedTest
+	@RedisTestContextsSource
+	void testJSONReplication(RedisTestContext server) throws Exception {
+		String name = "json-replication";
+		server.sync().jsonSet("json:1", "$", JSON_BEER_1);
+		server.sync().jsonSet("json:2", "$", JSON_BEER_1);
+		server.sync().jsonSet("json:3", "$", JSON_BEER_1);
+		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server, name);
+		RedisTestContext target = getContext(TARGET);
+		run(server, name, reader, dataStructureWriter(target));
+		compare(name, server, target);
+	}
+	
+	@ParameterizedTest
+	@RedisTestContextsSource
+	void testTimeSeriesReplication(RedisTestContext server) throws Exception {
+		String name = "ts-replication";
+		String key = "ts:1";
+		server.sync().addAutoTimestamp(key, 1);
+		server.sync().addAutoTimestamp(key, 2);
+		server.sync().addAutoTimestamp(key, 3);
+		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server, name);
+		RedisTestContext target = getContext(TARGET);
+		run(server, name, reader, dataStructureWriter(target));
+		compare(name, server, target);
 	}
 }

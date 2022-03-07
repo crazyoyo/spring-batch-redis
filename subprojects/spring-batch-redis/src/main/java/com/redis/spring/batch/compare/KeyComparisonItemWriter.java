@@ -104,6 +104,18 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 	}
 
 	private Status compare(DataStructure<String> source, DataStructure<String> target) {
+		if (source.getType() == null) {
+			if (target.getType() == null) {
+				return Status.OK;
+			}
+			return Status.TYPE;
+		}
+		if (!source.getType().equalsIgnoreCase(target.getType())) {
+			if (target.getType().equals(DataStructure.TYPE_NONE)) {
+				return Status.MISSING;
+			}
+			return Status.TYPE;
+		}
 		if (source.getValue() == null) {
 			if (target.getValue() == null) {
 				return Status.OK;
@@ -112,9 +124,6 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 		}
 		if (target.getValue() == null) {
 			return Status.MISSING;
-		}
-		if (source.getType() != target.getType()) {
-			return Status.TYPE;
 		}
 		if (Objects.deepEquals(source.getValue(), target.getValue())) {
 			if (source.hasTTL()) {

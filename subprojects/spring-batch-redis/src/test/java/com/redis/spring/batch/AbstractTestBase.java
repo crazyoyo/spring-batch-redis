@@ -3,8 +3,11 @@ package com.redis.spring.batch;
 import java.time.Duration;
 
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.runner.RunWith;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -32,6 +35,11 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.RedisItemReader.Builder;
 import com.redis.spring.batch.RedisItemWriter.OperationBuilder;
+import com.redis.spring.batch.compare.KeyComparator;
+import com.redis.spring.batch.compare.KeyComparator.KeyComparatorBuilder;
+import com.redis.spring.batch.compare.KeyComparator.RightComparatorBuilder;
+import com.redis.spring.batch.compare.KeyComparisonLogger;
+import com.redis.spring.batch.compare.KeyComparisonResults;
 import com.redis.spring.batch.generator.Generator;
 import com.redis.spring.batch.generator.Generator.ClientGeneratorBuilder;
 import com.redis.spring.batch.reader.DataStructureValueReader;
@@ -56,6 +64,8 @@ import io.lettuce.core.codec.StringCodec;
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
 public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBase {
+
+	private static final Logger log = LoggerFactory.getLogger(AbstractTestBase.class);
 
 	private static final int DEFAULT_CHUNK_SIZE = 50;
 	protected static final Duration IDLE_TIMEOUT = Duration.ofSeconds(1);
@@ -83,6 +93,33 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected <B extends JobRepositoryBuilder> B configureJobRepository(B runner) {
 		return (B) runner.jobRepository(jobRepository).transactionManager(transactionManager);
+	}
+
+	private RightComparatorBuilder comparator(RedisTestContext context) {
+		AbstractRedisClient client = context.getClient();
+		if (client instanceof RedisClusterClient) {
+			return KeyComparator.left((RedisClusterClient) client);
+		}
+		return KeyComparator.left((RedisClient) client);
+	}
+
+	protected void compare(String name, RedisTestContext server, RedisTestContext target) throws Exception {
+		Assertions.assertEquals(server.sync().dbsize(), target.sync().dbsize());
+		KeyComparator comparator = comparator(name, server, target).build();
+		comparator.addListener(new KeyComparisonLogger(log));
+		KeyComparisonResults results = comparator.call();
+		Assertions.assertTrue(results.isOK());
+	}
+
+	protected KeyComparatorBuilder comparator(String name, RedisTestContext left, RedisTestContext right) {
+		RightComparatorBuilder rightBuilder = comparator(left);
+		KeyComparatorBuilder builder;
+		if (right.isCluster()) {
+			builder = rightBuilder.right(right.getRedisClusterClient());
+		} else {
+			builder = rightBuilder.right(right.getRedisClient());
+		}
+		return configureJobRepository(builder.id(name(left, name)));
 	}
 
 	protected static String name(RedisTestContext context, String name) {

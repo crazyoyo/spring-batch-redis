@@ -10,7 +10,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.DataStructure;
-import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.generator.Generator.Type;
 
 public abstract class DataStructureGeneratorItemReader<T>
 		extends AbstractItemCountingItemStreamItemReader<DataStructure<String>> {
@@ -47,7 +47,7 @@ public abstract class DataStructureGeneratorItemReader<T>
 	protected DataStructure<String> doRead() throws Exception {
 		String key = key();
 		T value = value();
-		DataStructure<String> dataStructure = new DataStructure<>(key, value, type);
+		DataStructure<String> dataStructure = new DataStructure<>(key, value, type.name().toLowerCase());
 		if (expiration.isPresent()) {
 			dataStructure.setAbsoluteTTL(System.currentTimeMillis() + randomLong(expiration.get()));
 		}

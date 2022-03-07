@@ -2,6 +2,7 @@ package com.redis.spring.batch.generator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -20,7 +21,6 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.DataStructure;
-import com.redis.spring.batch.DataStructure.Type;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.DataStructureBuilder;
 import com.redis.spring.batch.support.JobRepositoryBuilder;
@@ -32,6 +32,41 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 
 public class Generator implements Callable<JobExecution> {
+
+	public enum Type {
+		STRING, LIST, SET, ZSET, HASH, STREAM
+	}
+
+//	public static Type type(String type) {
+//		if (type == null) {
+//			return Type.NONE;
+//		}
+//		return Type.valueOf(type.toUpperCase());
+//	}
+
+//	public static <K, V> DataStructure<K> createString(K key, V value) {
+//		return new DataStructure<>(key, value, Type.STRING);
+//	}
+//
+//	public static <K, V> DataStructure<K> createHash(K key, Map<K, V> value) {
+//		return new DataStructure<>(key, value, Type.HASH);
+//	}
+//
+//	public static <K, V> DataStructure<K> createSet(K key, Set<V> value) {
+//		return new DataStructure<>(key, value, Type.SET);
+//	}
+//
+//	public static <K, V> DataStructure<K> createZset(K key, Collection<ScoredValue<V>> value) {
+//		return new DataStructure<>(key, value, Type.ZSET);
+//	}
+//
+//	public static <K, V> DataStructure<K> createList(K key, List<V> value) {
+//		return new DataStructure<>(key, value, Type.LIST);
+//	}
+//
+//	public static <K, V> DataStructure<K> createStream(K key, Collection<StreamMessage<K, V>> value) {
+//		return new DataStructure<>(key, value, Type.STREAM);
+//	}
 
 	private static final String NAME = "generator";
 
@@ -71,7 +106,7 @@ public class Generator implements Callable<JobExecution> {
 	public JobExecution call() throws JobExecutionException {
 		JobRunner jobRunner = new JobRunner(jobRepository, transactionManager);
 		String name = id + "-" + NAME;
-		Set<Type> readerTypes = this.types.isEmpty() ? DataStructure.TYPES : this.types;
+		Set<Type> readerTypes = this.types.isEmpty() ? new HashSet<>(Arrays.asList(Type.values())) : this.types;
 		List<SimpleFlow> subFlows = new ArrayList<>();
 		for (Type type : readerTypes) {
 			String flowName = type.name().toLowerCase() + "-" + name;

@@ -78,11 +78,12 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 			extends AbstractRedisItemWriterBuilder<K, V, DataStructure<K>, DataStructureBuilder<K, V>> {
 
 		public DataStructureBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec, operationExecutor(client));
+			super(client, codec, operationExecutor(client, codec));
 		}
 
-		private static <K, V> OperationExecutor<K, V, DataStructure<K>> operationExecutor(AbstractRedisClient client) {
-			DataStructureOperationExecutor<K, V> executor = new DataStructureOperationExecutor<>();
+		private static <K, V> OperationExecutor<K, V, DataStructure<K>> operationExecutor(AbstractRedisClient client,
+				RedisCodec<K, V> codec) {
+			DataStructureOperationExecutor<K, V> executor = new DataStructureOperationExecutor<>(codec);
 			executor.setTimeout(client.getDefaultTimeout());
 			return executor;
 		}

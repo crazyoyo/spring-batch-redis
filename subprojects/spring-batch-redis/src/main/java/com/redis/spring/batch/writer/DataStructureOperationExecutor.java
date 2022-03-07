@@ -14,6 +14,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.convert.converter.Converter;
 
+import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
+import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
+import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.DataStructure;
 import com.redis.spring.batch.support.Utils;
 
@@ -31,6 +34,8 @@ import io.lettuce.core.api.async.RedisSetAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 
 public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K, V, DataStructure<K>> {
 
@@ -39,46 +44,23 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 	private static final int DEFAULT_BATCH_SIZE = 50;
 
 	private Duration timeout = RedisURI.DEFAULT_TIMEOUT_DURATION;
-	private Converter<StreamMessage<K, V>, XAddArgs> xaddArgs = m -> new XAddArgs().id(m.getId());
 	private int batchSize = DEFAULT_BATCH_SIZE;
-	private DataStructureOperation<K, V> hashOperation = new HashOperation<>();
-	private DataStructureOperation<K, V> listOperation = new ListOperation<>();
-	private DataStructureOperation<K, V> setOperation = new SetOperation<>();
-	private DataStructureOperation<K, V> streamOperation = new StreamOperation();
-	private DataStructureOperation<K, V> stringOperation = new StringOperation<>();
-	private DataStructureOperation<K, V> zsetOperation = new ZsetOperation<>();
+	private final HashOperation hashOperation = new HashOperation();
+	private final ListOperation listOperation = new ListOperation();
+	private final SetOperation setOperation = new SetOperation();
+	private final JsonOperation jsonOperation;
+	private final StreamOperation streamOperation = new StreamOperation();
+	private final StringOperation stringOperation = new StringOperation();
+	private final ZsetOperation zsetOperation = new ZsetOperation();
+	private final TimeSeriesOperation timeseriesOperation = new TimeSeriesOperation();
 
-	public void setHashOperation(DataStructureOperation<K, V> hashOperation) {
-		this.hashOperation = hashOperation;
-	}
-
-	public void setListOperation(DataStructureOperation<K, V> listOperation) {
-		this.listOperation = listOperation;
-	}
-
-	public void setSetOperation(DataStructureOperation<K, V> setOperation) {
-		this.setOperation = setOperation;
-	}
-
-	public void setStreamOperation(DataStructureOperation<K, V> streamOperation) {
-		this.streamOperation = streamOperation;
-	}
-
-	public void setStringOperation(DataStructureOperation<K, V> stringOperation) {
-		this.stringOperation = stringOperation;
-	}
-
-	public void setZsetOperation(DataStructureOperation<K, V> zsetOperation) {
-		this.zsetOperation = zsetOperation;
+	public DataStructureOperationExecutor(RedisCodec<K, V> codec) {
+		this.jsonOperation = new JsonOperation(codec.decodeKey(StringCodec.UTF8.encodeKey("$")));
 	}
 
 	public void setTimeout(Duration timeout) {
 		Utils.assertPositive(timeout, "Timeout duration");
 		this.timeout = timeout;
-	}
-
-	public void setXaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
-		this.xaddArgs = xaddArgs;
 	}
 
 	public void setBatchSize(int batchSize) {
@@ -103,26 +85,32 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
 			return;
 		}
-		switch (ds.getType()) {
-		case HASH:
+		switch (ds.getType().toLowerCase()) {
+		case DataStructure.TYPE_HASH:
 			hashOperation.execute(commands, ds, futures);
 			break;
-		case STRING:
+		case DataStructure.TYPE_STRING:
 			stringOperation.execute(commands, ds, futures);
 			break;
-		case LIST:
+		case DataStructure.TYPE_LIST:
 			listOperation.execute(commands, ds, futures);
 			break;
-		case SET:
+		case DataStructure.TYPE_SET:
 			setOperation.execute(commands, ds, futures);
 			break;
-		case ZSET:
+		case DataStructure.TYPE_ZSET:
 			zsetOperation.execute(commands, ds, futures);
 			break;
-		case STREAM:
+		case DataStructure.TYPE_STREAM:
 			streamOperation.execute(commands, ds, futures);
 			break;
-		case NONE:
+		case DataStructure.TYPE_JSON:
+			jsonOperation.execute(commands, ds, futures);
+			break;
+		case DataStructure.TYPE_TIMESERIES:
+			timeseriesOperation.execute(commands, ds, futures);
+		default:
+			log.warn("Unsupported type {}", ds.getType());
 			break;
 		}
 		if (ds.hasTTL()) {
@@ -150,7 +138,8 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	}
 
-	public static class HashOperation<K, V> extends DelOperation<K, V> {
+	public class HashOperation extends DelOperation<K, V> {
+
 		@SuppressWarnings("unchecked")
 		@Override
 		protected void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
@@ -162,7 +151,8 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		}
 	}
 
-	public static class ListOperation<K, V> extends DelOperation<K, V> {
+	public class ListOperation extends DelOperation<K, V> {
+
 		@SuppressWarnings("unchecked")
 		@Override
 		protected void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
@@ -173,7 +163,8 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		}
 	}
 
-	public static class SetOperation<K, V> extends DelOperation<K, V> {
+	public class SetOperation extends DelOperation<K, V> {
+
 		@SuppressWarnings("unchecked")
 		@Override
 		protected void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
@@ -185,7 +176,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		}
 	}
 
-	public static class ZsetOperation<K, V> extends DelOperation<K, V> {
+	public class ZsetOperation extends DelOperation<K, V> {
 
 		@SuppressWarnings("unchecked")
 		@Override
@@ -198,7 +189,13 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		}
 	}
 
-	private class StreamOperation extends DelOperation<K, V> {
+	public class StreamOperation extends DelOperation<K, V> {
+
+		private Converter<StreamMessage<K, V>, XAddArgs> xaddArgs = m -> new XAddArgs().id(m.getId());
+
+		public void setXaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
+			this.xaddArgs = xaddArgs;
+		}
 
 		@SuppressWarnings("unchecked")
 		@Override
@@ -240,13 +237,44 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	}
 
-	public static class StringOperation<K, V> implements DataStructureOperation<K, V> {
+	public class TimeSeriesOperation implements DataStructureOperation<K, V> {
+
+		@SuppressWarnings("unchecked")
+		@Override
+		public void execute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
+			List<Sample> samples = (List<Sample>) ds.getValue();
+			for (Sample sample : samples) {
+				futures.add(((RedisTimeSeriesAsyncCommands<K, V>) commands).add(ds.getKey(), sample));
+			}
+		}
+	}
+
+	public class JsonOperation implements DataStructureOperation<K, V> {
+
+		private final K path;
+
+		public JsonOperation(K path) {
+			this.path = path;
+		}
+
+		@SuppressWarnings("unchecked")
+		@Override
+		public void execute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
+			futures.add(((RedisJSONAsyncCommands<K, V>) commands).jsonSet(ds.getKey(), path, (V) ds.getValue()));
+		}
+	}
+
+	public class StringOperation implements DataStructureOperation<K, V> {
 
 		@SuppressWarnings("unchecked")
 		@Override
 		public void execute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
 			futures.add(((RedisStringAsyncCommands<K, V>) commands).set(ds.getKey(), (V) ds.getValue()));
 		}
+	}
+
+	public void setXaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
+		streamOperation.setXaddArgs(xaddArgs);
 	}
 
 }
