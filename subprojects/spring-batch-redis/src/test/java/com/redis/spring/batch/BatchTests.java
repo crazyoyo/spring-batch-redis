@@ -75,7 +75,6 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.api.sync.RedisSetCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
-import io.lettuce.core.models.stream.PendingMessages;
 
 class BatchTests extends AbstractTestBase {
 
@@ -109,7 +108,7 @@ class BatchTests extends AbstractTestBase {
 		JobExecution execution = runFlushing(context, name, reader, null, writer);
 		execute(dataGenerator(context, name).end(3).type(Type.STRING).type(Type.HASH));
 		JobRunner.awaitTermination(execution);
-		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
+		Awaitility.await().until(() -> context.sync().dbsize() == writer.getWrittenItems().size());
 	}
 
 	private LiveKeyItemReader<String> keyspaceNotificationReader(RedisTestContext context) {
@@ -126,7 +125,7 @@ class BatchTests extends AbstractTestBase {
 				.type(Type.ZSET).end(2));
 		ListItemWriter<String> writer = new ListItemWriter<>();
 		run(context, name, keyReader, writer);
-		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
+		Awaitility.await().until(() -> context.sync().dbsize() == writer.getWrittenItems().size());
 	}
 
 	@ParameterizedTest
@@ -137,7 +136,7 @@ class BatchTests extends AbstractTestBase {
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(context, name);
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
 		run(context, name, reader, writer);
-		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
+		Awaitility.await().until(() -> context.sync().dbsize() == writer.getWrittenItems().size());
 	}
 
 	@ParameterizedTest
@@ -148,7 +147,7 @@ class BatchTests extends AbstractTestBase {
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(context, name);
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
 		run(context, name, reader, writer);
-		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
+		Awaitility.await().until(() -> context.sync().dbsize() == writer.getWrittenItems().size());
 	}
 
 	private static class SynchronizedListItemWriter<T> implements ItemWriter<T> {
@@ -182,7 +181,7 @@ class BatchTests extends AbstractTestBase {
 		taskExecutor.afterPropertiesSet();
 		launch(job(context, name, step(context, name, synchronizedReader, null, writer).taskExecutor(taskExecutor)
 				.throttleLimit(threads).build()).build());
-		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
+		Awaitility.await().until(() -> context.sync().dbsize() == writer.getWrittenItems().size());
 	}
 
 	@ParameterizedTest
@@ -194,7 +193,7 @@ class BatchTests extends AbstractTestBase {
 		JobExecution execution = runFlushing(context, name, reader, null, writer);
 		execute(dataGenerator(context, name).end(123).type(Type.HASH).type(Type.STRING));
 		JobRunner.awaitTermination(execution);
-		Assertions.assertEquals(context.sync().dbsize(), writer.getWrittenItems().size());
+		Awaitility.await().until(() -> context.sync().dbsize() == writer.getWrittenItems().size());
 	}
 
 	@ParameterizedTest
@@ -213,7 +212,7 @@ class BatchTests extends AbstractTestBase {
 		reader.setName(name(context, name + "-reader"));
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
 		run(context, name, reader, writer);
-		Assertions.assertEquals(50, writer.getWrittenItems().size());
+		Awaitility.await().until(() -> 50 == writer.getWrittenItems().size());
 	}
 
 	private static final long COUNT = 100;
@@ -233,7 +232,7 @@ class BatchTests extends AbstractTestBase {
 		StreamItemReader<String, String> reader = streamReader(redis).build();
 		reader.open(new ExecutionContext());
 		List<StreamMessage<String, String>> messages = reader.readMessages();
-		Assertions.assertEquals(StreamItemReader.DEFAULT_COUNT, messages.size());
+		Awaitility.await().until(() -> StreamItemReader.DEFAULT_COUNT == messages.size());
 		assertMessageBody(messages);
 	}
 
@@ -247,12 +246,12 @@ class BatchTests extends AbstractTestBase {
 	void testStreamReaderJob(RedisTestContext redis) throws Exception {
 		String name = "stream-reader-job";
 		execute(streamDataGenerator(redis, name));
-		Assertions.assertEquals(COUNT, redis.sync().xlen(STREAM));
+		Awaitility.await().until(() -> COUNT == redis.sync().xlen(STREAM));
 		StreamItemReader<String, String> reader = streamReader(redis).build();
 		ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(redis, name, reader, null, writer);
 		JobRunner.awaitTermination(execution);
-		Assertions.assertEquals(COUNT, writer.getWrittenItems().size());
+		Awaitility.await().until(() -> COUNT == writer.getWrittenItems().size());
 		assertMessageBody(writer.getWrittenItems());
 	}
 
@@ -272,18 +271,16 @@ class BatchTests extends AbstractTestBase {
 		JobExecution execution2 = runFlushing(redis, "stream-reader-2", reader2, null, writer2);
 		JobRunner.awaitTermination(execution1);
 		JobRunner.awaitTermination(execution2);
-		Assertions.assertEquals(COUNT, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
+		Awaitility.await().until(() -> COUNT == writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
 		assertMessageBody(writer1.getWrittenItems());
 		assertMessageBody(writer2.getWrittenItems());
 		RedisStreamCommands<String, String> sync = redis.sync();
-		PendingMessages pendingMessages = sync.xpending(STREAM, consumerGroup);
-		Assertions.assertEquals(COUNT, pendingMessages.getCount());
+		Awaitility.await().until(() -> COUNT == sync.xpending(STREAM, consumerGroup).getCount());
 		reader1.open(new ExecutionContext());
 		reader1.ack(writer1.getWrittenItems());
 		reader2.open(new ExecutionContext());
 		reader2.ack(writer2.getWrittenItems());
-		pendingMessages = sync.xpending(STREAM, consumerGroup);
-		Assertions.assertEquals(0, pendingMessages.getCount());
+		Awaitility.await().until(() -> 0 == sync.xpending(STREAM, consumerGroup).getCount());
 	}
 
 	private StreamItemReaderBuilder<String, String> streamReader(RedisTestContext server) {
@@ -306,7 +303,7 @@ class BatchTests extends AbstractTestBase {
 				Xadd.<String, String, Map<String, String>>key(stream).body(t -> t).build()).build();
 		run(redis, "stream-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = redis.sync();
-		Assertions.assertEquals(messages.size(), sync.xlen(stream));
+		Awaitility.await().until(() -> messages.size() == sync.xlen(stream));
 		List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
 		for (int index = 0; index < xrange.size(); index++) {
 			StreamMessage<String, String> message = xrange.get(index);
@@ -355,7 +352,7 @@ class BatchTests extends AbstractTestBase {
 				Hset.<String, String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
 						.build();
 		run(server, "hash-writer", reader, writer);
-		Assertions.assertEquals(maps.size(), server.sync().keys("hash:*").size());
+		Awaitility.await().until(() -> maps.size() == server.sync().keys("hash:*").size());
 		for (int index = 0; index < maps.size(); index++) {
 			Map<String, String> hash = server.sync().hgetall("hash:" + index);
 			Assertions.assertEquals(maps.get(index), hash);
@@ -422,8 +419,8 @@ class BatchTests extends AbstractTestBase {
 				Hset.<String, String, Entry<String, Map<String, String>>>key(e -> "hash:" + e.getKey())
 						.map(Map.Entry::getValue).build()).build();
 		run(server, "hash-del-writer", reader, writer);
-		Assertions.assertEquals(50, sync.keys("hash:*").size());
-		Assertions.assertEquals(2, sync.hgetall("hash:50").size());
+		Awaitility.await().until(() -> 50 == sync.keys("hash:*").size());
+		Awaitility.await().until(() -> 2 == sync.hgetall("hash:50").size());
 	}
 
 	private static class ZValue {
@@ -461,11 +458,10 @@ class BatchTests extends AbstractTestBase {
 				Zadd.<String, String, ZValue>key("zset").value(converter).build()).build();
 		run(server, "sorted-set-writer", reader, writer);
 		RedisModulesCommands<String, String> sync = server.sync();
-		Assertions.assertEquals(1, sync.dbsize());
-		Assertions.assertEquals(values.size(), sync.zcard("zset"));
-		List<String> range = sync.zrangebyscore("zset",
-				Range.from(Range.Boundary.including(0), Range.Boundary.including(5)));
-		Assertions.assertEquals(60, range.size());
+		Awaitility.await().until(() -> 1 == sync.dbsize());
+		Awaitility.await().until(() -> values.size() == sync.zcard("zset"));
+		Awaitility.await().until(() -> 60 == sync
+				.zrangebyscore("zset", Range.from(Range.Boundary.including(0), Range.Boundary.including(5))).size());
 	}
 
 	@ParameterizedTest
@@ -511,7 +507,7 @@ class BatchTests extends AbstractTestBase {
 		log.info("Removing from set");
 		sync.srem(key, "5");
 		JobRunner.awaitTermination(execution);
-		Assertions.assertEquals(sync.smembers(key), target.sync().smembers(key));
+		Awaitility.await().until(() -> sync.smembers(key).equals(target.sync().smembers(key)));
 	}
 
 	@ParameterizedTest
@@ -634,9 +630,8 @@ class BatchTests extends AbstractTestBase {
 		execute(dataGenerator(context, "defaults"));
 		RedisModulesCommands<String, String> sync = context.sync();
 		long expectedCount = Generator.DEFAULT_SEQUENCE.getMaximum() - Generator.DEFAULT_SEQUENCE.getMinimum();
-		long actualStringCount = sync.keys("string:*").size();
-		Assertions.assertEquals(expectedCount, actualStringCount);
-		Assertions.assertEquals(expectedCount * Generator.Type.values().length, sync.dbsize());
+		Awaitility.await().until(() -> expectedCount == sync.keys("string:*").size());
+		Awaitility.await().until(() -> expectedCount * Generator.Type.values().length == sync.dbsize());
 	}
 
 	@ParameterizedTest
@@ -645,13 +640,13 @@ class BatchTests extends AbstractTestBase {
 		int count = 123;
 		execute(dataGenerator(context, "to-options").end(count));
 		RedisModulesCommands<String, String> sync = context.sync();
-		int actualStringCount = sync.keys("string:*").size();
-		Assertions.assertEquals(count, actualStringCount);
+		Awaitility.await().until(() -> count == sync.keys("string:*").size());
 		Awaitility.await().until(() -> count * Generator.Type.values().length == sync.dbsize());
-		Assertions.assertEquals(Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum(), sync.scard("set:100"));
-		Assertions.assertEquals(Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum(), sync.llen("list:101"));
-		Assertions.assertEquals(Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum(), sync.zcard("zset:102"));
-		Assertions.assertEquals(Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum(), sync.xlen("stream:103"));
+		Awaitility.await().until(() -> Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum() == sync.scard("set:100"));
+		Awaitility.await().until(() -> Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum() == sync.llen("list:101"));
+		Awaitility.await().until(() -> Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum() == sync.zcard("zset:102"));
+		Awaitility.await()
+				.until(() -> Generator.DEFAULT_COLLECTION_CARDINALITY.getMinimum() == sync.xlen("stream:103"));
 	}
 
 	@Test
@@ -665,7 +660,7 @@ class BatchTests extends AbstractTestBase {
 		stepBuilder.idleTimeout(Duration.ofMillis(100)).skip(TimeoutException.class)
 				.skipPolicy(new AlwaysSkipItemSkipPolicy());
 		launch(jobBuilderFactory.get(name).start(stepBuilder.build()).build());
-		Assertions.assertEquals(items.size(), writer.getWrittenItems().size() * 2);
+		Awaitility.await().until(() -> items.size() == writer.getWrittenItems().size() * 2);
 	}
 
 	@ParameterizedTest
@@ -683,7 +678,7 @@ class BatchTests extends AbstractTestBase {
 		run(server, name, reader, writer);
 		RedisModulesCommands<String, String> sourceSync = server.sync();
 		RedisModulesCommands<String, String> targetSync = target.sync();
-		Assertions.assertEquals(sourceSync.pfcount(key1), targetSync.pfcount(key1));
+		Awaitility.await().until(() -> sourceSync.pfcount(key1) == targetSync.pfcount(key1));
 	}
 
 	protected static RedisItemWriter<byte[], byte[], DataStructure<byte[]>> binaryDataStructureWriter(
