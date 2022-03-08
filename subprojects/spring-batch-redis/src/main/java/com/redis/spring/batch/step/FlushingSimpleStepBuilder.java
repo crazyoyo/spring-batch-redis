@@ -80,7 +80,7 @@ public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I,
 		chunkProvider.setSkipPolicy(readSkipPolicy);
 		chunkProvider.setRollbackClassifier(getRollbackClassifier());
 		chunkProvider.setFlushingInterval(flushingInterval);
-		chunkProvider.setIdleTimeout(idleTimeout);
+		idleTimeout.ifPresent(chunkProvider::setIdleTimeout);
 		ArrayList<StepListener> listeners = new ArrayList<>(getItemListeners());
 		listeners.addAll(getSkipListeners());
 		chunkProvider.setListeners(listeners);

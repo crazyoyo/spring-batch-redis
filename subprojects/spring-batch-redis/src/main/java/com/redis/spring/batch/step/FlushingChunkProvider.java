@@ -1,7 +1,6 @@
 package com.redis.spring.batch.step;
 
 import java.time.Duration;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -100,12 +99,9 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 		this.flushingInterval = flushingInterval.toMillis();
 	}
 
-	public void setIdleTimeout(Optional<Duration> idleTimeout) {
-		Assert.notNull(idleTimeout, "Idle timeout must not be null");
-		if (idleTimeout.isPresent()) {
-			Utils.assertPositive(idleTimeout.get(), "Idle timeout");
-			this.idleTimeout = idleTimeout.get().toMillis();
-		}
+	public void setIdleTimeout(Duration idleTimeout) {
+		Utils.assertPositive(idleTimeout, "Idle timeout");
+		this.idleTimeout = idleTimeout.toMillis();
 	}
 
 	private void stopTimer(Timer.Sample sample, StepExecution stepExecution, String status) {

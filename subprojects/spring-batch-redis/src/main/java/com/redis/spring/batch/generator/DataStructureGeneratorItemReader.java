@@ -48,9 +48,7 @@ public abstract class DataStructureGeneratorItemReader<T>
 		String key = key();
 		T value = value();
 		DataStructure<String> dataStructure = new DataStructure<>(key, value, type.name().toLowerCase());
-		if (expiration.isPresent()) {
-			dataStructure.setAbsoluteTTL(System.currentTimeMillis() + randomLong(expiration.get()));
-		}
+		expiration.ifPresent(e -> dataStructure.setAbsoluteTTL(System.currentTimeMillis() + randomLong(e)));
 		return dataStructure;
 	}
 

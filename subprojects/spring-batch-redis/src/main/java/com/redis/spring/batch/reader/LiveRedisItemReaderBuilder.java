@@ -36,11 +36,6 @@ public class LiveRedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>>
 		return this;
 	}
 
-	public LiveRedisItemReaderBuilder<K, V, T> idleTimeout(Optional<Duration> idleTimeout) {
-		this.idleTimeout = idleTimeout;
-		return this;
-	}
-
 	public LiveRedisItemReaderBuilder<K, V, T> idleTimeout(Duration idleTimeout) {
 		Utils.assertPositive(idleTimeout, "Idle timeout");
 		this.idleTimeout = Optional.of(idleTimeout);
