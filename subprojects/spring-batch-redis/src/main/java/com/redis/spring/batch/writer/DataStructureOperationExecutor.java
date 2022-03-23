@@ -113,8 +113,8 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 			log.warn("Unsupported type {}", ds.getType());
 			break;
 		}
-		if (ds.hasTTL()) {
-			futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getAbsoluteTTL()));
+		if (ds.hasTtl()) {
+			futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getTtl()));
 		}
 	}
 

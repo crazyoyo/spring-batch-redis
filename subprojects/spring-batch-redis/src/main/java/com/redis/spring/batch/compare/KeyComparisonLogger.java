@@ -43,7 +43,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 			break;
 		case TTL:
 			log.warn("TTL mismatch for key '{}': {} <> {}", comparison.getSource().getKey(),
-					comparison.getSource().getAbsoluteTTL(), comparison.getTarget().getAbsoluteTTL());
+					comparison.getSource().getTtl(), comparison.getTarget().getTtl());
 			break;
 		case TYPE:
 			log.warn("Type mismatch for key '{}': {} <> {}", comparison.getSource().getKey(),

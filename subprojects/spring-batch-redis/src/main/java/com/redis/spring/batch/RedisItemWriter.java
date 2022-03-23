@@ -120,7 +120,7 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 
 		public Builder<K, V, KeyValue<K, byte[]>> keyDump() {
 			RestoreReplace<K, V, KeyValue<K, byte[]>> operation = new RestoreReplace<>(KeyValue::getKey,
-					KeyValue<K, byte[]>::getValue, KeyValue::getAbsoluteTTL);
+					KeyValue<K, byte[]>::getValue, KeyValue::getTtl);
 			return new Builder<>(client, codec, new SimpleOperationExecutor<>(operation));
 		}
 	}

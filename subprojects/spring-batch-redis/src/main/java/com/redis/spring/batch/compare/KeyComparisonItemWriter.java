@@ -126,13 +126,13 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 			return Status.MISSING;
 		}
 		if (Objects.deepEquals(source.getValue(), target.getValue())) {
-			if (source.hasTTL()) {
-				if (target.hasTTL() && Math.abs(source.getAbsoluteTTL() - target.getAbsoluteTTL()) <= ttlTolerance) {
+			if (source.hasTtl()) {
+				if (target.hasTtl() && Math.abs(source.getTtl() - target.getTtl()) <= ttlTolerance) {
 					return Status.OK;
 				}
 				return Status.TTL;
 			}
-			if (target.hasTTL()) {
+			if (target.hasTtl()) {
 				return Status.TTL;
 			}
 			return Status.OK;

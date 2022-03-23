@@ -37,37 +37,6 @@ public class Generator implements Callable<JobExecution> {
 		STRING, LIST, SET, ZSET, HASH, STREAM
 	}
 
-//	public static Type type(String type) {
-//		if (type == null) {
-//			return Type.NONE;
-//		}
-//		return Type.valueOf(type.toUpperCase());
-//	}
-
-//	public static <K, V> DataStructure<K> createString(K key, V value) {
-//		return new DataStructure<>(key, value, Type.STRING);
-//	}
-//
-//	public static <K, V> DataStructure<K> createHash(K key, Map<K, V> value) {
-//		return new DataStructure<>(key, value, Type.HASH);
-//	}
-//
-//	public static <K, V> DataStructure<K> createSet(K key, Set<V> value) {
-//		return new DataStructure<>(key, value, Type.SET);
-//	}
-//
-//	public static <K, V> DataStructure<K> createZset(K key, Collection<ScoredValue<V>> value) {
-//		return new DataStructure<>(key, value, Type.ZSET);
-//	}
-//
-//	public static <K, V> DataStructure<K> createList(K key, List<V> value) {
-//		return new DataStructure<>(key, value, Type.LIST);
-//	}
-//
-//	public static <K, V> DataStructure<K> createStream(K key, Collection<StreamMessage<K, V>> value) {
-//		return new DataStructure<>(key, value, Type.STREAM);
-//	}
-
 	private static final String NAME = "generator";
 
 	public static final int DEFAULT_CHUNK_SIZE = 50;

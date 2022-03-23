@@ -18,7 +18,7 @@ public class KeyValue<K, T> {
 	 * Expiration POSIX time in milliseconds for this key.
 	 *
 	 */
-	private Long absoluteTTL;
+	private Long ttl;
 
 	public KeyValue() {
 	}
@@ -32,14 +32,14 @@ public class KeyValue<K, T> {
 		this.value = value;
 	}
 
-	public KeyValue(K key, T value, Long absoluteTTL) {
+	public KeyValue(K key, T value, Long absoluteTtl) {
 		this.key = key;
 		this.value = value;
-		this.absoluteTTL = absoluteTTL;
+		this.ttl = absoluteTtl;
 	}
 
-	public boolean hasTTL() {
-		return absoluteTTL != null && absoluteTTL > 0;
+	public boolean hasTtl() {
+		return ttl != null && ttl > 0;
 	}
 
 	public K getKey() {
@@ -58,17 +58,17 @@ public class KeyValue<K, T> {
 		this.value = value;
 	}
 
-	public Long getAbsoluteTTL() {
-		return absoluteTTL;
+	public Long getTtl() {
+		return ttl;
 	}
 
-	public void setAbsoluteTTL(long absoluteTTL) {
-		this.absoluteTTL = absoluteTTL;
+	public void setTtl(long absoluteTtl) {
+		this.ttl = absoluteTtl;
 	}
 
 	@Override
 	public String toString() {
-		return "KeyValue [key=" + key + ", value=" + value + ", absoluteTTL=" + absoluteTTL + "]";
+		return "KeyValue [key=" + key + ", value=" + value + ", ttl=" + ttl + "]";
 	}
 
 }

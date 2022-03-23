@@ -43,7 +43,7 @@ public class DataStructure<K> extends KeyValue<K, Object> {
 	@Override
 	public String toString() {
 		return "DataStructure [type=" + type + ", key=" + getKey() + ", value=" + getValue() + ", absoluteTTL="
-				+ getAbsoluteTTL() + "]";
+				+ getTtl() + "]";
 	}
 
 }

@@ -67,7 +67,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 				}
 			}
 			long absoluteTTL = ttlFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
-			dataStructure.setAbsoluteTTL(absoluteTTL);
+			dataStructure.setTtl(absoluteTTL);
 		}
 		return dataStructures;
 	}
