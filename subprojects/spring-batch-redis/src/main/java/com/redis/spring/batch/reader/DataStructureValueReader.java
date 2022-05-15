@@ -29,7 +29,7 @@ import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
 public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, DataStructure<K>> {
 
-	private static final RangeOptions RANGE_OPTIONS = RangeOptions.builder().build();
+	private static final RangeOptions RANGE_OPTIONS = RangeOptions.from(Long.MIN_VALUE).build();
 
 	public DataStructureValueReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,

@@ -24,7 +24,7 @@ public class SampleConverter<T> implements Converter<T, Sample> {
         if (timestamp == null) {
             timestamp = 0L;
         }
-        return new Sample(timestamp, value);
+        return Sample.of(timestamp, value);
     }
 
 }
