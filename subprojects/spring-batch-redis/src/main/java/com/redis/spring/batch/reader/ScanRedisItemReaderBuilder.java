@@ -4,7 +4,7 @@ import java.util.Optional;
 
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.reader.AbstractValueReader.ValueReaderBuilder;
+import com.redis.spring.batch.reader.AbstractValueReader.ValueReaderFactory;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
@@ -15,10 +15,9 @@ public class ScanRedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>>
 	private String match = ScanKeyItemReader.DEFAULT_SCAN_MATCH;
 	private long count = ScanKeyItemReader.DEFAULT_SCAN_COUNT;
 	private Optional<String> type = Optional.empty();
-	
 
 	public ScanRedisItemReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
-			ValueReaderBuilder<K, V, T> valueReaderFactory) {
+			ValueReaderFactory<K, V, T> valueReaderFactory) {
 		super(client, codec, valueReaderFactory);
 	}
 
@@ -37,19 +36,18 @@ public class ScanRedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>>
 		return this;
 	}
 
-	public RedisItemReader<K, T> build() {
+	public RedisItemReader<K, T> build() throws Exception {
 		ScanKeyItemReader<K, V> keyReader = new ScanKeyItemReader<>(connectionSupplier(), sync());
 		keyReader.setCount(count);
 		keyReader.setMatch(match);
 		keyReader.setType(type);
-		return configure(new RedisItemReader<>(jobRepository, transactionManager, keyReader, valueReader()));
+		return configure(new RedisItemReader<>(jobRunner(), keyReader, valueReader()));
 	}
 
 	public LiveRedisItemReaderBuilder<K, V, T> live() {
 		LiveRedisItemReaderBuilder<K, V, T> live = new LiveRedisItemReaderBuilder<>(client, codec, valueReaderFactory);
 		live.keyPatterns(match);
-		live.jobRepository(jobRepository);
-		live.transactionManager(transactionManager);
+		live.jobRunner(jobRunner);
 		live.chunkSize(chunkSize);
 		live.threads(threads);
 		live.valueQueueCapacity(valueQueueCapacity);

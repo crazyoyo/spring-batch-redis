@@ -36,14 +36,15 @@ public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyValue
 			dumpFutures.add(((RedisKeyAsyncCommands<K, V>) commands).dump(key));
 		}
 		commands.flushCommands();
-		List<KeyValue<K, byte[]>> dumps = new ArrayList<>(keys.size());
+		List<KeyValue<K, byte[]>> keyValueList = new ArrayList<>(keys.size());
 		for (int index = 0; index < keys.size(); index++) {
-			K key = keys.get(index);
-			Long absoluteTTL = ttlFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
-			byte[] bytes = dumpFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
-			dumps.add(new KeyValue<>(key, bytes, absoluteTTL));
+			KeyValue<K, byte[]> keyValue = new KeyValue<>();
+			keyValue.setKey(keys.get(index));
+			keyValue.setValue(dumpFutures.get(index).get(timeout, TimeUnit.MILLISECONDS));
+			keyValue.setTtl(ttlFutures.get(index).get(timeout, TimeUnit.MILLISECONDS));
+			keyValueList.add(keyValue);
 		}
-		return dumps;
+		return keyValueList;
 	}
 
 }

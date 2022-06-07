@@ -20,24 +20,6 @@ public class KeyValue<K, T> {
 	 */
 	private Long ttl;
 
-	public KeyValue() {
-	}
-
-	public KeyValue(K key) {
-		this.key = key;
-	}
-
-	public KeyValue(K key, T value) {
-		this.key = key;
-		this.value = value;
-	}
-
-	public KeyValue(K key, T value, Long absoluteTtl) {
-		this.key = key;
-		this.value = value;
-		this.ttl = absoluteTtl;
-	}
-
 	public boolean hasTtl() {
 		return ttl != null && ttl > 0;
 	}

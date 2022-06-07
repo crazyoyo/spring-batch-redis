@@ -13,6 +13,8 @@ import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
@@ -93,6 +95,27 @@ public class JobRunner {
 					execution.getJobInstance().getJobName(), execution.getStatus()));
 		}
 		return execution;
+	}
+
+	public <I, O> JobExecution run(String name, int chunkSize, ItemReader<I> reader, ItemWriter<O> writer)
+			throws JobExecutionException {
+		return run(job(name, chunkSize, reader, writer));
+	}
+
+	public <I, O> Job job(String name, int chunkSize, ItemReader<I> reader, ItemWriter<O> writer) {
+		return job(name).start(step(name).<I, O>chunk(chunkSize).reader(reader).writer(writer).build()).build();
+	}
+
+	public <I, O> JobExecution runAsync(String name, int chunkSize, ItemReader<I> reader, ItemWriter<O> writer)
+			throws JobExecutionException {
+		return runAsync(job(name, chunkSize, reader, writer));
+	}
+
+	public static JobRunner inMemory() throws Exception {
+		@SuppressWarnings("deprecation")
+		org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean bean = new org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean();
+		bean.afterPropertiesSet();
+		return new JobRunner(bean.getObject(), bean.getTransactionManager());
 	}
 
 }

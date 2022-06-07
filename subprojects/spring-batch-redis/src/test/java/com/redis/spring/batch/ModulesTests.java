@@ -97,9 +97,8 @@ class ModulesTests extends AbstractTestBase {
 			}
 		}, Clock.SYSTEM);
 		Metrics.addRegistry(registry);
-		dataGenerator(context, "metrics").build().call();
-		RedisItemReader<String, DataStructure<String>> reader = configureJobRepository(reader(context).dataStructure())
-				.build();
+		generate("metrics", context);
+		RedisItemReader<String, DataStructure<String>> reader = reader(context).dataStructure().build();
 		reader.open(new ExecutionContext());
 		Search search = registry.find("spring.batch.redis.reader.queue.size");
 		Assertions.assertNotNull(search.gauge());
@@ -150,7 +149,7 @@ class ModulesTests extends AbstractTestBase {
 		server.sync().jsonSet("json:3", "$", JSON_BEER_1);
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server, name);
 		RedisTestContext target = getContext(TARGET);
-		run(server, name, reader, dataStructureWriter(target));
+		run(server, name, reader, dataStructureWriter(target).build());
 		compare(name, server, target);
 	}
 
@@ -164,7 +163,7 @@ class ModulesTests extends AbstractTestBase {
 		server.sync().add(key, 1003, 3);
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server, name);
 		RedisTestContext target = getContext(TARGET);
-		run(server, name, reader, dataStructureWriter(target));
+		run(server, name, reader, dataStructureWriter(target).build());
 		compare(name, server, target);
 	}
 }

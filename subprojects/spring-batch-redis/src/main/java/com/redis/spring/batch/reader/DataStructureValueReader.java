@@ -14,6 +14,7 @@ import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
 import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.spring.batch.DataStructure;
+import com.redis.spring.batch.DataStructure.Type;
 
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
@@ -54,7 +55,10 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 			String type = typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
 			valueFutures.add(value(commands, key, type));
 			ttlFutures.add(absoluteTTL(commands, key));
-			dataStructures.add(new DataStructure<>(key, type));
+			DataStructure<K> dataStructure = new DataStructure<>();
+			dataStructure.setKey(key);
+			dataStructure.setType(type);
+			dataStructures.add(dataStructure);
 		}
 		commands.flushCommands();
 		for (int index = 0; index < dataStructures.size(); index++) {
@@ -87,22 +91,22 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 		if (type == null) {
 			return null;
 		}
-		switch (type.toLowerCase()) {
-		case DataStructure.TYPE_HASH:
+		switch (Type.of(type)) {
+		case HASH:
 			return ((RedisHashAsyncCommands<K, V>) commands).hgetall(key);
-		case DataStructure.TYPE_LIST:
+		case LIST:
 			return ((RedisListAsyncCommands<K, V>) commands).lrange(key, 0, -1);
-		case DataStructure.TYPE_SET:
+		case SET:
 			return ((RedisSetAsyncCommands<K, V>) commands).smembers(key);
-		case DataStructure.TYPE_STREAM:
+		case STREAM:
 			return ((RedisStreamAsyncCommands<K, V>) commands).xrange(key, Range.create("-", "+"));
-		case DataStructure.TYPE_STRING:
+		case STRING:
 			return ((RedisStringAsyncCommands<K, V>) commands).get(key);
-		case DataStructure.TYPE_ZSET:
+		case ZSET:
 			return ((RedisSortedSetAsyncCommands<K, V>) commands).zrangeWithScores(key, 0, -1);
-		case DataStructure.TYPE_JSON:
+		case JSON:
 			return ((RedisJSONAsyncCommands<K, V>) commands).jsonGet(key);
-		case DataStructure.TYPE_TIMESERIES:
+		case TIMESERIES:
 			return ((RedisTimeSeriesAsyncCommands<K, V>) commands).range(key, RANGE_OPTIONS);
 		default:
 			return null;

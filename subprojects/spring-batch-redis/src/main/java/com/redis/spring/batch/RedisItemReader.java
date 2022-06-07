@@ -17,7 +17,6 @@ import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.job.builder.SimpleJobBuilder;
-import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.skip.LimitCheckingItemSkipPolicy;
@@ -27,10 +26,10 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import com.redis.spring.batch.reader.AbstractValueReader.ValueReaderFactory;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.KeyDumpValueReader;
 import com.redis.spring.batch.reader.RedisValueEnqueuer;
@@ -41,10 +40,8 @@ import com.redis.spring.batch.support.JobRunner;
 import com.redis.spring.batch.support.Utils;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisCommandTimeoutException;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
@@ -77,18 +74,16 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	private String name;
 	private boolean open;
 
-	public RedisItemReader(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-			ItemReader<K> keyReader, ValueReader<K, T> valueReader) {
+	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, ValueReader<K, T> valueReader) {
 		setName(ClassUtils.getShortName(getClass()));
-		Assert.notNull(jobRepository, "A job repository is required");
-		Assert.notNull(transactionManager, "A platform transaction manager is required");
+		Assert.notNull(jobRunner, "A job runner is required");
 		Assert.notNull(keyReader, "A key reader is required");
 		Assert.notNull(valueReader, "A value reader is required");
 		this.keyReader = keyReader;
 		this.valueReader = valueReader;
 		this.valueQueue = new LinkedBlockingQueue<>(queueCapacity);
 		this.enqueuer = new RedisValueEnqueuer<>(valueReader, valueQueue);
-		this.jobRunner = new JobRunner(jobRepository, transactionManager);
+		this.jobRunner = jobRunner;
 	}
 
 	public static SkipPolicy limitCheckingSkipPolicy(int skipLimit) {
@@ -223,19 +218,11 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		return open;
 	}
 
-	public static Builder<String, String> client(RedisClient client) {
+	public static Builder<String, String> client(AbstractRedisClient client) {
 		return new Builder<>(client, StringCodec.UTF8);
 	}
 
-	public static Builder<String, String> client(RedisClusterClient client) {
-		return new Builder<>(client, StringCodec.UTF8);
-	}
-
-	public static <K, V> Builder<K, V> client(RedisClient client, RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec);
-	}
-
-	public static <K, V> Builder<K, V> client(RedisClusterClient client, RedisCodec<K, V> codec) {
+	public static <K, V> Builder<K, V> client(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		return new Builder<>(client, codec);
 	}
 
@@ -250,11 +237,15 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		}
 
 		public ScanRedisItemReaderBuilder<K, V, DataStructure<K>> dataStructure() {
-			return new ScanRedisItemReaderBuilder<K, V, DataStructure<K>>(client, codec, DataStructureValueReader::new);
+			ValueReaderFactory<K, V, DataStructure<K>> valueReaderFactory = (c, p,
+					a) -> new DataStructureValueReader<K, V>(c, p, a);
+			return new ScanRedisItemReaderBuilder<>(client, codec, valueReaderFactory);
 		}
 
 		public ScanRedisItemReaderBuilder<K, V, KeyValue<K, byte[]>> keyDump() {
-			return new ScanRedisItemReaderBuilder<K, V, KeyValue<K, byte[]>>(client, codec, KeyDumpValueReader::new);
+			ValueReaderFactory<K, V, KeyValue<K, byte[]>> valueReaderFactory = (c, p,
+					a) -> new KeyDumpValueReader<K, V>(c, p, a);
+			return new ScanRedisItemReaderBuilder<>(client, codec, valueReaderFactory);
 		}
 
 		public StreamItemReaderBuilder<K, V> stream(K name) {

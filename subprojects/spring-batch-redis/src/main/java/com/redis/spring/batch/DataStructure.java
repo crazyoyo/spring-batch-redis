@@ -1,36 +1,14 @@
 package com.redis.spring.batch;
 
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import org.springframework.util.Assert;
+
 public class DataStructure<K> extends KeyValue<K, Object> {
 
-	public static final String TYPE_SET = "set";
-	public static final String TYPE_LIST = "list";
-	public static final String TYPE_ZSET = "zset";
-	public static final String TYPE_STREAM = "stream";
-	public static final String TYPE_STRING = "string";
-	public static final String TYPE_HASH = "hash";
-	public static final String TYPE_NONE = "none";
-	public static final String TYPE_JSON = "rejson-rl";
-	public static final String TYPE_TIMESERIES = "tsdb-type";
-
 	private String type;
-
-	public DataStructure() {
-	}
-
-	public DataStructure(K key, String type) {
-		super(key);
-		this.type = type;
-	}
-
-	public DataStructure(K key, Object value, String type) {
-		super(key, value);
-		this.type = type;
-	}
-
-	public DataStructure(K key, Object value, Long absoluteTTL, String type) {
-		super(key, value, absoluteTTL);
-		this.type = type;
-	}
 
 	public String getType() {
 		return type;
@@ -40,10 +18,58 @@ public class DataStructure<K> extends KeyValue<K, Object> {
 		this.type = type;
 	}
 
+	public void setType(Type type) {
+		Assert.notNull(type, "Type must not be null");
+		this.type = type.getString();
+	}
+
 	@Override
 	public String toString() {
 		return "DataStructure [type=" + type + ", key=" + getKey() + ", value=" + getValue() + ", absoluteTTL="
 				+ getTtl() + "]";
+	}
+
+	public enum Type {
+
+		SET, LIST, ZSET, STREAM, STRING, HASH, NONE, JSON("ReJSON-RL"), TIMESERIES("TSDB-TYPE");
+
+		private static final Map<String, Type> TYPES = Stream.of(Type.values())
+				.collect(Collectors.toMap(Type::getString, t -> t));
+
+		private String name;
+
+		Type() {
+			this.name = name().toLowerCase();
+		}
+
+		Type(String name) {
+			this.name = name;
+		}
+
+		/**
+		 * 
+		 * @return The Redis type string
+		 */
+		public String getString() {
+			return name;
+		}
+
+		@Override
+		public String toString() {
+			return name;
+		}
+
+		public static Type of(String name) {
+			if (name == null) {
+				throw new NullPointerException("Name is null");
+			}
+			Type result = TYPES.get(name);
+			if (result != null) {
+				return result;
+			}
+			throw new IllegalArgumentException("No type with name " + name);
+		}
+
 	}
 
 }

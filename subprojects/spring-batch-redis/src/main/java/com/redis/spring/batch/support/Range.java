@@ -1,4 +1,4 @@
-package com.redis.spring.batch.generator;
+package com.redis.spring.batch.support;
 
 import java.io.Serializable;
 import java.util.Comparator;

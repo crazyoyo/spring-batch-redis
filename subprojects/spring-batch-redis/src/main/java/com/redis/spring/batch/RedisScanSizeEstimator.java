@@ -12,18 +12,17 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+import com.redis.spring.batch.DataStructure.Type;
 import com.redis.spring.batch.convert.GlobToRegexConverter;
 import com.redis.spring.batch.support.RedisConnectionBuilder;
 import com.redis.spring.batch.support.Utils;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.api.async.RedisServerAsyncCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 
 public class RedisScanSizeEstimator implements Callable<Long> {
@@ -111,11 +110,7 @@ public class RedisScanSizeEstimator implements Callable<Long> {
 		return k -> pattern.matcher(k).matches();
 	}
 
-	public static Builder client(RedisClient client) {
-		return new Builder(client);
-	}
-
-	public static Builder client(RedisClusterClient client) {
+	public static Builder client(AbstractRedisClient client) {
 		return new Builder(client);
 	}
 
@@ -137,6 +132,10 @@ public class RedisScanSizeEstimator implements Callable<Long> {
 		public RedisScanSizeEstimator.Builder match(String match) {
 			this.match = Optional.of(match);
 			return this;
+		}
+
+		public RedisScanSizeEstimator.Builder type(Type type) {
+			return type(type.getString());
 		}
 
 		public RedisScanSizeEstimator.Builder type(String type) {

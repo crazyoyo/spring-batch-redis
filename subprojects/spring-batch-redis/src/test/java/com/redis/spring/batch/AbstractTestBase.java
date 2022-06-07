@@ -34,14 +34,12 @@ import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.RedisItemReader.Builder;
-import com.redis.spring.batch.RedisItemWriter.OperationBuilder;
+import com.redis.spring.batch.RedisItemWriter.DataStructureWriterBuilder;
 import com.redis.spring.batch.compare.KeyComparator;
 import com.redis.spring.batch.compare.KeyComparator.KeyComparatorBuilder;
 import com.redis.spring.batch.compare.KeyComparator.RightComparatorBuilder;
 import com.redis.spring.batch.compare.KeyComparisonLogger;
 import com.redis.spring.batch.compare.KeyComparisonResults;
-import com.redis.spring.batch.generator.Generator;
-import com.redis.spring.batch.generator.Generator.ClientGeneratorBuilder;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReaderBuilder;
@@ -49,16 +47,14 @@ import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ScanRedisItemReaderBuilder;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
-import com.redis.spring.batch.support.JobRepositoryBuilder;
 import com.redis.spring.batch.support.JobRunner;
+import com.redis.spring.batch.support.RandomDataStructureItemReader;
 import com.redis.spring.batch.support.RedisConnectionBuilder;
 import com.redis.spring.batch.writer.RedisOperation;
 import com.redis.testcontainers.junit.AbstractTestcontainersRedisTestBase;
 import com.redis.testcontainers.junit.RedisTestContext;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisClient;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.StringCodec;
 
 @SpringBootTest(classes = BatchTestApplication.class)
@@ -81,6 +77,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	@Autowired
 	private JobLauncher jobLauncher;
 	private JobLauncher asyncJobLauncher;
+	protected JobRunner jobRunner;
 
 	@BeforeEach
 	private void createAsyncJobLauncher() {
@@ -88,19 +85,11 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		launcher.setJobRepository(jobRepository);
 		launcher.setTaskExecutor(new SimpleAsyncTaskExecutor());
 		this.asyncJobLauncher = launcher;
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	protected <B extends JobRepositoryBuilder> B configureJobRepository(B runner) {
-		return (B) runner.jobRepository(jobRepository).transactionManager(transactionManager);
+		this.jobRunner = new JobRunner(jobRepository, transactionManager);
 	}
 
 	private RightComparatorBuilder comparator(RedisTestContext context) {
-		AbstractRedisClient client = context.getClient();
-		if (client instanceof RedisClusterClient) {
-			return KeyComparator.left((RedisClusterClient) client);
-		}
-		return KeyComparator.left((RedisClient) client);
+		return KeyComparator.left(context.getClient());
 	}
 
 	protected void compare(String name, RedisTestContext server, RedisTestContext target) throws Exception {
@@ -112,14 +101,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected KeyComparatorBuilder comparator(String name, RedisTestContext left, RedisTestContext right) {
-		RightComparatorBuilder rightBuilder = comparator(left);
-		KeyComparatorBuilder builder;
-		if (right.isCluster()) {
-			builder = rightBuilder.right(right.getRedisClusterClient());
-		} else {
-			builder = rightBuilder.right(right.getRedisClient());
-		}
-		return configureJobRepository(builder.id(name(left, name)));
+		return comparator(left).right(right.getClient()).jobRunner(jobRunner).id(name(left, name));
 	}
 
 	protected static String name(RedisTestContext context, String name) {
@@ -183,15 +165,21 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return new FlushingSimpleStepBuilder<>(step(redis, name, reader, processor, writer)).idleTimeout(IDLE_TIMEOUT);
 	}
 
-	protected static JobExecution execute(Generator.Builder generator) throws Exception {
-		return JobRunner.awaitTermination(generator.build().call());
+	protected JobExecution generate(String id, RedisTestContext redis) throws JobExecutionException {
+		return generate(id, RandomDataStructureItemReader.builder().build(), redis);
 	}
 
-	protected static OperationBuilder<String, String> writer(RedisTestContext context) {
-		if (context.isCluster()) {
-			return RedisItemWriter.client(context.getRedisClusterClient());
-		}
-		return RedisItemWriter.client(context.getRedisClient());
+	protected JobExecution generate(String id, RandomDataStructureItemReader reader, RedisTestContext redis)
+			throws JobExecutionException {
+		return generate(id, reader, redis, DEFAULT_CHUNK_SIZE);
+	}
+
+	protected JobExecution generate(String id, RandomDataStructureItemReader reader, RedisTestContext redis,
+			int chunkSize) throws JobExecutionException {
+		String name = id + "-generator";
+		reader.setName(name + "-reader");
+		JobRunner jobRunner = new JobRunner(jobRepository, transactionManager);
+		return jobRunner.run(name, chunkSize, reader, dataStructureWriter(redis).xaddArgs(m -> null).build());
 	}
 
 	protected static <T extends AbstractItemStreamItemReader<?>> T setName(T reader, RedisTestContext redis,
@@ -202,24 +190,25 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisTestContext redis, String name)
 			throws Exception {
-		return setName(
-				configureJobRepository(new ScanRedisItemReaderBuilder<String, String, DataStructure<String>>(
-						redis.getClient(), StringCodec.UTF8, DataStructureValueReader::new)).build(),
-				redis, name + "-data-structure");
+		ScanRedisItemReaderBuilder<String, String, DataStructure<String>> builder = new ScanRedisItemReaderBuilder<String, String, DataStructure<String>>(
+				redis.getClient(), StringCodec.UTF8, DataStructureValueReader::new);
+		builder.jobRunner(jobRunner);
+		return setName(builder.build(), redis, name + "-data-structure");
 	}
 
 	protected RedisItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisTestContext redis, String name)
 			throws Exception {
-		return setName(configureJobRepository(reader(redis).keyDump()).build(), redis, name + "-key-dump");
+		ScanRedisItemReaderBuilder<String, String, KeyValue<String, byte[]>> builder = reader(redis).keyDump();
+		builder.jobRunner(jobRunner);
+		return setName(builder.build(), redis, name + "-key-dump");
 	}
 
 	protected static RedisItemWriter<String, String, KeyValue<String, byte[]>> keyDumpWriter(RedisTestContext context) {
-		return writer(context).keyDump().build();
+		return RedisItemWriter.client(context.getClient()).keyDump().build();
 	}
 
-	protected static RedisItemWriter<String, String, DataStructure<String>> dataStructureWriter(
-			RedisTestContext context) {
-		return writer(context).dataStructure().build();
+	protected static DataStructureWriterBuilder<String, String> dataStructureWriter(RedisTestContext context) {
+		return RedisItemWriter.client(context.getClient()).dataStructure();
 	}
 
 	protected static DataStructureValueReader<String, String> dataStructureValueReader(RedisTestContext context) {
@@ -233,25 +222,11 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected static <T> RedisItemWriter.Builder<String, String, T> operationWriter(RedisTestContext context,
 			RedisOperation<String, String, T> operation) {
-		return writer(context).operation(operation);
+		return RedisItemWriter.client(context.getClient()).operation(operation);
 	}
 
 	protected static Builder<String, String> reader(RedisTestContext context) {
-		if (context.isCluster()) {
-			return RedisItemReader.client(context.getRedisClusterClient());
-		}
-		return RedisItemReader.client(context.getRedisClient());
-	}
-
-	protected Generator.Builder dataGenerator(RedisTestContext context, String name) {
-		return configureJobRepository(dataGenerator(context.getClient()).id(name(context, name)));
-	}
-
-	protected ClientGeneratorBuilder dataGenerator(AbstractRedisClient client) {
-		if (client instanceof RedisClusterClient) {
-			return Generator.client((RedisClusterClient) client);
-		}
-		return Generator.client((RedisClient) client);
+		return RedisItemReader.client(context.getClient());
 	}
 
 	protected LiveRedisItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisTestContext redis,
@@ -263,7 +238,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	@SuppressWarnings("unchecked")
 	private <B extends LiveRedisItemReaderBuilder<String, String, ?>> B configureLiveReader(B builder,
 			int notificationQueueCapacity) {
-		return (B) configureJobRepository(builder).idleTimeout(IDLE_TIMEOUT)
+		return (B) builder.jobRunner(jobRunner).idleTimeout(IDLE_TIMEOUT)
 				.notificationQueueCapacity(notificationQueueCapacity);
 	}
 

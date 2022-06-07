@@ -4,51 +4,51 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class KeyComparisonResults {
 
+	private final AtomicLong source = new AtomicLong();
+	private final AtomicLong ok = new AtomicLong();
+	private final AtomicLong missing = new AtomicLong();
+	private final AtomicLong type = new AtomicLong();
+	private final AtomicLong ttl = new AtomicLong();
+	private final AtomicLong value = new AtomicLong();
+
 	/**
 	 * Number of keys in source database
 	 */
-	private final AtomicLong source = new AtomicLong();
-	/**
-	 * Number of identical keys
-	 */
-	private final AtomicLong ok = new AtomicLong();
-	/**
-	 * Number of keys missing in target database
-	 */
-	private final AtomicLong missing = new AtomicLong();
-	/**
-	 * Number of keys with mismatched type (e.g. left=HASH vs right=STRING)
-	 */
-	private final AtomicLong type = new AtomicLong();
-	/**
-	 * Number of keys with mismatched TTL
-	 */
-	private final AtomicLong ttl = new AtomicLong();
-	/**
-	 * Number of keys with mismatched values (e.g. "ABC" vs "ABD")
-	 */
-	private final AtomicLong value = new AtomicLong();
-
 	public long getSource() {
 		return source.get();
 	}
 
+	/**
+	 * Number of identical keys
+	 */
 	public long getOK() {
 		return ok.get();
 	}
 
+	/**
+	 * Number of keys missing in target database
+	 */
 	public long getMissing() {
 		return missing.get();
 	}
 
+	/**
+	 * Number of keys with mismatched TTL
+	 */
 	public long getTTL() {
 		return ttl.get();
 	}
 
+	/**
+	 * Number of keys with mismatched type (e.g. left=HASH vs right=STRING)
+	 */
 	public long getType() {
 		return type.get();
 	}
 
+	/**
+	 * Number of keys with mismatched values (e.g. "ABC" vs "ABD")
+	 */
 	public long getValue() {
 		return value.get();
 	}
@@ -83,6 +83,14 @@ public class KeyComparisonResults {
 
 	public boolean isOK() {
 		return source.get() == ok.get();
+	}
+
+	/**
+	 * 
+	 * @return Number of keys in target database
+	 */
+	public long getTarget() {
+		return getOK() + getTTL() + getType() + getValue();
 	}
 
 }

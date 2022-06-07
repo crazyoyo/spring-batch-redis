@@ -4,17 +4,16 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.reader.LiveKeyItemReader.KeyListener;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
+import com.redis.spring.batch.support.JobRunner;
 
 public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemReader<K, T>
 		implements PollableItemReader<T> {
@@ -24,9 +23,8 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 	private Duration flushingInterval = FlushingSimpleStepBuilder.DEFAULT_FLUSHING_INTERVAL;
 	private Optional<Duration> idleTimeout = Optional.empty();
 
-	public LiveRedisItemReader(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-			LiveKeyItemReader<K> keyReader, ValueReader<K, T> valueReader) {
-		super(jobRepository, transactionManager, keyReader, valueReader);
+	public LiveRedisItemReader(JobRunner jobRunner, LiveKeyItemReader<K> keyReader, ValueReader<K, T> valueReader) {
+		super(jobRunner, keyReader, valueReader);
 		this.keyReader = keyReader;
 	}
 

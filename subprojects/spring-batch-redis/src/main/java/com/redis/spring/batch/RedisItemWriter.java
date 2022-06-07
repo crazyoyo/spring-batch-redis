@@ -30,12 +30,10 @@ import com.redis.spring.batch.writer.operation.TsAdd;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
@@ -74,10 +72,10 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 		}
 	}
 
-	public static class DataStructureBuilder<K, V>
-			extends AbstractRedisItemWriterBuilder<K, V, DataStructure<K>, DataStructureBuilder<K, V>> {
+	public static class DataStructureWriterBuilder<K, V>
+			extends AbstractRedisItemWriterBuilder<K, V, DataStructure<K>, DataStructureWriterBuilder<K, V>> {
 
-		public DataStructureBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		public DataStructureWriterBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			super(client, codec, operationExecutor(client, codec));
 		}
 
@@ -88,7 +86,7 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 			return executor;
 		}
 
-		public DataStructureBuilder<K, V> xaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
+		public DataStructureWriterBuilder<K, V> xaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
 			((DataStructureOperationExecutor<K, V>) executor).setXaddArgs(xaddArgs);
 			return this;
 		}
@@ -114,8 +112,8 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 			return new Builder<>(client, codec, new SimpleOperationExecutor<>(operation));
 		}
 
-		public DataStructureBuilder<K, V> dataStructure() {
-			return new DataStructureBuilder<>(client, codec);
+		public DataStructureWriterBuilder<K, V> dataStructure() {
+			return new DataStructureWriterBuilder<>(client, codec);
 		}
 
 		public Builder<K, V, KeyValue<K, byte[]>> keyDump() {
@@ -125,19 +123,11 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 		}
 	}
 
-	public static OperationBuilder<String, String> client(RedisClient client) {
+	public static OperationBuilder<String, String> client(AbstractRedisClient client) {
 		return new OperationBuilder<>(client, StringCodec.UTF8);
 	}
 
-	public static OperationBuilder<String, String> client(RedisClusterClient client) {
-		return new OperationBuilder<>(client, StringCodec.UTF8);
-	}
-
-	public static <K, V> OperationBuilder<K, V> client(RedisClient client, RedisCodec<K, V> codec) {
-		return new OperationBuilder<>(client, codec);
-	}
-
-	public static <K, V> OperationBuilder<K, V> client(RedisClusterClient client, RedisCodec<K, V> codec) {
+	public static <K, V> OperationBuilder<K, V> client(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		return new OperationBuilder<>(client, codec);
 	}
 

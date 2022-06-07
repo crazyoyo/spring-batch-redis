@@ -8,7 +8,7 @@ import java.util.Optional;
 import org.springframework.core.convert.converter.Converter;
 
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.reader.AbstractValueReader.ValueReaderBuilder;
+import com.redis.spring.batch.reader.AbstractValueReader.ValueReaderFactory;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.spring.batch.support.Utils;
 
@@ -53,7 +53,7 @@ public class LiveRedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>>
 	}
 
 	public LiveRedisItemReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
-			ValueReaderBuilder<K, V, T> valueReaderFactory) {
+			ValueReaderFactory<K, V, T> valueReaderFactory) {
 		super(client, codec, valueReaderFactory);
 	}
 
@@ -62,9 +62,8 @@ public class LiveRedisItemReaderBuilder<K, V, T extends KeyValue<K, ?>>
 		return this;
 	}
 
-	public LiveRedisItemReader<K, T> build() {
-		LiveRedisItemReader<K, T> reader = new LiveRedisItemReader<>(jobRepository, transactionManager, keyReader(),
-				valueReader());
+	public LiveRedisItemReader<K, T> build() throws Exception {
+		LiveRedisItemReader<K, T> reader = new LiveRedisItemReader<>(jobRunner(), keyReader(), valueReader());
 		reader.setFlushingInterval(flushingInterval);
 		reader.setIdleTimeout(idleTimeout);
 		return configure(reader);

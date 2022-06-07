@@ -15,6 +15,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.DataStructure;
+import com.redis.spring.batch.DataStructure.Type;
 import com.redis.spring.batch.compare.KeyComparison.Status;
 import com.redis.spring.batch.reader.ValueReader;
 import com.redis.spring.batch.support.Utils;
@@ -104,40 +105,30 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 	}
 
 	private Status compare(DataStructure<String> source, DataStructure<String> target) {
-		if (source.getType() == null) {
-			if (target.getType() == null) {
-				return Status.OK;
-			}
-			return Status.TYPE;
-		}
-		if (!source.getType().equalsIgnoreCase(target.getType())) {
-			if (target.getType().equals(DataStructure.TYPE_NONE)) {
+		if (!Objects.equals(source.getType(), target.getType())) {
+			if (target.getType().equals(Type.NONE.getString())) {
 				return Status.MISSING;
 			}
 			return Status.TYPE;
 		}
-		if (source.getValue() == null) {
-			if (target.getValue() == null) {
-				return Status.OK;
-			}
+		if (!Objects.deepEquals(source.getValue(), target.getValue())) {
 			return Status.VALUE;
 		}
-		if (target.getValue() == null) {
-			return Status.MISSING;
+		if (!ttlEquals(source.getTtl(), target.getTtl())) {
+			return Status.TTL;
 		}
-		if (Objects.deepEquals(source.getValue(), target.getValue())) {
-			if (source.hasTtl()) {
-				if (target.hasTtl() && Math.abs(source.getTtl() - target.getTtl()) <= ttlTolerance) {
-					return Status.OK;
-				}
-				return Status.TTL;
-			}
-			if (target.hasTtl()) {
-				return Status.TTL;
-			}
-			return Status.OK;
+		return Status.OK;
+
+	}
+
+	private boolean ttlEquals(Long source, Long target) {
+		if (source == null) {
+			return target == null;
 		}
-		return Status.VALUE;
+		if (target == null) {
+			return false;
+		}
+		return Math.abs(source - target) <= ttlTolerance;
 	}
 
 	public KeyComparisonResults getResults() {

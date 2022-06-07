@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.redis.spring.batch.DataStructure;
+import com.redis.spring.batch.DataStructure.Type;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -50,27 +50,39 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 					comparison.getSource().getType(), comparison.getTarget().getType());
 			break;
 		case VALUE:
-			switch (comparison.getSource().getType().toLowerCase()) {
-			case DataStructure.TYPE_SET:
+			Type sourceType;
+			try {
+				sourceType = Type.of(comparison.getSource().getType());
+			} catch (Exception e) {
+				log.warn("Unknown type for key '{}': {}", comparison.getSource().getKey(),
+						comparison.getSource().getType());
+				return;
+			}
+			switch (sourceType) {
+			case SET:
 				showSetDiff(comparison);
 				break;
-			case DataStructure.TYPE_LIST:
+			case LIST:
 				showListDiff(comparison);
 				break;
-			case DataStructure.TYPE_ZSET:
+			case ZSET:
 				showSortedSetDiff(comparison);
 				break;
-			case DataStructure.TYPE_STREAM:
+			case STREAM:
 				showStreamDiff(comparison);
 				break;
-			case DataStructure.TYPE_STRING:
+			case STRING:
+			case JSON:
 				showStringDiff(comparison);
 				break;
-			case DataStructure.TYPE_HASH:
+			case HASH:
 				showHashDiff(comparison);
 				break;
-			default:
-				log.warn("Value mismatch for {} '{}'", comparison.getSource().getType(), comparison.getSource().getKey());
+			case TIMESERIES:
+				showListDiff(comparison);
+				break;
+			case NONE:
+				// Should not happen as it is previously handled as MISSING status
 				break;
 			}
 			break;
@@ -145,20 +157,21 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 	}
 
 	private void showListDiff(KeyComparison comparison) {
-		List<String> sourceList = (List<String>) comparison.getSource().getValue();
-		List<String> targetList = (List<String>) comparison.getTarget().getValue();
+		List<?> sourceList = (List<?>) comparison.getSource().getValue();
+		List<?> targetList = (List<?>) comparison.getTarget().getValue();
 		if (sourceList.size() != targetList.size()) {
-			log.warn("Size mismatch for list '{}': {} <> {}", comparison.getSource().getKey(), sourceList.size(),
-					targetList.size());
+			log.warn("Size mismatch for {} '{}': {} <> {}", comparison.getSource().getType(),
+					comparison.getSource().getKey(), sourceList.size(), targetList.size());
 			return;
 		}
-		List<String> diff = new ArrayList<>();
+		List<Integer> diff = new ArrayList<>();
 		for (int index = 0; index < sourceList.size(); index++) {
 			if (!sourceList.get(index).equals(targetList.get(index))) {
-				diff.add(String.valueOf(index));
+				diff.add(index);
 			}
 		}
-		log.warn("Value mismatch for list '{}' at indexes {}", comparison.getSource().getKey(), diff);
+		log.warn("Value mismatch for {} '{}' at indexes {}", comparison.getSource().getType(),
+				comparison.getSource().getKey(), diff);
 	}
 
 	private void showSetDiff(KeyComparison comparison) {

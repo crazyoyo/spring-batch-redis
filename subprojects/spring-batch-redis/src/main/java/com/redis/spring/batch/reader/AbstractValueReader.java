@@ -88,7 +88,7 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 	protected abstract List<T> read(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends K> keys)
 			throws InterruptedException, ExecutionException, TimeoutException;
 
-	public static interface ValueReaderBuilder<K, V, T extends KeyValue<K, ?>> {
+	public static interface ValueReaderFactory<K, V, T extends KeyValue<K, ?>> {
 
 		ValueReader<K, T> create(Supplier<StatefulConnection<K, V>> connectionSupplier,
 				GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,

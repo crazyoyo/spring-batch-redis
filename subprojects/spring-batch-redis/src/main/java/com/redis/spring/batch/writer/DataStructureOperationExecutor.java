@@ -13,11 +13,13 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.DataStructure;
+import com.redis.spring.batch.DataStructure.Type;
 import com.redis.spring.batch.support.Utils;
 
 import io.lettuce.core.LettuceFutures;
@@ -45,6 +47,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	private Duration timeout = RedisURI.DEFAULT_TIMEOUT_DURATION;
 	private int batchSize = DEFAULT_BATCH_SIZE;
+	private UnknownTypePolicy unknownTypePolicy = UnknownTypePolicy.LOG;
 	private final HashOperation hashOperation = new HashOperation();
 	private final ListOperation listOperation = new ListOperation();
 	private final SetOperation setOperation = new SetOperation();
@@ -53,6 +56,10 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 	private final StringOperation stringOperation = new StringOperation();
 	private final ZsetOperation zsetOperation = new ZsetOperation();
 	private final TimeSeriesOperation timeseriesOperation = new TimeSeriesOperation();
+
+	public enum UnknownTypePolicy {
+		IGNORE, FAIL, LOG
+	}
 
 	public DataStructureOperationExecutor(RedisCodec<K, V> codec) {
 		this.jsonOperation = new JsonOperation(codec.decodeKey(StringCodec.UTF8.encodeKey("$")));
@@ -66,6 +73,11 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 	public void setBatchSize(int batchSize) {
 		Utils.assertPositive(batchSize, "Batch size");
 		this.batchSize = batchSize;
+	}
+
+	public void setUnknownTypePolicy(UnknownTypePolicy unknownTypePolicy) {
+		Assert.notNull(unknownTypePolicy, "Unknown-type policy must not be null");
+		this.unknownTypePolicy = unknownTypePolicy;
 	}
 
 	@Override
@@ -85,32 +97,49 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
 			return;
 		}
-		switch (ds.getType().toLowerCase()) {
-		case DataStructure.TYPE_HASH:
+		Type type;
+		try {
+			type = Type.of(ds.getType());
+		} catch (Exception e) {
+			switch (unknownTypePolicy) {
+			case FAIL:
+				throw new IllegalArgumentException(
+						String.format("Unknown type %s for key %s", ds.getType(), ds.getKey()));
+			case LOG:
+				log.warn("Unknown type {} for key {}", ds.getType(), ds.getKey());
+				break;
+			case IGNORE:
+				break;
+			}
+			return;
+		}
+		switch (type) {
+		case HASH:
 			hashOperation.execute(commands, ds, futures);
 			break;
-		case DataStructure.TYPE_STRING:
+		case STRING:
 			stringOperation.execute(commands, ds, futures);
 			break;
-		case DataStructure.TYPE_LIST:
+		case LIST:
 			listOperation.execute(commands, ds, futures);
 			break;
-		case DataStructure.TYPE_SET:
+		case SET:
 			setOperation.execute(commands, ds, futures);
 			break;
-		case DataStructure.TYPE_ZSET:
+		case ZSET:
 			zsetOperation.execute(commands, ds, futures);
 			break;
-		case DataStructure.TYPE_STREAM:
+		case STREAM:
 			streamOperation.execute(commands, ds, futures);
 			break;
-		case DataStructure.TYPE_JSON:
+		case JSON:
 			jsonOperation.execute(commands, ds, futures);
 			break;
-		case DataStructure.TYPE_TIMESERIES:
+		case TIMESERIES:
 			timeseriesOperation.execute(commands, ds, futures);
-		default:
-			log.warn("Unsupported type {}", ds.getType());
+			break;
+		case NONE:
+			// do nothing
 			break;
 		}
 		if (ds.hasTtl()) {
