@@ -177,6 +177,9 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	protected JobExecution generate(String id, RandomDataStructureItemReader reader, RedisTestContext redis,
 			int chunkSize) throws JobExecutionException {
 		String name = id + "-generator";
+		if (redis.isCluster()) {
+			name += "-cluster";
+		}
 		reader.setName(name + "-reader");
 		JobRunner jobRunner = new JobRunner(jobRepository, transactionManager);
 		return jobRunner.run(name, chunkSize, reader, dataStructureWriter(redis).xaddArgs(m -> null).build());
