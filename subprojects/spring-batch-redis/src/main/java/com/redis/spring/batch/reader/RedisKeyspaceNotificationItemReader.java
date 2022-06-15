@@ -10,15 +10,15 @@ import org.springframework.util.Assert;
 import io.lettuce.core.pubsub.RedisPubSubAdapter;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
-public class LiveRedisKeyItemReader<K, V> extends LiveKeyItemReader<K> {
+public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceNotificationItemReader<K> {
 
-	private static final Logger log = LoggerFactory.getLogger(LiveRedisKeyItemReader.class);
+	private static final Logger log = LoggerFactory.getLogger(RedisKeyspaceNotificationItemReader.class);
 
 	private final Listener listener = new Listener();
 	private final Supplier<StatefulRedisPubSubConnection<K, V>> connectionSupplier;
 	private StatefulRedisPubSubConnection<K, V> connection;
 
-	public LiveRedisKeyItemReader(Supplier<StatefulRedisPubSubConnection<K, V>> connectionSupplier,
+	public RedisKeyspaceNotificationItemReader(Supplier<StatefulRedisPubSubConnection<K, V>> connectionSupplier,
 			Converter<K, K> keyExtractor, K[] patterns) {
 		super(keyExtractor, patterns);
 		Assert.notNull(connectionSupplier, "A pub/sub connection supplier is required");
@@ -51,12 +51,12 @@ public class LiveRedisKeyItemReader<K, V> extends LiveKeyItemReader<K> {
 
 		@Override
 		public void message(K channel, V message) {
-			LiveRedisKeyItemReader.this.message(channel);
+			RedisKeyspaceNotificationItemReader.this.message(channel);
 		}
 
 		@Override
 		public void message(K pattern, K channel, V message) {
-			LiveRedisKeyItemReader.this.message(channel);
+			RedisKeyspaceNotificationItemReader.this.message(channel);
 		}
 
 	}

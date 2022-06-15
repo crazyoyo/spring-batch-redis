@@ -16,6 +16,7 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.FileCopyUtils;
 
+import com.redis.spring.batch.DataStructure;
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
 
@@ -93,6 +94,14 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 		ValueReader<K, T> create(Supplier<StatefulConnection<K, V>> connectionSupplier,
 				GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
 				Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async);
+
+		static <K, V> ValueReaderFactory<K, V, DataStructure<K>> dataStructure() {
+			return DataStructureValueReader::new;
+		}
+
+		static <K, V> ValueReaderFactory<K, V, KeyValue<K, byte[]>> keyDump() {
+			return KeyDumpValueReader::new;
+		}
 
 	}
 

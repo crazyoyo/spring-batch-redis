@@ -1,6 +1,7 @@
 package com.redis.spring.batch.support;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,7 +39,7 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 	public static final Range<Integer> DEFAULT_COLLECTION_CARDINALITY = Range.is(10);
 	public static final Range<Integer> DEFAULT_STRING_VALUE_SIZE = Range.is(100);
 	public static final Range<Double> DEFAULT_ZSET_SCORE = Range.between(0D, 100D);
-	public static final Type[] DEFAULT_TYPES = { Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET };
+	private static final Type[] DEFAULT_TYPES = { Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET };
 
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final Random random = new Random();
@@ -242,6 +243,10 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 		public RandomDataStructureItemReader build() {
 			return new RandomDataStructureItemReader(this);
 		}
+	}
+
+	public static List<Type> defaultTypes() {
+		return Arrays.asList(DEFAULT_TYPES);
 	}
 
 }

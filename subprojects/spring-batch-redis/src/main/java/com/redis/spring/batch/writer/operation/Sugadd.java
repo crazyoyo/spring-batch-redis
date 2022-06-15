@@ -11,20 +11,30 @@ import com.redis.lettucemod.search.Suggestion;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class Sugadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
+public class Sugadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
+	private final Predicate<T> remove;
 	protected final Converter<T, Suggestion<V>> suggestionConverter;
 	private final boolean incr;
 
 	public Sugadd(Converter<T, K> key, Predicate<T> remove, Converter<T, Suggestion<V>> suggestion, boolean incr) {
-		super(key, t -> false, remove);
+		super(key, t -> false);
+		Assert.notNull(remove, "A remove predicate is required");
 		Assert.notNull(suggestion, "A suggestion converter is required");
+		this.remove = remove;
 		this.suggestionConverter = suggestion;
 		this.incr = incr;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
+	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		if (remove.test(item)) {
+			return remove(commands, item, key);
+		}
+		return add(commands, item, key);
+	}
+
+	@SuppressWarnings("unchecked")
 	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Suggestion<V> suggestion = this.suggestionConverter.convert(item);
 		if (incr) {
@@ -34,7 +44,6 @@ public class Sugadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 	}
 
 	@SuppressWarnings("unchecked")
-	@Override
 	protected RedisFuture<Boolean> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Suggestion<V> suggestion = this.suggestionConverter.convert(item);
 		if (suggestion == null) {

@@ -11,15 +11,15 @@ import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubAdapter;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 
-public class LiveRedisClusterKeyItemReader<K, V> extends LiveKeyItemReader<K> {
+public class RedisClusterKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceNotificationItemReader<K> {
 
-	private static final Logger log = LoggerFactory.getLogger(LiveRedisClusterKeyItemReader.class);
+	private static final Logger log = LoggerFactory.getLogger(RedisClusterKeyspaceNotificationItemReader.class);
 
 	private final Listener listener = new Listener();
 	private final Supplier<StatefulRedisClusterPubSubConnection<K, V>> connectionSupplier;
 	private StatefulRedisClusterPubSubConnection<K, V> connection;
 
-	public LiveRedisClusterKeyItemReader(Supplier<StatefulRedisClusterPubSubConnection<K, V>> connectionSupplier,
+	public RedisClusterKeyspaceNotificationItemReader(Supplier<StatefulRedisClusterPubSubConnection<K, V>> connectionSupplier,
 			Converter<K, K> keyExtractor, K[] patterns) {
 		super(keyExtractor, patterns);
 		Assert.notNull(connectionSupplier, "A pub/sub connection supplier is required");
@@ -53,12 +53,12 @@ public class LiveRedisClusterKeyItemReader<K, V> extends LiveKeyItemReader<K> {
 
 		@Override
 		public void message(RedisClusterNode node, K channel, V message) {
-			LiveRedisClusterKeyItemReader.this.message(channel);
+			RedisClusterKeyspaceNotificationItemReader.this.message(channel);
 		}
 
 		@Override
 		public void message(RedisClusterNode node, K pattern, K channel, V message) {
-			LiveRedisClusterKeyItemReader.this.message(channel);
+			RedisClusterKeyspaceNotificationItemReader.this.message(channel);
 		}
 	}
 

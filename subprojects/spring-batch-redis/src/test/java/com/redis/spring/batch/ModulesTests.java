@@ -67,7 +67,7 @@ class ModulesTests extends AbstractTestBase {
 				.build();
 		RedisItemWriter<String, String, JsonNode> writer = operationWriter(context, jsonSet).build();
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
-		run(context, "json-set", reader, writer);
+		run(reader, writer);
 		Assertions.assertEquals(4432, context.sync().keys("beer:*").size());
 		Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
 				new ObjectMapper().readTree(context.sync().jsonGet("beer:1")));
@@ -97,7 +97,7 @@ class ModulesTests extends AbstractTestBase {
 			}
 		}, Clock.SYSTEM);
 		Metrics.addRegistry(registry);
-		generate("metrics", context);
+		generate(context);
 		RedisItemReader<String, DataStructure<String>> reader = reader(context).dataStructure().build();
 		reader.open(new ExecutionContext());
 		Search search = registry.find("spring.batch.redis.reader.queue.size");
@@ -119,7 +119,7 @@ class ModulesTests extends AbstractTestBase {
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
 		RedisItemWriter<String, String, Map<String, String>> writer = operationWriter(context,
 				Xadd.<String, String, Map<String, String>>key(stream).body(t -> t).build()).multiExec().build();
-		run(context, "stream-tx-writer", reader, writer);
+		run(reader, writer);
 		RedisModulesCommands<String, String> sync = context.sync();
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
 		List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
@@ -132,10 +132,9 @@ class ModulesTests extends AbstractTestBase {
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void testComparator(RedisTestContext server) throws Exception {
-		String name = "ts-comparator";
 		RedisTestContext target = getContext(TARGET);
 		server.sync().addAutoTimestamp("ts:1", 123);
-		KeyComparator comparator = comparator(name, server, target).build();
+		KeyComparator comparator = comparator(server, target).build();
 		KeyComparisonResults results = comparator.call();
 		Assertions.assertEquals(1, results.getMissing());
 	}
@@ -143,27 +142,25 @@ class ModulesTests extends AbstractTestBase {
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void testJSONReplication(RedisTestContext server) throws Exception {
-		String name = "json-replication";
 		server.sync().jsonSet("json:1", "$", JSON_BEER_1);
 		server.sync().jsonSet("json:2", "$", JSON_BEER_1);
 		server.sync().jsonSet("json:3", "$", JSON_BEER_1);
-		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server, name);
+		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server);
 		RedisTestContext target = getContext(TARGET);
-		run(server, name, reader, dataStructureWriter(target).build());
-		compare(name, server, target);
+		run(reader, dataStructureWriter(target));
+		compare(server, target);
 	}
 
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void testTimeSeriesReplication(RedisTestContext server) throws Exception {
-		String name = "ts-replication";
 		String key = "ts:1";
 		server.sync().add(key, 1000, 1, CreateOptions.<String, String>builder().policy(DuplicatePolicy.LAST).build());
 		server.sync().add(key, 1001, 2);
 		server.sync().add(key, 1003, 3);
-		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server, name);
+		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(server);
 		RedisTestContext target = getContext(TARGET);
-		run(server, name, reader, dataStructureWriter(target).build());
-		compare(name, server, target);
+		run(reader, dataStructureWriter(target));
+		compare(server, target);
 	}
 }

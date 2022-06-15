@@ -11,7 +11,6 @@ import org.springframework.util.Assert;
 
 import com.redis.spring.batch.DataStructure;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemReader.Builder;
 import com.redis.spring.batch.support.JobRunner;
 import com.redis.spring.batch.support.RedisConnectionBuilder;
 import com.redis.spring.batch.support.Utils;
@@ -57,11 +56,9 @@ public class KeyComparator implements Callable<KeyComparisonResults> {
 
 	@Override
 	public KeyComparisonResults call() throws JobExecutionException {
-		String name = id + "-" + NAME;
 		KeyComparisonItemWriter writer = KeyComparisonItemWriter.valueReader(right.getValueReader()).build();
 		writer.setListeners(listeners);
-		left.setName(name + "-left-reader");
-		jobRunner.run(name, chunkSize, left, writer);
+		jobRunner.run(id + "-" + NAME, chunkSize, left, writer);
 		return writer.getResults();
 	}
 
@@ -77,32 +74,35 @@ public class KeyComparator implements Callable<KeyComparisonResults> {
 			this.left = left;
 		}
 
-		public KeyComparatorBuilder right(AbstractRedisClient client) {
-			return new KeyComparatorBuilder(left, client);
+		public Builder right(AbstractRedisClient client) {
+			return new Builder(left, client);
 		}
 
 	}
 
-	public static class KeyComparatorBuilder extends RedisConnectionBuilder<String, String, KeyComparatorBuilder> {
-
-		public static final int DEFAULT_CHUNK_SIZE = 50;
+	public static class Builder extends RedisConnectionBuilder<String, String, Builder> {
 
 		private String id = UUID.randomUUID().toString();
+		private int chunkSize = RedisItemReader.DEFAULT_CHUNK_SIZE;
 		private final AbstractRedisClient rightClient;
-		private int chunkSize = DEFAULT_CHUNK_SIZE;
 		private Optional<JobRunner> jobRunner = Optional.empty();
 
-		public KeyComparatorBuilder(AbstractRedisClient left, AbstractRedisClient right) {
+		public Builder(AbstractRedisClient left, AbstractRedisClient right) {
 			super(left, StringCodec.UTF8);
 			this.rightClient = right;
 		}
 
-		public KeyComparatorBuilder id(String id) {
+		public Builder id(String id) {
 			this.id = id;
 			return this;
 		}
 
-		public KeyComparatorBuilder jobRunner(JobRunner jobRunner) {
+		public Builder chunkSize(int chunkSize) {
+			this.chunkSize = chunkSize;
+			return this;
+		}
+
+		public Builder jobRunner(JobRunner jobRunner) {
 			this.jobRunner = Optional.of(jobRunner);
 			return this;
 		}
@@ -117,11 +117,11 @@ public class KeyComparator implements Callable<KeyComparisonResults> {
 		}
 
 		private RedisItemReader<String, DataStructure<String>> reader(AbstractRedisClient client) throws Exception {
-			return readerBuilder(client).dataStructure().chunkSize(chunkSize).jobRunner(jobRunner).build();
+			return readerBuilder(client).dataStructure().jobRunner(jobRunner).build();
 		}
 
-		private Builder<String, String> readerBuilder(AbstractRedisClient client) {
-			return RedisItemReader.client(client, codec);
+		private RedisItemReader.TypeBuilder<String, String> readerBuilder(AbstractRedisClient client) {
+			return RedisItemReader.client(client).codec(codec);
 		}
 
 	}

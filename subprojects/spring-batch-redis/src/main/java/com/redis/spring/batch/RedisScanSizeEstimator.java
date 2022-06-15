@@ -10,10 +10,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
+import com.hrakaroo.glob.GlobPattern;
+import com.hrakaroo.glob.MatchingEngine;
 import com.redis.spring.batch.DataStructure.Type;
-import com.redis.spring.batch.convert.GlobToRegexConverter;
 import com.redis.spring.batch.support.RedisConnectionBuilder;
 import com.redis.spring.batch.support.Utils;
 
@@ -106,8 +106,8 @@ public class RedisScanSizeEstimator implements Callable<Long> {
 		if (match.isEmpty()) {
 			return k -> true;
 		}
-		Pattern pattern = Pattern.compile(GlobToRegexConverter.convert(match.get()));
-		return k -> pattern.matcher(k).matches();
+		MatchingEngine engine = GlobPattern.compile(match.get());
+		return engine::matches;
 	}
 
 	public static Builder client(AbstractRedisClient client) {

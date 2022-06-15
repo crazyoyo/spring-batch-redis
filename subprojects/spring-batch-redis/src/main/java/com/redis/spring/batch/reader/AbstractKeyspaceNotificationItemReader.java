@@ -18,22 +18,24 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.support.Utils;
 
-public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements PollableItemReader<K> {
+public abstract class AbstractKeyspaceNotificationItemReader<K> extends ItemStreamSupport
+		implements PollableItemReader<K> {
 
-	private static final Logger log = LoggerFactory.getLogger(LiveKeyItemReader.class);
+	private static final Logger log = LoggerFactory.getLogger(AbstractKeyspaceNotificationItemReader.class);
 
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 	public static final Duration DEFAULT_DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
 
-	private final Collection<KeyListener<K>> listeners = new ArrayList<>();
+	private final Collection<Listener<K>> listeners = new ArrayList<>();
 	private final Converter<K, K> keyExtractor;
 	protected final K[] patterns;
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 	private Duration defaultQueuePollTimeout = DEFAULT_DEFAULT_QUEUE_POLL_TIMEOUT;
+	private boolean open;
 
 	private BlockingQueue<K> queue;
 
-	protected LiveKeyItemReader(Converter<K, K> keyExtractor, K[] patterns) {
+	protected AbstractKeyspaceNotificationItemReader(Converter<K, K> keyExtractor, K[] patterns) {
 		Assert.notNull(patterns, "Patterns must not be null");
 		setName(ClassUtils.getShortName(getClass()));
 		this.keyExtractor = keyExtractor;
@@ -50,7 +52,7 @@ public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements 
 		this.defaultQueuePollTimeout = defaultQueuePollTimeout;
 	}
 
-	public void addListener(KeyListener<K> listener) {
+	public void addListener(Listener<K> listener) {
 		this.listeners.add(listener);
 	}
 
@@ -79,6 +81,7 @@ public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements 
 			this.queue = new LinkedBlockingQueue<>(queueCapacity);
 			Utils.createGaugeCollectionSize("reader.notification.queue.size", queue);
 			doOpen();
+			this.open = true;
 		}
 	}
 
@@ -99,11 +102,16 @@ public abstract class LiveKeyItemReader<K> extends ItemStreamSupport implements 
 		}
 		doClose();
 		queue = null;
+		this.open = false;
+	}
+
+	public boolean isOpen() {
+		return open;
 	}
 
 	protected abstract void doClose();
 
-	public static interface KeyListener<K> {
+	public static interface Listener<K> {
 
 		void key(K key);
 

@@ -10,15 +10,15 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.reader.PollableItemReader;
 
-public class DelegatingPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T>
+public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T>
 		implements PollableItemReader<T> {
 
 	private final ItemReader<T> delegate;
-	private Supplier<Exception> exceptionSupplier = () -> new TimeoutException();
+	private Supplier<Exception> exceptionSupplier = () -> new TimeoutException("Simulated timeout");
 	private long interval = 2;
 
-	public DelegatingPollableItemReader(ItemReader<T> delegate) {
-		setName(ClassUtils.getShortName(DelegatingPollableItemReader.class));
+	public ExceptionThrowingPollableItemReader(ItemReader<T> delegate) {
+		setName(ClassUtils.getShortName(ExceptionThrowingPollableItemReader.class));
 		this.delegate = delegate;
 	}
 

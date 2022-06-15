@@ -6,9 +6,6 @@ import java.util.function.Supplier;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
-import org.springframework.util.Assert;
-
-import com.redis.spring.batch.support.Utils;
 
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.ScanIterator;
@@ -23,29 +20,19 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 	public static final String DEFAULT_SCAN_MATCH = "*";
 	public static final long DEFAULT_SCAN_COUNT = 1000;
 
-	private String match = DEFAULT_SCAN_MATCH;
-	private long count = DEFAULT_SCAN_COUNT;
-	private Optional<String> type = Optional.empty();
+	private final String match;
+	private final long count;
+	private final Optional<String> type;
 
 	private ScanIterator<K> scanIterator;
 
 	public ScanKeyItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
-			Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync) {
+			Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, String match, long count,
+			Optional<String> type) {
 		this.connectionSupplier = connectionSupplier;
 		this.sync = sync;
-	}
-
-	public void setMatch(String match) {
-		Assert.notNull(match, "Scan match cannot be null");
 		this.match = match;
-	}
-
-	public void setCount(long count) {
-		Utils.assertPositive(count, "Scan count");
 		this.count = count;
-	}
-
-	public void setType(Optional<String> type) {
 		this.type = type;
 	}
 

@@ -1,8 +1,11 @@
 package com.redis.spring.batch.support;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 import org.awaitility.Awaitility;
+import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -12,8 +15,10 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
@@ -21,22 +26,35 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 
-import com.redis.spring.batch.step.FlushingStepBuilder;
-
 public class JobRunner {
 
+	public static final Duration DEFAULT_RUNNING_TIMEOUT = Duration.ofSeconds(5);
+	public static final Duration DEFAULT_TERMINATION_TIMEOUT = Duration.ofSeconds(5);
+
+	private Duration runningTimeout = DEFAULT_RUNNING_TIMEOUT;
+	private Duration terminationTimeout = DEFAULT_TERMINATION_TIMEOUT;
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager transactionManager;
-	private final SimpleJobLauncher syncLauncher;
-	private final SimpleJobLauncher asyncLauncher;
+	private final SimpleJobLauncher jobLauncher;
+	private final SimpleJobLauncher asyncJobLauncher;
 
 	public JobRunner(JobRepository jobRepository, PlatformTransactionManager transactionManager) {
 		Assert.notNull(jobRepository, "A job repository is required");
 		Assert.notNull(transactionManager, "A transaction manager is required");
 		this.jobRepository = jobRepository;
 		this.transactionManager = transactionManager;
-		this.syncLauncher = launcher(new SyncTaskExecutor());
-		this.asyncLauncher = launcher(new SimpleAsyncTaskExecutor());
+		this.jobLauncher = launcher(new SyncTaskExecutor());
+		this.asyncJobLauncher = launcher(new SimpleAsyncTaskExecutor());
+	}
+
+	public void setRunningTimeout(Duration runningTimeout) {
+		Utils.assertPositive(runningTimeout, "Running timeout");
+		this.runningTimeout = runningTimeout;
+	}
+
+	public void setTerminationTimeout(Duration terminationTimeout) {
+		Utils.assertPositive(terminationTimeout, "Termination timeout");
+		this.terminationTimeout = terminationTimeout;
 	}
 
 	public JobRepository getJobRepository() {
@@ -66,33 +84,57 @@ public class JobRunner {
 		return new StepBuilder(name).repository(jobRepository).transactionManager(transactionManager);
 	}
 
-	public FlushingStepBuilder flushingStep(String name) {
-		return new FlushingStepBuilder(name).repository(jobRepository).transactionManager(transactionManager);
-	}
-
 	public JobExecution run(Job job) throws JobExecutionException {
-		return awaitTermination(syncLauncher.run(job, new JobParameters()));
+		return awaitTermination(jobLauncher.run(job, new JobParameters()));
 	}
 
-	public static JobExecution awaitTermination(JobExecution execution) throws JobExecutionException {
-		Awaitility.await().timeout(Duration.ofMinutes(1))
-				.until(() -> !execution.isRunning() || execution.getStatus().isUnsuccessful());
+	public static JobExecution awaitTermination(JobExecution execution, Duration timeout) throws JobExecutionException {
+		if (execution != null) {
+			Awaitility.await().timeout(timeout).until(() -> isTerminated(execution));
+		}
+		return checkUnsuccessful(execution);
+	}
+
+	public static boolean isTerminated(JobExecution execution) {
+		return execution.getStatus() == BatchStatus.COMPLETED
+				|| execution.getStatus().isGreaterThan(BatchStatus.STOPPED);
+	}
+
+	public JobExecution awaitTermination(JobExecution execution) throws JobExecutionException {
+		return awaitTermination(execution, terminationTimeout);
+	}
+
+	public void awaitRunning(Callable<Boolean> callable) {
+		Awaitility.await().timeout(runningTimeout).until(callable);
+	}
+
+	public JobExecution awaitRunning(JobExecution execution) throws JobExecutionException {
+		return awaitRunning(execution, runningTimeout);
+	}
+
+	public static JobExecution awaitRunning(JobExecution execution, Duration timeout) throws JobExecutionException {
+		if (execution != null) {
+			Awaitility.await().timeout(timeout).until(() -> execution.getStatus() != BatchStatus.STARTING);
+		}
 		return checkUnsuccessful(execution);
 	}
 
 	public JobExecution runAsync(Job job) throws JobExecutionException {
-		return asyncLauncher.run(job, new JobParameters());
-	}
-
-	public static JobExecution awaitRunning(JobExecution execution) throws JobExecutionException {
-		Awaitility.await().until(() -> execution.isRunning() || execution.getStatus().isUnsuccessful());
-		return checkUnsuccessful(execution);
+		return awaitRunning(asyncJobLauncher.run(job, new JobParameters()));
 	}
 
 	private static JobExecution checkUnsuccessful(JobExecution execution) throws JobExecutionException {
+		if (execution == null) {
+			throw new JobExecutionException("Job execution is null");
+		}
 		if (execution.getStatus().isUnsuccessful()) {
-			throw new JobExecutionException(String.format("Status of job '%s': %s",
-					execution.getJobInstance().getJobName(), execution.getStatus()));
+			String message = String.format("Status of job '%s': %s", execution.getJobInstance().getJobName(),
+					execution.getStatus());
+			List<Throwable> exceptions = execution.getAllFailureExceptions();
+			if (exceptions.isEmpty()) {
+				throw new JobExecutionException(message);
+			}
+			throw new JobExecutionException(message, exceptions.get(0));
 		}
 		return execution;
 	}
@@ -103,7 +145,21 @@ public class JobRunner {
 	}
 
 	public <I, O> Job job(String name, int chunkSize, ItemReader<I> reader, ItemWriter<O> writer) {
-		return job(name).start(step(name).<I, O>chunk(chunkSize).reader(reader).writer(writer).build()).build();
+		return job(name, step(name, chunkSize, reader, writer));
+	}
+
+	public Job job(String name, SimpleStepBuilder<?, ?> step) {
+		return job(name).start(step.build()).build();
+	}
+
+	public <I, O> SimpleStepBuilder<I, O> step(String name, int chunkSize, ItemReader<I> reader, ItemWriter<O> writer) {
+		if (reader instanceof ItemStreamSupport) {
+			((ItemStreamSupport) reader).setName(name + "-reader");
+		}
+		if (writer instanceof ItemStreamSupport) {
+			((ItemStreamSupport) writer).setName(name + "-writer");
+		}
+		return step(name).<I, O>chunk(chunkSize).reader(reader).writer(writer);
 	}
 
 	public <I, O> JobExecution runAsync(String name, int chunkSize, ItemReader<I> reader, ItemWriter<O> writer)

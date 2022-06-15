@@ -20,6 +20,7 @@ import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.DataStructure;
 import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.support.Utils;
 
 import io.lettuce.core.LettuceFutures;
@@ -43,10 +44,8 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	private static final Logger log = LoggerFactory.getLogger(DataStructureOperationExecutor.class);
 
-	private static final int DEFAULT_BATCH_SIZE = 50;
-
 	private Duration timeout = RedisURI.DEFAULT_TIMEOUT_DURATION;
-	private int batchSize = DEFAULT_BATCH_SIZE;
+	private int chunkSize = RedisItemReader.DEFAULT_CHUNK_SIZE;
 	private UnknownTypePolicy unknownTypePolicy = UnknownTypePolicy.LOG;
 	private final HashOperation hashOperation = new HashOperation();
 	private final ListOperation listOperation = new ListOperation();
@@ -70,9 +69,9 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		this.timeout = timeout;
 	}
 
-	public void setBatchSize(int batchSize) {
-		Utils.assertPositive(batchSize, "Batch size");
-		this.batchSize = batchSize;
+	public void setChunkSize(int chunkSize) {
+		Utils.assertPositive(chunkSize, "Chunk size");
+		this.chunkSize = chunkSize;
 	}
 
 	public void setUnknownTypePolicy(UnknownTypePolicy unknownTypePolicy) {
@@ -220,10 +219,14 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	public class StreamOperation extends DelOperation<K, V> {
 
-		private Converter<StreamMessage<K, V>, XAddArgs> xaddArgs = m -> new XAddArgs().id(m.getId());
+		private Converter<StreamMessage<K, V>, XAddArgs> xaddArgs = m -> null;
 
 		public void setXaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
 			this.xaddArgs = xaddArgs;
+		}
+
+		public void setXaddArgsIdentity() {
+			this.xaddArgs = m -> new XAddArgs().id(m.getId());
 		}
 
 		@SuppressWarnings("unchecked")
@@ -244,9 +247,9 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 			if (size <= 0) {
 				return Stream.empty();
 			}
-			int fullChunks = (size - 1) / batchSize;
+			int fullChunks = (size - 1) / chunkSize;
 			return IntStream.range(0, fullChunks + 1)
-					.mapToObj(n -> source.subList(n * batchSize, n == fullChunks ? size : (n + 1) * batchSize));
+					.mapToObj(n -> source.subList(n * chunkSize, n == fullChunks ? size : (n + 1) * chunkSize));
 		}
 
 		private void flush(BaseRedisAsyncCommands<K, V> commands, List<Future<?>> futures) {

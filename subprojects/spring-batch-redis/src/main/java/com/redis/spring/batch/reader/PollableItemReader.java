@@ -17,6 +17,6 @@ public interface PollableItemReader<T> extends ItemStreamReader<T> {
 	 *         time elapses before an element is available
 	 * @throws InterruptedException if interrupted while waiting
 	 */
-	T poll(long timeout, TimeUnit unit) throws Exception;
+	T poll(long timeout, TimeUnit unit) throws Exception, InterruptedException;
 
 }

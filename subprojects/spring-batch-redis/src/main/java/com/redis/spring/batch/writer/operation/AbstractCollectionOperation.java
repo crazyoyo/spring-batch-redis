@@ -24,8 +24,8 @@ public abstract class AbstractCollectionOperation<K, V, T> extends AbstractKeyOp
 		return add(commands, item, key);
 	}
 
-	protected abstract RedisFuture<?> add(BaseRedisAsyncCommands<K, V> commands, T item, K key);
+	protected abstract RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key);
 
-	protected abstract RedisFuture<?> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key);
+	protected abstract RedisFuture<Long> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key);
 
 }
