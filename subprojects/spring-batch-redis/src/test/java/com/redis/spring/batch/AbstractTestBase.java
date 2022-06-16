@@ -1,11 +1,11 @@
 package com.redis.spring.batch;
 
 import java.time.Duration;
-import java.util.UUID;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.RedisItemReader.TypeBuilder;
 import com.redis.spring.batch.RedisItemWriter.CodecBuilder;
@@ -64,6 +65,13 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	private JobLauncher jobLauncher;
 	protected JobRunner jobRunner;
 
+	private TestInfo testInfo;
+
+	@BeforeEach
+	void init(TestInfo testInfo) {
+		this.testInfo = testInfo;
+	}
+
 	@BeforeEach
 	private void createJobRunner() {
 		this.jobRunner = new JobRunner(jobRepository, transactionManager);
@@ -93,30 +101,45 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		Awaitility.await().until(() -> !itemStream.isOpen());
 	}
 
-	protected <I, O> JobExecution run(ItemReader<I> reader, ItemWriter<O> writer) throws JobExecutionException {
-		return jobRunner.run(UUID.randomUUID().toString(), RedisItemReader.DEFAULT_CHUNK_SIZE, reader, writer);
+	protected <I, O> JobExecution run(RedisTestContext redis, ItemReader<I> reader, ItemWriter<O> writer)
+			throws JobExecutionException {
+		return run(name(redis), reader, writer);
 	}
 
-	protected <I, O> JobExecution runFlushing(PollableItemReader<I> reader, ItemWriter<O> writer)
+	protected <I, O> JobExecution run(String id, ItemReader<I> reader, ItemWriter<O> writer)
 			throws JobExecutionException {
-		String name = UUID.randomUUID().toString();
+		return jobRunner.run(id, RedisItemReader.DEFAULT_CHUNK_SIZE, reader, writer);
+	}
+
+	protected <I, O> JobExecution runFlushing(RedisTestContext redis, PollableItemReader<I> reader,
+			ItemWriter<O> writer) throws JobExecutionException {
+		return runFlushing(name(redis), reader, writer);
+	}
+
+	protected <I, O> JobExecution runFlushing(String name, PollableItemReader<I> reader, ItemWriter<O> writer)
+			throws JobExecutionException {
 		return jobRunner.runAsync(jobRunner.job(name,
 				new FlushingSimpleStepBuilder<>(
 						jobRunner.step(name, RedisItemReader.DEFAULT_CHUNK_SIZE, reader, writer))
 						.idleTimeout(DEFAULT_IDLE_TIMEOUT)));
 	}
 
-	protected <I, O> JobExecution runAsync(ItemReader<I> reader, ItemWriter<O> writer) throws JobExecutionException {
-		return runAsync(UUID.randomUUID().toString(), reader, writer);
+	protected <I, O> JobExecution runAsync(RedisTestContext redis, ItemReader<I> reader, ItemWriter<O> writer)
+			throws JobExecutionException {
+		return runAsync(name(redis), redis, reader, writer);
 	}
 
-	protected <I, O> JobExecution runAsync(String name, ItemReader<I> reader, ItemWriter<O> writer)
+	private <I, O> JobExecution runAsync(String id, RedisTestContext redis, ItemReader<I> reader, ItemWriter<O> writer)
 			throws JobExecutionException {
-		return jobRunner.runAsync(name, RedisItemReader.DEFAULT_CHUNK_SIZE, reader, writer);
+		return jobRunner.runAsync(id, RedisItemReader.DEFAULT_CHUNK_SIZE, reader, writer);
+	}
+
+	protected String name(RedisTestContext redis) {
+		return testInfo.getTestMethod().get().getName() + "-" + ClassUtils.getShortName(redis.getServer().getClass());
 	}
 
 	protected void generate(RedisTestContext server) throws JobExecutionException {
-		run(RandomDataStructureItemReader.builder().build(), dataStructureWriter(server));
+		run(name(server) + "-gen", RandomDataStructureItemReader.builder().build(), dataStructureWriter(server));
 	}
 
 	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisTestContext redis)
