@@ -93,10 +93,6 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return comparator(left).right(right.getClient()).jobRunner(jobRunner);
 	}
 
-	protected String name(RedisTestContext context, String name) {
-		return context.getRedisURI() + "-" + name;
-	}
-
 	protected void awaitClosed(ConnectionPoolItemStream<?, ?> itemStream) {
 		Awaitility.await().until(() -> !itemStream.isOpen());
 	}

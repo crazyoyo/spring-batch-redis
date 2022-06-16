@@ -112,7 +112,7 @@ class BatchTests extends AbstractTestBase {
 		ListItemWriter<String> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(redis, reader, writer);
 		log.info("Keyspace-notification reader open={}", reader.isOpen());
-		run(name(redis, "-gen"), RandomDataStructureItemReader.builder().end(3).types(Type.STRING, Type.HASH).build(),
+		run(name(redis) + "-gen", RandomDataStructureItemReader.builder().end(3).types(Type.STRING, Type.HASH).build(),
 				dataStructureWriter(redis));
 		jobRunner.awaitTermination(execution);
 		Assertions.assertEquals(redis.sync().dbsize(), writer.getWrittenItems().size());
@@ -204,10 +204,10 @@ class BatchTests extends AbstractTestBase {
 		taskExecutor.setMaxPoolSize(threads);
 		taskExecutor.setCorePoolSize(threads);
 		taskExecutor.afterPropertiesSet();
-		TaskletStep step = stepBuilderFactory.get("testMultiThreadedReader-step")
+		TaskletStep step = stepBuilderFactory.get(name(redis) + "-step")
 				.<DataStructure<String>, DataStructure<String>>chunk(RedisItemReader.DEFAULT_CHUNK_SIZE)
 				.reader(synchronizedReader).writer(writer).taskExecutor(taskExecutor).throttleLimit(threads).build();
-		jobRunner.run(jobBuilderFactory.get(name(redis, "testMultiThreadedReader")).start(step).build());
+		jobRunner.run(jobBuilderFactory.get(name(redis) + "-job").start(step).build());
 		Awaitility.await().until(() -> !reader.isOpen());
 		Awaitility.await().until(() -> !writer.isOpen());
 		Assertions.assertEquals(redis.sync().dbsize(), writer.getWrittenItems().size());
@@ -325,9 +325,9 @@ class BatchTests extends AbstractTestBase {
 			StreamItemReader<String, String> reader2 = streamReader(redis, key).consumerGroup(consumerGroup)
 					.consumer("consumer2").ackPolicy(AckPolicy.MANUAL).build();
 			ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
-			JobExecution execution1 = runFlushing(name(redis, "testMultipleStreamReaders1"), reader1, writer1);
+			JobExecution execution1 = runFlushing(name(redis) + "-reader1", reader1, writer1);
 			ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
-			JobExecution execution2 = runFlushing(name(redis, "testMultipleStreamReaders2"), reader2, writer2);
+			JobExecution execution2 = runFlushing(name(redis) + "-reader2", reader2, writer2);
 			jobRunner.awaitTermination(execution1);
 			jobRunner.awaitTermination(execution2);
 			Assertions.assertEquals(COUNT, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
