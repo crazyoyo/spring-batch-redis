@@ -195,6 +195,7 @@ class BatchTests extends AbstractTestBase {
 	void testMultiThreadedReader(RedisTestContext redis) throws Exception {
 		generate(redis);
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
+		reader.setName(name(redis) + "-reader");
 		SynchronizedItemStreamReader<DataStructure<String>> synchronizedReader = new SynchronizedItemStreamReader<>();
 		synchronizedReader.setDelegate(reader);
 		synchronizedReader.afterPropertiesSet();
