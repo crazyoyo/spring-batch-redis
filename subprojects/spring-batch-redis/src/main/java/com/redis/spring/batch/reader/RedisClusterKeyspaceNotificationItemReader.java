@@ -19,8 +19,9 @@ public class RedisClusterKeyspaceNotificationItemReader<K, V> extends AbstractKe
 	private final Supplier<StatefulRedisClusterPubSubConnection<K, V>> connectionSupplier;
 	private StatefulRedisClusterPubSubConnection<K, V> connection;
 
-	public RedisClusterKeyspaceNotificationItemReader(Supplier<StatefulRedisClusterPubSubConnection<K, V>> connectionSupplier,
-			Converter<K, K> keyExtractor, K[] patterns) {
+	public RedisClusterKeyspaceNotificationItemReader(
+			Supplier<StatefulRedisClusterPubSubConnection<K, V>> connectionSupplier, Converter<K, K> keyExtractor,
+			K[] patterns) {
 		super(keyExtractor, patterns);
 		Assert.notNull(connectionSupplier, "A pub/sub connection supplier is required");
 		this.connectionSupplier = connectionSupplier;
@@ -32,7 +33,7 @@ public class RedisClusterKeyspaceNotificationItemReader<K, V> extends AbstractKe
 		log.debug("Adding pub/sub listener");
 		connection.addListener(listener);
 		connection.setNodeMessagePropagation(true);
-		log.debug("Subscribing to channel patterns {}", patterns);
+		log.debug("Subscribing to keyspace notifications");
 		connection.sync().upstream().commands().psubscribe(patterns);
 	}
 
@@ -41,7 +42,7 @@ public class RedisClusterKeyspaceNotificationItemReader<K, V> extends AbstractKe
 		if (connection == null) {
 			return;
 		}
-		log.debug("Unsubscribing from channel patterns {}", patterns);
+		log.debug("Unsubscribing from keyspace notifications");
 		connection.sync().upstream().commands().punsubscribe(patterns);
 		log.debug("Removing pub/sub listener");
 		connection.removeListener(listener);

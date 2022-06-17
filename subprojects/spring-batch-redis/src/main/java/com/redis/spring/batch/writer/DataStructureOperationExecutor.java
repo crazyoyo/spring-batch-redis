@@ -55,12 +55,14 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 	private final StringOperation stringOperation = new StringOperation();
 	private final ZsetOperation zsetOperation = new ZsetOperation();
 	private final TimeSeriesOperation timeseriesOperation = new TimeSeriesOperation();
+	private final RedisCodec<K, V> codec;
 
 	public enum UnknownTypePolicy {
 		IGNORE, FAIL, LOG
 	}
 
 	public DataStructureOperationExecutor(RedisCodec<K, V> codec) {
+		this.codec = codec;
 		this.jsonOperation = new JsonOperation(codec.decodeKey(StringCodec.UTF8.encodeKey("$")));
 	}
 
@@ -105,7 +107,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 				throw new IllegalArgumentException(
 						String.format("Unknown type %s for key %s", ds.getType(), ds.getKey()));
 			case LOG:
-				log.warn("Unknown type {} for key {}", ds.getType(), ds.getKey());
+				log.warn("Unknown type {} for key {}", ds.getType(), string(ds.getKey()));
 				break;
 			case IGNORE:
 				break;
@@ -144,6 +146,10 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		if (ds.hasTtl()) {
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getTtl()));
 		}
+	}
+
+	private String string(K key) {
+		return StringCodec.UTF8.decodeKey(codec.encodeKey(key));
 	}
 
 	public interface DataStructureOperation<K, V> {

@@ -30,7 +30,7 @@ public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceN
 		connection = connectionSupplier.get();
 		log.debug("Adding listener");
 		connection.addListener(listener);
-		log.debug("Subscribing to channel patterns {}", patterns);
+		log.debug("Subscribing to keyspace notifications");
 		connection.sync().psubscribe(patterns);
 	}
 
@@ -39,7 +39,7 @@ public class RedisKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceN
 		if (connection == null) {
 			return;
 		}
-		log.debug("Unsubscribing from channel pattern {}", patterns);
+		log.debug("Unsubscribing from keyspace notifications");
 		connection.sync().punsubscribe(patterns);
 		log.debug("Removing listener");
 		connection.removeListener(listener);
