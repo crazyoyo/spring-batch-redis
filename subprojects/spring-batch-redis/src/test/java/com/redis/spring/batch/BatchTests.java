@@ -115,6 +115,7 @@ class BatchTests extends AbstractTestBase {
 		run(name(redis) + "-gen", RandomDataStructureItemReader.builder().end(3).types(Type.STRING, Type.HASH).build(),
 				dataStructureWriter(redis));
 		jobRunner.awaitTermination(execution);
+		Awaitility.await().until(() -> !reader.isOpen());
 		Assertions.assertEquals(redis.sync().dbsize(), writer.getWrittenItems().size());
 	}
 
@@ -307,7 +308,9 @@ class BatchTests extends AbstractTestBase {
 			Assertions.assertEquals(COUNT, redis.sync().xlen(key));
 			StreamItemReader<String, String> reader = streamReader(redis, key).build();
 			ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
-			jobRunner.awaitTermination(runFlushing(name(redis) + "-" + key, reader, writer));
+			JobExecution execution = runFlushing(name(redis) + "-" + key, reader, writer);
+			jobRunner.awaitTermination(execution);
+			Awaitility.await().until(() -> !reader.isOpen());
 			Assertions.assertEquals(COUNT, writer.getWrittenItems().size());
 			assertMessageBody(writer.getWrittenItems());
 		}
@@ -331,6 +334,8 @@ class BatchTests extends AbstractTestBase {
 			JobExecution execution2 = runFlushing(name(redis) + "-reader2", reader2, writer2);
 			jobRunner.awaitTermination(execution1);
 			jobRunner.awaitTermination(execution2);
+			Awaitility.await().until(() -> !reader1.isOpen());
+			Awaitility.await().until(() -> !reader2.isOpen());
 			Assertions.assertEquals(COUNT, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
 			assertMessageBody(writer1.getWrittenItems());
 			assertMessageBody(writer2.getWrittenItems());
