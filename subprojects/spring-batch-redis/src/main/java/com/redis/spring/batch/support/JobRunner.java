@@ -139,12 +139,12 @@ public class JobRunner {
 		return execution;
 	}
 
-	public <I, O> JobExecution run(String name, int chunkSize, ItemReader<I> reader, ItemWriter<O> writer)
+	public <T> JobExecution run(String name, int chunkSize, ItemReader<T> reader, ItemWriter<T> writer)
 			throws JobExecutionException {
 		return run(job(name, chunkSize, reader, writer));
 	}
 
-	public <I, O> Job job(String name, int chunkSize, ItemReader<I> reader, ItemWriter<O> writer) {
+	public <T> Job job(String name, int chunkSize, ItemReader<T> reader, ItemWriter<T> writer) {
 		return job(name, step(name, chunkSize, reader, writer));
 	}
 
@@ -152,17 +152,17 @@ public class JobRunner {
 		return job(name).start(step.build()).build();
 	}
 
-	public <I, O> SimpleStepBuilder<I, O> step(String name, int chunkSize, ItemReader<I> reader, ItemWriter<O> writer) {
+	public <T> SimpleStepBuilder<T, T> step(String name, int chunkSize, ItemReader<T> reader, ItemWriter<T> writer) {
 		if (reader instanceof ItemStreamSupport) {
 			((ItemStreamSupport) reader).setName(name + "-reader");
 		}
 		if (writer instanceof ItemStreamSupport) {
 			((ItemStreamSupport) writer).setName(name + "-writer");
 		}
-		return step(name).<I, O>chunk(chunkSize).reader(reader).writer(writer);
+		return step(name).<T, T>chunk(chunkSize).reader(reader).writer(writer);
 	}
 
-	public <I, O> JobExecution runAsync(String name, int chunkSize, ItemReader<I> reader, ItemWriter<O> writer)
+	public <T> JobExecution runAsync(String name, int chunkSize, ItemReader<T> reader, ItemWriter<T> writer)
 			throws JobExecutionException {
 		return runAsync(job(name, chunkSize, reader, writer));
 	}

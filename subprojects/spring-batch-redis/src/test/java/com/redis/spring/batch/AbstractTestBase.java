@@ -97,22 +97,21 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		Awaitility.await().until(() -> !itemStream.isOpen());
 	}
 
-	protected <I, O> JobExecution run(RedisTestContext redis, ItemReader<I> reader, ItemWriter<O> writer)
+	protected <T> JobExecution run(RedisTestContext redis, ItemReader<T> reader, ItemWriter<T> writer)
 			throws JobExecutionException {
 		return run(name(redis), reader, writer);
 	}
 
-	protected <I, O> JobExecution run(String id, ItemReader<I> reader, ItemWriter<O> writer)
-			throws JobExecutionException {
+	protected <T> JobExecution run(String id, ItemReader<T> reader, ItemWriter<T> writer) throws JobExecutionException {
 		return jobRunner.run(id, RedisItemReader.DEFAULT_CHUNK_SIZE, reader, writer);
 	}
 
-	protected <I, O> JobExecution runFlushing(RedisTestContext redis, PollableItemReader<I> reader,
-			ItemWriter<O> writer) throws JobExecutionException {
+	protected <T> JobExecution runFlushing(RedisTestContext redis, PollableItemReader<T> reader, ItemWriter<T> writer)
+			throws JobExecutionException {
 		return runFlushing(name(redis), reader, writer);
 	}
 
-	protected <I, O> JobExecution runFlushing(String name, PollableItemReader<I> reader, ItemWriter<O> writer)
+	protected <T> JobExecution runFlushing(String name, PollableItemReader<T> reader, ItemWriter<T> writer)
 			throws JobExecutionException {
 		return jobRunner.runAsync(jobRunner.job(name,
 				new FlushingSimpleStepBuilder<>(
@@ -120,12 +119,12 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 						.idleTimeout(DEFAULT_IDLE_TIMEOUT)));
 	}
 
-	protected <I, O> JobExecution runAsync(RedisTestContext redis, ItemReader<I> reader, ItemWriter<O> writer)
+	protected <T> JobExecution runAsync(RedisTestContext redis, ItemReader<T> reader, ItemWriter<T> writer)
 			throws JobExecutionException {
 		return runAsync(name(redis), redis, reader, writer);
 	}
 
-	private <I, O> JobExecution runAsync(String id, RedisTestContext redis, ItemReader<I> reader, ItemWriter<O> writer)
+	private <T> JobExecution runAsync(String id, RedisTestContext redis, ItemReader<T> reader, ItemWriter<T> writer)
 			throws JobExecutionException {
 		return jobRunner.runAsync(id, RedisItemReader.DEFAULT_CHUNK_SIZE, reader, writer);
 	}

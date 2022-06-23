@@ -6,6 +6,7 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
+import com.redis.lettucemod.timeseries.AddOptions;
 import com.redis.lettucemod.timeseries.Sample;
 
 import io.lettuce.core.RedisFuture;
@@ -13,21 +14,29 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public class TsAdd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
-	protected final Converter<T, Sample> sample;
+	private final Converter<T, Sample> sample;
+	private final Converter<T, AddOptions<K, V>> options;
 
-	public TsAdd(Converter<T, K> key, Predicate<T> delete, Converter<T, Sample> sample) {
+	public TsAdd(Converter<T, K> key, Predicate<T> delete, Converter<T, Sample> sample,
+			Converter<T, AddOptions<K, V>> options) {
 		super(key, delete);
 		Assert.notNull(sample, "A sample converter is required");
+		Assert.notNull(options, "An options converter is required");
 		this.sample = sample;
+		this.options = options;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
 	protected RedisFuture<Long> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		return ((RedisTimeSeriesAsyncCommands<K, V>) commands).add(key, sample.convert(item));
+		return ((RedisTimeSeriesAsyncCommands<K, V>) commands).add(key, sample.convert(item), options.convert(item));
 	}
 
 	public static <K, V, T> TsAddSampleBuilder<K, V, T> key(K key) {
+		return key(t -> key);
+	}
+
+	public static <T> TsAddSampleBuilder<String, String, T> key(String key) {
 		return key(t -> key);
 	}
 
@@ -52,6 +61,7 @@ public class TsAdd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
 		private final Converter<T, K> key;
 		private final Converter<T, Sample> sample;
+		private Converter<T, AddOptions<K, V>> options = s -> null;
 
 		public TsAddBuilder(Converter<T, K> key, Converter<T, Sample> sample) {
 			super(sample);
@@ -59,9 +69,15 @@ public class TsAdd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 			this.sample = sample;
 		}
 
+		public TsAddBuilder<K, V, T> options(Converter<T, AddOptions<K, V>> options) {
+			Assert.notNull(options, "Options must not be null");
+			this.options = options;
+			return this;
+		}
+
 		@Override
 		public TsAdd<K, V, T> build() {
-			return new TsAdd<>(key, del, sample);
+			return new TsAdd<>(key, del, sample, options);
 		}
 	}
 

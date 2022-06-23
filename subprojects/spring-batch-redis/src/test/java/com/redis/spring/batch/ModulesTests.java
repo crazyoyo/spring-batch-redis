@@ -7,12 +7,14 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
+import org.springframework.core.convert.converter.Converter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,11 +22,15 @@ import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.search.IndexInfo;
 import com.redis.lettucemod.test.Beers;
+import com.redis.lettucemod.timeseries.AddOptions;
 import com.redis.lettucemod.timeseries.CreateOptions;
 import com.redis.lettucemod.timeseries.DuplicatePolicy;
+import com.redis.lettucemod.timeseries.RangeOptions;
+import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.compare.KeyComparator;
 import com.redis.spring.batch.compare.KeyComparisonResults;
 import com.redis.spring.batch.writer.operation.JsonSet;
+import com.redis.spring.batch.writer.operation.TsAdd;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.testcontainers.RedisModulesContainer;
 import com.redis.testcontainers.RedisServer;
@@ -71,6 +77,28 @@ class ModulesTests extends AbstractTestBase {
 		Assertions.assertEquals(4432, redis.sync().keys("beer:*").size());
 		Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
 				new ObjectMapper().readTree(redis.sync().jsonGet("beer:1")));
+	}
+
+	@ParameterizedTest
+	@RedisTestContextsSource
+	void testTsAdd(RedisTestContext redis) throws Exception {
+		String key = "ts:1";
+		Converter<Sample, Sample> sampleConverter = v -> v;
+		RedisItemWriter<String, String, Sample> writer = operationWriter(redis,
+				TsAdd.<Sample>key(key).sample(sampleConverter)
+						.options(v -> AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST).build())
+						.build())
+				.build();
+		Random random = new Random();
+		int count = 100;
+		List<Sample> samples = new ArrayList<>(count);
+		for (int index = 0; index < count; index++) {
+			long timestamp = System.currentTimeMillis() - count + (index % (count / 2));
+			samples.add(Sample.of(timestamp, random.nextDouble()));
+		}
+		ListItemReader<Sample> reader = new ListItemReader<>(samples);
+		run(redis, reader, writer);
+		Assertions.assertEquals(count / 2, redis.sync().range(key, RangeOptions.all().build()).size());
 	}
 
 	@ParameterizedTest
