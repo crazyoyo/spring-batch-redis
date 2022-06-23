@@ -550,6 +550,7 @@ class BatchTests extends AbstractTestBase {
 		ListItemReader<DataStructure<String>> reader = new ListItemReader<>(list);
 		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureWriter(redis);
 		run(redis, reader, writer);
+		Awaitility.await().until(() -> !writer.isOpen());
 		RedisModulesCommands<String, String> sync = redis.sync();
 		List<String> keys = sync.keys("hash:*");
 		Assertions.assertEquals(count, keys.size());
