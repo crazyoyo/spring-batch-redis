@@ -13,6 +13,7 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
 import com.redis.lettucemod.timeseries.RangeOptions;
+import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.spring.batch.DataStructure;
 import com.redis.spring.batch.DataStructure.Type;
 
@@ -30,7 +31,9 @@ import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
 public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, DataStructure<K>> {
 
-	private static final RangeOptions RANGE_OPTIONS = RangeOptions.from(Long.MIN_VALUE).build();
+	private static final TimeRange TIME_RANGE = TimeRange.unbounded();
+	private static final RangeOptions RANGE_OPTIONS = RangeOptions.builder().build();
+	private static final Range<String> XRANGE = Range.create("-", "+");
 
 	public DataStructureValueReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
@@ -99,7 +102,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 		case SET:
 			return ((RedisSetAsyncCommands<K, V>) commands).smembers(key);
 		case STREAM:
-			return ((RedisStreamAsyncCommands<K, V>) commands).xrange(key, Range.create("-", "+"));
+			return ((RedisStreamAsyncCommands<K, V>) commands).xrange(key, XRANGE);
 		case STRING:
 			return ((RedisStringAsyncCommands<K, V>) commands).get(key);
 		case ZSET:
@@ -107,7 +110,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 		case JSON:
 			return ((RedisJSONAsyncCommands<K, V>) commands).jsonGet(key);
 		case TIMESERIES:
-			return ((RedisTimeSeriesAsyncCommands<K, V>) commands).range(key, RANGE_OPTIONS);
+			return ((RedisTimeSeriesAsyncCommands<K, V>) commands).range(key, TIME_RANGE, RANGE_OPTIONS);
 		default:
 			return null;
 		}

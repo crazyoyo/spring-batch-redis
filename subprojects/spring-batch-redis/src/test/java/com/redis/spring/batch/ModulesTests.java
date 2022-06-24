@@ -27,6 +27,7 @@ import com.redis.lettucemod.timeseries.CreateOptions;
 import com.redis.lettucemod.timeseries.DuplicatePolicy;
 import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.Sample;
+import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.spring.batch.compare.KeyComparator;
 import com.redis.spring.batch.compare.KeyComparisonResults;
 import com.redis.spring.batch.writer.operation.JsonSet;
@@ -98,7 +99,8 @@ class ModulesTests extends AbstractTestBase {
 		}
 		ListItemReader<Sample> reader = new ListItemReader<>(samples);
 		run(redis, reader, writer);
-		Assertions.assertEquals(count / 2, redis.sync().range(key, RangeOptions.all().build()).size());
+		Assertions.assertEquals(count / 2,
+				redis.sync().range(key, TimeRange.unbounded(), RangeOptions.builder().build()).size());
 	}
 
 	@ParameterizedTest
