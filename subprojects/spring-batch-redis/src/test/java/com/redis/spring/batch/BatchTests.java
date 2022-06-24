@@ -153,13 +153,6 @@ class BatchTests extends AbstractTestBase {
 		return list;
 	}
 
-	@ParameterizedTest
-	@RedisTestContextsSource
-	void testDataStructureReader(RedisTestContext redis) throws Exception {
-		generate(redis);
-		Assertions.assertEquals(redis.sync().dbsize(), readFully(redis, dataStructureReader(redis)).size());
-	}
-
 	private static class SynchronizedListItemWriter<T> extends AbstractItemStreamItemWriter<T> {
 
 		private List<T> writtenItems = new ArrayList<>();
@@ -740,47 +733,6 @@ class BatchTests extends AbstractTestBase {
 		return RedisScanSizeEstimator.client(server.getClient());
 	}
 
-	@ParameterizedTest
-	@RedisTestContextsSource
-	void testGeneratorDefaults(RedisTestContext server) throws Exception {
-		generate(server);
-		long expectedCount = RandomDataStructureItemReader.DEFAULT_SEQUENCE.getMaximum()
-				- RandomDataStructureItemReader.DEFAULT_SEQUENCE.getMinimum();
-		Assertions.assertEquals(expectedCount, server.sync().dbsize());
-	}
-
-	@ParameterizedTest
-	@RedisTestContextsSource
-	void testGeneratorToOption(RedisTestContext server) throws Exception {
-		int count = 123;
-		generate(server, RandomDataStructureItemReader.builder().end(count).build());
-		Assertions.assertEquals(count, server.sync().dbsize());
-		ScanIterator<String> setIterator = ScanIterator.scan(server.sync(),
-				KeyScanArgs.Builder.type(Type.SET.getString()));
-		while (setIterator.hasNext()) {
-			Assertions.assertEquals(RandomDataStructureItemReader.DEFAULT_COLLECTION_CARDINALITY.getMinimum(),
-					Math.toIntExact(server.sync().scard(setIterator.next())));
-		}
-		ScanIterator<String> listIterator = ScanIterator.scan(server.sync(),
-				KeyScanArgs.Builder.type(Type.LIST.getString()));
-		while (listIterator.hasNext()) {
-			Assertions.assertEquals(RandomDataStructureItemReader.DEFAULT_COLLECTION_CARDINALITY.getMinimum(),
-					Math.toIntExact(server.sync().llen(listIterator.next())));
-		}
-		ScanIterator<String> zsetIterator = ScanIterator.scan(server.sync(),
-				KeyScanArgs.Builder.type(Type.ZSET.getString()));
-		while (zsetIterator.hasNext()) {
-			Assertions.assertEquals(RandomDataStructureItemReader.DEFAULT_COLLECTION_CARDINALITY.getMinimum(),
-					Math.toIntExact(server.sync().zcard(zsetIterator.next())));
-		}
-		ScanIterator<String> streamIterator = ScanIterator.scan(server.sync(),
-				KeyScanArgs.Builder.type(Type.STREAM.getString()));
-		while (streamIterator.hasNext()) {
-			Assertions.assertEquals(RandomDataStructureItemReader.DEFAULT_COLLECTION_CARDINALITY.getMinimum(),
-					Math.toIntExact(server.sync().xlen(streamIterator.next())));
-		}
-	}
-
 	@Test
 	void testReaderSkipPolicy() throws Exception {
 		String name = "skip-policy";
@@ -824,6 +776,13 @@ class BatchTests extends AbstractTestBase {
 	protected RedisItemReader<byte[], DataStructure<byte[]>> binaryDataStructureReader(RedisTestContext redis)
 			throws Exception {
 		return RedisItemReader.client(redis.getClient()).bytes().dataStructure().jobRunner(jobRunner).build();
+	}
+
+	@ParameterizedTest
+	@RedisTestContextsSource
+	void testDataStructureReader(RedisTestContext redis) throws Exception {
+		generate(redis);
+		Assertions.assertEquals(redis.sync().dbsize(), readFully(redis, dataStructureReader(redis)).size());
 	}
 
 }

@@ -91,7 +91,7 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 		case SET:
 			return new HashSet<>(members());
 		case STREAM:
-			return stream();
+			return streamMessages();
 		case STRING:
 			return string();
 		case ZSET:
@@ -124,7 +124,7 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 		return members().stream().map(m -> ScoredValue.just(randomDouble(zsetScore), m)).collect(Collectors.toList());
 	}
 
-	private Collection<StreamMessage<String, String>> stream() {
+	private Collection<StreamMessage<String, String>> streamMessages() {
 		Collection<StreamMessage<String, String>> messages = new ArrayList<>();
 		for (int elementIndex = 0; elementIndex < collectionCardinality(); elementIndex++) {
 			messages.add(new StreamMessage<>(key(), null, hash()));
@@ -177,6 +177,7 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 		// do nothing
 	}
 
+	@Override
 	protected void doClose() throws Exception {
 		// do nothing
 	}
