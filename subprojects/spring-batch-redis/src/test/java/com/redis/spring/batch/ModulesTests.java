@@ -100,7 +100,7 @@ class ModulesTests extends AbstractTestBase {
 		ListItemReader<Sample> reader = new ListItemReader<>(samples);
 		run(redis, reader, writer);
 		Assertions.assertEquals(count / 2,
-				redis.sync().range(key, TimeRange.unbounded(), RangeOptions.builder().build()).size());
+				redis.sync().range(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
 	}
 
 	@ParameterizedTest
