@@ -110,7 +110,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 		case JSON:
 			return ((RedisJSONAsyncCommands<K, V>) commands).jsonGet(key);
 		case TIMESERIES:
-			return ((RedisTimeSeriesAsyncCommands<K, V>) commands).range(key, TIME_RANGE, RANGE_OPTIONS);
+			return ((RedisTimeSeriesAsyncCommands<K, V>) commands).tsRange(key, TIME_RANGE, RANGE_OPTIONS);
 		default:
 			return null;
 		}

@@ -29,7 +29,7 @@ public class TsAdd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	@SuppressWarnings("unchecked")
 	@Override
 	protected RedisFuture<Long> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		return ((RedisTimeSeriesAsyncCommands<K, V>) commands).add(key, sample.convert(item), options.convert(item));
+		return ((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(key, sample.convert(item), options.convert(item));
 	}
 
 	public static <K, V, T> TsAddSampleBuilder<K, V, T> key(K key) {

@@ -100,14 +100,14 @@ class ModulesTests extends AbstractTestBase {
 		ListItemReader<Sample> reader = new ListItemReader<>(samples);
 		run(redis, reader, writer);
 		Assertions.assertEquals(count / 2,
-				redis.sync().range(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
+				redis.sync().tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
 	}
 
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void testBeerIndex(RedisTestContext redis) throws Exception {
 		Beers.populateIndex(redis.getConnection());
-		IndexInfo indexInfo = RedisModulesUtils.indexInfo(redis.sync().indexInfo(Beers.INDEX));
+		IndexInfo indexInfo = RedisModulesUtils.indexInfo(redis.sync().ftInfo(Beers.INDEX));
 		Assertions.assertEquals(4432, indexInfo.getNumDocs());
 	}
 
@@ -163,7 +163,7 @@ class ModulesTests extends AbstractTestBase {
 	@RedisTestContextsSource
 	void testComparator(RedisTestContext redis) throws Exception {
 		RedisTestContext target = getContext(TARGET);
-		redis.sync().addAutoTimestamp("ts:1", 123);
+		redis.sync().tsAdd("ts:1", Sample.of(123));
 		KeyComparator comparator = comparator(redis, target).build();
 		KeyComparisonResults results = comparator.call();
 		Assertions.assertEquals(1, results.getMissing());
@@ -185,10 +185,10 @@ class ModulesTests extends AbstractTestBase {
 	@RedisTestContextsSource
 	void testTimeSeriesReplication(RedisTestContext redis) throws Exception {
 		String key = "ts:1";
-		redis.sync().create(key, CreateOptions.<String, String>builder().policy(DuplicatePolicy.LAST).build());
-		redis.sync().add(key, 1000, 1);
-		redis.sync().add(key, 1001, 2);
-		redis.sync().add(key, 1003, 3);
+		redis.sync().tsCreate(key, CreateOptions.<String, String>builder().policy(DuplicatePolicy.LAST).build());
+		redis.sync().tsAdd(key, Sample.of(1000, 1));
+		redis.sync().tsAdd(key, Sample.of(1001, 2));
+		redis.sync().tsAdd(key, Sample.of(1003, 3));
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
 		RedisTestContext target = getContext(TARGET);
 		run(redis, reader, dataStructureWriter(target));

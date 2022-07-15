@@ -282,7 +282,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		public void execute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
 			List<Sample> samples = (List<Sample>) ds.getValue();
 			for (Sample sample : samples) {
-				futures.add(((RedisTimeSeriesAsyncCommands<K, V>) commands).add(ds.getKey(), sample));
+				futures.add(((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(ds.getKey(), sample));
 			}
 		}
 	}

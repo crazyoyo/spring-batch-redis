@@ -38,9 +38,9 @@ public class Sugadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Suggestion<V> suggestion = this.suggestionConverter.convert(item);
 		if (incr) {
-			return ((RediSearchAsyncCommands<K, V>) commands).sugaddIncr(key, suggestion);
+			return ((RediSearchAsyncCommands<K, V>) commands).ftSugaddIncr(key, suggestion);
 		}
-		return ((RediSearchAsyncCommands<K, V>) commands).sugadd(key, suggestion);
+		return ((RediSearchAsyncCommands<K, V>) commands).ftSugadd(key, suggestion);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -49,7 +49,7 @@ public class Sugadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		if (suggestion == null) {
 			return null;
 		}
-		return ((RediSearchAsyncCommands<K, V>) commands).sugdel(key, suggestion.getString());
+		return ((RediSearchAsyncCommands<K, V>) commands).ftSugdel(key, suggestion.getString());
 	}
 
 	public static <K, V, T> SugaddSuggestionBuilder<K, V, T> key(K key) {
