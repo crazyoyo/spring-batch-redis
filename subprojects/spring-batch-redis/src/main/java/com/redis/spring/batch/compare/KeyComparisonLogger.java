@@ -50,13 +50,11 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 					comparison.getSource().getType(), comparison.getTarget().getType());
 			break;
 		case VALUE:
-			Type sourceType;
-			try {
-				sourceType = Type.of(comparison.getSource().getType());
-			} catch (Exception e) {
+			Type sourceType = Type.of(comparison.getSource().getType());
+			if (sourceType == null) {
 				log.warn("Unknown type for key '{}': {}", comparison.getSource().getKey(),
 						comparison.getSource().getType());
-				return;
+				break;
 			}
 			switch (sourceType) {
 			case SET:
@@ -81,14 +79,12 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 			case TIMESERIES:
 				showListDiff(comparison);
 				break;
-			case NONE:
-				// Should not happen as it is previously handled as MISSING status
-				break;
 			}
 			break;
 		case OK:
 			break;
 		}
+
 	}
 
 	private void showHashDiff(KeyComparison comparison) {

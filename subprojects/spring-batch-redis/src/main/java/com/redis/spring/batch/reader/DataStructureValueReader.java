@@ -90,11 +90,12 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 	}
 
 	@SuppressWarnings("unchecked")
-	private RedisFuture<?> value(BaseRedisAsyncCommands<K, V> commands, K key, String type) {
+	private RedisFuture<?> value(BaseRedisAsyncCommands<K, V> commands, K key, String typeName) {
+		Type type = Type.of(typeName);
 		if (type == null) {
 			return null;
 		}
-		switch (Type.of(type)) {
+		switch (type) {
 		case HASH:
 			return ((RedisHashAsyncCommands<K, V>) commands).hgetall(key);
 		case LIST:

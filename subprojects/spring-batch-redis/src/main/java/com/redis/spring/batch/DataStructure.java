@@ -8,6 +8,8 @@ import org.springframework.util.Assert;
 
 public class DataStructure<K> extends KeyValue<K, Object> {
 
+	public static final String TYPE_NONE = "none";
+
 	private String type;
 
 	public String getType() {
@@ -31,7 +33,7 @@ public class DataStructure<K> extends KeyValue<K, Object> {
 
 	public enum Type {
 
-		SET, LIST, ZSET, STREAM, STRING, HASH, NONE, JSON("ReJSON-RL"), TIMESERIES("TSDB-TYPE");
+		SET, LIST, ZSET, STREAM, STRING, HASH, JSON("ReJSON-RL"), TIMESERIES("TSDB-TYPE");
 
 		private static final Map<String, Type> TYPES = Stream.of(Type.values())
 				.collect(Collectors.toMap(Type::getString, t -> t));
@@ -54,20 +56,11 @@ public class DataStructure<K> extends KeyValue<K, Object> {
 			return name;
 		}
 
-		@Override
-		public String toString() {
-			return name;
-		}
-
 		public static Type of(String name) {
 			if (name == null) {
 				throw new NullPointerException("Name is null");
 			}
-			Type result = TYPES.get(name);
-			if (result != null) {
-				return result;
-			}
-			throw new IllegalArgumentException("No type with name " + name);
+			return TYPES.get(name);
 		}
 
 	}

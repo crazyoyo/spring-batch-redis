@@ -1,8 +1,9 @@
-package com.redis.spring.batch.support;
+package com.redis.spring.batch.reader;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -10,12 +11,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -23,6 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.DataStructure;
 import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.support.Range;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -34,8 +38,9 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 	private static final int LEFT_LIMIT = 48; // numeral '0'
 	private static final int RIGHT_LIMIT = 122; // letter 'z'
 
-	public static final String DEFAULT_KEYSPACE = "generated:";
-	public static final Range<Integer> DEFAULT_SEQUENCE = Range.between(0, 100);
+	public static final String DEFAULT_KEYSPACE = "gen";
+	public static final int DEFAULT_COUNT = 100;
+	public static final int DEFAULT_START = 1;
 	public static final Range<Integer> DEFAULT_COLLECTION_CARDINALITY = Range.is(10);
 	public static final Range<Integer> DEFAULT_STRING_VALUE_SIZE = Range.is(100);
 	public static final Range<Double> DEFAULT_ZSET_SCORE = Range.between(0D, 100D);
@@ -44,7 +49,8 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final Random random = new Random();
 	private final Supplier<Type> randomTypeSupplier;
-	private final Range<Integer> sequence;
+	private final EnumMap<Type, AtomicInteger> indexes = new EnumMap<>(Type.class);
+	private final int count;
 	private final Optional<Range<Integer>> expiration;
 	private final Range<Integer> collectionCardinality;
 	private final Range<Integer> stringSize;
@@ -53,10 +59,13 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 
 	private RandomDataStructureItemReader(Builder builder) {
 		setName(ClassUtils.getShortName(getClass()));
-		setMaxItemCount(builder.sequence.getMaximum() - builder.sequence.getMinimum());
+		setMaxItemCount(builder.count);
 		this.keyspace = builder.keyspace;
 		this.randomTypeSupplier = () -> builder.types[random.nextInt(builder.types.length)];
-		this.sequence = builder.sequence;
+		for (Type type : builder.types) {
+			indexes.put(type, new AtomicInteger(builder.start));
+		}
+		this.count = builder.count;
 		this.expiration = builder.expiration;
 		this.collectionCardinality = builder.collectionCardinality;
 		this.stringSize = builder.stringSize;
@@ -66,20 +75,17 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 	@Override
 	protected DataStructure<String> doRead() throws Exception {
 		DataStructure<String> dataStructure = new DataStructure<>();
-		dataStructure.setKey(key());
 		Type type = randomTypeSupplier.get();
 		dataStructure.setType(type);
+		int index = indexes.get(type).getAndIncrement();
+		dataStructure.setKey(key(type, index));
 		dataStructure.setValue(value(type));
 		expiration.ifPresent(e -> dataStructure.setTtl(System.currentTimeMillis() + randomInt(e)));
 		return dataStructure;
 	}
 
-	private String key() {
-		return keyspace + index();
-	}
-
-	private int index() {
-		return sequence.getMinimum() + getCurrentItemCount();
+	private String key(Type type, int index) {
+		return keyspace + ":" + type.getString() + ":" + index;
 	}
 
 	private Object value(Type type) {
@@ -105,17 +111,15 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 			}
 		case TIMESERIES:
 			return samples();
-		case NONE:
-			return null;
 		}
 		throw new IllegalArgumentException("Unsupported type " + type);
 	}
 
 	private List<Sample> samples() {
 		List<Sample> samples = new ArrayList<>();
-		long start = System.currentTimeMillis() - sequence.getMaximum() * collectionCardinality();
+		long start = System.currentTimeMillis() - count * collectionCardinality();
 		for (int index = 0; index < collectionCardinality(); index++) {
-			samples.add(Sample.of(start + index() + index, random.nextDouble()));
+			samples.add(Sample.of(start + getCurrentItemCount() + index, random.nextDouble()));
 		}
 		return samples;
 	}
@@ -125,9 +129,10 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 	}
 
 	private Collection<StreamMessage<String, String>> streamMessages() {
+		String key = key(Type.STREAM, indexes.get(Type.STREAM).get());
 		Collection<StreamMessage<String, String>> messages = new ArrayList<>();
 		for (int elementIndex = 0; elementIndex < collectionCardinality(); elementIndex++) {
-			messages.add(new StreamMessage<>(key(), null, hash()));
+			messages.add(new StreamMessage<>(key, null, hash()));
 		}
 		return messages;
 	}
@@ -153,7 +158,7 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 	private List<String> members() {
 		List<String> members = new ArrayList<>();
 		for (int index = 0; index < collectionCardinality(); index++) {
-			members.add("member:" + index);
+			members.add(String.valueOf(index));
 		}
 		return members;
 	}
@@ -190,7 +195,8 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 
 		private String keyspace = DEFAULT_KEYSPACE;
 		private Type[] types = DEFAULT_TYPES;
-		private Range<Integer> sequence = DEFAULT_SEQUENCE;
+		private int count = DEFAULT_COUNT;
+		private int start = DEFAULT_START;
 		private Optional<Range<Integer>> expiration = Optional.empty();
 		private Range<Integer> collectionCardinality = DEFAULT_COLLECTION_CARDINALITY;
 		private Range<Integer> stringSize = DEFAULT_STRING_VALUE_SIZE;
@@ -201,8 +207,15 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 			return this;
 		}
 
-		public Builder sequence(Range<Integer> sequence) {
-			this.sequence = sequence;
+		public Builder count(int count) {
+			Assert.isTrue(count > 0, "Count must be strictly positive");
+			this.count = count;
+			return this;
+		}
+
+		public Builder start(int start) {
+			Assert.isTrue(start > 0, "Start must be strictly positive");
+			this.start = start;
 			return this;
 		}
 
@@ -228,16 +241,6 @@ public class RandomDataStructureItemReader extends AbstractItemCountingItemStrea
 
 		public Builder types(Type... types) {
 			this.types = types;
-			return this;
-		}
-
-		public Builder end(int end) {
-			sequence(Range.between(0, end));
-			return this;
-		}
-
-		public Builder between(int start, int end) {
-			sequence(Range.between(start, end));
 			return this;
 		}
 

@@ -15,7 +15,6 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.DataStructure;
-import com.redis.spring.batch.DataStructure.Type;
 import com.redis.spring.batch.compare.KeyComparison.Status;
 import com.redis.spring.batch.reader.ValueReader;
 import com.redis.spring.batch.support.Utils;
@@ -106,7 +105,7 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 
 	private Status compare(DataStructure<String> source, DataStructure<String> target) {
 		if (!Objects.equals(source.getType(), target.getType())) {
-			if (target.getType().equals(Type.NONE.getString())) {
+			if (target.getType() == null || target.getType().equalsIgnoreCase(DataStructure.TYPE_NONE)) {
 				return Status.MISSING;
 			}
 			return Status.TYPE;

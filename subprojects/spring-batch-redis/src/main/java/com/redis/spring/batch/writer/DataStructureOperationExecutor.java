@@ -98,10 +98,8 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
 			return;
 		}
-		Type type;
-		try {
-			type = Type.of(ds.getType());
-		} catch (Exception e) {
+		Type type = Type.of(ds.getType());
+		if (type == null) {
 			switch (unknownTypePolicy) {
 			case FAIL:
 				throw new IllegalArgumentException(
@@ -138,9 +136,6 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 			break;
 		case TIMESERIES:
 			timeseriesOperation.execute(commands, ds, futures);
-			break;
-		case NONE:
-			// do nothing
 			break;
 		}
 		if (ds.hasTtl()) {

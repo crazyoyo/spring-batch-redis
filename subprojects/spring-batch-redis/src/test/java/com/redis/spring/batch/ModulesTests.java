@@ -56,6 +56,8 @@ class ModulesTests extends AbstractTestBase {
 
 	private static final String JSON_BEER_1 = "{\"id\":\"1\",\"brewery_id\":\"812\",\"name\":\"Hocus Pocus\",\"abv\":\"4.5\",\"ibu\":\"0\",\"srm\":\"0\",\"upc\":\"0\",\"filepath\":\"\",\"descript\":\"Our take on a classic summer ale.  A toast to weeds, rays, and summer haze.  A light, crisp ale for mowing lawns, hitting lazy fly balls, and communing with nature, Hocus Pocus is offered up as a summer sacrifice to clodless days.\\n\\nIts malty sweetness finishes tart and crisp and is best apprediated with a wedge of orange.\",\"add_user\":\"0\",\"last_mod\":\"2010-07-22 20:00:20 UTC\",\"style_name\":\"Light American Wheat Ale or Lager\",\"cat_name\":\"Other Style\"}";
 
+	private static final int BEER_COUNT = 1019;
+
 	@Override
 	protected Collection<RedisServer> redisServers() {
 		return Arrays.asList(REDISMOD, TARGET);
@@ -75,7 +77,7 @@ class ModulesTests extends AbstractTestBase {
 		RedisItemWriter<String, String, JsonNode> writer = operationWriter(redis, jsonSet).build();
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
 		run(redis, reader, writer);
-		Assertions.assertEquals(4432, redis.sync().keys("beer:*").size());
+		Assertions.assertEquals(BEER_COUNT, redis.sync().keys("beer:*").size());
 		Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
 				new ObjectMapper().readTree(redis.sync().jsonGet("beer:1")));
 	}
@@ -108,7 +110,7 @@ class ModulesTests extends AbstractTestBase {
 	void testBeerIndex(RedisTestContext redis) throws Exception {
 		Beers.populateIndex(redis.getConnection());
 		IndexInfo indexInfo = RedisModulesUtils.indexInfo(redis.sync().ftInfo(Beers.INDEX));
-		Assertions.assertEquals(4432, indexInfo.getNumDocs());
+		Assertions.assertEquals(BEER_COUNT, indexInfo.getNumDocs());
 	}
 
 	@ParameterizedTest

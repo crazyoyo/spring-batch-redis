@@ -10,7 +10,7 @@ import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
 import com.redis.spring.batch.DataStructure.Type;
-import com.redis.spring.batch.support.RandomDataStructureItemReader;
+import com.redis.spring.batch.reader.RandomDataStructureItemReader;
 
 class RandomDataStructureReaderTests {
 
@@ -18,9 +18,7 @@ class RandomDataStructureReaderTests {
 	void testDefaults() throws UnexpectedInputException, ParseException, Exception {
 		RandomDataStructureItemReader reader = RandomDataStructureItemReader.builder().build();
 		List<DataStructure<String>> list = readAll(reader);
-		long expectedCount = RandomDataStructureItemReader.DEFAULT_SEQUENCE.getMaximum()
-				- RandomDataStructureItemReader.DEFAULT_SEQUENCE.getMinimum();
-		Assertions.assertEquals(expectedCount, list.size());
+		Assertions.assertEquals(RandomDataStructureItemReader.DEFAULT_COUNT, list.size());
 	}
 
 	private List<DataStructure<String>> readAll(RandomDataStructureItemReader reader)
@@ -33,22 +31,20 @@ class RandomDataStructureReaderTests {
 		return list;
 	}
 
-	@SuppressWarnings("incomplete-switch")
 	@Test
 	void testOptions() throws Exception {
 		int count = 123;
-		RandomDataStructureItemReader reader = RandomDataStructureItemReader.builder().end(count).build();
+		RandomDataStructureItemReader reader = RandomDataStructureItemReader.builder().count(count).build();
 		List<DataStructure<String>> list = readAll(reader);
 		Assertions.assertEquals(count, list.size());
 		for (DataStructure<String> ds : list) {
-			switch (Type.of(ds.getType())) {
-			case SET:
-			case LIST:
-			case ZSET:
-			case STREAM:
+			Type type = Type.of(ds.getType());
+			if (type == null) {
+				continue;
+			}
+			if (type == Type.SET || type == Type.LIST || type == Type.ZSET || type == Type.STREAM) {
 				Assertions.assertEquals(RandomDataStructureItemReader.DEFAULT_COLLECTION_CARDINALITY.getMinimum(),
 						((Collection<?>) ds.getValue()).size());
-				break;
 			}
 		}
 	}
