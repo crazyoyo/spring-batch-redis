@@ -89,7 +89,6 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 		@Override
 		protected OperationExecutor<K, V, DataStructure<K>> getOperationExecutor() {
 			DataStructureOperationExecutor<K, V> executor = new DataStructureOperationExecutor<>(codec);
-			executor.setTimeout(client.getDefaultTimeout());
 			xaddArgs.ifPresent(executor::setXaddArgs);
 			return executor;
 		}

@@ -1,8 +1,11 @@
 package com.redis.spring.batch;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -10,18 +13,18 @@ import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
 import com.redis.spring.batch.DataStructure.Type;
-import com.redis.spring.batch.reader.RandomDataStructureItemReader;
+import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
 
 class RandomDataStructureReaderTests {
 
 	@Test
-	void testDefaults() throws UnexpectedInputException, ParseException, Exception {
-		RandomDataStructureItemReader reader = RandomDataStructureItemReader.builder().build();
+	void defaults() throws UnexpectedInputException, ParseException, Exception {
+		DataStructureGeneratorItemReader reader = DataStructureGeneratorItemReader.builder().build();
 		List<DataStructure<String>> list = readAll(reader);
-		Assertions.assertEquals(RandomDataStructureItemReader.DEFAULT_COUNT, list.size());
+		Assertions.assertEquals(DataStructureGeneratorItemReader.DEFAULT_COUNT, list.size());
 	}
 
-	private List<DataStructure<String>> readAll(RandomDataStructureItemReader reader)
+	private List<DataStructure<String>> readAll(DataStructureGeneratorItemReader reader)
 			throws UnexpectedInputException, ParseException, Exception {
 		List<DataStructure<String>> list = new ArrayList<>();
 		DataStructure<String> ds;
@@ -32,21 +35,34 @@ class RandomDataStructureReaderTests {
 	}
 
 	@Test
-	void testOptions() throws Exception {
+	void options() throws Exception {
 		int count = 123;
-		RandomDataStructureItemReader reader = RandomDataStructureItemReader.builder().count(count).build();
+		DataStructureGeneratorItemReader reader = DataStructureGeneratorItemReader.builder().count(count).build();
 		List<DataStructure<String>> list = readAll(reader);
 		Assertions.assertEquals(count, list.size());
 		for (DataStructure<String> ds : list) {
-			Type type = Type.of(ds.getType());
-			if (type == null) {
-				continue;
-			}
-			if (type == Type.SET || type == Type.LIST || type == Type.ZSET || type == Type.STREAM) {
-				Assertions.assertEquals(RandomDataStructureItemReader.DEFAULT_COLLECTION_CARDINALITY.getMinimum(),
+			if (ds.getType() == Type.SET || ds.getType() == Type.LIST || ds.getType() == Type.ZSET
+					|| ds.getType() == Type.STREAM) {
+				Assertions.assertEquals(DataStructureGeneratorItemReader.DEFAULT_SET_SIZE.getMin(),
 						((Collection<?>) ds.getValue()).size());
 			}
 		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void read() throws Exception {
+		DataStructureGeneratorItemReader reader = DataStructureGeneratorItemReader.builder().build();
+		DataStructure<String> ds1 = reader.read();
+		assertEquals(Type.HASH, ds1.getType());
+		assertEquals(reader.key(Type.HASH, 1), ds1.getKey());
+		assertEquals(DataStructureGeneratorItemReader.DEFAULT_HASH_SIZE.getMin(),
+				((Map<String, Object>) ds1.getValue()).size());
+		int count = 1;
+		while (reader.read() != null) {
+			count++;
+		}
+		assertEquals(DataStructureGeneratorItemReader.DEFAULT_COUNT, count);
 	}
 
 }

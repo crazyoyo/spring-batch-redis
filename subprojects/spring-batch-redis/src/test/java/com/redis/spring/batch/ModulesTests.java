@@ -70,7 +70,7 @@ class ModulesTests extends AbstractTestBase {
 
 	@ParameterizedTest
 	@RedisTestContextsSource
-	void testJsonSet(RedisTestContext redis) throws Exception {
+	void jsonSet(RedisTestContext redis) throws Exception {
 		JsonSet<String, String, JsonNode> jsonSet = JsonSet
 				.<String, String, JsonNode>key(n -> "beer:" + n.get("id").asText()).path(".").value(JsonNode::toString)
 				.build();
@@ -84,7 +84,7 @@ class ModulesTests extends AbstractTestBase {
 
 	@ParameterizedTest
 	@RedisTestContextsSource
-	void testTsAdd(RedisTestContext redis) throws Exception {
+	void tsAdd(RedisTestContext redis) throws Exception {
 		String key = "ts:1";
 		Converter<Sample, Sample> sampleConverter = v -> v;
 		RedisItemWriter<String, String, Sample> writer = operationWriter(redis,
@@ -107,7 +107,7 @@ class ModulesTests extends AbstractTestBase {
 
 	@ParameterizedTest
 	@RedisTestContextsSource
-	void testBeerIndex(RedisTestContext redis) throws Exception {
+	void beerIndex(RedisTestContext redis) throws Exception {
 		Beers.populateIndex(redis.getConnection());
 		IndexInfo indexInfo = RedisModulesUtils.indexInfo(redis.sync().ftInfo(Beers.INDEX));
 		Assertions.assertEquals(BEER_COUNT, indexInfo.getNumDocs());
@@ -115,7 +115,7 @@ class ModulesTests extends AbstractTestBase {
 
 	@ParameterizedTest
 	@RedisTestContextsSource
-	void testMetrics(RedisTestContext redis) throws Exception {
+	void metrics(RedisTestContext redis) throws Exception {
 		Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
 		SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
 			@Override
@@ -139,7 +139,7 @@ class ModulesTests extends AbstractTestBase {
 
 	@ParameterizedTest
 	@RedisTestContextsSource
-	void testStreamTransactionWriter(RedisTestContext redis) throws Exception {
+	void writeStreamTx(RedisTestContext redis) throws Exception {
 		String stream = "stream:1";
 		List<Map<String, String>> messages = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
@@ -163,7 +163,7 @@ class ModulesTests extends AbstractTestBase {
 
 	@ParameterizedTest
 	@RedisTestContextsSource
-	void testComparator(RedisTestContext redis) throws Exception {
+	void comparator(RedisTestContext redis) throws Exception {
 		RedisTestContext target = getContext(TARGET);
 		redis.sync().tsAdd("ts:1", Sample.of(123));
 		KeyComparator comparator = comparator(redis, target).build();
@@ -173,7 +173,7 @@ class ModulesTests extends AbstractTestBase {
 
 	@ParameterizedTest
 	@RedisTestContextsSource
-	void testJSONReplication(RedisTestContext redis) throws Exception {
+	void replicateJSON(RedisTestContext redis) throws Exception {
 		redis.sync().jsonSet("json:1", "$", JSON_BEER_1);
 		redis.sync().jsonSet("json:2", "$", JSON_BEER_1);
 		redis.sync().jsonSet("json:3", "$", JSON_BEER_1);
@@ -185,7 +185,7 @@ class ModulesTests extends AbstractTestBase {
 
 	@ParameterizedTest
 	@RedisTestContextsSource
-	void testTimeSeriesReplication(RedisTestContext redis) throws Exception {
+	void replicateTimeSeries(RedisTestContext redis) throws Exception {
 		String key = "ts:1";
 		redis.sync().tsCreate(key, CreateOptions.<String, String>builder().policy(DuplicatePolicy.LAST).build());
 		redis.sync().tsAdd(key, Sample.of(1000, 1));

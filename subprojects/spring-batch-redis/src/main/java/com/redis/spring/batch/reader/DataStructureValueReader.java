@@ -55,12 +55,12 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 		List<RedisFuture<?>> valueFutures = new ArrayList<>(keys.size());
 		for (int index = 0; index < keys.size(); index++) {
 			K key = keys.get(index);
-			String type = typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
-			valueFutures.add(value(commands, key, type));
+			String typeString = typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
+			valueFutures.add(value(commands, key, typeString));
 			ttlFutures.add(absoluteTTL(commands, key));
 			DataStructure<K> dataStructure = new DataStructure<>();
 			dataStructure.setKey(key);
-			dataStructure.setType(type);
+			dataStructure.setTypeString(typeString);
 			dataStructures.add(dataStructure);
 		}
 		commands.flushCommands();

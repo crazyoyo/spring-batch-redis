@@ -13,7 +13,6 @@ import java.util.function.Supplier;
 
 import com.hrakaroo.glob.GlobPattern;
 import com.hrakaroo.glob.MatchingEngine;
-import com.redis.spring.batch.DataStructure.Type;
 import com.redis.spring.batch.support.RedisConnectionBuilder;
 import com.redis.spring.batch.support.Utils;
 
@@ -132,10 +131,6 @@ public class RedisScanSizeEstimator implements Callable<Long> {
 		public RedisScanSizeEstimator.Builder match(String match) {
 			this.match = Optional.of(match);
 			return this;
-		}
-
-		public RedisScanSizeEstimator.Builder type(Type type) {
-			return type(type.getString());
 		}
 
 		public RedisScanSizeEstimator.Builder type(String type) {

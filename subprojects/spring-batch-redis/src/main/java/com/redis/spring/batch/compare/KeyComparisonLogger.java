@@ -11,8 +11,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.redis.spring.batch.DataStructure.Type;
-
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
@@ -50,13 +48,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 					comparison.getSource().getType(), comparison.getTarget().getType());
 			break;
 		case VALUE:
-			Type sourceType = Type.of(comparison.getSource().getType());
-			if (sourceType == null) {
-				log.warn("Unknown type for key '{}': {}", comparison.getSource().getKey(),
-						comparison.getSource().getType());
-				break;
-			}
-			switch (sourceType) {
+			switch (comparison.getSource().getType()) {
 			case SET:
 				showSetDiff(comparison);
 				break;
@@ -78,6 +70,9 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 				break;
 			case TIMESERIES:
 				showListDiff(comparison);
+				break;
+			default:
+				log.warn("Value mismatch for key '{}'", comparison.getSource().getKey());
 				break;
 			}
 			break;

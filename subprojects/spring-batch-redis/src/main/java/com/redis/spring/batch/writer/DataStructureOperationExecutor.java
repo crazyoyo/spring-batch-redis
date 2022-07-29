@@ -1,14 +1,9 @@
 package com.redis.spring.batch.writer;
 
-import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,13 +14,7 @@ import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.DataStructure;
-import com.redis.spring.batch.DataStructure.Type;
-import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.support.Utils;
 
-import io.lettuce.core.LettuceFutures;
-import io.lettuce.core.RedisFuture;
-import io.lettuce.core.RedisURI;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
@@ -44,8 +33,6 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 
 	private static final Logger log = LoggerFactory.getLogger(DataStructureOperationExecutor.class);
 
-	private Duration timeout = RedisURI.DEFAULT_TIMEOUT_DURATION;
-	private int chunkSize = RedisItemReader.DEFAULT_CHUNK_SIZE;
 	private UnknownTypePolicy unknownTypePolicy = UnknownTypePolicy.LOG;
 	private final HashOperation hashOperation = new HashOperation();
 	private final ListOperation listOperation = new ListOperation();
@@ -64,16 +51,6 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 	public DataStructureOperationExecutor(RedisCodec<K, V> codec) {
 		this.codec = codec;
 		this.jsonOperation = new JsonOperation(codec.decodeKey(StringCodec.UTF8.encodeKey("$")));
-	}
-
-	public void setTimeout(Duration timeout) {
-		Utils.assertPositive(timeout, "Timeout duration");
-		this.timeout = timeout;
-	}
-
-	public void setChunkSize(int chunkSize) {
-		Utils.assertPositive(chunkSize, "Chunk size");
-		this.chunkSize = chunkSize;
 	}
 
 	public void setUnknownTypePolicy(UnknownTypePolicy unknownTypePolicy) {
@@ -98,21 +75,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(ds.getKey()));
 			return;
 		}
-		Type type = Type.of(ds.getType());
-		if (type == null) {
-			switch (unknownTypePolicy) {
-			case FAIL:
-				throw new IllegalArgumentException(
-						String.format("Unknown type %s for key %s", ds.getType(), ds.getKey()));
-			case LOG:
-				log.warn("Unknown type {} for key {}", ds.getType(), string(ds.getKey()));
-				break;
-			case IGNORE:
-				break;
-			}
-			return;
-		}
-		switch (type) {
+		switch (ds.getType()) {
 		case HASH:
 			hashOperation.execute(commands, ds, futures);
 			break;
@@ -137,10 +100,27 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		case TIMESERIES:
 			timeseriesOperation.execute(commands, ds, futures);
 			break;
+		case UNKNOWN:
+		case NONE:
+			handleUnknownType(ds);
+			break;
 		}
 		if (ds.hasTtl()) {
 			futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getTtl()));
 		}
+	}
+
+	private void handleUnknownType(DataStructure<K> ds) {
+		switch (unknownTypePolicy) {
+		case FAIL:
+			throw new IllegalArgumentException(String.format("Unknown type %s for key %s", ds.getType(), ds.getKey()));
+		case LOG:
+			log.warn("Unknown type {} for key {}", ds.getType(), string(ds.getKey()));
+			break;
+		case IGNORE:
+			break;
+		}
+
 	}
 
 	private String string(K key) {
@@ -210,7 +190,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		@SuppressWarnings("unchecked")
 		@Override
 		protected void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
-			Collection<ScoredValue<String>> zset = (Collection<ScoredValue<String>>) ds.getValue();
+			Collection<ScoredValue<V>> zset = (Collection<ScoredValue<V>>) ds.getValue();
 			if (!zset.isEmpty()) {
 				futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(ds.getKey(),
 						zset.toArray(new ScoredValue[0])));
@@ -234,37 +214,9 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		@Override
 		protected void doExecute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
 			RedisStreamAsyncCommands<K, V> streamCommands = (RedisStreamAsyncCommands<K, V>) commands;
-			batches((List<StreamMessage<K, V>>) ds.getValue()).forEach(b -> {
-				List<Future<?>> streamFutures = new ArrayList<>();
-				for (StreamMessage<K, V> message : b) {
-					streamFutures.add(streamCommands.xadd(ds.getKey(), xaddArgs.convert(message), message.getBody()));
-				}
-				flush(commands, streamFutures);
-			});
-		}
-
-		private <T> Stream<List<T>> batches(List<T> source) {
-			int size = source.size();
-			if (size <= 0) {
-				return Stream.empty();
-			}
-			int fullChunks = (size - 1) / chunkSize;
-			return IntStream.range(0, fullChunks + 1)
-					.mapToObj(n -> source.subList(n * chunkSize, n == fullChunks ? size : (n + 1) * chunkSize));
-		}
-
-		private void flush(BaseRedisAsyncCommands<K, V> commands, List<Future<?>> futures) {
-			flush(commands, futures.toArray(new RedisFuture[0]));
-		}
-
-		private void flush(BaseRedisAsyncCommands<K, V> commands, RedisFuture<?>... futures) {
-			commands.flushCommands();
-			log.trace("Executing {} commands", futures.length);
-			boolean result = LettuceFutures.awaitAll(timeout.toMillis(), TimeUnit.MILLISECONDS, futures);
-			if (result) {
-				log.trace("Successfully executed {} commands", futures.length);
-			} else {
-				log.warn("Could not execute {} commands", futures.length);
+			Collection<StreamMessage<K, V>> messages = (Collection<StreamMessage<K, V>>) ds.getValue();
+			for (StreamMessage<K, V> message : messages) {
+				futures.add(streamCommands.xadd(ds.getKey(), xaddArgs.convert(message), message.getBody()));
 			}
 		}
 
@@ -275,7 +227,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		@SuppressWarnings("unchecked")
 		@Override
 		public void execute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds, List<Future<?>> futures) {
-			List<Sample> samples = (List<Sample>) ds.getValue();
+			Collection<Sample> samples = (Collection<Sample>) ds.getValue();
 			for (Sample sample : samples) {
 				futures.add(((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(ds.getKey(), sample));
 			}

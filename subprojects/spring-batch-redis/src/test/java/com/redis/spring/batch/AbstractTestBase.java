@@ -32,7 +32,7 @@ import com.redis.spring.batch.compare.KeyComparisonResults;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
-import com.redis.spring.batch.reader.RandomDataStructureItemReader;
+import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
 import com.redis.spring.batch.support.JobRunner;
@@ -81,9 +81,9 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return KeyComparator.left(context.getClient());
 	}
 
-	protected void compare(RedisTestContext server, RedisTestContext target) throws Exception {
-		Assertions.assertEquals(server.sync().dbsize(), target.sync().dbsize());
-		KeyComparator comparator = comparator(server, target).build();
+	protected void compare(RedisTestContext left, RedisTestContext right) throws Exception {
+		Assertions.assertEquals(left.sync().dbsize(), right.sync().dbsize());
+		KeyComparator comparator = comparator(left, right).build();
 		comparator.addListener(new KeyComparisonLogger(log));
 		KeyComparisonResults results = comparator.call();
 		Assertions.assertTrue(results.isOK());
@@ -133,8 +133,8 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return testInfo.getTestMethod().get().getName() + "-" + ClassUtils.getShortName(redis.getServer().getClass());
 	}
 
-	protected void generate(RedisTestContext server) throws JobExecutionException {
-		run(name(server) + "-gen", RandomDataStructureItemReader.builder().build(), dataStructureWriter(server));
+	protected void generate(RedisTestContext redis) throws JobExecutionException {
+		run(name(redis) + "-gen", DataStructureGeneratorItemReader.builder().build(), dataStructureWriter(redis));
 	}
 
 	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisTestContext redis)
