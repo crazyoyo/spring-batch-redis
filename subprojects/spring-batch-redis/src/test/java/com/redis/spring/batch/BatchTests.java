@@ -117,7 +117,7 @@ class BatchTests extends AbstractTestBase {
 		JobExecution execution = runFlushing(redis, reader, writer);
 		log.info("Keyspace-notification reader open={}", reader.isOpen());
 		run(name(redis) + "-gen",
-				DataStructureGeneratorItemReader.builder().count(3).types(Type.STRING, Type.HASH).build(),
+				DataStructureGeneratorItemReader.builder().maxItemCount(3).types(Type.STRING, Type.HASH).build(),
 				dataStructureWriter(redis));
 		jobRunner.awaitTermination(execution);
 		Awaitility.await().until(() -> !reader.isOpen());
@@ -135,7 +135,7 @@ class BatchTests extends AbstractTestBase {
 		keyReader.open(new ExecutionContext());
 		int count = 2;
 		generate(redis, DataStructureGeneratorItemReader.builder()
-				.types(Type.HASH, Type.STRING, Type.LIST, Type.SET, Type.ZSET).count(count).build());
+				.types(Type.HASH, Type.STRING, Type.LIST, Type.SET, Type.ZSET).maxItemCount(count).build());
 		Set<String> keys = new HashSet<>(readFully(redis, keyReader));
 		assertEquals(new HashSet<>(redis.sync().keys("*")), keys);
 	}
@@ -219,7 +219,8 @@ class BatchTests extends AbstractTestBase {
 		LiveRedisItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(redis, 10000);
 		ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
 		JobExecution execution = runAsync(redis, reader, writer);
-		generate(redis, DataStructureGeneratorItemReader.builder().count(123).types(Type.HASH, Type.STRING).build());
+		generate(redis,
+				DataStructureGeneratorItemReader.builder().maxItemCount(123).types(Type.HASH, Type.STRING).build());
 		jobRunner.awaitTermination(execution);
 		assertEquals(redis.sync().dbsize(), writer.getWrittenItems().size());
 	}
@@ -283,7 +284,7 @@ class BatchTests extends AbstractTestBase {
 
 	private void generateStreams(RedisTestContext redis) throws JobExecutionException {
 		generate(redis, DataStructureGeneratorItemReader.builder().types(Type.STREAM).streamSize(IntRange.is(COUNT))
-				.count(1).build());
+				.maxItemCount(1).build());
 	}
 
 	private void generate(RedisTestContext redis, ItemReader<DataStructure<String>> reader)
@@ -558,7 +559,7 @@ class BatchTests extends AbstractTestBase {
 	@RedisTestContextsSource
 	void replicateDataStructures(RedisTestContext redis) throws Exception {
 		RedisTestContext target = getContext(TARGET);
-		generate(redis, DataStructureGeneratorItemReader.builder().count(100).build());
+		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(100).build());
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
 		run(redis, reader, replicationDataStructureWriter());
 		compare(redis, target);
@@ -567,7 +568,7 @@ class BatchTests extends AbstractTestBase {
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void replicate(RedisTestContext redis) throws Exception {
-		generate(redis, DataStructureGeneratorItemReader.builder().count(100).build());
+		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(100).build());
 		doReplicate(redis);
 		compare(redis, getContext(TARGET));
 	}
@@ -652,7 +653,7 @@ class BatchTests extends AbstractTestBase {
 			RedisItemReader<String, T> reader, RedisItemWriter<String, String, T> writer,
 			LiveRedisItemReader<String, T> liveReader, RedisItemWriter<String, String, T> liveWriter) throws Exception {
 		String name = name(redis);
-		generate(redis, DataStructureGeneratorItemReader.builder().count(3000).build());
+		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(3000).build());
 		TaskletStep step = jobRunner.step(name + "-snapshot-step", RedisItemReader.DEFAULT_CHUNK_SIZE, reader, writer)
 				.build();
 		SimpleFlow flow = jobRunner.flow(name + "-snapshot-flow").start(step).build();
@@ -667,8 +668,9 @@ class BatchTests extends AbstractTestBase {
 		JobExecution execution = jobRunner.runAsync(job);
 		awaitOpen(liveReader);
 		awaitOpen(liveWriter);
-		generate(name(redis) + "-generate-2", redis, DataStructureGeneratorItemReader.builder()
-				.types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).count(1000).start(3000).build());
+		generate(name(redis) + "-generate-2", redis,
+				DataStructureGeneratorItemReader.builder().types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET)
+						.maxItemCount(4000).currentItemCount(3000).build());
 		jobRunner.awaitTermination(execution);
 		awaitClosed(writer);
 		awaitClosed(liveWriter);
@@ -679,7 +681,7 @@ class BatchTests extends AbstractTestBase {
 	@RedisTestContextsSource
 	void comparator(RedisTestContext redis) throws Exception {
 		int sourceCount = 120;
-		generate(redis, DataStructureGeneratorItemReader.builder().count(sourceCount).build());
+		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(sourceCount).build());
 		doReplicate(redis);
 		RedisTestContext target = getContext(TARGET);
 		long deleteCount = 13;
@@ -726,7 +728,7 @@ class BatchTests extends AbstractTestBase {
 	void scanSizeEstimator(RedisTestContext redis) throws Exception {
 		String pattern = DataStructureGeneratorItemReader.DEFAULT_KEYSPACE + "*";
 		int count = 12345;
-		generate(redis, DataStructureGeneratorItemReader.builder().count(count).build());
+		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(count).build());
 		long expectedCount = redis.sync().dbsize();
 		assertEquals(expectedCount, sizeEstimator(redis).sampleSize(1000).match(pattern).build().call(),
 				expectedCount / 10);

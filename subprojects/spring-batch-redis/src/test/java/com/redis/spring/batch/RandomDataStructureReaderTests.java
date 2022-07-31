@@ -21,7 +21,7 @@ class RandomDataStructureReaderTests {
 	void defaults() throws UnexpectedInputException, ParseException, Exception {
 		DataStructureGeneratorItemReader reader = DataStructureGeneratorItemReader.builder().build();
 		List<DataStructure<String>> list = readAll(reader);
-		Assertions.assertEquals(DataStructureGeneratorItemReader.DEFAULT_COUNT, list.size());
+		Assertions.assertEquals(DataStructureGeneratorItemReader.DEFAULT_MAX_ITEM_COUNT, list.size());
 	}
 
 	private List<DataStructure<String>> readAll(DataStructureGeneratorItemReader reader)
@@ -37,7 +37,8 @@ class RandomDataStructureReaderTests {
 	@Test
 	void options() throws Exception {
 		int count = 123;
-		DataStructureGeneratorItemReader reader = DataStructureGeneratorItemReader.builder().count(count).build();
+		DataStructureGeneratorItemReader reader = DataStructureGeneratorItemReader.builder().maxItemCount(count)
+				.build();
 		List<DataStructure<String>> list = readAll(reader);
 		Assertions.assertEquals(count, list.size());
 		for (DataStructure<String> ds : list) {
@@ -54,15 +55,15 @@ class RandomDataStructureReaderTests {
 	void read() throws Exception {
 		DataStructureGeneratorItemReader reader = DataStructureGeneratorItemReader.builder().build();
 		DataStructure<String> ds1 = reader.read();
-		assertEquals(Type.HASH, ds1.getType());
-		assertEquals(reader.key(Type.HASH, 1), ds1.getKey());
+		assertEquals(DataStructureGeneratorItemReader.defaultTypes().get(0), ds1.getType());
+		assertEquals("gen:1", ds1.getKey());
 		assertEquals(DataStructureGeneratorItemReader.DEFAULT_HASH_SIZE.getMin(),
 				((Map<String, Object>) ds1.getValue()).size());
 		int count = 1;
 		while (reader.read() != null) {
 			count++;
 		}
-		assertEquals(DataStructureGeneratorItemReader.DEFAULT_COUNT, count);
+		assertEquals(DataStructureGeneratorItemReader.DEFAULT_MAX_ITEM_COUNT, count);
 	}
 
 }

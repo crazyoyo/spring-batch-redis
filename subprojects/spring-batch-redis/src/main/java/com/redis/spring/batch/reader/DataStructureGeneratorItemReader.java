@@ -3,7 +3,6 @@ package com.redis.spring.batch.reader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -11,7 +10,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -39,8 +37,7 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 	private static final int RIGHT_LIMIT = 122; // letter 'z'
 
 	public static final String DEFAULT_KEYSPACE = "gen";
-	public static final int DEFAULT_COUNT = 100;
-	public static final int DEFAULT_START = 1;
+	public static final int DEFAULT_MAX_ITEM_COUNT = 100;
 	public static final IntRange DEFAULT_HASH_SIZE = IntRange.is(10);
 	public static final IntRange DEFAULT_HASH_FIELD_SIZE = IntRange.is(100);
 	public static final IntRange DEFAULT_STREAM_FIELD_COUNT = IntRange.is(10);
@@ -54,34 +51,60 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 	public static final IntRange DEFAULT_LIST_SIZE = IntRange.is(10);
 	public static final IntRange DEFAULT_STRING_SIZE = IntRange.is(100);
 	public static final DoubleRange DEFAULT_ZSET_SCORE = DoubleRange.between(0, 100);
+	private static final String DEFAULT_NAME = ClassUtils.getShortName(DataStructureGeneratorItemReader.class);
 	private static final List<Type> DEFAULT_TYPES = Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM,
 			Type.STRING, Type.ZSET);
 
 	private final ObjectMapper mapper = new ObjectMapper();
-	private final int count;
-	private final Optional<IntRange> expiration;
-	private final IntRange hashSize;
-	private final IntRange hashFieldSize;
-	private final IntRange streamFieldCount;
-	private final IntRange streamFieldSize;
-	private final IntRange jsonFieldCount;
-	private final IntRange jsonFieldSize;
-	private final IntRange timeseriesSize;
-	private final IntRange streamSize;
-	private final IntRange listSize;
-	private final IntRange setSize;
-	private final IntRange zsetSize;
-	private final IntRange stringSize;
-	private final DoubleRange zsetScore;
-	private final String keyspace;
-
+	private Optional<IntRange> expiration = Optional.empty();
+	private IntRange hashSize = DEFAULT_HASH_SIZE;
+	private IntRange hashFieldSize = DEFAULT_HASH_FIELD_SIZE;
+	private IntRange streamFieldCount = DEFAULT_STREAM_FIELD_COUNT;
+	private IntRange streamFieldSize = DEFAULT_STREAM_FIELD_SIZE;
+	private IntRange jsonFieldCount = DEFAULT_JSON_FIELD_COUNT;
+	private IntRange jsonFieldSize = DEFAULT_JSON_FIELD_SIZE;
+	private IntRange timeseriesSize = DEFAULT_TIMESERIES_SIZE;
+	private IntRange streamSize = DEFAULT_STREAM_SIZE;
+	private IntRange listSize = DEFAULT_LIST_SIZE;
+	private IntRange setSize = DEFAULT_SET_SIZE;
+	private IntRange zsetSize = DEFAULT_ZSET_SIZE;
+	private IntRange stringSize = DEFAULT_STRING_SIZE;
+	private DoubleRange zsetScore = DEFAULT_ZSET_SCORE;
+	private String keyspace = DEFAULT_KEYSPACE;
 	private final Random random = new Random();
-	private final EnumMap<Type, AtomicInteger> indexes = new EnumMap<>(Type.class);
-	private final Type[] types;
-	private int typeIndex = 0;
+	private List<Type> types = DEFAULT_TYPES;
+	private long timeseriesStartTime;
 
-	public String key(Type type, int index) {
-		return keyspace + ":" + type.name().toLowerCase() + ":" + index;
+	public DataStructureGeneratorItemReader() {
+		setName(DEFAULT_NAME);
+	}
+
+	private DataStructureGeneratorItemReader(Builder builder) {
+		setName(builder.name);
+		setSaveState(builder.saveState);
+		setCurrentItemCount(builder.currentItemCount);
+		setMaxItemCount(builder.maxItemCount);
+		this.keyspace = builder.keyspace;
+		this.types = builder.types;
+		this.expiration = builder.expiration;
+		this.hashSize = builder.hashSize;
+		this.hashFieldSize = builder.hashFieldSize;
+		this.streamFieldCount = builder.streamFieldCount;
+		this.streamFieldSize = builder.streamFieldSize;
+		this.jsonFieldCount = builder.jsonFieldCount;
+		this.jsonFieldSize = builder.jsonFieldSize;
+		this.setSize = builder.setSize;
+		this.streamSize = builder.streamSize;
+		this.zsetSize = builder.zsetSize;
+		this.listSize = builder.listSize;
+		this.timeseriesStartTime = builder.timeseriesStartTime;
+		this.timeseriesSize = builder.timeseriesSize;
+		this.stringSize = builder.stringSize;
+		this.zsetScore = builder.zsetScore;
+	}
+
+	public String key() {
+		return keyspace + ":" + getCurrentItemCount();
 	}
 
 	private Object value(Type type) {
@@ -117,9 +140,8 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 	private List<Sample> samples() {
 		List<Sample> samples = new ArrayList<>();
 		int size = randomInt(timeseriesSize);
-		long start = System.currentTimeMillis() - count * size;
 		for (int index = 0; index < size; index++) {
-			samples.add(Sample.of(start + getCurrentItemCount() + index, random.nextDouble()));
+			samples.add(Sample.of(timeseriesStartTime + index() + index, random.nextDouble()));
 		}
 		return samples;
 	}
@@ -130,7 +152,7 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 	}
 
 	private Collection<StreamMessage<String, String>> streamMessages() {
-		String key = key(Type.STREAM, indexes.get(Type.STREAM).get());
+		String key = key();
 		Collection<StreamMessage<String, String>> messages = new ArrayList<>();
 		for (int elementIndex = 0; elementIndex < randomInt(streamSize); elementIndex++) {
 			messages.add(new StreamMessage<>(key, null, map(streamFieldCount, streamFieldSize)));
@@ -176,39 +198,19 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 		return ThreadLocalRandom.current().nextDouble(range.getMin(), range.getMax());
 	}
 
-	private DataStructureGeneratorItemReader(Builder builder) {
-		setName(ClassUtils.getShortName(getClass()));
-		setMaxItemCount(builder.count);
-		this.keyspace = builder.keyspace;
-		this.types = builder.types.toArray(Type[]::new);
-		builder.types.forEach(type -> indexes.put(type, new AtomicInteger(builder.start)));
-		this.count = builder.count;
-		this.expiration = builder.expiration;
-		this.hashSize = builder.hashSize;
-		this.hashFieldSize = builder.hashFieldSize;
-		this.streamFieldCount = builder.streamFieldCount;
-		this.streamFieldSize = builder.streamFieldSize;
-		this.jsonFieldCount = builder.jsonFieldCount;
-		this.jsonFieldSize = builder.jsonFieldSize;
-		this.setSize = builder.setSize;
-		this.streamSize = builder.streamSize;
-		this.zsetSize = builder.zsetSize;
-		this.listSize = builder.listSize;
-		this.timeseriesSize = builder.timeseriesSize;
-		this.stringSize = builder.stringSize;
-		this.zsetScore = builder.zsetScore;
-	}
-
 	@Override
 	protected DataStructure<String> doRead() throws Exception {
 		DataStructure<String> ds = new DataStructure<>();
-		Type type = types[typeIndex++ % types.length];
+		Type type = types.get(index() % types.size());
 		ds.setType(type);
-		int index = indexes.get(type).getAndIncrement();
-		ds.setKey(key(type, index));
+		ds.setKey(key());
 		ds.setValue(value(type));
 		expiration.ifPresent(e -> ds.setTtl(System.currentTimeMillis() + randomInt(e)));
 		return ds;
+	}
+
+	private int index() {
+		return getCurrentItemCount() - 1;
 	}
 
 	@Override
@@ -229,8 +231,10 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 
 		private String keyspace = DEFAULT_KEYSPACE;
 		private List<Type> types = DEFAULT_TYPES;
-		private int count = DEFAULT_COUNT;
-		private int start = DEFAULT_START;
+		private String name = DEFAULT_NAME;
+		private boolean saveState;
+		private int currentItemCount;
+		private int maxItemCount = DEFAULT_MAX_ITEM_COUNT;
 		private Optional<IntRange> expiration = Optional.empty();
 		private IntRange hashSize = DEFAULT_HASH_SIZE;
 		private IntRange hashFieldSize = DEFAULT_HASH_FIELD_SIZE;
@@ -245,21 +249,36 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 		private IntRange listSize = DEFAULT_LIST_SIZE;
 		private IntRange stringSize = DEFAULT_STRING_SIZE;
 		private DoubleRange zsetScore = DEFAULT_ZSET_SCORE;
+		private long timeseriesStartTime;
 
 		public Builder keyspace(String keyspace) {
 			this.keyspace = keyspace;
 			return this;
 		}
 
-		public Builder count(int count) {
-			Assert.isTrue(count > 0, "Count must be strictly positive");
-			this.count = count;
+		public Builder name(String name) {
+			this.name = name;
 			return this;
 		}
 
-		public Builder start(int start) {
-			Assert.isTrue(start > 0, "Start must be strictly positive");
-			this.start = start;
+		public Builder saveState(boolean saveState) {
+			this.saveState = saveState;
+			return this;
+		}
+
+		public Builder timeseriesStartTime(long time) {
+			Assert.isTrue(time >= 0, "Time must be positive");
+			this.timeseriesStartTime = time;
+			return this;
+		}
+
+		public Builder currentItemCount(int count) {
+			this.currentItemCount = count;
+			return this;
+		}
+
+		public Builder maxItemCount(int count) {
+			this.maxItemCount = count;
 			return this;
 		}
 
