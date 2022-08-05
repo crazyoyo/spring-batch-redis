@@ -1,14 +1,13 @@
 package com.redis.spring.batch;
 
 import java.time.Duration;
+import java.util.logging.Logger;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.runner.RunWith;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
@@ -29,10 +28,10 @@ import com.redis.spring.batch.compare.KeyComparator;
 import com.redis.spring.batch.compare.KeyComparator.RightComparatorBuilder;
 import com.redis.spring.batch.compare.KeyComparisonLogger;
 import com.redis.spring.batch.compare.KeyComparisonResults;
+import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
-import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
 import com.redis.spring.batch.support.JobRunner;
@@ -48,7 +47,7 @@ import io.lettuce.core.codec.StringCodec;
 @RunWith(SpringRunner.class)
 public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBase {
 
-	private static final Logger log = LoggerFactory.getLogger(AbstractTestBase.class);
+	private static final Logger log = Logger.getLogger(AbstractTestBase.class.getName());
 
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
 

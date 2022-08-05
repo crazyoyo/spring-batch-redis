@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
@@ -22,7 +22,7 @@ import com.redis.spring.batch.support.Utils;
 
 public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataStructure<String>> {
 
-	private static final Logger log = LoggerFactory.getLogger(KeyComparisonItemWriter.class);
+	private final Log log = LogFactory.getLog(getClass());
 
 	private final KeyComparisonResults results = new KeyComparisonResults();
 	private final ValueReader<String, DataStructure<String>> valueReader;

@@ -2,8 +2,8 @@ package com.redis.spring.batch.reader;
 
 import java.util.function.Supplier;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
@@ -13,7 +13,7 @@ import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 
 public class RedisClusterKeyspaceNotificationItemReader<K, V> extends AbstractKeyspaceNotificationItemReader<K> {
 
-	private static final Logger log = LoggerFactory.getLogger(RedisClusterKeyspaceNotificationItemReader.class);
+	private final Log log = LogFactory.getLog(getClass());
 
 	private final Listener listener = new Listener();
 	private final Supplier<StatefulRedisClusterPubSubConnection<K, V>> connectionSupplier;

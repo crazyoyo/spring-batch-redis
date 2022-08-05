@@ -1,7 +1,6 @@
 package com.redis.spring.batch.reader;
 
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -13,8 +12,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
@@ -34,8 +31,6 @@ import io.lettuce.core.api.sync.RedisStreamCommands;
 
 public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 		implements PollableItemReader<StreamMessage<K, V>> {
-
-	private static final Logger log = LoggerFactory.getLogger(StreamItemReader.class);
 
 	public enum AckPolicy {
 		AUTO, MANUAL
@@ -153,7 +148,6 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 				.collect(Collectors.groupingBy(StreamMessage::getStream));
 		for (Map.Entry<K, List<StreamMessage<K, V>>> entry : streams.entrySet()) {
 			String[] messageIds = entry.getValue().stream().map(StreamMessage::getId).toArray(String[]::new);
-			log.debug("Ack'ing message ids: {}", Arrays.asList(messageIds));
 			commands.xack(entry.getKey(), consumerGroup, messageIds);
 		}
 	}

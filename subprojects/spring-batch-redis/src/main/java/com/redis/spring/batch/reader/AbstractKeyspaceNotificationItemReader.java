@@ -7,8 +7,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamSupport;
@@ -21,7 +21,7 @@ import com.redis.spring.batch.support.Utils;
 public abstract class AbstractKeyspaceNotificationItemReader<K> extends ItemStreamSupport
 		implements PollableItemReader<K> {
 
-	private static final Logger log = LoggerFactory.getLogger(AbstractKeyspaceNotificationItemReader.class);
+	private final Log log = LogFactory.getLog(getClass());
 
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 	public static final Duration DEFAULT_DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
@@ -66,7 +66,7 @@ public abstract class AbstractKeyspaceNotificationItemReader<K> extends ItemStre
 		}
 		listeners.forEach(l -> l.key(key));
 		if (!queue.offer(key)) {
-			log.warn("Could not add key because queue is full. Queue size: {}", queue.size());
+			log.warn("Could not add key because queue is full");
 		}
 	}
 
@@ -98,7 +98,7 @@ public abstract class AbstractKeyspaceNotificationItemReader<K> extends ItemStre
 			return;
 		}
 		if (!queue.isEmpty()) {
-			log.warn("Closing {} with {} items still in queue", ClassUtils.getShortName(getClass()), queue.size());
+			log.warn("Closing with items still in queue");
 		}
 		doClose();
 		queue = null;

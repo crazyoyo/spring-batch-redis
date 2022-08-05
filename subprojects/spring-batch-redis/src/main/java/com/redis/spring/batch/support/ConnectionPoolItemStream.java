@@ -3,10 +3,10 @@ package com.redis.spring.batch.support;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamSupport;
@@ -17,7 +17,7 @@ import io.lettuce.core.support.ConnectionPoolSupport;
 
 public class ConnectionPoolItemStream<K, V> extends ItemStreamSupport {
 
-	private static final Logger log = LoggerFactory.getLogger(ConnectionPoolItemStream.class);
+	private final Log log = LogFactory.getLog(getClass());
 
 	private final AtomicInteger threadCount = new AtomicInteger();
 	private final Supplier<StatefulConnection<K, V>> connectionSupplier;

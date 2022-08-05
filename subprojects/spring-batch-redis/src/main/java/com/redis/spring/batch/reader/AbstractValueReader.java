@@ -9,9 +9,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.FileCopyUtils;
@@ -29,7 +29,7 @@ import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extends ConnectionPoolItemStream<K, V>
 		implements ValueReader<K, T> {
 
-	private static final Logger log = LoggerFactory.getLogger(AbstractValueReader.class);
+	private final Log log = LogFactory.getLog(getClass());
 
 	private static final String ABSTTL_LUA = "absttl.lua";
 	private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;

@@ -3,8 +3,6 @@ package com.redis.spring.batch.step;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.metrics.BatchMetrics;
@@ -37,8 +35,6 @@ import io.micrometer.core.instrument.Timer;
  * chunks when timeout is reached.
  */
 public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
-
-	private static final Logger log = LoggerFactory.getLogger(FlushingChunkProvider.class);
 
 	/**
 	 * Hard limit for number of read skips in the same chunk. Should be sufficiently
@@ -134,7 +130,6 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 			if (item == null) {
 				long idleDuration = System.currentTimeMillis() - lastActivity;
 				if (idleDuration > idleTimeout) {
-					log.debug("End of stream: idle for {} ms", idleDuration);
 					inputs.setEnd();
 				}
 				return RepeatStatus.CONTINUABLE;
@@ -186,9 +181,6 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 			}
 			return item;
 		} catch (Exception e) {
-			if (log.isDebugEnabled()) {
-				log.debug("{} : {}", e.getMessage(), e.getClass().getName());
-			}
 			getListener().onReadError(e);
 			throw e;
 		}

@@ -1,7 +1,6 @@
 package com.redis.spring.batch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
@@ -392,8 +391,9 @@ class BatchTests extends AbstractTestBase {
 				Hset.<String, String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
 				.waitForReplication(WaitForReplication.builder().replicas(1).timeout(Duration.ofMillis(300)).build())
 				.build();
-		assertThrows(JobExecutionException.class, () -> run(redis, reader, writer),
-				"Insufficient replication level - expected: 1, actual: 0");
+		JobExecution execution = run(redis, reader, writer);
+		List<Throwable> exceptions = execution.getAllFailureExceptions();
+		assertEquals("Insufficient replication level - expected: 1, actual: 0", exceptions.get(0).getMessage());
 //		assertEquals(ExitStatus.FAILED.getExitCode(), execution.getExitStatus().getExitCode());
 //		assertEquals(1, execution.getAllFailureExceptions().size());
 //		assertEquals(RedisCommandExecutionException.class,

@@ -6,10 +6,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -26,7 +25,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 	private final Logger log;
 
 	public KeyComparisonLogger() {
-		this(LoggerFactory.getLogger(KeyComparisonLogger.class));
+		this(Logger.getLogger(KeyComparisonLogger.class.getName()));
 	}
 
 	public KeyComparisonLogger(Logger logger) {
@@ -37,15 +36,17 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 	public void keyComparison(KeyComparison comparison) {
 		switch (comparison.getStatus()) {
 		case MISSING:
-			log.warn("Missing key '{}'", comparison.getSource().getKey());
+			log.log(Level.WARNING, "Missing key {0}", comparison.getSource().getKey());
 			break;
 		case TTL:
-			log.warn("TTL mismatch for key '{}': {} <> {}", comparison.getSource().getKey(),
-					comparison.getSource().getTtl(), comparison.getTarget().getTtl());
+			log.log(Level.WARNING, "TTL mismatch for key {0}: {1} <> {2}",
+					new Object[] { comparison.getSource().getKey(), comparison.getSource().getTtl(),
+							comparison.getTarget().getTtl() });
 			break;
 		case TYPE:
-			log.warn("Type mismatch for key '{}': {} <> {}", comparison.getSource().getKey(),
-					comparison.getSource().getType(), comparison.getTarget().getType());
+			log.log(Level.WARNING, "Type mismatch for key {0}: {1} <> {2}",
+					new Object[] { comparison.getSource().getKey(), comparison.getSource().getType(),
+							comparison.getTarget().getType() });
 			break;
 		case VALUE:
 			switch (comparison.getSource().getType()) {
@@ -72,7 +73,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 				showListDiff(comparison);
 				break;
 			default:
-				log.warn("Value mismatch for key '{}'", comparison.getSource().getKey());
+				log.log(Level.WARNING, "Value mismatch for key '{}'", comparison.getSource().getKey());
 				break;
 			}
 			break;
@@ -90,14 +91,16 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		diff.putAll(targetHash);
 		diff.entrySet()
 				.removeAll(sourceHash.size() <= targetHash.size() ? sourceHash.entrySet() : targetHash.entrySet());
-		log.warn("Value mismatch for hash '{}' on fields: {}", comparison.getSource().getKey(), diff.keySet());
+		log.log(Level.WARNING, "Value mismatch for hash {0} on fields: {1}",
+				new Object[] { comparison.getSource().getKey(), diff.keySet() });
 	}
 
 	private void showStringDiff(KeyComparison comparison) {
 		String sourceString = (String) comparison.getSource().getValue();
 		String targetString = (String) comparison.getTarget().getValue();
 		int diffIndex = indexOfDifference(sourceString, targetString);
-		log.warn("Value mismatch for string '{}' at offset {}", comparison.getSource().getKey(), diffIndex);
+		log.log(Level.WARNING, "Value mismatch for string {0} at offset {1}",
+				new Object[] { comparison.getSource().getKey(), diffIndex });
 	}
 
 	/**
@@ -151,8 +154,9 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		List<?> sourceList = (List<?>) comparison.getSource().getValue();
 		List<?> targetList = (List<?>) comparison.getTarget().getValue();
 		if (sourceList.size() != targetList.size()) {
-			log.warn("Size mismatch for {} '{}': {} <> {}", comparison.getSource().getType(),
-					comparison.getSource().getKey(), sourceList.size(), targetList.size());
+			log.log(Level.WARNING, "Size mismatch for {0} {1}: {2} <> {3}",
+					new Object[] { comparison.getSource().getType(), comparison.getSource().getKey(), sourceList.size(),
+							targetList.size() });
 			return;
 		}
 		List<Integer> diff = new ArrayList<>();
@@ -161,8 +165,8 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 				diff.add(index);
 			}
 		}
-		log.warn("Value mismatch for {} '{}' at indexes {}", comparison.getSource().getType(),
-				comparison.getSource().getKey(), diff);
+		log.log(Level.WARNING, "Value mismatch for {0} {1} at indexes {2}",
+				new Object[] { comparison.getSource().getType(), comparison.getSource().getKey(), diff });
 	}
 
 	private void showSetDiff(KeyComparison comparison) {
@@ -172,7 +176,8 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		missing.removeAll(targetSet);
 		Set<String> extra = new HashSet<>(targetSet);
 		extra.removeAll(sourceSet);
-		log.warn("Value mismatch for set '{}': {} <> {}", comparison.getSource().getKey(), missing, extra);
+		log.log(Level.WARNING, "Value mismatch for set {0}: {1} <> {2}",
+				new Object[] { comparison.getSource().getKey(), missing, extra });
 	}
 
 	private void showSortedSetDiff(KeyComparison comparison) {
@@ -182,8 +187,8 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		missing.removeAll(targetList);
 		List<ScoredValue<String>> extra = new ArrayList<>(targetList);
 		extra.removeAll(sourceList);
-		log.warn("Value mismatch for sorted set '{}': {} <> {}", comparison.getSource().getKey(), print(missing),
-				print(extra));
+		log.log(Level.WARNING, "Value mismatch for sorted set {0}: {1} <> {2}",
+				new Object[] { comparison.getSource().getKey(), print(missing), print(extra) });
 	}
 
 	private List<String> print(List<ScoredValue<String>> list) {
@@ -199,9 +204,10 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		missing.removeAll(targetMessages);
 		List<StreamMessage<String, String>> extra = new ArrayList<>(targetMessages);
 		extra.removeAll(sourceMessages);
-		log.warn("Value mismatch for stream '{}': {} <> {}", comparison.getSource().getKey(),
-				missing.stream().map(StreamMessage::getId).collect(Collectors.toList()),
-				extra.stream().map(StreamMessage::getId).collect(Collectors.toList()));
+		log.log(Level.WARNING, "Value mismatch for stream {0}: {1} <> {2}",
+				new Object[] { comparison.getSource().getKey(),
+						missing.stream().map(StreamMessage::getId).collect(Collectors.toList()),
+						extra.stream().map(StreamMessage::getId).collect(Collectors.toList()) });
 	}
 
 }

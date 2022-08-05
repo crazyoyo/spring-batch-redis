@@ -12,8 +12,8 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -31,7 +31,7 @@ import io.lettuce.core.StreamMessage;
 
 public class DataStructureGeneratorItemReader extends AbstractItemCountingItemStreamItemReader<DataStructure<String>> {
 
-	private static final Logger log = LoggerFactory.getLogger(DataStructureGeneratorItemReader.class);
+	private final Log log = LogFactory.getLog(getClass());
 
 	private static final int LEFT_LIMIT = 48; // numeral '0'
 	private static final int RIGHT_LIMIT = 122; // letter 'z'

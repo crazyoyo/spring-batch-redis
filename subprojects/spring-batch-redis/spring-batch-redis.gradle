@@ -2,7 +2,6 @@ dependencies {
     implementation group: 'com.redis', name: 'lettucemod', version: lettucemodVersion
     implementation 'org.apache.commons:commons-pool2'
     implementation 'org.springframework.batch:spring-batch-core'
-    implementation 'org.slf4j:slf4j-api'
     implementation group: 'org.awaitility', name: 'awaitility', version: awaitilityVersion
     implementation group: 'com.hrakaroo', name: 'glob', version: globVersion
     testImplementation group: 'com.redis', name: 'lettucemod', version: lettucemodVersion, classifier: 'tests'

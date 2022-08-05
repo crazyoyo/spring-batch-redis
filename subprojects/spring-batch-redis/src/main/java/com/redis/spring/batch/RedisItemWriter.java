@@ -10,8 +10,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
@@ -44,8 +42,6 @@ import io.lettuce.core.codec.StringCodec;
 
 public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> implements ItemWriter<T> {
 
-	private static final Logger log = LoggerFactory.getLogger(RedisItemWriter.class);
-
 	private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
 	private final OperationExecutor<K, V, T> executor;
 
@@ -60,7 +56,6 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 
 	@Override
 	public void write(List<? extends T> items) throws Exception {
-		log.trace("Getting connection from pool");
 		try (StatefulConnection<K, V> connection = borrowConnection()) {
 			BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
 			commands.setAutoFlushCommands(false);
@@ -70,7 +65,6 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 				commands.flushCommands();
 				LettuceFutures.awaitAll(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS,
 						futures.toArray(new Future[0]));
-				log.trace("Wrote {} items", items.size());
 			} finally {
 				commands.setAutoFlushCommands(true);
 			}

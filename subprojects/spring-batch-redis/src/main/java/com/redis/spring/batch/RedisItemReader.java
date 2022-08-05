@@ -12,8 +12,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -50,7 +50,7 @@ import io.lettuce.core.codec.StringCodec;
 
 public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemStreamItemReader<T> {
 
-	private static final Logger log = LoggerFactory.getLogger(RedisItemReader.class);
+	private final Log log = LogFactory.getLog(getClass());
 
 	public static final int DEFAULT_THREADS = 1;
 	public static final int DEFAULT_CHUNK_SIZE = 50;
@@ -137,7 +137,6 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	}
 
 	protected JobExecution execute(Job job) throws JobExecutionException {
-		log.debug("Executing job {}", name);
 		return jobRunner.runAsync(job);
 	}
 
@@ -163,15 +162,9 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 			return;
 		}
 		synchronized (runningThreads) {
-			log.debug("Closing {}", name);
-			try {
-				jobRunner.awaitTermination(jobExecution);
-			} catch (JobExecutionException e) {
-				throw new ItemStreamException(String.format("Job '%s' did not terminate in a timely fashion", name), e);
-			}
+			jobRunner.awaitTermination(jobExecution);
 			if (!valueQueue.isEmpty()) {
-				log.warn("Closing {} with {} items still in queue", ClassUtils.getShortName(getClass()),
-						valueQueue.size());
+				log.warn("Closing with items still in queue");
 			}
 			open = false;
 		}
@@ -243,7 +236,8 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		}
 
 		public LiveRedisItemReader.Builder<K, V, T> live() {
-			LiveRedisItemReader.Builder<K, V, T> live = new LiveRedisItemReader.Builder<>(client, codec, valueReaderFactory);
+			LiveRedisItemReader.Builder<K, V, T> live = new LiveRedisItemReader.Builder<>(client, codec,
+					valueReaderFactory);
 			live.keyPatterns(match);
 			live.jobRunner(jobRunner);
 			live.threads(threads);

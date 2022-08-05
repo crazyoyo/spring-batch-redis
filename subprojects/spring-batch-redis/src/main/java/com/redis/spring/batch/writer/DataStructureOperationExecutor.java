@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
@@ -31,7 +31,7 @@ import io.lettuce.core.codec.StringCodec;
 
 public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K, V, DataStructure<K>> {
 
-	private static final Logger log = LoggerFactory.getLogger(DataStructureOperationExecutor.class);
+	private final Log log = LogFactory.getLog(getClass());
 
 	private UnknownTypePolicy unknownTypePolicy = UnknownTypePolicy.LOG;
 	private final HashOperation hashOperation = new HashOperation();
@@ -115,7 +115,7 @@ public class DataStructureOperationExecutor<K, V> implements OperationExecutor<K
 		case FAIL:
 			throw new IllegalArgumentException(String.format("Unknown type %s for key %s", ds.getType(), ds.getKey()));
 		case LOG:
-			log.warn("Unknown type {} for key {}", ds.getType(), string(ds.getKey()));
+			log.warn(String.format("Unknown type %s for key %s", ds.getType(), string(ds.getKey())));
 			break;
 		case IGNORE:
 			break;

@@ -1,7 +1,6 @@
 package com.redis.spring.batch.support;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.Callable;
 
 import org.awaitility.Awaitility;
@@ -85,14 +84,16 @@ public class JobRunner {
 	}
 
 	public JobExecution run(Job job) throws JobExecutionException {
-		return awaitTermination(jobLauncher.run(job, new JobParameters()));
+		JobExecution execution = jobLauncher.run(job, new JobParameters());
+		awaitTermination(execution);
+		return execution;
 	}
 
-	public static JobExecution awaitTermination(JobExecution execution, Duration timeout) throws JobExecutionException {
-		if (execution != null) {
-			Awaitility.await().timeout(timeout).until(() -> isTerminated(execution));
+	public static void awaitTermination(JobExecution execution, Duration timeout) {
+		if (execution == null) {
+			return;
 		}
-		return checkUnsuccessful(execution);
+		Awaitility.await().timeout(timeout).until(() -> isTerminated(execution));
 	}
 
 	public static boolean isTerminated(JobExecution execution) {
@@ -100,42 +101,28 @@ public class JobRunner {
 				|| execution.getStatus().isGreaterThan(BatchStatus.STOPPED);
 	}
 
-	public JobExecution awaitTermination(JobExecution execution) throws JobExecutionException {
-		return awaitTermination(execution, terminationTimeout);
+	public void awaitTermination(JobExecution execution) {
+		awaitTermination(execution, terminationTimeout);
 	}
 
 	public void awaitRunning(Callable<Boolean> callable) {
 		Awaitility.await().timeout(runningTimeout).until(callable);
 	}
 
-	public JobExecution awaitRunning(JobExecution execution) throws JobExecutionException {
-		return awaitRunning(execution, runningTimeout);
+	public void awaitRunning(JobExecution execution) {
+		awaitRunning(execution, runningTimeout);
 	}
 
-	public static JobExecution awaitRunning(JobExecution execution, Duration timeout) throws JobExecutionException {
-		if (execution != null) {
-			Awaitility.await().timeout(timeout).until(() -> execution.getStatus() != BatchStatus.STARTING);
+	public static void awaitRunning(JobExecution execution, Duration timeout) {
+		if (execution == null) {
+			return;
 		}
-		return checkUnsuccessful(execution);
+		Awaitility.await().timeout(timeout).until(() -> execution.getStatus() != BatchStatus.STARTING);
 	}
 
 	public JobExecution runAsync(Job job) throws JobExecutionException {
-		return awaitRunning(asyncJobLauncher.run(job, new JobParameters()));
-	}
-
-	private static JobExecution checkUnsuccessful(JobExecution execution) throws JobExecutionException {
-		if (execution == null) {
-			throw new JobExecutionException("Job execution is null");
-		}
-		if (execution.getStatus().isUnsuccessful()) {
-			String message = String.format("Status of job '%s': %s", execution.getJobInstance().getJobName(),
-					execution.getStatus());
-			List<Throwable> exceptions = execution.getAllFailureExceptions();
-			if (exceptions.isEmpty()) {
-				throw new JobExecutionException(message);
-			}
-			throw new JobExecutionException(message, exceptions.get(0));
-		}
+		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
+		awaitRunning(execution);
 		return execution;
 	}
 
