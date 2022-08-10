@@ -1,0 +1,39 @@
+package com.redis.spring.batch.writer;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import com.redis.spring.batch.RedisItemWriter.WaitForReplication;
+
+import io.lettuce.core.RedisCommandExecutionException;
+import io.lettuce.core.RedisFuture;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.cluster.PipelinedRedisFuture;
+
+public class WaitForReplicationOperation<K, V, T> implements PipelinedOperation<K, V, T> {
+
+	private final PipelinedOperation<K, V, T> delegate;
+	private final WaitForReplication options;
+
+	public WaitForReplicationOperation(PipelinedOperation<K, V, T> delegate, WaitForReplication options) {
+		this.delegate = delegate;
+		this.options = options;
+	}
+
+	@Override
+	public Collection<RedisFuture<?>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
+		Collection<RedisFuture<?>> futures = new ArrayList<>();
+		futures.addAll(delegate.execute(commands, items));
+		PipelinedRedisFuture<Void> replicationFuture = new PipelinedRedisFuture<>(
+				commands.waitForReplication(options.getReplicas(), options.getTimeout().toMillis()).thenAccept(r -> {
+					if (r < options.getReplicas()) {
+						throw new RedisCommandExecutionException(String.format(
+								"Insufficient replication level - expected: %s, actual: %s", options.getReplicas(), r));
+					}
+				}));
+		futures.add(replicationFuture);
+		return futures;
+	}
+
+}

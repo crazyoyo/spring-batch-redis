@@ -116,12 +116,11 @@ public class KeyComparator implements Callable<KeyComparisonResults> {
 					chunkSize);
 		}
 
-		private RedisItemReader<String, DataStructure<String>> reader(AbstractRedisClient client) throws Exception {
-			return readerBuilder(client).dataStructure().jobRunner(jobRunner).build();
-		}
-
-		private RedisItemReader.TypeBuilder<String, String> readerBuilder(AbstractRedisClient client) {
-			return RedisItemReader.client(client).codec(codec);
+		private RedisItemReader<String, DataStructure<String>> reader(AbstractRedisClient client) {
+			com.redis.spring.batch.RedisItemReader.Builder<String, String, DataStructure<String>> builder = RedisItemReader
+					.dataStructure(client);
+			jobRunner.ifPresent(builder::jobRunner);
+			return builder.build();
 		}
 
 	}

@@ -44,7 +44,6 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.XReadArgs.StreamOffset;
-import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
@@ -64,7 +63,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	private final ValueReader<K, T> valueReader;
 	protected final BlockingQueue<T> valueQueue;
 	protected final RedisValueEnqueuer<K, T> enqueuer;
-	protected final JobRunner jobRunner;
+	private final Optional<JobRunner> jobRunner;
 
 	private final int threads;
 	private final int chunkSize;
@@ -72,9 +71,8 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	private final SkipPolicy skipPolicy;
 	private JobExecution jobExecution;
 	private String name;
-	private boolean open;
 
-	protected RedisItemReader(AbstractBuilder<K, ?, T, ?> builder) throws Exception {
+	protected RedisItemReader(AbstractBuilder<K, ?, T, ?> builder) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.chunkSize = builder.chunkSize;
 		this.queuePollTimeout = builder.queuePollTimeout;
@@ -84,10 +82,10 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		this.valueReader = builder.valueReader();
 		this.valueQueue = new LinkedBlockingQueue<>(builder.valueQueueCapacity);
 		this.enqueuer = new RedisValueEnqueuer<>(valueReader, valueQueue);
-		this.jobRunner = builder.jobRunner();
+		this.jobRunner = builder.jobRunner;
 	}
 
-	public static SkipPolicy limitCheckingSkipPolicy(int skipLimit) {
+	private static SkipPolicy limitCheckingSkipPolicy(int skipLimit) {
 		return new LimitCheckingItemSkipPolicy(skipLimit, Stream
 				.of(RedisCommandExecutionException.class, RedisCommandTimeoutException.class, TimeoutException.class)
 				.collect(Collectors.toMap(t -> t, t -> true)));
@@ -107,37 +105,46 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	public void open(ExecutionContext executionContext) throws ItemStreamException {
 		synchronized (runningThreads) {
 			if (jobExecution == null) {
-				Utils.createGaugeCollectionSize("reader.queue.size", valueQueue);
-				SimpleStepBuilder<K, K> step = step();
-				FaultTolerantStepBuilder<K, K> stepBuilder = step.faultTolerant();
-				stepBuilder.skipPolicy(skipPolicy);
-				if (threads > 1) {
-					ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-					taskExecutor.setMaxPoolSize(threads);
-					taskExecutor.setCorePoolSize(threads);
-					taskExecutor.afterPropertiesSet();
-					stepBuilder.taskExecutor(taskExecutor).throttleLimit(threads);
-				}
-				SimpleJobBuilder simpleJobBuilder = jobRunner.job(name).start(stepBuilder.build());
-				Job job = simpleJobBuilder.build();
-				try {
-					jobExecution = execute(job);
-				} catch (JobExecutionException e) {
-					throw new ItemStreamException(String.format("Could not run job %s", name), e);
-				}
-				open = true;
+				doOpen();
 			}
 			runningThreads.incrementAndGet();
 			super.open(executionContext);
 		}
 	}
 
-	protected SimpleStepBuilder<K, K> step() {
-		return jobRunner.step(name, chunkSize, keyReader, enqueuer);
+	protected void doOpen() {
+		JobRunner runner;
+		if (jobRunner.isEmpty()) {
+			try {
+				runner = JobRunner.inMemory();
+			} catch (Exception e) {
+				throw new ItemStreamException("Could not initialize job runner", e);
+			}
+		} else {
+			runner = jobRunner.get();
+		}
+		Utils.createGaugeCollectionSize("reader.queue.size", valueQueue);
+		SimpleStepBuilder<K, K> step = createStep(runner);
+		FaultTolerantStepBuilder<K, K> stepBuilder = step.faultTolerant();
+		stepBuilder.skipPolicy(skipPolicy);
+		if (threads > 1) {
+			ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+			taskExecutor.setMaxPoolSize(threads);
+			taskExecutor.setCorePoolSize(threads);
+			taskExecutor.afterPropertiesSet();
+			stepBuilder.taskExecutor(taskExecutor).throttleLimit(threads);
+		}
+		SimpleJobBuilder simpleJobBuilder = runner.job(name).start(stepBuilder.build());
+		Job job = simpleJobBuilder.build();
+		try {
+			jobExecution = runner.runAsync(job);
+		} catch (JobExecutionException e) {
+			throw new ItemStreamException(String.format("Could not run job %s", name), e);
+		}
 	}
 
-	protected JobExecution execute(Job job) throws JobExecutionException {
-		return jobRunner.runAsync(job);
+	protected SimpleStepBuilder<K, K> createStep(JobRunner runner) {
+		return runner.step(name, chunkSize, keyReader, enqueuer);
 	}
 
 	@Override
@@ -162,42 +169,44 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 			return;
 		}
 		synchronized (runningThreads) {
-			jobRunner.awaitTermination(jobExecution);
+			if (jobRunner.isPresent()) {
+				jobRunner.get().awaitTermination(jobExecution);
+			}
 			if (!valueQueue.isEmpty()) {
 				log.warn("Closing with items still in queue");
 			}
-			open = false;
+			jobExecution = null;
 		}
 	}
 
 	public boolean isOpen() {
-		return open;
+		return jobExecution != null;
 	}
 
-	public static CodecBuilder client(AbstractRedisClient client) {
-		return new CodecBuilder(client);
+	public static Builder<String, String, DataStructure<String>> dataStructure(AbstractRedisClient client) {
+		return dataStructure(client, StringCodec.UTF8);
 	}
 
-	public static class CodecBuilder {
+	public static <K, V> Builder<K, V, DataStructure<K>> dataStructure(AbstractRedisClient client,
+			RedisCodec<K, V> codec) {
+		return new Builder<>(client, codec, ValueReaderFactory.dataStructure());
+	}
 
-		private final AbstractRedisClient client;
+	public static Builder<String, String, KeyValue<String, byte[]>> keyDump(AbstractRedisClient client) {
+		return keyDump(client, StringCodec.UTF8);
+	}
 
-		public CodecBuilder(AbstractRedisClient client) {
-			this.client = client;
-		}
+	public static <K, V> Builder<K, V, KeyValue<K, byte[]>> keyDump(AbstractRedisClient client,
+			RedisCodec<K, V> codec) {
+		return new Builder<>(client, codec, ValueReaderFactory.keyDump());
+	}
 
-		public <K, V> TypeBuilder<K, V> codec(RedisCodec<K, V> codec) {
-			return new TypeBuilder<>(client, codec);
-		}
+	public static <K, V> StreamBuilder<K, V> stream(AbstractRedisClient client, RedisCodec<K, V> codec, K name) {
+		return new StreamBuilder<>(client, codec, name);
+	}
 
-		public TypeBuilder<String, String> string() {
-			return new TypeBuilder<>(client, StringCodec.UTF8);
-		}
-
-		public TypeBuilder<byte[], byte[]> bytes() {
-			return new TypeBuilder<>(client, ByteArrayCodec.INSTANCE);
-		}
-
+	public static StreamBuilder<String, String> stream(AbstractRedisClient client, String name) {
+		return stream(client, StringCodec.UTF8, name);
 	}
 
 	public static class Builder<K, V, T extends KeyValue<K, ?>> extends AbstractBuilder<K, V, T, Builder<K, V, T>> {
@@ -231,7 +240,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 			return new ScanKeyItemReader<>(connectionSupplier(), sync(), match, count, type);
 		}
 
-		public RedisItemReader<K, T> build() throws Exception {
+		public RedisItemReader<K, T> build() {
 			return new RedisItemReader<>(this);
 		}
 
@@ -239,36 +248,11 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 			LiveRedisItemReader.Builder<K, V, T> live = new LiveRedisItemReader.Builder<>(client, codec,
 					valueReaderFactory);
 			live.keyPatterns(match);
-			live.jobRunner(jobRunner);
 			live.threads(threads);
 			live.valueQueueCapacity(valueQueueCapacity);
 			live.queuePollTimeout(queuePollTimeout);
 			live.skipPolicy(skipPolicy);
 			return live;
-		}
-
-	}
-
-	public static class TypeBuilder<K, V> {
-
-		private final AbstractRedisClient client;
-		private final RedisCodec<K, V> codec;
-
-		public TypeBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			this.client = client;
-			this.codec = codec;
-		}
-
-		public Builder<K, V, DataStructure<K>> dataStructure() {
-			return new Builder<>(client, codec, ValueReaderFactory.dataStructure());
-		}
-
-		public Builder<K, V, KeyValue<K, byte[]>> keyDump() {
-			return new Builder<>(client, codec, ValueReaderFactory.keyDump());
-		}
-
-		public StreamBuilder<K, V> stream(K name) {
-			return new StreamBuilder<>(client, codec, name);
 		}
 
 	}
@@ -360,12 +344,6 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		}
 
 		@SuppressWarnings("unchecked")
-		public B jobRunner(Optional<JobRunner> jobRunner) {
-			this.jobRunner = jobRunner;
-			return (B) this;
-		}
-
-		@SuppressWarnings("unchecked")
 		public B chunkSize(int chunkSize) {
 			this.chunkSize = chunkSize;
 			return (B) this;
@@ -397,13 +375,6 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 
 		protected ValueReader<K, T> valueReader() {
 			return valueReaderFactory.create(connectionSupplier(), poolConfig, async());
-		}
-
-		protected JobRunner jobRunner() throws Exception {
-			if (jobRunner.isEmpty()) {
-				return JobRunner.inMemory();
-			}
-			return jobRunner.get();
 		}
 
 	}

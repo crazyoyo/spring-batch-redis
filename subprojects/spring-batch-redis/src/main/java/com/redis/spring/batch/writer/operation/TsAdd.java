@@ -32,50 +32,49 @@ public class TsAdd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		return ((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(key, sample.convert(item), options.convert(item));
 	}
 
-	public static <K, V, T> TsAddSampleBuilder<K, V, T> key(K key) {
+	public static <K, T> SampleBuilder<K, T> key(K key) {
 		return key(t -> key);
 	}
 
-	public static <T> TsAddSampleBuilder<String, String, T> key(String key) {
+	public static <T> SampleBuilder<String, T> key(String key) {
 		return key(t -> key);
 	}
 
-	public static <K, V, T> TsAddSampleBuilder<K, V, T> key(Converter<T, K> key) {
-		return new TsAddSampleBuilder<>(key);
+	public static <K, T> SampleBuilder<K, T> key(Converter<T, K> key) {
+		return new SampleBuilder<>(key);
 	}
 
-	public static class TsAddSampleBuilder<K, V, T> {
+	public static class SampleBuilder<K, T> {
 
 		private final Converter<T, K> key;
 
-		public TsAddSampleBuilder(Converter<T, K> key) {
+		public SampleBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		public TsAddBuilder<K, V, T> sample(Converter<T, Sample> sample) {
-			return new TsAddBuilder<>(key, sample);
+		public <V> Builder<K, V, T> sample(Converter<T, Sample> sample) {
+			return new Builder<>(key, sample);
 		}
 	}
 
-	public static class TsAddBuilder<K, V, T> extends DelBuilder<K, V, T, TsAddBuilder<K, V, T>> {
+	public static class Builder<K, V, T> extends DelBuilder<K, V, T, Builder<K, V, T>> {
 
 		private final Converter<T, K> key;
 		private final Converter<T, Sample> sample;
 		private Converter<T, AddOptions<K, V>> options = s -> null;
 
-		public TsAddBuilder(Converter<T, K> key, Converter<T, Sample> sample) {
-			super(sample);
+		public Builder(Converter<T, K> key, Converter<T, Sample> sample) {
 			this.key = key;
 			this.sample = sample;
+			onNull(sample);
 		}
 
-		public TsAddBuilder<K, V, T> options(Converter<T, AddOptions<K, V>> options) {
+		public Builder<K, V, T> options(Converter<T, AddOptions<K, V>> options) {
 			Assert.notNull(options, "Options must not be null");
 			this.options = options;
 			return this;
 		}
 
-		@Override
 		public TsAdd<K, V, T> build() {
 			return new TsAdd<>(key, del, sample, options);
 		}

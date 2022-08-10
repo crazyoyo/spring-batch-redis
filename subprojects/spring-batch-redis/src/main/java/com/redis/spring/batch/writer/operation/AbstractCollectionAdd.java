@@ -7,11 +7,11 @@ import org.springframework.core.convert.converter.Converter;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public abstract class AbstractCollectionOperation<K, V, T> extends AbstractKeyOperation<K, V, T> {
+public abstract class AbstractCollectionAdd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 
 	private final Predicate<T> remove;
 
-	protected AbstractCollectionOperation(Converter<T, K> key, Predicate<T> delete, Predicate<T> remove) {
+	protected AbstractCollectionAdd(Converter<T, K> key, Predicate<T> delete, Predicate<T> remove) {
 		super(key, delete);
 		this.remove = remove;
 	}

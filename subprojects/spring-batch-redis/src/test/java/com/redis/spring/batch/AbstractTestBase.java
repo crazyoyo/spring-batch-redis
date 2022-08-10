@@ -22,8 +22,6 @@ import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.RedisItemReader.TypeBuilder;
-import com.redis.spring.batch.RedisItemWriter.CodecBuilder;
 import com.redis.spring.batch.compare.KeyComparator;
 import com.redis.spring.batch.compare.KeyComparator.RightComparatorBuilder;
 import com.redis.spring.batch.compare.KeyComparisonLogger;
@@ -36,7 +34,6 @@ import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
 import com.redis.spring.batch.support.JobRunner;
 import com.redis.spring.batch.support.RedisConnectionBuilder;
-import com.redis.spring.batch.writer.RedisOperation;
 import com.redis.testcontainers.junit.AbstractTestcontainersRedisTestBase;
 import com.redis.testcontainers.junit.RedisTestContext;
 
@@ -133,32 +130,25 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected void generate(RedisTestContext redis) throws JobExecutionException {
-		run(name(redis) + "-gen", DataStructureGeneratorItemReader.builder().build(), dataStructureWriter(redis));
+		run(name(redis) + "-gen", DataStructureGeneratorItemReader.builder().build(),
+				RedisItemWriter.dataStructure(redis.getClient()).build());
 	}
 
 	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisTestContext redis)
 			throws Exception {
-		return reader(redis).dataStructure().jobRunner(jobRunner).build();
+		return RedisItemReader.dataStructure(redis.getClient()).jobRunner(jobRunner).build();
 	}
 
 	protected RedisItemReader<String, KeyValue<String, byte[]>> keyDumpReader(RedisTestContext redis) throws Exception {
-		return reader(redis).keyDump().jobRunner(jobRunner).build();
+		return RedisItemReader.keyDump(redis.getClient()).jobRunner(jobRunner).build();
 	}
 
 	protected RedisItemWriter<String, String, KeyValue<String, byte[]>> keyDumpWriter(RedisTestContext context) {
-		return RedisItemWriter.client(context.getClient()).string().keyDump().build();
-	}
-
-	protected RedisItemWriter<String, String, DataStructure<String>> dataStructureWriter(RedisTestContext context) {
-		return RedisItemWriter.client(context.getClient()).string().dataStructure().build();
+		return RedisItemWriter.keyDump(context.getClient()).build();
 	}
 
 	protected DataStructureValueReader<String, String> dataStructureValueReader(RedisTestContext context) {
 		return dataStructureValueReader(context.getClient());
-	}
-
-	protected CodecBuilder writer(RedisTestContext redis) {
-		return RedisItemWriter.client(redis.getClient());
 	}
 
 	protected DataStructureValueReader<String, String> dataStructureValueReader(AbstractRedisClient client) {
@@ -166,18 +156,10 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return new DataStructureValueReader<>(builder.connectionSupplier(), builder.getPoolConfig(), builder.async());
 	}
 
-	protected <T> RedisItemWriter.AbstractBuilder<String, String, T, ?> operationWriter(RedisTestContext context,
-			RedisOperation<String, String, T> operation) {
-		return writer(context).string().operation(operation);
-	}
-
-	protected TypeBuilder<String, String> reader(RedisTestContext context) {
-		return RedisItemReader.client(context.getClient()).string();
-	}
-
 	protected LiveRedisItemReader<String, KeyValue<String, byte[]>> liveKeyDumpReader(RedisTestContext redis,
 			int notificationQueueCapacity) throws Exception {
-		return configureLiveReader(reader(redis).keyDump().live(), notificationQueueCapacity).build();
+		return configureLiveReader(RedisItemReader.keyDump(redis.getClient()).live(), notificationQueueCapacity)
+				.build();
 	}
 
 	@SuppressWarnings("unchecked")
@@ -189,7 +171,8 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisTestContext context,
 			int notificationQueueCapacity) throws Exception {
-		return configureLiveReader(reader(context).dataStructure().live(), notificationQueueCapacity).build();
+		return configureLiveReader(RedisItemReader.dataStructure(context.getClient()).live(), notificationQueueCapacity)
+				.build();
 	}
 
 	protected void flushAll(RedisTestContext context) {

@@ -12,7 +12,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisGeoAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 
-public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
+public class Geoadd<K, V, T> extends AbstractCollectionAdd<K, V, T> {
 
 	private final Converter<T, GeoValue<V>> valueConverter;
 	private final GeoAddArgs args;
@@ -45,45 +45,44 @@ public class Geoadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, value.getValue());
 	}
 
-	public static <K, V, T> GeoaddValueBuilder<K, V, T> key(K key) {
+	public static <K, T> ValueBuilder<K, T> key(K key) {
 		return key(t -> key);
 	}
 
-	public static <K, V, T> GeoaddValueBuilder<K, V, T> key(Converter<T, K> key) {
-		return new GeoaddValueBuilder<>(key);
+	public static <K, T> ValueBuilder<K, T> key(Converter<T, K> key) {
+		return new ValueBuilder<>(key);
 	}
 
-	public static class GeoaddValueBuilder<K, V, T> {
+	public static class ValueBuilder<K, T> {
 
 		private final Converter<T, K> key;
 
-		public GeoaddValueBuilder(Converter<T, K> key) {
+		public ValueBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		public GeoaddBuilder<K, V, T> value(Converter<T, GeoValue<V>> value) {
-			return new GeoaddBuilder<>(key, value);
+		public <V> Builder<K, V, T> value(Converter<T, GeoValue<V>> value) {
+			return new Builder<>(key, value);
 		}
 	}
 
-	public static class GeoaddBuilder<K, V, T> extends RemoveBuilder<K, V, T, GeoaddBuilder<K, V, T>> {
+	public static class Builder<K, V, T> extends RemoveBuilder<K, V, T, Builder<K, V, T>> {
 
 		private final Converter<T, K> key;
 		private final Converter<T, GeoValue<V>> value;
 		private GeoAddArgs args;
 
-		public GeoaddBuilder(Converter<T, K> key, Converter<T, GeoValue<V>> value) {
-			super(value);
+		public Builder(Converter<T, K> key, Converter<T, GeoValue<V>> value) {
 			this.key = key;
 			this.value = value;
+			onNull(value);
 		}
 
-		public GeoaddBuilder<K, V, T> args(GeoAddArgs args) {
+		public Builder<K, V, T> args(GeoAddArgs args) {
 			this.args = args;
 			return this;
 		}
 
-		@Override
 		public Geoadd<K, V, T> build() {
 			return new Geoadd<>(key, del, remove, value, args);
 		}

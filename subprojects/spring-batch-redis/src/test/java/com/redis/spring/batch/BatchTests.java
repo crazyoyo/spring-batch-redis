@@ -44,7 +44,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.DataStructure.Type;
 import com.redis.spring.batch.RedisItemReader.StreamBuilder;
-import com.redis.spring.batch.RedisItemWriter.OperationBuilder;
 import com.redis.spring.batch.RedisItemWriter.WaitForReplication;
 import com.redis.spring.batch.RedisScanSizeEstimator.Builder;
 import com.redis.spring.batch.compare.KeyComparator;
@@ -117,14 +116,14 @@ class BatchTests extends AbstractTestBase {
 		log.info("Keyspace-notification reader open={}", reader.isOpen());
 		run(name(redis) + "-gen",
 				DataStructureGeneratorItemReader.builder().maxItemCount(3).types(Type.STRING, Type.HASH).build(),
-				dataStructureWriter(redis));
+				RedisItemWriter.dataStructure(redis.getClient()).build());
 		jobRunner.awaitTermination(execution);
 		Awaitility.await().until(() -> !reader.isOpen());
 		assertEquals(redis.sync().dbsize(), writer.getWrittenItems().size());
 	}
 
 	private AbstractKeyspaceNotificationItemReader<String> keyspaceNotificationReader(RedisTestContext redis) {
-		return reader(redis).dataStructure().live().keyReader();
+		return RedisItemReader.dataStructure(redis.getClient()).live().keyReader();
 	}
 
 	@ParameterizedTest
@@ -293,7 +292,7 @@ class BatchTests extends AbstractTestBase {
 
 	private void generate(String id, RedisTestContext redis, ItemReader<DataStructure<String>> reader)
 			throws JobExecutionException {
-		run(id + "-generate", reader, dataStructureWriter(redis));
+		run(id + "-generate", reader, RedisItemWriter.dataStructure(redis.getClient()).build());
 	}
 
 	@ParameterizedTest
@@ -348,7 +347,7 @@ class BatchTests extends AbstractTestBase {
 	}
 
 	private StreamBuilder<String, String> streamReader(RedisTestContext redis, String key) {
-		return reader(redis).stream(key);
+		return RedisItemReader.stream(redis.getClient(), key);
 	}
 
 	@ParameterizedTest
@@ -363,8 +362,8 @@ class BatchTests extends AbstractTestBase {
 			messages.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		RedisItemWriter<String, String, Map<String, String>> writer = operationWriter(redis,
-				Xadd.<String, String, Map<String, String>>key(stream).body(t -> t).build()).build();
+		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter.operation(redis.getClient())
+				.operation(Xadd.<String, Map<String, String>>key(stream).<String>body(t -> t).build()).build();
 		run(redis, reader, writer);
 		RedisModulesCommands<String, String> sync = redis.sync();
 		assertEquals(messages.size(), sync.xlen(stream));
@@ -387,10 +386,9 @@ class BatchTests extends AbstractTestBase {
 			maps.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-		RedisItemWriter<String, String, Map<String, String>> writer = operationWriter(redis,
-				Hset.<String, String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
-				.waitForReplication(WaitForReplication.builder().replicas(1).timeout(Duration.ofMillis(300)).build())
-				.build();
+		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter.operation(redis.getClient())
+				.operation(Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
+				.waitForReplication(WaitForReplication.of(1, Duration.ofMillis(300))).build();
 		JobExecution execution = run(redis, reader, writer);
 		List<Throwable> exceptions = execution.getAllFailureExceptions();
 		assertEquals("Insufficient replication level - expected: 1, actual: 0", exceptions.get(0).getMessage());
@@ -414,8 +412,8 @@ class BatchTests extends AbstractTestBase {
 			maps.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-		RedisItemWriter<String, String, Map<String, String>> writer = operationWriter(redis,
-				Hset.<String, String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
+		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter.operation(redis.getClient())
+				.operation(Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
 				.build();
 		run(redis, reader, writer);
 		assertEquals(maps.size(), redis.sync().keys("hash:*").size());
@@ -458,8 +456,8 @@ class BatchTests extends AbstractTestBase {
 						new Geo("Long Beach National", -73.667022, 40.582739)));
 		GeoValueConverter<String, Geo> value = new GeoValueConverter<>(Geo::getMember, Geo::getLongitude,
 				Geo::getLatitude);
-		RedisItemWriter<String, String, Geo> writer = operationWriter(redis,
-				Geoadd.<String, String, Geo>key("geoset").value(value).build()).build();
+		RedisItemWriter<String, String, Geo> writer = RedisItemWriter.operation(redis.getClient())
+				.operation(Geoadd.<String, Geo>key("geoset").value(value).build()).build();
 		run(redis, reader, writer);
 		Set<String> radius1 = redis.sync().georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
 		assertEquals(1, radius1.size());
@@ -481,8 +479,9 @@ class BatchTests extends AbstractTestBase {
 			hashes.add(new AbstractMap.SimpleEntry<>(key, index < 50 ? null : body));
 		}
 		ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
-		RedisItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = operationWriter(redis,
-				Hset.<String, String, Entry<String, Map<String, String>>>key(e -> "hash:" + e.getKey())
+		RedisItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = RedisItemWriter
+				.operation(redis.getClient())
+				.operation(Hset.<String, Entry<String, Map<String, String>>>key(e -> "hash:" + e.getKey())
 						.map(Map.Entry::getValue).build())
 				.build();
 		run(redis, reader, writer);
@@ -521,8 +520,8 @@ class BatchTests extends AbstractTestBase {
 		ListItemReader<ZValue> reader = new ListItemReader<>(values);
 		ScoredValueConverter<String, ZValue> converter = new ScoredValueConverter<>(ZValue::getMember,
 				ZValue::getScore);
-		RedisItemWriter<String, String, ZValue> writer = operationWriter(redis,
-				Zadd.<String, String, ZValue>key("zset").value(converter).build()).build();
+		RedisItemWriter<String, String, ZValue> writer = RedisItemWriter.operation(redis.getClient())
+				.operation(Zadd.<String, ZValue>key("zset").value(converter).build()).build();
 		run(redis, reader, writer);
 		RedisModulesCommands<String, String> sync = redis.sync();
 		assertEquals(1, sync.dbsize());
@@ -547,7 +546,8 @@ class BatchTests extends AbstractTestBase {
 			list.add(ds);
 		}
 		ListItemReader<DataStructure<String>> reader = new ListItemReader<>(list);
-		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureWriter(redis);
+		RedisItemWriter<String, String, DataStructure<String>> writer = RedisItemWriter.dataStructure(redis.getClient())
+				.build();
 		run(redis, reader, writer);
 		Awaitility.await().until(() -> !writer.isOpen());
 		RedisModulesCommands<String, String> sync = redis.sync();
@@ -561,7 +561,7 @@ class BatchTests extends AbstractTestBase {
 		RedisTestContext target = getContext(TARGET);
 		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(100).build());
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
-		run(redis, reader, replicationDataStructureWriter());
+		run(redis, reader, replicationDataStructureWriter().build());
 		compare(redis, target);
 	}
 
@@ -619,7 +619,7 @@ class BatchTests extends AbstractTestBase {
 		String key = "myset";
 		redis.sync().sadd(key, "1", "2", "3", "4", "5");
 		LiveRedisItemReader<String, DataStructure<String>> reader = liveDataStructureReader(redis, 100);
-		RedisItemWriter<String, String, DataStructure<String>> writer = replicationDataStructureWriter();
+		RedisItemWriter<String, String, DataStructure<String>> writer = replicationDataStructureWriter().build();
 		JobExecution execution = runAsync(redis, reader, writer);
 		awaitOpen(reader);
 		awaitOpen(writer);
@@ -641,12 +641,12 @@ class BatchTests extends AbstractTestBase {
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void replicateLiveDS(RedisTestContext redis) throws Exception {
-		liveReplication(redis, dataStructureReader(redis), replicationDataStructureWriter(),
-				liveDataStructureReader(redis, 100000), replicationDataStructureWriter());
+		liveReplication(redis, dataStructureReader(redis), replicationDataStructureWriter().build(),
+				liveDataStructureReader(redis, 100000), replicationDataStructureWriter().build());
 	}
 
-	private RedisItemWriter<String, String, DataStructure<String>> replicationDataStructureWriter() {
-		return writer(getContext(TARGET)).string().dataStructure().xaddArgs(m -> new XAddArgs().id(m.getId())).build();
+	private RedisItemWriter.Builder<String, String, DataStructure<String>> replicationDataStructureWriter() {
+		return RedisItemWriter.dataStructure(getContext(TARGET).getClient(), m -> new XAddArgs().id(m.getId()));
 	}
 
 	private <T extends KeyValue<String, ?>> void liveReplication(RedisTestContext redis,
@@ -762,27 +762,23 @@ class BatchTests extends AbstractTestBase {
 		redis.sync().pfadd(key1, "member:1", "member:2");
 		String key2 = "hll:2";
 		redis.sync().pfadd(key2, "member:1", "member:2", "member:3");
-		RedisItemReader<byte[], DataStructure<byte[]>> reader = binaryDataStructureReader(redis);
+		RedisItemReader<byte[], DataStructure<byte[]>> reader = binaryDataStructureReader(redis).build();
 		RedisTestContext target = getContext(TARGET);
-		RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = binaryDataStructureWriter(target);
+		RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = binaryDataStructureWriter(target).build();
 		run(redis, reader, writer);
 		RedisModulesCommands<String, String> sourceSync = redis.sync();
 		RedisModulesCommands<String, String> targetSync = target.sync();
 		assertEquals(sourceSync.pfcount(key1), targetSync.pfcount(key1));
 	}
 
-	protected static RedisItemWriter<byte[], byte[], DataStructure<byte[]>> binaryDataStructureWriter(
+	protected static RedisItemWriter.Builder<byte[], byte[], DataStructure<byte[]>> binaryDataStructureWriter(
 			RedisTestContext redis) {
-		return binaryWriter(redis).dataStructure().build();
+		return RedisItemWriter.dataStructure(redis.getClient(), ByteArrayCodec.INSTANCE);
 	}
 
-	protected static OperationBuilder<byte[], byte[]> binaryWriter(RedisTestContext redis) {
-		return RedisItemWriter.client(redis.getClient()).bytes();
-	}
-
-	protected RedisItemReader<byte[], DataStructure<byte[]>> binaryDataStructureReader(RedisTestContext redis)
-			throws Exception {
-		return RedisItemReader.client(redis.getClient()).bytes().dataStructure().jobRunner(jobRunner).build();
+	protected RedisItemReader.Builder<byte[], byte[], DataStructure<byte[]>> binaryDataStructureReader(
+			RedisTestContext redis) throws Exception {
+		return RedisItemReader.dataStructure(redis.getClient(), ByteArrayCodec.INSTANCE).jobRunner(jobRunner);
 	}
 
 }

@@ -52,45 +52,44 @@ public class Sugadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		return ((RediSearchAsyncCommands<K, V>) commands).ftSugdel(key, suggestion.getString());
 	}
 
-	public static <K, V, T> SugaddSuggestionBuilder<K, V, T> key(K key) {
+	public static <K, T> SuggestionBuilder<K, T> key(K key) {
 		return key(t -> key);
 	}
 
-	public static <K, V, T> SugaddSuggestionBuilder<K, V, T> key(Converter<T, K> key) {
-		return new SugaddSuggestionBuilder<>(key);
+	public static <K, T> SuggestionBuilder<K, T> key(Converter<T, K> key) {
+		return new SuggestionBuilder<>(key);
 	}
 
-	public static class SugaddSuggestionBuilder<K, V, T> {
+	public static class SuggestionBuilder<K, T> {
 
 		private final Converter<T, K> key;
 
-		public SugaddSuggestionBuilder(Converter<T, K> key) {
+		public SuggestionBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		public SugaddBuilder<K, V, T> suggestion(Converter<T, Suggestion<V>> suggestion) {
-			return new SugaddBuilder<>(key, suggestion);
+		public <V> Builder<K, V, T> suggestion(Converter<T, Suggestion<V>> suggestion) {
+			return new Builder<>(key, suggestion);
 		}
 	}
 
-	public static class SugaddBuilder<K, V, T> extends DelBuilder<K, V, T, SugaddBuilder<K, V, T>> {
+	public static class Builder<K, V, T> extends DelBuilder<K, V, T, Builder<K, V, T>> {
 
 		private final Converter<T, K> key;
 		private final Converter<T, Suggestion<V>> suggestion;
 		private boolean increment;
 
-		public SugaddBuilder(Converter<T, K> key, Converter<T, Suggestion<V>> suggestion) {
-			super(suggestion);
+		public Builder(Converter<T, K> key, Converter<T, Suggestion<V>> suggestion) {
 			this.key = key;
 			this.suggestion = suggestion;
+			onNull(suggestion);
 		}
 
-		public SugaddBuilder<K, V, T> increment(boolean increment) {
+		public Builder<K, V, T> increment(boolean increment) {
 			this.increment = increment;
 			return this;
 		}
 
-		@Override
 		public Sugadd<K, V, T> build() {
 			return new Sugadd<>(key, del, suggestion, increment);
 		}

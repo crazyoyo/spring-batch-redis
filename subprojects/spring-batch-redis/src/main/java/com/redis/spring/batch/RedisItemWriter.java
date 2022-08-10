@@ -1,7 +1,7 @@
 package com.redis.spring.batch;
 
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Future;
@@ -12,46 +12,38 @@ import java.util.function.Supplier;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.convert.converter.Converter;
-import org.springframework.util.Assert;
-import org.springframework.util.ClassUtils;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.support.ConnectionPoolItemStream;
 import com.redis.spring.batch.support.RedisConnectionBuilder;
-import com.redis.spring.batch.writer.DataStructureOperationExecutor;
-import com.redis.spring.batch.writer.MultiExecOperationExecutor;
-import com.redis.spring.batch.writer.OperationExecutor;
-import com.redis.spring.batch.writer.RedisOperation;
-import com.redis.spring.batch.writer.SimpleOperationExecutor;
-import com.redis.spring.batch.writer.WaitForReplicationOperationExecutor;
-import com.redis.spring.batch.writer.operation.JsonSet;
-import com.redis.spring.batch.writer.operation.RestoreReplace;
-import com.redis.spring.batch.writer.operation.Sugadd;
-import com.redis.spring.batch.writer.operation.TsAdd;
+import com.redis.spring.batch.writer.DataStructureOperation;
+import com.redis.spring.batch.writer.MultiExecOperation;
+import com.redis.spring.batch.writer.Operation;
+import com.redis.spring.batch.writer.PipelinedOperation;
+import com.redis.spring.batch.writer.SimplePipelinedOperation;
+import com.redis.spring.batch.writer.WaitForReplicationOperation;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
+import io.lettuce.core.RedisFuture;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
 public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> implements ItemWriter<T> {
 
 	private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
-	private final OperationExecutor<K, V, T> executor;
+	private final PipelinedOperation<K, V, T> operation;
 
 	public RedisItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier,
 			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
 			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async,
-			OperationExecutor<K, V, T> executor) {
+			PipelinedOperation<K, V, T> operation) {
 		super(connectionSupplier, poolConfig);
 		this.async = async;
-		this.executor = executor;
+		this.operation = operation;
 	}
 
 	@Override
@@ -59,65 +51,55 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 		try (StatefulConnection<K, V> connection = borrowConnection()) {
 			BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
 			commands.setAutoFlushCommands(false);
-			List<Future<?>> futures = new ArrayList<>();
+			Collection<RedisFuture<?>> futures = operation.execute(commands, items);
+			commands.flushCommands();
+			long timeout = connection.getTimeout().toMillis();
 			try {
-				executor.execute(commands, items, futures);
-				commands.flushCommands();
-				LettuceFutures.awaitAll(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS,
-						futures.toArray(new Future[0]));
+				LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(Future[]::new));
 			} finally {
 				commands.setAutoFlushCommands(true);
 			}
 		}
 	}
 
-	public static class DataStructureBuilder<K, V>
-			extends AbstractBuilder<K, V, DataStructure<K>, DataStructureBuilder<K, V>> {
-
-		private Optional<Converter<StreamMessage<K, V>, XAddArgs>> xaddArgs = Optional.empty();
-
-		public DataStructureBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec);
-		}
-
-		@Override
-		protected OperationExecutor<K, V, DataStructure<K>> getOperationExecutor() {
-			DataStructureOperationExecutor<K, V> executor = new DataStructureOperationExecutor<>(codec);
-			xaddArgs.ifPresent(executor::setXaddArgs);
-			return executor;
-		}
-
-		public DataStructureBuilder<K, V> xaddArgs(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
-			this.xaddArgs = Optional.of(xaddArgs);
-			return this;
-		}
-
+	public static <K, V> OperationBuilder<K, V> operation(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		return new OperationBuilder<>(client, codec);
 	}
 
-	public static CodecBuilder client(AbstractRedisClient client) {
-		return new CodecBuilder(client);
+	public static OperationBuilder<String, String> operation(AbstractRedisClient client) {
+		return new OperationBuilder<>(client, StringCodec.UTF8);
 	}
 
-	public static class CodecBuilder {
+	public static <K, V, O extends PipelinedOperation<K, V, DataStructure<K>>> Builder<K, V, DataStructure<K>> dataStructure(
+			AbstractRedisClient client, RedisCodec<K, V> codec) {
+		return new Builder<>(client, codec, new DataStructureOperation<>(codec));
+	}
 
-		private final AbstractRedisClient client;
+	public static <K, V> Builder<K, V, DataStructure<K>> dataStructure(AbstractRedisClient client,
+			RedisCodec<K, V> codec, Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
+		DataStructureOperation<K, V> executor = new DataStructureOperation<>(codec);
+		executor.getXadd().setArgs(xaddArgs);
+		return new Builder<>(client, codec, executor);
+	}
 
-		public CodecBuilder(AbstractRedisClient client) {
-			this.client = client;
-		}
+	public static Builder<String, String, DataStructure<String>> dataStructure(AbstractRedisClient client) {
+		return new Builder<>(client, StringCodec.UTF8, new DataStructureOperation<>(StringCodec.UTF8));
+	}
 
-		public <K, V> OperationBuilder<K, V> codec(RedisCodec<K, V> codec) {
-			return new OperationBuilder<>(client, codec);
-		}
+	public static Builder<String, String, DataStructure<String>> dataStructure(AbstractRedisClient client,
+			Converter<StreamMessage<String, String>, XAddArgs> xaddArgs) {
+		DataStructureOperation<String, String> executor = new DataStructureOperation<>(StringCodec.UTF8);
+		executor.getXadd().setArgs(xaddArgs);
+		return new Builder<>(client, StringCodec.UTF8, executor);
+	}
 
-		public OperationBuilder<String, String> string() {
-			return new OperationBuilder<>(client, StringCodec.UTF8);
-		}
+	public static <K, V> Builder<K, V, KeyValue<K, byte[]>> keyDump(AbstractRedisClient client,
+			RedisCodec<K, V> codec) {
+		return new Builder<>(client, codec, SimplePipelinedOperation.keyDump());
+	}
 
-		public OperationBuilder<byte[], byte[]> bytes() {
-			return new OperationBuilder<>(client, ByteArrayCodec.INSTANCE);
-		}
-
+	public static Builder<String, String, KeyValue<String, byte[]>> keyDump(AbstractRedisClient client) {
+		return new Builder<>(client, StringCodec.UTF8, SimplePipelinedOperation.keyDump());
 	}
 
 	public static class OperationBuilder<K, V> {
@@ -130,91 +112,62 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 			this.codec = codec;
 		}
 
-		public <T> Builder<K, V, T> operation(RedisOperation<K, V, T> operation) {
-			if (operation instanceof JsonSet || operation instanceof TsAdd || operation instanceof Sugadd) {
-				Assert.isTrue(client instanceof RedisModulesClusterClient || client instanceof RedisModulesClient,
-						"A Redis modules client is required for operation "
-								+ ClassUtils.getShortName(operation.getClass()));
-			}
-			return new Builder<>(client, codec, new SimpleOperationExecutor<>(operation));
-		}
-
-		public DataStructureBuilder<K, V> dataStructure() {
-			return new DataStructureBuilder<>(client, codec);
-		}
-
-		public Builder<K, V, KeyValue<K, byte[]>> keyDump() {
-			RestoreReplace<K, V, KeyValue<K, byte[]>> operation = new RestoreReplace<>(KeyValue::getKey,
-					KeyValue<K, byte[]>::getValue, KeyValue::getTtl);
-			return new Builder<>(client, codec, new SimpleOperationExecutor<>(operation));
-		}
-	}
-
-	public static class Builder<K, V, T> extends AbstractBuilder<K, V, T, Builder<K, V, T>> {
-
-		private final OperationExecutor<K, V, T> executor;
-
-		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec, OperationExecutor<K, V, T> executor) {
-			super(client, codec);
-			this.executor = executor;
-		}
-
-		@Override
-		protected OperationExecutor<K, V, T> getOperationExecutor() {
-			return executor;
+		public <T> Builder<K, V, T> operation(Operation<K, V, T> operation) {
+			return new Builder<>(client, codec, operation);
 		}
 
 	}
 
-	public abstract static class AbstractBuilder<K, V, T, B extends AbstractBuilder<K, V, T, B>>
-			extends RedisConnectionBuilder<K, V, B> {
+	public static class Builder<K, V, T> extends RedisConnectionBuilder<K, V, Builder<K, V, T>> {
 
+		private final PipelinedOperation<K, V, T> operation;
 		private boolean multiExec;
 		private Optional<WaitForReplication> waitForReplication = Optional.empty();
 
-		protected AbstractBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec, Operation<K, V, T> operation) {
+			this(client, codec, new SimplePipelinedOperation<>(operation));
+		}
+
+		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec, PipelinedOperation<K, V, T> operation) {
 			super(client, codec);
+			this.operation = operation;
 		}
 
-		@SuppressWarnings("unchecked")
-		public B multiExec() {
+		public Builder<K, V, T> multiExec() {
 			this.multiExec = true;
-			return (B) this;
+			return this;
 		}
 
-		@SuppressWarnings("unchecked")
-		public B waitForReplication(WaitForReplication replication) {
+		public Builder<K, V, T> waitForReplication(WaitForReplication replication) {
 			this.waitForReplication = Optional.of(replication);
-			return (B) this;
+			return this;
 		}
 
-		protected OperationExecutor<K, V, T> operationExecutor() {
-			OperationExecutor<K, V, T> executor = getOperationExecutor();
-			if (multiExec) {
-				executor = new MultiExecOperationExecutor<>(executor);
-			}
+		private PipelinedOperation<K, V, T> operation() {
+			PipelinedOperation<K, V, T> op = multiExec ? new MultiExecOperation<>(operation) : operation;
 			if (waitForReplication.isPresent()) {
-				return new WaitForReplicationOperationExecutor<>(executor, waitForReplication.get());
+				return new WaitForReplicationOperation<>(op, waitForReplication.get());
 			}
-			return executor;
+			return op;
 		}
-
-		protected abstract OperationExecutor<K, V, T> getOperationExecutor();
 
 		public RedisItemWriter<K, V, T> build() {
-			return new RedisItemWriter<>(connectionSupplier(), poolConfig, super.async(), operationExecutor());
+			return new RedisItemWriter<>(connectionSupplier(), poolConfig, super.async(), operation());
 		}
 
 	}
 
 	public static class WaitForReplication {
 
+		public static final int DEFAULT_REPLICAS = 1;
+		public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(1);
+
 		private final int replicas;
 		private final Duration timeout;
 
-		private WaitForReplication(Builder builder) {
-			this.replicas = builder.replicas;
-			this.timeout = builder.timeout;
+		private WaitForReplication(int replicas, Duration timeout) {
+			this.replicas = replicas;
+			this.timeout = timeout;
 		}
 
 		public int getReplicas() {
@@ -225,36 +178,16 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 			return timeout;
 		}
 
-		public static Builder builder() {
-			return new Builder();
+		public static WaitForReplication of(int replicas, Duration timeout) {
+			return new WaitForReplication(replicas, timeout);
 		}
 
-		public static final class Builder {
+		public static WaitForReplication of(int replicas) {
+			return new WaitForReplication(replicas, DEFAULT_TIMEOUT);
+		}
 
-			public static final int DEFAULT_REPLICAS = 1;
-			public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(1);
-
-			private int replicas = DEFAULT_REPLICAS;
-			private Duration timeout = DEFAULT_TIMEOUT;
-
-			private Builder() {
-			}
-
-			public Builder replicas(int replicas) {
-				this.replicas = replicas;
-				return this;
-			}
-
-			public Builder timeout(Duration timeout) {
-				Assert.notNull(timeout, "Timeout must not be null");
-				Assert.isTrue(!timeout.isNegative(), "Timeout must not be negative");
-				this.timeout = timeout;
-				return this;
-			}
-
-			public WaitForReplication build() {
-				return new WaitForReplication(this);
-			}
+		public static WaitForReplication of(Duration timeout) {
+			return new WaitForReplication(DEFAULT_REPLICAS, timeout);
 		}
 
 	}

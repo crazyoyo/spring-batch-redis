@@ -6,9 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobExecutionException;
+import org.awaitility.Awaitility;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.core.convert.converter.Converter;
 
@@ -16,6 +14,7 @@ import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.reader.AbstractValueReader.ValueReaderFactory;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
+import com.redis.spring.batch.support.JobRunner;
 import com.redis.spring.batch.support.Utils;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -46,15 +45,15 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 	}
 
 	@Override
-	protected JobExecution execute(Job job) throws JobExecutionException {
-		JobExecution execution = super.execute(job);
-		jobRunner.awaitRunning(() -> ((AbstractKeyspaceNotificationItemReader<K>) keyReader).isOpen());
-		return execution;
+	protected void doOpen() {
+		super.doOpen();
+		Awaitility.await().timeout(JobRunner.DEFAULT_RUNNING_TIMEOUT)
+				.until(((AbstractKeyspaceNotificationItemReader<K>) keyReader)::isOpen);
 	}
 
 	@Override
-	protected SimpleStepBuilder<K, K> step() {
-		return new FlushingSimpleStepBuilder<>(super.step()).flushingInterval(flushingInterval)
+	protected SimpleStepBuilder<K, K> createStep(JobRunner runner) {
+		return new FlushingSimpleStepBuilder<>(super.createStep(runner)).flushingInterval(flushingInterval)
 				.idleTimeout(idleTimeout);
 	}
 

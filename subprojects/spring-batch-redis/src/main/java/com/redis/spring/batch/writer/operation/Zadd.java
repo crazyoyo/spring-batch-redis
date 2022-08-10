@@ -11,7 +11,7 @@ import io.lettuce.core.ZAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 
-public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
+public class Zadd<K, V, T> extends AbstractCollectionAdd<K, V, T> {
 
 	private final Converter<T, ScoredValue<V>> value;
 	private final ZAddArgs args;
@@ -44,45 +44,44 @@ public class Zadd<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, scoredValue.getValue());
 	}
 
-	public static <K, V, T> ZaddValueBuilder<K, V, T> key(K key) {
+	public static <K, T> ValueBuilder<K, T> key(K key) {
 		return key(t -> key);
 	}
 
-	public static <K, V, T> ZaddValueBuilder<K, V, T> key(Converter<T, K> key) {
-		return new ZaddValueBuilder<>(key);
+	public static <K, T> ValueBuilder<K, T> key(Converter<T, K> key) {
+		return new ValueBuilder<>(key);
 	}
 
-	public static class ZaddValueBuilder<K, V, T> {
+	public static class ValueBuilder<K, T> {
 
 		private final Converter<T, K> key;
 
-		public ZaddValueBuilder(Converter<T, K> key) {
+		public ValueBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		public ZaddBuilder<K, V, T> value(Converter<T, ScoredValue<V>> value) {
-			return new ZaddBuilder<>(key, value);
+		public <V> Builder<K, V, T> value(Converter<T, ScoredValue<V>> value) {
+			return new Builder<>(key, value);
 		}
 	}
 
-	public static class ZaddBuilder<K, V, T> extends RemoveBuilder<K, V, T, ZaddBuilder<K, V, T>> {
+	public static class Builder<K, V, T> extends RemoveBuilder<K, V, T, Builder<K, V, T>> {
 
 		private final Converter<T, K> key;
 		private final Converter<T, ScoredValue<V>> value;
 		private ZAddArgs args;
 
-		public ZaddBuilder(Converter<T, K> key, Converter<T, ScoredValue<V>> value) {
-			super(value);
+		public Builder(Converter<T, K> key, Converter<T, ScoredValue<V>> value) {
 			this.key = key;
 			this.value = value;
+			onNull(value);
 		}
 
-		public ZaddBuilder<K, V, T> args(ZAddArgs args) {
+		public Builder<K, V, T> args(ZAddArgs args) {
 			this.args = args;
 			return this;
 		}
 
-		@Override
 		public Zadd<K, V, T> build() {
 			return new Zadd<>(key, del, remove, value, args);
 		}

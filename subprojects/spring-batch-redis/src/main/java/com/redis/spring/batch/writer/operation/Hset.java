@@ -33,41 +33,40 @@ public class Hset<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		return hashCommands.hset(key, map);
 	}
 
-	public static <K, V, T> HsetMapBuilder<K, V, T> key(Converter<T, K> key) {
-		return new HsetMapBuilder<>(key);
+	public static <K, T> MapBuilder<K, T> key(Converter<T, K> key) {
+		return new MapBuilder<>(key);
 	}
 
-	public static class HsetMapBuilder<K, V, T> {
+	public static class MapBuilder<K, T> {
 
 		private final Converter<T, K> key;
 
-		public HsetMapBuilder(Converter<T, K> key) {
+		public MapBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		public HsetBuilder<K, V, T> map(Converter<T, Map<K, V>> map) {
-			return new HsetBuilder<>(key, map);
+		public <V> Builder<K, V, T> map(Converter<T, Map<K, V>> map) {
+			return new Builder<>(key, map);
 		}
 	}
 
-	public static class HsetBuilder<K, V, T> extends DelBuilder<K, V, T, HsetBuilder<K, V, T>> {
+	public static class Builder<K, V, T> extends DelBuilder<K, V, T, Builder<K, V, T>> {
 
 		private final Converter<T, K> key;
 		private final Converter<T, Map<K, V>> map;
 		private Predicate<T> hdel = t -> false;
 
-		public HsetBuilder(Converter<T, K> key, Converter<T, Map<K, V>> map) {
-			super(map);
+		public Builder(Converter<T, K> key, Converter<T, Map<K, V>> map) {
 			this.key = key;
 			this.map = map;
+			onNull(map);
 		}
 
-		public HsetBuilder<K, V, T> hdel(Predicate<T> hdel) {
+		public Builder<K, V, T> hdel(Predicate<T> hdel) {
 			this.hdel = hdel;
 			return this;
 		}
 
-		@Override
 		public Hset<K, V, T> build() {
 			return new Hset<>(key, del, map, hdel);
 		}

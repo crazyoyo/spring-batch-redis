@@ -8,7 +8,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 
-public class Lpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
+public class Lpush<K, V, T> extends AbstractCollectionAdd<K, V, T> {
 
 	private final Converter<T, V> memberConverter;
 
@@ -37,39 +37,38 @@ public class Lpush<K, V, T> extends AbstractCollectionOperation<K, V, T> {
 		return ((RedisListAsyncCommands<K, V>) commands).lrem(key, 1, member);
 	}
 
-	public static <K, V, T> RpushMemberBuilder<K, V, T> key(K key) {
+	public static <K, T> MemberBuilder<K, T> key(K key) {
 		return key(t -> key);
 	}
 
-	public static <K, V, T> RpushMemberBuilder<K, V, T> key(Converter<T, K> key) {
-		return new RpushMemberBuilder<>(key);
+	public static <K, T> MemberBuilder<K, T> key(Converter<T, K> key) {
+		return new MemberBuilder<>(key);
 	}
 
-	public static class RpushMemberBuilder<K, V, T> {
+	public static class MemberBuilder<K, T> {
 
 		private final Converter<T, K> key;
 
-		public RpushMemberBuilder(Converter<T, K> key) {
+		public MemberBuilder(Converter<T, K> key) {
 			this.key = key;
 		}
 
-		public RpushBuilder<K, V, T> member(Converter<T, V> member) {
-			return new RpushBuilder<>(key, member);
+		public <V> Builder<K, V, T> member(Converter<T, V> member) {
+			return new Builder<>(key, member);
 		}
 	}
 
-	public static class RpushBuilder<K, V, T> extends RemoveBuilder<K, V, T, RpushBuilder<K, V, T>> {
+	public static class Builder<K, V, T> extends RemoveBuilder<K, V, T, Builder<K, V, T>> {
 
 		private final Converter<T, K> key;
 		private final Converter<T, V> member;
 
-		public RpushBuilder(Converter<T, K> key, Converter<T, V> member) {
-			super(member);
+		public Builder(Converter<T, K> key, Converter<T, V> member) {
 			this.key = key;
 			this.member = member;
+			onNull(member);
 		}
 
-		@Override
 		public Lpush<K, V, T> build() {
 			return new Lpush<>(key, del, remove, member);
 		}
