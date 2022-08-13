@@ -65,7 +65,6 @@ import com.redis.spring.batch.writer.operation.Geoadd;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.spring.batch.writer.operation.Zadd;
-import com.redis.testcontainers.RedisClusterContainer;
 import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisServer;
@@ -95,7 +94,7 @@ class BatchTests extends AbstractTestBase {
 	protected static final RedisContainer REDIS = new RedisContainer(
 			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 	protected static final RedisEnterpriseContainer REDIS_ENTERPRISE = new RedisEnterpriseContainer(
-			RedisClusterContainer.DEFAULT_IMAGE_NAME.withTag(RedisEnterpriseContainer.DEFAULT_TAG))
+			RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
 			.withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(90)).ossCluster(true).build());
 	private static final RedisContainer TARGET = new RedisContainer(
 			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
