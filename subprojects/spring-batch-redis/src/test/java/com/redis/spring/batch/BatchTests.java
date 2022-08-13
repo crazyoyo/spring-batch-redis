@@ -220,7 +220,7 @@ class BatchTests extends AbstractTestBase {
 		generate(redis,
 				DataStructureGeneratorItemReader.builder().maxItemCount(123).types(Type.HASH, Type.STRING).build());
 		jobRunner.awaitTermination(execution);
-		assertEquals(redis.sync().dbsize(), writer.getWrittenItems().size());
+		Awaitility.await().until(() -> redis.sync().dbsize() == writer.getWrittenItems().size());
 	}
 
 	@ParameterizedTest
