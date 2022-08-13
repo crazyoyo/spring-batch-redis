@@ -60,11 +60,7 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 
 	@SuppressWarnings("unchecked")
 	private Map<K, V> map(DataStructure<K> ds) {
-		Map<K, V> map = (Map<K, V>) ds.getValue();
-		if (map.isEmpty()) {
-			return null;
-		}
-		return map;
+		return (Map<K, V>) ds.getValue();
 	}
 
 	@SuppressWarnings("unchecked")
@@ -79,20 +75,12 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 
 	@SuppressWarnings("unchecked")
 	private Collection<ScoredValue<V>> zmembers(DataStructure<K> ds) {
-		Collection<ScoredValue<V>> members = (Collection<ScoredValue<V>>) ds.getValue();
-		if (members.isEmpty()) {
-			return null;
-		}
-		return members;
+		return (Collection<ScoredValue<V>>) ds.getValue();
 	}
 
 	@SuppressWarnings("unchecked")
 	private Collection<V> members(DataStructure<K> ds) {
-		Collection<V> members = (Collection<V>) ds.getValue();
-		if (members.isEmpty()) {
-			return null;
-		}
-		return members;
+		return (Collection<V>) ds.getValue();
 	}
 
 	@SuppressWarnings("unchecked")

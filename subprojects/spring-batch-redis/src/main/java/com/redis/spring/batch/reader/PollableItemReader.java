@@ -13,9 +13,10 @@ public interface PollableItemReader<T> extends ItemStreamReader<T> {
 	 * @param timeout how long to wait before giving up, in units of {@code unit}
 	 * @param unit    a {@code TimeUnit} determining how to interpret the
 	 *                {@code timeout} parameter
+	 * @throws InterruptedException if interrupted while waiting
+	 * @throws Exception            if an there is a non-specific error.
 	 * @return T the item to be processed or {@code null} if the specified waiting
 	 *         time elapses before an element is available
-	 * @throws InterruptedException if interrupted while waiting
 	 */
 	T poll(long timeout, TimeUnit unit) throws Exception, InterruptedException;
 

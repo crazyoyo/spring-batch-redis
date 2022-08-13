@@ -362,8 +362,8 @@ class BatchTests extends AbstractTestBase {
 			messages.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter.operation(redis.getClient())
-				.operation(Xadd.<String, Map<String, String>>key(stream).<String>body(t -> t).build()).build();
+		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter.operation(redis.getClient(),
+				Xadd.<String, Map<String, String>>key(stream).<String>body(t -> t).build()).build();
 		run(redis, reader, writer);
 		RedisModulesCommands<String, String> sync = redis.sync();
 		assertEquals(messages.size(), sync.xlen(stream));
@@ -386,8 +386,9 @@ class BatchTests extends AbstractTestBase {
 			maps.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter.operation(redis.getClient())
-				.operation(Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
+		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
+				.operation(redis.getClient(),
+						Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
 				.waitForReplication(WaitForReplication.of(1, Duration.ofMillis(300))).build();
 		JobExecution execution = run(redis, reader, writer);
 		List<Throwable> exceptions = execution.getAllFailureExceptions();
@@ -412,8 +413,9 @@ class BatchTests extends AbstractTestBase {
 			maps.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter.operation(redis.getClient())
-				.operation(Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
+		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
+				.operation(redis.getClient(),
+						Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
 				.build();
 		run(redis, reader, writer);
 		assertEquals(maps.size(), redis.sync().keys("hash:*").size());
@@ -456,8 +458,8 @@ class BatchTests extends AbstractTestBase {
 						new Geo("Long Beach National", -73.667022, 40.582739)));
 		GeoValueConverter<String, Geo> value = new GeoValueConverter<>(Geo::getMember, Geo::getLongitude,
 				Geo::getLatitude);
-		RedisItemWriter<String, String, Geo> writer = RedisItemWriter.operation(redis.getClient())
-				.operation(Geoadd.<String, Geo>key("geoset").value(value).build()).build();
+		RedisItemWriter<String, String, Geo> writer = RedisItemWriter
+				.operation(redis.getClient(), Geoadd.<String, Geo>key("geoset").value(value).build()).build();
 		run(redis, reader, writer);
 		Set<String> radius1 = redis.sync().georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
 		assertEquals(1, radius1.size());
@@ -479,9 +481,8 @@ class BatchTests extends AbstractTestBase {
 			hashes.add(new AbstractMap.SimpleEntry<>(key, index < 50 ? null : body));
 		}
 		ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
-		RedisItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = RedisItemWriter
-				.operation(redis.getClient())
-				.operation(Hset.<String, Entry<String, Map<String, String>>>key(e -> "hash:" + e.getKey())
+		RedisItemWriter<String, String, Map.Entry<String, Map<String, String>>> writer = RedisItemWriter.operation(
+				redis.getClient(), Hset.<String, Entry<String, Map<String, String>>>key(e -> "hash:" + e.getKey())
 						.map(Map.Entry::getValue).build())
 				.build();
 		run(redis, reader, writer);
@@ -520,8 +521,8 @@ class BatchTests extends AbstractTestBase {
 		ListItemReader<ZValue> reader = new ListItemReader<>(values);
 		ScoredValueConverter<String, ZValue> converter = new ScoredValueConverter<>(ZValue::getMember,
 				ZValue::getScore);
-		RedisItemWriter<String, String, ZValue> writer = RedisItemWriter.operation(redis.getClient())
-				.operation(Zadd.<String, ZValue>key("zset").value(converter).build()).build();
+		RedisItemWriter<String, String, ZValue> writer = RedisItemWriter
+				.operation(redis.getClient(), Zadd.<String, ZValue>key("zset").value(converter).build()).build();
 		run(redis, reader, writer);
 		RedisModulesCommands<String, String> sync = redis.sync();
 		assertEquals(1, sync.dbsize());
@@ -562,7 +563,7 @@ class BatchTests extends AbstractTestBase {
 		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(100).build());
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
 		run(redis, reader, replicationDataStructureWriter().build());
-		compare(redis, target);
+		assertTrue(compare(redis, target).isOK());
 	}
 
 	@ParameterizedTest
@@ -570,7 +571,7 @@ class BatchTests extends AbstractTestBase {
 	void replicate(RedisTestContext redis) throws Exception {
 		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(100).build());
 		doReplicate(redis);
-		compare(redis, getContext(TARGET));
+		assertTrue(compare(redis, getContext(TARGET)).isOK());
 	}
 
 	private JobExecution doReplicate(RedisTestContext redis) throws Exception {
@@ -601,7 +602,7 @@ class BatchTests extends AbstractTestBase {
 			RedisTestContext target = getContext(TARGET);
 			RedisItemWriter<String, String, KeyValue<String, byte[]>> writer = keyDumpWriter(target);
 			run(redis, reader, writer);
-			compare(redis, target);
+			assertTrue(compare(redis, target).isOK());
 		}
 	}
 
@@ -730,10 +731,11 @@ class BatchTests extends AbstractTestBase {
 		int count = 12345;
 		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(count).build());
 		long expectedCount = redis.sync().dbsize();
-		assertEquals(expectedCount, sizeEstimator(redis).sampleSize(1000).match(pattern).build().call(),
+		assertEquals(expectedCount, sizeEstimator(redis).sampleSize(1000).match(pattern).build().execute(),
 				expectedCount / 10);
 		assertEquals(expectedCount / DataStructureGeneratorItemReader.defaultTypes().size(),
-				sizeEstimator(redis).sampleSize(1000).type(Type.HASH.getString()).build().call(), expectedCount / 10);
+				sizeEstimator(redis).sampleSize(1000).type(Type.HASH.getString()).build().execute(),
+				expectedCount / 10);
 	}
 
 	private Builder sizeEstimator(RedisTestContext redis) {

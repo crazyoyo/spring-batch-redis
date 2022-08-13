@@ -31,7 +31,7 @@ public class Xadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.convert(item), body.convert(item));
 	}
 
-	public static <K, V> Converter<StreamMessage<K, V>, XAddArgs> xaddArgsIdentity() {
+	public static <K, V> Converter<StreamMessage<K, V>, XAddArgs> identity() {
 		return m -> new XAddArgs().id(m.getId());
 	}
 

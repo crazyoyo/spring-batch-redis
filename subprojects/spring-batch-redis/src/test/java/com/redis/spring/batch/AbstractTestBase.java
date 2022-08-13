@@ -77,12 +77,11 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return KeyComparator.left(context.getClient());
 	}
 
-	protected void compare(RedisTestContext left, RedisTestContext right) throws Exception {
+	protected KeyComparisonResults compare(RedisTestContext left, RedisTestContext right) throws Exception {
 		Assertions.assertEquals(left.sync().dbsize(), right.sync().dbsize());
 		KeyComparator comparator = comparator(left, right).build();
 		comparator.addListener(new KeyComparisonLogger(log));
-		KeyComparisonResults results = comparator.call();
-		Assertions.assertTrue(results.isOK());
+		return comparator.call();
 	}
 
 	protected KeyComparator.Builder comparator(RedisTestContext left, RedisTestContext right) {

@@ -62,16 +62,18 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 		}
 	}
 
-	public static <K, V> OperationBuilder<K, V> operation(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		return new OperationBuilder<>(client, codec);
+	public static <K, V, T> Builder<K, V, T> operation(AbstractRedisClient client, RedisCodec<K, V> codec,
+			Operation<K, V, T> operation) {
+		return new Builder<>(client, codec, operation);
 	}
 
-	public static OperationBuilder<String, String> operation(AbstractRedisClient client) {
-		return new OperationBuilder<>(client, StringCodec.UTF8);
+	public static <T> Builder<String, String, T> operation(AbstractRedisClient client,
+			Operation<String, String, T> operation) {
+		return new Builder<>(client, StringCodec.UTF8, operation);
 	}
 
-	public static <K, V, O extends PipelinedOperation<K, V, DataStructure<K>>> Builder<K, V, DataStructure<K>> dataStructure(
-			AbstractRedisClient client, RedisCodec<K, V> codec) {
+	public static <K, V> Builder<K, V, DataStructure<K>> dataStructure(AbstractRedisClient client,
+			RedisCodec<K, V> codec) {
 		return new Builder<>(client, codec, new DataStructureOperation<>(codec));
 	}
 
@@ -100,22 +102,6 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 
 	public static Builder<String, String, KeyValue<String, byte[]>> keyDump(AbstractRedisClient client) {
 		return new Builder<>(client, StringCodec.UTF8, SimplePipelinedOperation.keyDump());
-	}
-
-	public static class OperationBuilder<K, V> {
-
-		private final AbstractRedisClient client;
-		private final RedisCodec<K, V> codec;
-
-		public OperationBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			this.client = client;
-			this.codec = codec;
-		}
-
-		public <T> Builder<K, V, T> operation(Operation<K, V, T> operation) {
-			return new Builder<>(client, codec, operation);
-		}
-
 	}
 
 	public static class Builder<K, V, T> extends RedisConnectionBuilder<K, V, Builder<K, V, T>> {

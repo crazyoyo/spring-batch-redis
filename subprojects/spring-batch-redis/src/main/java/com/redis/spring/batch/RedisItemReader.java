@@ -73,7 +73,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	private String name;
 
 	protected RedisItemReader(AbstractBuilder<K, ?, T, ?> builder) {
-		setName(ClassUtils.getShortName(getClass()));
+		setName(builder.name.isPresent() ? builder.name.get() : ClassUtils.getShortName(getClass()));
 		this.chunkSize = builder.chunkSize;
 		this.queuePollTimeout = builder.queuePollTimeout;
 		this.skipPolicy = builder.skipPolicy;
@@ -321,6 +321,7 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	public abstract static class AbstractBuilder<K, V, T extends KeyValue<K, ?>, B extends AbstractBuilder<K, V, T, B>>
 			extends RedisConnectionBuilder<K, V, B> {
 
+		protected Optional<String> name = Optional.empty();
 		protected final ValueReaderFactory<K, V, T> valueReaderFactory;
 		protected int chunkSize = RedisItemReader.DEFAULT_CHUNK_SIZE;
 		protected int threads = RedisItemReader.DEFAULT_THREADS;
@@ -336,6 +337,12 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		}
 
 		protected abstract ItemReader<K> keyReader();
+
+		@SuppressWarnings("unchecked")
+		public B name(String name) {
+			this.name = Optional.of(name);
+			return (B) this;
+		}
 
 		@SuppressWarnings("unchecked")
 		public B jobRunner(JobRunner jobRunner) {

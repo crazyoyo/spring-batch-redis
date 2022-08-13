@@ -73,8 +73,8 @@ class ModulesTests extends AbstractTestBase {
 	void jsonSet(RedisTestContext redis) throws Exception {
 		JsonSet<String, String, JsonNode> jsonSet = JsonSet.<String, JsonNode>key(n -> "beer:" + n.get("id").asText())
 				.path(".").value(JsonNode::toString).build();
-		RedisItemWriter<String, String, JsonNode> writer = RedisItemWriter.operation(redis.getClient())
-				.operation(jsonSet).build();
+		RedisItemWriter<String, String, JsonNode> writer = RedisItemWriter.operation(redis.getClient(), jsonSet)
+				.build();
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
 		run(redis, reader, writer);
 		Assertions.assertEquals(BEER_COUNT, redis.sync().keys("beer:*").size());
@@ -97,7 +97,7 @@ class ModulesTests extends AbstractTestBase {
 		ListItemReader<Sample> reader = new ListItemReader<>(samples);
 		TsAdd<String, String, Sample> tsadd = TsAdd.<Sample>key(key).<String>sample(sampleConverter)
 				.options(v -> AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST).build()).build();
-		run(redis, reader, RedisItemWriter.operation(redis.getClient()).operation(tsadd).build());
+		run(redis, reader, RedisItemWriter.operation(redis.getClient(), tsadd).build());
 		Assertions.assertEquals(count / 2,
 				redis.sync().tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
 	}
@@ -147,8 +147,9 @@ class ModulesTests extends AbstractTestBase {
 			messages.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter.operation(redis.getClient())
-				.operation(Xadd.<String, Map<String, String>>key(stream).body(t -> t).build()).multiExec().build();
+		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
+				.operation(redis.getClient(), Xadd.<String, Map<String, String>>key(stream).body(t -> t).build())
+				.multiExec().build();
 		run(redis, reader, writer);
 		RedisModulesCommands<String, String> sync = redis.sync();
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));

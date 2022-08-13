@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.commons.logging.Log;
@@ -29,8 +30,17 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 	private final long ttlTolerance;
 	private List<KeyComparisonListener> listeners = new ArrayList<>();
 
+	public KeyComparisonItemWriter(Builder builder) {
+		this(builder.name, builder.valueReader, builder.ttlTolerance);
+	}
+
 	public KeyComparisonItemWriter(ValueReader<String, DataStructure<String>> valueReader, Duration ttlTolerance) {
-		setName(ClassUtils.getShortName(getClass()));
+		this(Optional.empty(), valueReader, ttlTolerance);
+	}
+
+	private KeyComparisonItemWriter(Optional<String> name, ValueReader<String, DataStructure<String>> valueReader,
+			Duration ttlTolerance) {
+		setName(name.isPresent() ? name.get() : ClassUtils.getShortName(getClass()));
 		Assert.notNull(valueReader, "A value reader is required");
 		Utils.assertPositive(ttlTolerance, "TTL tolerance");
 		this.valueReader = valueReader;
@@ -82,26 +92,28 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 			DataStructure<String> source = sourceItems.get(index);
 			DataStructure<String> target = targetItems.get(index);
 			Status status = compare(source, target);
-			increment(status);
+			switch (status) {
+			case OK:
+				results.incrementOK();
+				break;
+			case MISSING:
+				results.incrementMissing();
+				break;
+			case TTL:
+				results.incrementTTL();
+				break;
+			case TYPE:
+				results.incrementType();
+				break;
+			case VALUE:
+				results.incrementValue();
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown status: " + status);
+			}
 			KeyComparison comparison = new KeyComparison(source, target, status);
 			listeners.forEach(c -> c.keyComparison(comparison));
 		}
-	}
-
-	private long increment(Status status) {
-		switch (status) {
-		case OK:
-			return results.incrementOK();
-		case MISSING:
-			return results.incrementMissing();
-		case TTL:
-			return results.incrementTTL();
-		case TYPE:
-			return results.incrementType();
-		case VALUE:
-			return results.incrementValue();
-		}
-		throw new IllegalArgumentException("Unknown status: " + status);
 	}
 
 	private Status compare(DataStructure<String> source, DataStructure<String> target) {
@@ -143,11 +155,17 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 
 		private static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
+		private Optional<String> name = Optional.empty();
 		private final ValueReader<String, DataStructure<String>> valueReader;
 		private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
 		public Builder(ValueReader<String, DataStructure<String>> valueReader) {
 			this.valueReader = valueReader;
+		}
+
+		public Builder name(String name) {
+			this.name = Optional.of(name);
+			return this;
 		}
 
 		public Builder tolerance(Duration ttlTolerance) {
@@ -156,7 +174,7 @@ public class KeyComparisonItemWriter extends AbstractItemStreamItemWriter<DataSt
 		}
 
 		public KeyComparisonItemWriter build() {
-			return new KeyComparisonItemWriter(valueReader, ttlTolerance);
+			return new KeyComparisonItemWriter(this);
 		}
 	}
 

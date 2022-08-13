@@ -28,7 +28,7 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 	private Duration flushingInterval = FlushingSimpleStepBuilder.DEFAULT_FLUSHING_INTERVAL;
 	private Optional<Duration> idleTimeout = Optional.empty();
 
-	public LiveRedisItemReader(Builder<K, ?, T> builder) throws Exception {
+	public LiveRedisItemReader(Builder<K, ?, T> builder) {
 		super(builder);
 	}
 
@@ -111,7 +111,7 @@ public class LiveRedisItemReader<K, T extends KeyValue<K, ?>> extends RedisItemR
 			return this;
 		}
 
-		public LiveRedisItemReader<K, T> build() throws Exception {
+		public LiveRedisItemReader<K, T> build() {
 			LiveRedisItemReader<K, T> reader = new LiveRedisItemReader<>(this);
 			reader.setFlushingInterval(flushingInterval);
 			reader.setIdleTimeout(idleTimeout);
