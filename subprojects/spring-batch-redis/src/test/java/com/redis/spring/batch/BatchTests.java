@@ -65,6 +65,7 @@ import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.spring.batch.writer.operation.Zadd;
 import com.redis.testcontainers.RedisClusterContainer;
 import com.redis.testcontainers.RedisContainer;
+import com.redis.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.junit.RedisTestContext;
 import com.redis.testcontainers.junit.RedisTestContextsSource;
@@ -90,26 +91,26 @@ class BatchTests extends AbstractTestBase {
 	private static final Logger log = LoggerFactory.getLogger(BatchTests.class);
 
 	protected static final RedisContainer REDIS = new RedisContainer(
-			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG)).withKeyspaceNotifications();
-	protected static final RedisClusterContainer REDIS_CLUSTER = new RedisClusterContainer(
-			RedisClusterContainer.DEFAULT_IMAGE_NAME.withTag(RedisClusterContainer.DEFAULT_TAG))
-			.withKeyspaceNotifications();
+			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
+	protected static final RedisEnterpriseContainer REDIS_ENTERPRISE = new RedisEnterpriseContainer(
+			RedisClusterContainer.DEFAULT_IMAGE_NAME.withTag(RedisEnterpriseContainer.DEFAULT_TAG));
 	private static final RedisContainer TARGET = new RedisContainer(
 			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 
 	@Override
 	protected Collection<RedisServer> redisServers() {
-		return Arrays.asList(REDIS, REDIS_CLUSTER, TARGET);
+		return Arrays.asList(REDIS, REDIS_ENTERPRISE, TARGET);
 	}
 
 	@Override
 	protected Collection<RedisServer> testRedisServers() {
-		return Arrays.asList(REDIS, REDIS_CLUSTER);
+		return Arrays.asList(REDIS, REDIS_ENTERPRISE);
 	}
 
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void flushingStep(RedisTestContext redis) throws Exception {
+		enabledKeyspaceNotifications(redis);
 		AbstractKeyspaceNotificationItemReader<String> reader = keyspaceNotificationReader(redis);
 		ListItemWriter<String> writer = new ListItemWriter<>();
 		JobExecution execution = runFlushing(redis, reader, writer);
@@ -129,6 +130,7 @@ class BatchTests extends AbstractTestBase {
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void readKeyspaceNotifications(RedisTestContext redis) throws Exception {
+		enabledKeyspaceNotifications(redis);
 		AbstractKeyspaceNotificationItemReader<String> keyReader = keyspaceNotificationReader(redis);
 		keyReader.open(new ExecutionContext());
 		int count = 2;
@@ -214,6 +216,7 @@ class BatchTests extends AbstractTestBase {
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void readLive(RedisTestContext redis) throws Exception {
+		enabledKeyspaceNotifications(redis);
 		LiveRedisItemReader<String, KeyValue<String, byte[]>> reader = liveKeyDumpReader(redis, 10000);
 		ListItemWriter<KeyValue<String, byte[]>> writer = new ListItemWriter<>();
 		JobExecution execution = runAsync(redis, reader, writer);
@@ -609,14 +612,20 @@ class BatchTests extends AbstractTestBase {
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void replicateLive(RedisTestContext redis) throws Exception {
+		enabledKeyspaceNotifications(redis);
 		RedisTestContext target = getContext(TARGET);
 		liveReplication(redis, keyDumpReader(redis), keyDumpWriter(target), liveKeyDumpReader(redis, 100000),
 				keyDumpWriter(target));
 	}
 
+	private void enabledKeyspaceNotifications(RedisTestContext redis) {
+		redis.sync().configSet("notify-keyspace-events", "AK");
+	}
+
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void replicateLiveDSSet(RedisTestContext redis) throws Exception {
+		enabledKeyspaceNotifications(redis);
 		String key = "myset";
 		redis.sync().sadd(key, "1", "2", "3", "4", "5");
 		LiveRedisItemReader<String, DataStructure<String>> reader = liveDataStructureReader(redis, 100);
@@ -642,6 +651,7 @@ class BatchTests extends AbstractTestBase {
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void replicateLiveDS(RedisTestContext redis) throws Exception {
+		enabledKeyspaceNotifications(redis);
 		liveReplication(redis, dataStructureReader(redis), replicationDataStructureWriter().build(),
 				liveDataStructureReader(redis, 100000), replicationDataStructureWriter().build());
 	}
