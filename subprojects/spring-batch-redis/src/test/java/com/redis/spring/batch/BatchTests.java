@@ -40,7 +40,9 @@ import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.util.unit.DataSize;
 
+import com.redis.enterprise.Database;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.DataStructure.Type;
 import com.redis.spring.batch.RedisItemReader.StreamBuilder;
@@ -93,7 +95,8 @@ class BatchTests extends AbstractTestBase {
 	protected static final RedisContainer REDIS = new RedisContainer(
 			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 	protected static final RedisEnterpriseContainer REDIS_ENTERPRISE = new RedisEnterpriseContainer(
-			RedisClusterContainer.DEFAULT_IMAGE_NAME.withTag(RedisEnterpriseContainer.DEFAULT_TAG));
+			RedisClusterContainer.DEFAULT_IMAGE_NAME.withTag(RedisEnterpriseContainer.DEFAULT_TAG))
+			.withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(90)).ossCluster(true).build());
 	private static final RedisContainer TARGET = new RedisContainer(
 			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 
