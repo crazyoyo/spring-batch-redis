@@ -49,15 +49,15 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 	@Override
 	public void write(List<? extends T> items) throws Exception {
 		try (StatefulConnection<K, V> connection = borrowConnection()) {
-			BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
-			commands.setAutoFlushCommands(false);
-			Collection<RedisFuture<?>> futures = operation.execute(commands, items);
-			commands.flushCommands();
-			long timeout = connection.getTimeout().toMillis();
+			connection.setAutoFlushCommands(false);
 			try {
+				BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
+				Collection<RedisFuture<?>> futures = operation.execute(commands, items);
+				connection.flushCommands();
+				long timeout = connection.getTimeout().toMillis();
 				LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(Future[]::new));
 			} finally {
-				commands.setAutoFlushCommands(true);
+				connection.setAutoFlushCommands(true);
 			}
 		}
 	}

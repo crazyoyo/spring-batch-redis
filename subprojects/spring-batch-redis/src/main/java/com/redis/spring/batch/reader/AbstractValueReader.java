@@ -32,7 +32,7 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 	private final Log log = LogFactory.getLog(getClass());
 
 	private static final String ABSTTL_LUA = "absttl.lua";
-	private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
+	protected final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
 	private String digest;
 
 	protected AbstractValueReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
@@ -76,17 +76,16 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 	@Override
 	public List<T> read(List<? extends K> keys) throws Exception {
 		try (StatefulConnection<K, V> connection = borrowConnection()) {
-			BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
-			commands.setAutoFlushCommands(false);
+			connection.setAutoFlushCommands(false);
 			try {
-				return read(commands, connection.getTimeout().toMillis(), keys);
+				return read(connection, keys);
 			} finally {
-				commands.setAutoFlushCommands(true);
+				connection.setAutoFlushCommands(true);
 			}
 		}
 	}
 
-	protected abstract List<T> read(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends K> keys)
+	protected abstract List<T> read(StatefulConnection<K, V> connection, List<? extends K> keys)
 			throws InterruptedException, ExecutionException, TimeoutException;
 
 	public static interface ValueReaderFactory<K, V, T extends KeyValue<K, ?>> {

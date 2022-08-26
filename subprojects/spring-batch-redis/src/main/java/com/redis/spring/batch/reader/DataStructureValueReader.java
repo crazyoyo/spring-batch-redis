@@ -43,19 +43,20 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected List<DataStructure<K>> read(BaseRedisAsyncCommands<K, V> commands, long timeout, List<? extends K> keys)
+	protected List<DataStructure<K>> read(StatefulConnection<K, V> connection, List<? extends K> keys)
 			throws InterruptedException, ExecutionException, TimeoutException {
+		BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
 		List<RedisFuture<String>> typeFutures = new ArrayList<>(keys.size());
 		for (K key : keys) {
 			typeFutures.add(((RedisKeyAsyncCommands<K, V>) commands).type(key));
 		}
-		commands.flushCommands();
+		connection.flushCommands();
 		List<DataStructure<K>> dataStructures = new ArrayList<>(keys.size());
 		List<RedisFuture<Long>> ttlFutures = new ArrayList<>(keys.size());
 		List<RedisFuture<?>> valueFutures = new ArrayList<>(keys.size());
 		for (int index = 0; index < keys.size(); index++) {
 			K key = keys.get(index);
-			String typeString = typeFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
+			String typeString = typeFutures.get(index).get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
 			valueFutures.add(value(commands, key, typeString));
 			ttlFutures.add(absoluteTTL(commands, key));
 			DataStructure<K> dataStructure = new DataStructure<>();
@@ -63,17 +64,17 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 			dataStructure.setTypeString(typeString);
 			dataStructures.add(dataStructure);
 		}
-		commands.flushCommands();
+		connection.flushCommands();
 		for (int index = 0; index < dataStructures.size(); index++) {
 			DataStructure<K> dataStructure = dataStructures.get(index);
 			RedisFuture<?> valueFuture = valueFutures.get(index);
 			if (valueFuture != null) {
-				Object value = valueFuture.get(timeout, TimeUnit.MILLISECONDS);
+				Object value = valueFuture.get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
 				if (value != null) {
 					setValue(dataStructure, value);
 				}
 			}
-			long absoluteTTL = ttlFutures.get(index).get(timeout, TimeUnit.MILLISECONDS);
+			long absoluteTTL = ttlFutures.get(index).get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
 			dataStructure.setTtl(absoluteTTL);
 		}
 		return dataStructures;

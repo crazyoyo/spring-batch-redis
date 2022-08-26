@@ -591,18 +591,21 @@ class BatchTests extends AbstractTestBase {
 		try (RedisTestContext redis = new RedisTestContext(REDIS)) {
 			RedisClient client = redis.getRedisClient();
 			StatefulRedisConnection<byte[], byte[]> connection = client.connect(new ByteArrayCodec());
-			RedisAsyncCommands<byte[], byte[]> async = connection.async();
-			async.setAutoFlushCommands(false);
-			List<RedisFuture<?>> futures = new ArrayList<>();
-			Random random = new Random();
-			for (int index = 0; index < 100; index++) {
-				String key = "binary:" + index;
-				byte[] value = new byte[1000];
-				random.nextBytes(value);
-				futures.add(async.set(key.getBytes(), value));
+			connection.setAutoFlushCommands(false);
+			try {
+				RedisAsyncCommands<byte[], byte[]> async = connection.async();
+				List<RedisFuture<?>> futures = new ArrayList<>();
+				Random random = new Random();
+				for (int index = 0; index < 100; index++) {
+					String key = "binary:" + index;
+					byte[] value = new byte[1000];
+					random.nextBytes(value);
+					futures.add(async.set(key.getBytes(), value));
+				}
+				LettuceFutures.awaitAll(connection.getTimeout(), futures.toArray(new RedisFuture[0]));
+			} finally {
+				connection.flushCommands();
 			}
-			async.flushCommands();
-			LettuceFutures.awaitAll(connection.getTimeout(), futures.toArray(new RedisFuture[0]));
 			RedisItemReader<String, KeyValue<String, byte[]>> reader = keyDumpReader(redis);
 			RedisTestContext target = getContext(TARGET);
 			RedisItemWriter<String, String, KeyValue<String, byte[]>> writer = keyDumpWriter(target);

@@ -27,21 +27,22 @@ public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyValue
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected List<KeyValue<K, byte[]>> read(BaseRedisAsyncCommands<K, V> commands, long timeout,
-			List<? extends K> keys) throws InterruptedException, ExecutionException, TimeoutException {
+	protected List<KeyValue<K, byte[]>> read(StatefulConnection<K, V> connection, List<? extends K> keys)
+			throws InterruptedException, ExecutionException, TimeoutException {
+		BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
 		List<RedisFuture<Long>> ttlFutures = new ArrayList<>(keys.size());
 		List<RedisFuture<byte[]>> dumpFutures = new ArrayList<>(keys.size());
 		for (K key : keys) {
 			ttlFutures.add(absoluteTTL(commands, key));
 			dumpFutures.add(((RedisKeyAsyncCommands<K, V>) commands).dump(key));
 		}
-		commands.flushCommands();
+		connection.flushCommands();
 		List<KeyValue<K, byte[]>> keyValueList = new ArrayList<>(keys.size());
 		for (int index = 0; index < keys.size(); index++) {
 			KeyValue<K, byte[]> keyValue = new KeyValue<>();
 			keyValue.setKey(keys.get(index));
-			keyValue.setValue(dumpFutures.get(index).get(timeout, TimeUnit.MILLISECONDS));
-			keyValue.setTtl(ttlFutures.get(index).get(timeout, TimeUnit.MILLISECONDS));
+			keyValue.setValue(dumpFutures.get(index).get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS));
+			keyValue.setTtl(ttlFutures.get(index).get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS));
 			keyValueList.add(keyValue);
 		}
 		return keyValueList;
