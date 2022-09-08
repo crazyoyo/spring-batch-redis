@@ -795,12 +795,12 @@ class BatchTests extends AbstractTestBase {
 		run(false, "batchtests-comparator", reader, writer);
 		Results results = writer.getResults();
 		long sourceCount = redis.sync().dbsize();
+		assertEquals(sourceCount, results.getTotalCount());
 		assertEquals(sourceCount, target.sync().dbsize() + deleted);
-		assertEquals(deleted, results.getCount(Status.MISSING));
 		assertEquals(typeChanges.size(), results.getCount(Status.TYPE));
 		assertEquals(valueChanges.size(), results.getCount(Status.VALUE));
 		assertEquals(ttlChanges.size(), results.getCount(Status.TTL));
-		assertEquals(sourceCount, results.getTotalCount());
+		assertEquals(deleted, results.getCount(Status.MISSING));
 	}
 
 	@ParameterizedTest

@@ -127,10 +127,13 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return run(async, name(redis), reader, writer);
 	}
 
-	protected <T> JobExecution run(boolean async, String id, ItemReader<T> reader, ItemWriter<T> writer)
+	protected <T> JobExecution run(boolean async, String name, ItemReader<T> reader, ItemWriter<T> writer)
 			throws JobExecutionException {
-		Job job = jobRunner.job(id).start(step(id, reader, writer).build()).build();
-		return async ? jobRunner.runAsync(job) : jobRunner.run(job);
+		Job job = jobRunner.job(name).start(step(name, reader, writer).build()).build();
+		if (async) {
+			return jobRunner.runAsync(job);
+		}
+		return jobRunner.run(job);
 	}
 
 	protected <T> SimpleStepBuilder<T, T> step(String name, ItemReader<T> reader, ItemWriter<T> writer) {
