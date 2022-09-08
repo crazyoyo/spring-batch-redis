@@ -1,6 +1,5 @@
 package com.redis.spring.batch.step;
 
-import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.core.StepContribution;
@@ -22,7 +21,6 @@ import org.springframework.classify.BinaryExceptionClassifier;
 import org.springframework.classify.Classifier;
 import org.springframework.util.Assert;
 
-import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.PollableItemReader;
 
 import io.micrometer.core.instrument.Metrics;
@@ -49,8 +47,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	private SkipPolicy skipPolicy = new LimitCheckingItemSkipPolicy();
 	private Classifier<Throwable, Boolean> rollbackClassifier = new BinaryExceptionClassifier(true);
 	private int maxSkipsOnRead = DEFAULT_MAX_SKIPS_ON_READ;
-	private long flushingInterval; // millis
-	private long idleTimeout = Long.MAX_VALUE; // millis, no idle stream detection by default
+	private FlushingOptions flushingOptions = FlushingOptions.builder().build();
 	private long lastActivity = 0;
 
 	public FlushingChunkProvider(ItemReader<? extends I> itemReader, RepeatOperations repeatOperations) {
@@ -90,14 +87,8 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 		this.rollbackClassifier = rollbackClassifier;
 	}
 
-	public void setFlushingInterval(Duration flushingInterval) {
-		Utils.assertPositive(flushingInterval, "Flushing interval");
-		this.flushingInterval = flushingInterval.toMillis();
-	}
-
-	public void setIdleTimeout(Duration idleTimeout) {
-		Utils.assertPositive(idleTimeout, "Idle timeout");
-		this.idleTimeout = idleTimeout.toMillis();
+	public void setFlushingOptions(FlushingOptions flushingOptions) {
+		this.flushingOptions = flushingOptions;
 	}
 
 	private void stopTimer(Timer.Sample sample, StepExecution stepExecution, String status) {
@@ -114,7 +105,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 		}
 		final Chunk<I> inputs = new Chunk<>();
 		repeatOperations.iterate(context -> {
-			long pollingTimeout = flushingInterval - (System.currentTimeMillis() - start);
+			long pollingTimeout = flushingOptions.getInterval().toMillis() - (System.currentTimeMillis() - start);
 			if (pollingTimeout < 0) {
 				return RepeatStatus.FINISHED;
 			}
@@ -128,11 +119,14 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 				return RepeatStatus.FINISHED;
 			}
 			if (item == null) {
-				long idleDuration = System.currentTimeMillis() - lastActivity;
-				if (idleDuration > idleTimeout) {
-					inputs.setEnd();
-				}
+				flushingOptions.getTimeout().ifPresent(timeout -> {
+					long idleDuration = System.currentTimeMillis() - lastActivity;
+					if (idleDuration > timeout.toMillis()) {
+						inputs.setEnd();
+					}
+				});
 				return RepeatStatus.CONTINUABLE;
+
 			}
 			stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_SUCCESS);
 			inputs.add(item);

@@ -52,11 +52,10 @@ public class ScanReaderOptions extends ReaderOptions {
 	@Override
 	public String toString() {
 		return "ScanReaderOptions [match=" + match + ", count=" + count + ", type=" + type + ", getSkip()=" + getSkip()
-				+ ", getNoSkip()=" + getNoSkip() + ", getChunkSize()=" + getChunkSize() + ", getQueueCapacity()="
-				+ getQueueCapacity() + ", getQueuePollTimeout()=" + getQueuePollTimeout() + ", getSkipLimit()="
-				+ getSkipLimit() + ", getSkipPolicy()=" + getSkipPolicy() + ", getThreads()=" + getThreads()
-				+ ", toString()=" + super.toString() + ", getClass()=" + getClass() + ", hashCode()=" + hashCode()
-				+ "]";
+				+ ", getNoSkip()=" + getNoSkip() + ", getChunkSize()=" + getChunkSize() + ", getQueueOptions()="
+				+ getQueueOptions() + ", getSkipLimit()=" + getSkipLimit() + ", getSkipPolicy()=" + getSkipPolicy()
+				+ ", getThreads()=" + getThreads() + ", toString()=" + super.toString() + ", getClass()=" + getClass()
+				+ ", hashCode()=" + hashCode() + "]";
 	}
 
 	public static Builder builder() {
@@ -65,9 +64,8 @@ public class ScanReaderOptions extends ReaderOptions {
 
 	public static Builder builder(ReaderOptions options) {
 		return builder().chunkSize(options.getChunkSize()).noSkip(options.getNoSkip())
-				.queueCapacity(options.getQueueCapacity()).threads(options.getThreads())
-				.skipPolicy(options.getSkipPolicy()).skipLimit(options.getSkipLimit()).skip(options.getSkip())
-				.queuePollTimeout(options.getQueuePollTimeout());
+				.queueOptions(options.getQueueOptions()).threads(options.getThreads())
+				.skipPolicy(options.getSkipPolicy()).skipLimit(options.getSkipLimit()).skip(options.getSkip());
 	}
 
 	public static final class Builder extends ReaderOptions.Builder<Builder> {

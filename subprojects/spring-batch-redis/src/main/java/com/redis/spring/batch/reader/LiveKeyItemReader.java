@@ -25,19 +25,19 @@ public class LiveKeyItemReader<K> extends ItemStreamSupport
 	private final KeyspaceNotificationPublisher<K> publisher;
 	private final Converter<K, K> keyExtractor;
 	protected final K[] patterns;
+	private final QueueOptions queueOptions;
 
-	private final LiveReaderOptions options;
 	private boolean open;
 	private BlockingQueue<K> queue;
 
 	public LiveKeyItemReader(KeyspaceNotificationPublisher<K> publisher, Converter<K, K> keyExtractor, K[] patterns,
-			LiveReaderOptions options) {
+			QueueOptions queueOptions) {
 		Assert.notNull(patterns, "Patterns must not be null");
 		setName(ClassUtils.getShortName(getClass()));
 		this.publisher = publisher;
 		this.keyExtractor = keyExtractor;
 		this.patterns = patterns;
-		this.options = options;
+		this.queueOptions = queueOptions;
 	}
 
 	@Override
@@ -56,13 +56,13 @@ public class LiveKeyItemReader<K> extends ItemStreamSupport
 
 	@Override
 	public K read() throws Exception {
-		return poll(options.getQueuePollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+		return poll(queueOptions.getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
 	}
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
 		if (queue == null) {
-			this.queue = new LinkedBlockingQueue<>(options.getNotificationQueueCapacity());
+			this.queue = new LinkedBlockingQueue<>(queueOptions.getCapacity());
 			Utils.createGaugeCollectionSize(QUEUE_SIZE_GAUGE_NAME, queue);
 			publisher.addListener(this);
 			publisher.subscribe(patterns);

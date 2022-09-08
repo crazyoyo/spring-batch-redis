@@ -1,6 +1,5 @@
 package com.redis.spring.batch.reader;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -13,12 +12,9 @@ public class ReaderOptions {
 	public static final int DEFAULT_SKIP_LIMIT = 0;
 	public static final int DEFAULT_THREADS = 1;
 	public static final int DEFAULT_CHUNK_SIZE = 50;
-	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
-	public static final Duration DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
 
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
-	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
-	private Duration queuePollTimeout = DEFAULT_QUEUE_POLL_TIMEOUT;
+	private QueueOptions queueOptions = QueueOptions.builder().build();
 	private int skipLimit = DEFAULT_SKIP_LIMIT;
 	private Optional<SkipPolicy> skipPolicy = Optional.empty();
 	private int threads = DEFAULT_THREADS;
@@ -30,8 +26,7 @@ public class ReaderOptions {
 
 	protected ReaderOptions(Builder<?> builder) {
 		this.chunkSize = builder.chunkSize;
-		this.queueCapacity = builder.queueCapacity;
-		this.queuePollTimeout = builder.queuePollTimeout;
+		this.queueOptions = builder.queueOptions;
 		this.skip = builder.skip;
 		this.noSkip = builder.noSkip;
 		this.skipLimit = builder.skipLimit;
@@ -59,24 +54,16 @@ public class ReaderOptions {
 		return chunkSize;
 	}
 
+	public QueueOptions getQueueOptions() {
+		return queueOptions;
+	}
+
+	public void setQueueOptions(QueueOptions queueOptions) {
+		this.queueOptions = queueOptions;
+	}
+
 	public void setChunkSize(int chunkSize) {
 		this.chunkSize = chunkSize;
-	}
-
-	public int getQueueCapacity() {
-		return queueCapacity;
-	}
-
-	public void setQueueCapacity(int queueCapacity) {
-		this.queueCapacity = queueCapacity;
-	}
-
-	public Duration getQueuePollTimeout() {
-		return queuePollTimeout;
-	}
-
-	public void setQueuePollTimeout(Duration queuePollTimeout) {
-		this.queuePollTimeout = queuePollTimeout;
 	}
 
 	public int getSkipLimit() {
@@ -105,16 +92,14 @@ public class ReaderOptions {
 
 	@Override
 	public String toString() {
-		return "ReaderOptions [chunkSize=" + chunkSize + ", queueCapacity=" + queueCapacity + ", queuePollTimeout="
-				+ queuePollTimeout + ", skipLimit=" + skipLimit + ", skipPolicy=" + skipPolicy + ", threads=" + threads
-				+ ", skip=" + skip + ", noSkip=" + noSkip + "]";
+		return "ReaderOptions [chunkSize=" + chunkSize + ", queueOptions=" + queueOptions + ", skipLimit=" + skipLimit
+				+ ", skipPolicy=" + skipPolicy + ", threads=" + threads + ", skip=" + skip + ", noSkip=" + noSkip + "]";
 	}
 
 	public static class Builder<B extends Builder<B>> {
 
 		private int chunkSize = DEFAULT_CHUNK_SIZE;
-		private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
-		private Duration queuePollTimeout = DEFAULT_QUEUE_POLL_TIMEOUT;
+		private QueueOptions queueOptions = QueueOptions.builder().build();
 		private int skipLimit = DEFAULT_SKIP_LIMIT;
 		private List<Class<? extends Throwable>> skip = new ArrayList<>();
 		private List<Class<? extends Throwable>> noSkip = new ArrayList<>();
@@ -131,18 +116,8 @@ public class ReaderOptions {
 		}
 
 		@SuppressWarnings("unchecked")
-		public B queueCapacity(int queueCapacity) {
-			this.queueCapacity = queueCapacity;
-			return (B) this;
-		}
-
-		public B queuePollTimeoutInSeconds(long queuePollTimeout) {
-			return queuePollTimeout(Duration.ofSeconds(queuePollTimeout));
-		}
-
-		@SuppressWarnings("unchecked")
-		public B queuePollTimeout(Duration queuePollTimeout) {
-			this.queuePollTimeout = queuePollTimeout;
+		public B queueOptions(QueueOptions queueOptions) {
+			this.queueOptions = queueOptions;
 			return (B) this;
 		}
 

@@ -7,14 +7,20 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.runner.RunWith;
+import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.job.builder.FlowBuilder;
+import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,8 +41,10 @@ import com.redis.spring.batch.reader.LiveReaderBuilder;
 import com.redis.spring.batch.reader.LiveReaderOptions;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.QueueOptions;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanReaderBuilder;
+import com.redis.spring.batch.step.FlushingOptions;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.testcontainers.junit.AbstractTestcontainersRedisTestBase;
 import com.redis.testcontainers.junit.RedisTestContext;
@@ -51,6 +59,8 @@ import io.lettuce.core.codec.StringCodec;
 public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBase {
 
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
+	public static final FlushingOptions DEFAULT_FLUSHING_OPTIONS = FlushingOptions.builder()
+			.timeout(DEFAULT_IDLE_TIMEOUT).build();
 
 	@Autowired
 	protected JobRepository jobRepository;
@@ -112,13 +122,26 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		Awaitility.await().until(() -> !reader.isOpen());
 	}
 
-	protected <T> JobExecution run(RedisTestContext redis, ItemReader<T> reader, ItemWriter<T> writer)
+	protected <T> JobExecution run(boolean async, RedisTestContext redis, ItemReader<T> reader, ItemWriter<T> writer)
 			throws JobExecutionException {
-		return run(name(redis), reader, writer);
+		return run(async, name(redis), reader, writer);
 	}
 
-	protected <T> JobExecution run(String id, ItemReader<T> reader, ItemWriter<T> writer) throws JobExecutionException {
-		return jobRunner.run(id, ReaderOptions.DEFAULT_CHUNK_SIZE, reader, writer);
+	protected <T> JobExecution run(boolean async, String id, ItemReader<T> reader, ItemWriter<T> writer)
+			throws JobExecutionException {
+		Job job = jobRunner.job(id).start(step(id, reader, writer).build()).build();
+		return async ? jobRunner.runAsync(job) : jobRunner.run(job);
+	}
+
+	protected <T> SimpleStepBuilder<T, T> step(String name, ItemReader<T> reader, ItemWriter<T> writer) {
+		if (reader instanceof ItemStreamSupport) {
+			((ItemStreamSupport) reader).setName(name + "-reader");
+		}
+		return jobRunner.step(name).<T, T>chunk(ReaderOptions.DEFAULT_CHUNK_SIZE).reader(reader).writer(writer);
+	}
+
+	protected FlowBuilder<SimpleFlow> flow(String name) {
+		return new FlowBuilder<>(name);
 	}
 
 	protected <T> JobExecution runFlushing(RedisTestContext redis, PollableItemReader<T> reader, ItemWriter<T> writer)
@@ -128,19 +151,9 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	protected <T> JobExecution runFlushing(String name, PollableItemReader<T> reader, ItemWriter<T> writer)
 			throws JobExecutionException {
-		return jobRunner.runAsync(jobRunner.job(name,
-				new FlushingSimpleStepBuilder<>(jobRunner.step(name, ReaderOptions.DEFAULT_CHUNK_SIZE, reader, writer))
-						.idleTimeout(DEFAULT_IDLE_TIMEOUT)));
-	}
-
-	protected <T> JobExecution runAsync(RedisTestContext redis, ItemReader<T> reader, ItemWriter<T> writer)
-			throws JobExecutionException {
-		return runAsync(name(redis), redis, reader, writer);
-	}
-
-	private <T> JobExecution runAsync(String id, RedisTestContext redis, ItemReader<T> reader, ItemWriter<T> writer)
-			throws JobExecutionException {
-		return jobRunner.runAsync(id, ReaderOptions.DEFAULT_CHUNK_SIZE, reader, writer);
+		SimpleStepBuilder<T, T> stepBuilder = step(name, reader, writer);
+		TaskletStep step = new FlushingSimpleStepBuilder<>(stepBuilder).options(DEFAULT_FLUSHING_OPTIONS).build();
+		return jobRunner.runAsync(jobRunner.job(name).start(step).build());
 	}
 
 	protected String name(RedisTestContext redis) {
@@ -148,7 +161,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected void generate(RedisTestContext redis) throws JobExecutionException {
-		run(name(redis) + "-gen", DataStructureGeneratorItemReader.builder().build(),
+		run(false, name(redis) + "-gen", DataStructureGeneratorItemReader.builder().build(),
 				RedisItemWriter.dataStructure(pool(redis)).build());
 	}
 
@@ -191,8 +204,9 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	private <K, V, T extends KeyValue<K>, B extends LiveReaderBuilder<K, V, T>> B configureLiveReader(B builder,
 			int notificationQueueCapacity) {
-		builder.options(LiveReaderOptions.builder().queueCapacity(notificationQueueCapacity)
-				.idleTimeout(DEFAULT_IDLE_TIMEOUT).build());
+		builder.options(LiveReaderOptions.builder()
+				.notificationQueueOptions(QueueOptions.builder().capacity(notificationQueueCapacity).build())
+				.flushingOptions(DEFAULT_FLUSHING_OPTIONS).build());
 		return builder;
 	}
 

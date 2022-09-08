@@ -28,14 +28,13 @@ public class LiveRedisItemReader<K, T extends KeyValue<K>> extends RedisItemRead
 
 	@Override
 	protected SimpleStepBuilder<K, K> createStep() {
-		return new FlushingSimpleStepBuilder<>(super.createStep())
-				.flushingInterval(((LiveReaderOptions) options).getFlushingInterval())
-				.idleTimeout(((LiveReaderOptions) options).getIdleTimeout());
+		SimpleStepBuilder<K, K> step = super.createStep();
+		return new FlushingSimpleStepBuilder<>(step).options(((LiveReaderOptions) options).getFlushingOptions());
 	}
 
 	@Override
 	public T poll(long timeout, TimeUnit unit) throws InterruptedException {
-		return valueQueue.poll(timeout, unit);
+		return enqueuer.poll(timeout, unit);
 	}
 
 }

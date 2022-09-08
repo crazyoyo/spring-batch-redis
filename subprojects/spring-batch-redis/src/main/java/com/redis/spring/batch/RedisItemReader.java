@@ -3,13 +3,8 @@ package com.redis.spring.batch;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
@@ -20,10 +15,9 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
-import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.ClassUtils;
@@ -32,8 +26,8 @@ import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.DataStructureValueReader;
+import com.redis.spring.batch.reader.Enqueuer;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparisonValueReader;
 import com.redis.spring.batch.reader.KeyDumpValueReader;
@@ -49,24 +43,20 @@ import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
 public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStreamItemReader<T> {
 
-	private final Log log = LogFactory.getLog(getClass());
-
 	protected final ItemReader<K> keyReader;
-	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
+	protected final Enqueuer<K, T> enqueuer;
 	private final JobRunner jobRunner;
 	protected final ReaderOptions options;
 
-	protected BlockingQueue<T> valueQueue;
 	private JobExecution jobExecution;
 	private String name;
 	private final AtomicInteger runningThreads = new AtomicInteger();
-	protected final Enqueuer enqueuer = new Enqueuer();
 
 	public RedisItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader,
 			JobRunner jobRunner, ReaderOptions options) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.keyReader = keyReader;
-		this.valueReader = valueReader;
+		this.enqueuer = new Enqueuer<>(valueReader, options.getQueueOptions());
 		this.jobRunner = jobRunner;
 		this.options = options;
 	}
@@ -81,10 +71,6 @@ public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStrea
 	public void open(ExecutionContext executionContext) throws ItemStreamException {
 		synchronized (runningThreads) {
 			if (jobExecution == null) {
-				this.valueQueue = new LinkedBlockingQueue<>(options.getQueueCapacity());
-				if (valueReader instanceof ItemStream) {
-					((ItemStream) valueReader).open(executionContext);
-				}
 				doOpen();
 			}
 			runningThreads.incrementAndGet();
@@ -93,7 +79,6 @@ public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStrea
 	}
 
 	protected void doOpen() {
-		Utils.createGaugeCollectionSize("reader.queue.size", valueQueue);
 		SimpleStepBuilder<K, K> step = createStep();
 		FaultTolerantStepBuilder<K, K> stepBuilder = step.faultTolerant();
 		options.getSkip().forEach(stepBuilder::skip);
@@ -117,21 +102,25 @@ public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStrea
 	}
 
 	protected SimpleStepBuilder<K, K> createStep() {
-		return jobRunner.step(name, options.getChunkSize(), keyReader, enqueuer);
+		if (keyReader instanceof ItemStreamSupport) {
+			((ItemStreamSupport) keyReader).setName(name + "-reader");
+		}
+		enqueuer.setName(name + "-writer");
+		return jobRunner.step(name).<K, K>chunk(options.getChunkSize()).reader(keyReader).writer(enqueuer);
 	}
 
 	@Override
 	public T read() throws Exception {
 		T item;
 		do {
-			item = valueQueue.poll(options.getQueuePollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+			item = enqueuer.poll();
 		} while (item == null && jobExecution.isRunning() && !jobExecution.getStatus().isUnsuccessful());
 		return item;
 	}
 
 	public List<T> read(int maxElements) {
 		List<T> items = new ArrayList<>(maxElements);
-		valueQueue.drainTo(items, maxElements);
+		enqueuer.drainTo(items, maxElements);
 		return items;
 	}
 
@@ -143,58 +132,13 @@ public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStrea
 		}
 		synchronized (runningThreads) {
 			jobRunner.awaitTermination(jobExecution);
-			if (!valueQueue.isEmpty()) {
-				log.warn("Closing with items still in queue");
-			}
-			if (valueReader instanceof ItemStream) {
-				((ItemStream) valueReader).close();
-			}
+			enqueuer.close();
 			jobExecution = null;
 		}
 	}
 
 	public boolean isOpen() {
 		return jobExecution != null;
-	}
-
-	private class Enqueuer extends AbstractItemStreamItemWriter<K> {
-
-		@Override
-		public void open(ExecutionContext executionContext) {
-			super.open(executionContext);
-			if (valueReader instanceof ItemStream) {
-				((ItemStream) valueReader).open(executionContext);
-			}
-		}
-
-		@Override
-		public void update(ExecutionContext executionContext) {
-			super.update(executionContext);
-			if (valueReader instanceof ItemStream) {
-				((ItemStream) valueReader).update(executionContext);
-			}
-		}
-
-		@Override
-		public void close() {
-			if (valueReader instanceof ItemStream) {
-				((ItemStream) valueReader).close();
-			}
-			super.close();
-		}
-
-		@Override
-		public void write(List<? extends K> items) throws Exception {
-			List<T> values = valueReader.process(items);
-			if (values == null) {
-				return;
-			}
-			for (T value : values) {
-				valueQueue.removeIf(v -> v.getKey().equals(value.getKey()));
-				valueQueue.put(value);
-			}
-		}
-
 	}
 
 	public static ScanReaderBuilder<String, String, KeyComparison<String>> comparator(JobRunner jobRunner,

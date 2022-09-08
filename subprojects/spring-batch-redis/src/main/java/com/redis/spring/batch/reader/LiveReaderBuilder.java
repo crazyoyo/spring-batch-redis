@@ -47,7 +47,8 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 	}
 
 	public LiveKeyItemReader<K> keyReader() {
-		return new LiveKeyItemReader<>(keyspaceNotificationPublisher(), keyExtractor, pubSubPatterns, options);
+		return new LiveKeyItemReader<>(keyspaceNotificationPublisher(), keyExtractor, pubSubPatterns,
+				options.getNotificationQueueOptions());
 	}
 
 	private KeyspaceNotificationPublisher<K> keyspaceNotificationPublisher() {

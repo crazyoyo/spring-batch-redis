@@ -1,8 +1,6 @@
 package com.redis.spring.batch.step;
 
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Optional;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -17,17 +15,13 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.repeat.CompletionPolicy;
 import org.springframework.util.Assert;
 
-import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.PollableItemReader;
 
 public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 
 	private final Log log = LogFactory.getLog(getClass());
 
-	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
-
-	private Duration flushingInterval = DEFAULT_FLUSHING_INTERVAL;
-	private Optional<Duration> idleTimeout = Optional.empty(); // no idle stream detection by default
+	private FlushingOptions options = FlushingOptions.builder().build();
 
 	public FlushingSimpleStepBuilder(StepBuilderHelper<?> parent) {
 		super(parent);
@@ -47,19 +41,8 @@ public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I,
 		return (FlushingSimpleStepBuilder<I, O>) super.chunk(completionPolicy);
 	}
 
-	public FlushingSimpleStepBuilder<I, O> flushingInterval(Duration flushingInterval) {
-		Utils.assertPositive(flushingInterval, "Flushing interval");
-		this.flushingInterval = flushingInterval;
-		return this;
-	}
-
-	public FlushingSimpleStepBuilder<I, O> idleTimeout(Optional<Duration> idleTimeout) {
-		this.idleTimeout = idleTimeout;
-		return this;
-	}
-
-	public FlushingSimpleStepBuilder<I, O> idleTimeout(Duration idleTimeout) {
-		this.idleTimeout = Optional.of(idleTimeout);
+	public FlushingSimpleStepBuilder<I, O> options(FlushingOptions options) {
+		this.options = options;
 		return this;
 	}
 
@@ -73,15 +56,13 @@ public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I,
 		SkipPolicy readSkipPolicy = createSkipPolicy();
 		readSkipPolicy = getFatalExceptionAwareProxy(readSkipPolicy);
 		int maxSkipsOnRead = maxSkipsOnRead();
-		log.debug(String.format(
-				"Creating chunk provider: maxSkipsOnRead=%s skipPolicy=%s flushingInterval=%s idleTimeout=%s",
-				maxSkipsOnRead, readSkipPolicy, flushingInterval, idleTimeout));
+		log.debug(String.format("Creating chunk provider: maxSkipsOnRead=%s skipPolicy=%s options=%s", maxSkipsOnRead,
+				readSkipPolicy, options));
 		FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>(getReader(), createChunkOperations());
 		chunkProvider.setMaxSkipsOnRead(maxSkipsOnRead);
 		chunkProvider.setSkipPolicy(readSkipPolicy);
 		chunkProvider.setRollbackClassifier(getRollbackClassifier());
-		chunkProvider.setFlushingInterval(flushingInterval);
-		idleTimeout.ifPresent(chunkProvider::setIdleTimeout);
+		chunkProvider.setFlushingOptions(options);
 		ArrayList<StepListener> listeners = new ArrayList<>(getItemListeners());
 		listeners.addAll(getSkipListeners());
 		chunkProvider.setListeners(listeners);

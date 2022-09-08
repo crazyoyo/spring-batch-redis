@@ -61,6 +61,7 @@ import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 import com.redis.spring.batch.reader.LiveKeyItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.QueueOptions;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanReaderBuilder;
 import com.redis.spring.batch.reader.ScanReaderOptions;
@@ -71,6 +72,7 @@ import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamReaderBuilder;
 import com.redis.spring.batch.reader.StreamReaderOptions;
 import com.redis.spring.batch.reader.StreamReaderOptions.AckPolicy;
+import com.redis.spring.batch.step.FlushingOptions;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter.Results;
@@ -158,7 +160,7 @@ class BatchTests extends AbstractTestBase {
 					.options(WriterOptions.builder()
 							.waitForReplication(WaitForReplication.of(1, Duration.ofMillis(300))).build())
 					.build();
-			JobExecution execution = run(redis, reader, writer);
+			JobExecution execution = run(false, redis, reader, writer);
 			List<Throwable> exceptions = execution.getAllFailureExceptions();
 			assertEquals("Insufficient replication level - expected: 1, actual: 0", exceptions.get(0).getMessage());
 		}
@@ -179,7 +181,7 @@ class BatchTests extends AbstractTestBase {
 					.operation(pool(redis),
 							Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
 					.build();
-			run(redis, reader, writer);
+			run(false, redis, reader, writer);
 			assertEquals(maps.size(), redis.sync().keys("hash:*").size());
 			for (int index = 0; index < maps.size(); index++) {
 				Map<String, String> hash = redis.sync().hgetall("hash:" + index);
@@ -222,7 +224,7 @@ class BatchTests extends AbstractTestBase {
 					Geo::getLatitude);
 			RedisItemWriter<String, String, Geo> writer = RedisItemWriter
 					.operation(pool(redis), Geoadd.<String, Geo>key("geoset").value(value).build()).build();
-			run(redis, reader, writer);
+			run(false, redis, reader, writer);
 			Set<String> radius1 = redis.sync().georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
 			assertEquals(1, radius1.size());
 			assertTrue(radius1.contains("Venice Breakwater"));
@@ -247,7 +249,7 @@ class BatchTests extends AbstractTestBase {
 					pool(redis), Hset.<String, Entry<String, Map<String, String>>>key(e -> "hash:" + e.getKey())
 							.map(Map.Entry::getValue).build())
 					.build();
-			run(redis, reader, writer);
+			run(false, redis, reader, writer);
 			assertEquals(50, sync.keys("hash:*").size());
 			assertEquals(2, sync.hgetall("hash:50").size());
 		}
@@ -285,7 +287,7 @@ class BatchTests extends AbstractTestBase {
 					ZValue::getScore);
 			RedisItemWriter<String, String, ZValue> writer = RedisItemWriter
 					.operation(pool(redis), Zadd.<String, ZValue>key("zset").value(converter).build()).build();
-			run(redis, reader, writer);
+			run(false, redis, reader, writer);
 			RedisModulesCommands<String, String> sync = redis.sync();
 			assertEquals(1, sync.dbsize());
 			assertEquals(values.size(), sync.zcard("zset"));
@@ -312,7 +314,7 @@ class BatchTests extends AbstractTestBase {
 			ListItemReader<DataStructure<String>> reader = new ListItemReader<>(list);
 			RedisItemWriter<String, String, DataStructure<String>> writer = RedisItemWriter.dataStructure(pool(redis))
 					.build();
-			run(redis, reader, writer);
+			run(false, redis, reader, writer);
 			RedisModulesCommands<String, String> sync = redis.sync();
 			List<String> keys = sync.keys("hash:*");
 			assertEquals(count, keys.size());
@@ -415,7 +417,7 @@ class BatchTests extends AbstractTestBase {
 			enableKeyspaceNotifications(redis);
 			LiveRedisItemReader<String, KeyDump<String>> reader = liveKeyDumpReader(redis, 10000);
 			ListItemWriter<KeyDump<String>> writer = new ListItemWriter<>();
-			JobExecution execution = runAsync(redis, reader, writer);
+			JobExecution execution = run(true, redis, reader, writer);
 			generate(redis,
 					DataStructureGeneratorItemReader.builder().maxItemCount(123).types(Type.HASH, Type.STRING).build());
 			jobRunner.awaitTermination(execution);
@@ -426,15 +428,19 @@ class BatchTests extends AbstractTestBase {
 		@RedisTestContextsSource
 		void readKeyValueFaultTolerance(RedisTestContext redis) throws Exception {
 			generate(redis, DataStructureGeneratorItemReader.builder().types(Type.STRING).build());
+			String name = name(redis);
 			GenericObjectPool<StatefulConnection<String, String>> connectionPool = pool(redis);
 			ScanReaderBuilder<String, String, DataStructure<String>> reader = RedisItemReader
 					.dataStructure(connectionPool, jobRunner);
-			reader.options(
-					ScanReaderOptions.builder().queueCapacity(1000).skipPolicy(new AlwaysSkipItemSkipPolicy()).build());
+			reader.options(ScanReaderOptions.builder().queueOptions(QueueOptions.builder().capacity(1000).build())
+					.skipPolicy(new AlwaysSkipItemSkipPolicy()).build());
 			ExceptionThrowingPollableItemReader<DataStructure<String>> faultyReader = new ExceptionThrowingPollableItemReader<>(
 					reader.build());
+			faultyReader.setName(name);
 			ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
-			jobRunner.run(name(redis), 1, faultyReader, writer);
+			TaskletStep step = jobRunner.step(name).<DataStructure<String>, DataStructure<String>>chunk(1)
+					.reader(faultyReader).writer(writer).build();
+			jobRunner.run(jobRunner.job(name).start(step).build());
 			assertEquals(1, writer.getWrittenItems().size());
 		}
 
@@ -545,7 +551,7 @@ class BatchTests extends AbstractTestBase {
 			RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
 					.operation(pool(redis), Xadd.<String, Map<String, String>>key(stream).<String>body(t -> t).build())
 					.build();
-			run(redis, reader, writer);
+			run(false, redis, reader, writer);
 			RedisModulesCommands<String, String> sync = redis.sync();
 			assertEquals(messages.size(), sync.xlen(stream));
 			List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
@@ -565,7 +571,7 @@ class BatchTests extends AbstractTestBase {
 			RedisTestContext target = getContext(TARGET);
 			generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(100).build());
 			RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
-			run(redis, reader, replicationDataStructureWriter().build());
+			run(false, redis, reader, replicationDataStructureWriter().build());
 			assertTrue(compare("replicateDataStructures", redis, target));
 		}
 
@@ -593,14 +599,15 @@ class BatchTests extends AbstractTestBase {
 						random.nextBytes(value);
 						futures.add(async.set(key.getBytes(), value));
 					}
+					connection.flushCommands();
 					LettuceFutures.awaitAll(connection.getTimeout(), futures.toArray(new RedisFuture[0]));
 				} finally {
-					connection.flushCommands();
+					connection.setAutoFlushCommands(true);
 				}
 				RedisItemReader<String, KeyDump<String>> reader = keyDumpReader(redis);
 				RedisTestContext target = getContext(TARGET);
 				RedisItemWriter<String, String, KeyDump<String>> writer = keyDumpWriter(target);
-				run(redis, reader, writer);
+				run(false, redis, reader, writer);
 				assertTrue(compare("replicateBinary", redis, target));
 			}
 		}
@@ -610,8 +617,8 @@ class BatchTests extends AbstractTestBase {
 		void live(RedisTestContext redis) throws Exception {
 			enableKeyspaceNotifications(redis);
 			RedisTestContext target = getContext(TARGET);
-			liveReplication("replicateLive", redis, keyDumpReader(redis), keyDumpWriter(target),
-					liveKeyDumpReader(redis, 100000), keyDumpWriter(target));
+			liveReplication(redis, keyDumpReader(redis), keyDumpWriter(target), liveKeyDumpReader(redis, 100000),
+					keyDumpWriter(target));
 		}
 
 		@ParameterizedTest
@@ -622,7 +629,7 @@ class BatchTests extends AbstractTestBase {
 			redis.sync().sadd(key, "1", "2", "3", "4", "5");
 			LiveRedisItemReader<String, DataStructure<String>> reader = liveDataStructureReader(redis, 100);
 			RedisItemWriter<String, String, DataStructure<String>> writer = replicationDataStructureWriter().build();
-			JobExecution execution = runAsync(redis, reader, writer);
+			JobExecution execution = run(true, redis, reader, writer);
 			awaitOpen(reader);
 			log.info("Removing from set");
 			redis.sync().srem(key, "5");
@@ -642,7 +649,7 @@ class BatchTests extends AbstractTestBase {
 			RedisTestContext target = getContext(TARGET);
 			RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = RedisItemWriter
 					.dataStructure(bytesPool(target)).build();
-			run(redis, reader, writer);
+			run(false, redis, reader, writer);
 			RedisModulesCommands<String, String> sourceSync = redis.sync();
 			RedisModulesCommands<String, String> targetSync = target.sync();
 			assertEquals(sourceSync.pfcount(key1), targetSync.pfcount(key1));
@@ -656,29 +663,27 @@ class BatchTests extends AbstractTestBase {
 		@RedisTestContextsSource
 		void liveDataStructure(RedisTestContext redis) throws Exception {
 			enableKeyspaceNotifications(redis);
-			liveReplication("replicateLiveDS", redis, dataStructureReader(redis),
-					replicationDataStructureWriter().build(), liveDataStructureReader(redis, 100000),
-					replicationDataStructureWriter().build());
+			liveReplication(redis, dataStructureReader(redis), replicationDataStructureWriter().build(),
+					liveDataStructureReader(redis, 100000), replicationDataStructureWriter().build());
 		}
 
 		private WriterBuilder<String, String, DataStructure<String>> replicationDataStructureWriter() {
 			return RedisItemWriter.dataStructure(pool(getContext(TARGET)), m -> new XAddArgs().id(m.getId()));
 		}
 
-		private <T extends KeyValue<String>> void liveReplication(String name, RedisTestContext redis,
+		private <T extends KeyValue<String>> void liveReplication(RedisTestContext redis,
 				RedisItemReader<String, T> reader, RedisItemWriter<String, String, T> writer,
 				LiveRedisItemReader<String, T> liveReader, RedisItemWriter<String, String, T> liveWriter)
 				throws Exception {
+			String name = name(redis);
 			generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(3000).build());
-			TaskletStep step = jobRunner.step(name + "-snapshot-step", ReaderOptions.DEFAULT_CHUNK_SIZE, reader, writer)
-					.build();
-			SimpleFlow flow = jobRunner.flow(name + "-snapshot-flow").start(step).build();
-			TaskletStep liveStep = new FlushingSimpleStepBuilder<>(
-					jobRunner.step(name + "-live-step", ReaderOptions.DEFAULT_CHUNK_SIZE, liveReader, liveWriter))
-					.idleTimeout(DEFAULT_IDLE_TIMEOUT).build();
-			SimpleFlow liveFlow = jobRunner.flow(name + "-live-flow").start(liveStep).build();
-			Job job = jobBuilderFactory.get(name + "-job").start(
-					jobRunner.flow(name + "-flow").split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build())
+			TaskletStep step = step(name + "-snapshot", reader, writer).build();
+			SimpleFlow flow = flow(name + "-snapshot-flow").start(step).build();
+			TaskletStep liveStep = new FlushingSimpleStepBuilder<>(step(name + "-live-step", liveReader, liveWriter))
+					.options(DEFAULT_FLUSHING_OPTIONS).build();
+			SimpleFlow liveFlow = flow(name + "-live-flow").start(liveStep).build();
+			Job job = jobBuilderFactory.get(name + "-job")
+					.start(flow(name + "-flow").split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build())
 					.build().build();
 			JobExecution execution = jobRunner.runAsync(job);
 			awaitOpen(liveReader);
@@ -704,8 +709,8 @@ class BatchTests extends AbstractTestBase {
 			ListItemWriter<Integer> writer = new ListItemWriter<>();
 			FlushingSimpleStepBuilder<Integer, Integer> stepBuilder = new FlushingSimpleStepBuilder<>(
 					stepBuilderFactory.get(name).<Integer, Integer>chunk(1).reader(reader).writer(writer));
-			stepBuilder.idleTimeout(Duration.ofMillis(100)).skip(TimeoutException.class)
-					.skipPolicy(new AlwaysSkipItemSkipPolicy());
+			stepBuilder.options(FlushingOptions.builder().timeout(Duration.ofMillis(100)).build())
+					.skip(TimeoutException.class).skipPolicy(new AlwaysSkipItemSkipPolicy());
 			jobRunner.run(jobBuilderFactory.get(name).start(stepBuilder.build()).build());
 			assertEquals(items.size(), writer.getWrittenItems().size() * 2);
 		}
@@ -718,7 +723,7 @@ class BatchTests extends AbstractTestBase {
 			ListItemWriter<String> writer = new ListItemWriter<>();
 			JobExecution execution = runFlushing(redis, reader, writer);
 			log.info("Keyspace-notification reader open={}", reader.isOpen());
-			run(name(redis) + "-gen",
+			run(false, name(redis) + "-gen",
 					DataStructureGeneratorItemReader.builder().maxItemCount(3).types(Type.STRING, Type.HASH).build(),
 					RedisItemWriter.dataStructure(pool(redis)).build());
 			jobRunner.awaitTermination(execution);
@@ -740,14 +745,14 @@ class BatchTests extends AbstractTestBase {
 
 	private void generate(String id, RedisTestContext redis, ItemReader<DataStructure<String>> reader)
 			throws JobExecutionException {
-		run(id + "-generate", reader, RedisItemWriter.dataStructure(pool(redis)).build());
+		run(false, id + "-generate", reader, RedisItemWriter.dataStructure(pool(redis)).build());
 	}
 
 	private JobExecution doReplicate(RedisTestContext redis) throws Exception {
 		RedisItemReader<String, KeyDump<String>> reader = keyDumpReader(redis);
 		RedisTestContext target = getContext(TARGET);
 		RedisItemWriter<String, String, KeyDump<String>> writer = keyDumpWriter(target);
-		return run(redis, reader, writer);
+		return run(false, redis, reader, writer);
 	}
 
 	@ParameterizedTest
@@ -787,7 +792,7 @@ class BatchTests extends AbstractTestBase {
 		}
 		RedisItemReader<String, KeyComparison<String>> reader = comparator(redis, getContext(TARGET)).build();
 		KeyComparisonCountItemWriter<String> writer = new KeyComparisonCountItemWriter<>();
-		run("batchtests-comparator", reader, writer);
+		run(false, "batchtests-comparator", reader, writer);
 		Results results = writer.getResults();
 		long sourceCount = redis.sync().dbsize();
 		assertEquals(sourceCount, target.sync().dbsize() + deleted);

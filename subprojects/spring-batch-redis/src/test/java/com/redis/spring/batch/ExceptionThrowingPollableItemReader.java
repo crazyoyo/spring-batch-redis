@@ -31,7 +31,7 @@ public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCounting
 	@Override
 	public void setName(String name) {
 		if (delegate instanceof ItemStreamSupport) {
-			((ItemStreamSupport) delegate).setName(name);
+			((ItemStreamSupport) delegate).setName(name + "-delegate");
 		}
 		super.setName(name);
 	}
