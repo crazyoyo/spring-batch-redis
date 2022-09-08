@@ -43,7 +43,6 @@ import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
 import com.redis.spring.batch.reader.ReaderOptions;
-import com.redis.spring.batch.reader.ScanReaderBuilder;
 import com.redis.spring.batch.step.FlushingOptions;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.testcontainers.junit.AbstractTestcontainersRedisTestBase;
@@ -100,8 +99,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		if (!leftSize.equals(rightSize)) {
 			return false;
 		}
-		RedisItemReader<String, KeyComparison<String>> reader = comparator(left, right).build();
-		reader.setName(name);
+		RedisItemReader<String, KeyComparison<String>> reader = comparisonReader(left, right);
 		reader.open(new ExecutionContext());
 		KeyComparison<String> comparison;
 		while ((comparison = reader.read()) != null) {
@@ -113,18 +111,16 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		return true;
 	}
 
-	protected ScanReaderBuilder<String, String, KeyComparison<String>> comparator(RedisTestContext left,
+	protected RedisItemReader<String, KeyComparison<String>> comparisonReader(RedisTestContext left,
 			RedisTestContext right) {
-		return RedisItemReader.comparator(jobRunner, pool(left), pool(right), Duration.ofMillis(100));
+		RedisItemReader<String, KeyComparison<String>> reader = RedisItemReader
+				.comparator(jobRunner, pool(left), pool(right), Duration.ofMillis(100)).build();
+		reader.setName(name(left) + "-compare");
+		return reader;
 	}
 
 	protected void awaitClosed(RedisItemReader<?, ?> reader) {
 		Awaitility.await().until(() -> !reader.isOpen());
-	}
-
-	protected <T> JobExecution run(boolean async, RedisTestContext redis, ItemReader<T> reader, ItemWriter<T> writer)
-			throws JobExecutionException {
-		return run(async, name(redis), reader, writer);
 	}
 
 	protected <T> JobExecution run(boolean async, String name, ItemReader<T> reader, ItemWriter<T> writer)
