@@ -754,12 +754,11 @@ class BatchTests extends AbstractTestBase {
 	@RedisTestContextsSource
 	void comparator(RedisTestContext redis) throws Exception {
 		RedisTestContext target = getContext(TARGET);
-		int sourceCount = 120;
-		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(sourceCount).build());
+		generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(120).build());
 		doReplicate(redis);
-		long deleteCount = 13;
-		for (int index = 0; index < deleteCount; index++) {
-			target.sync().del(target.sync().randomkey());
+		long deleted = 0;
+		for (int index = 0; index < 13; index++) {
+			deleted += target.sync().del(target.sync().randomkey());
 		}
 		Set<String> ttlChanges = new HashSet<>();
 		for (int index = 0; index < 23; index++) {
@@ -790,8 +789,9 @@ class BatchTests extends AbstractTestBase {
 		KeyComparisonCountItemWriter<String> writer = new KeyComparisonCountItemWriter<>();
 		run("batchtests-comparator", reader, writer);
 		Results results = writer.getResults();
-		assertEquals(sourceCount - deleteCount, target.sync().dbsize());
-		assertEquals(deleteCount, results.getCount(Status.MISSING));
+		long sourceCount = redis.sync().dbsize();
+		assertEquals(sourceCount, target.sync().dbsize() + deleted);
+		assertEquals(deleted, results.getCount(Status.MISSING));
 		assertEquals(typeChanges.size(), results.getCount(Status.TYPE));
 		assertEquals(valueChanges.size(), results.getCount(Status.VALUE));
 		assertEquals(ttlChanges.size(), results.getCount(Status.TTL));
