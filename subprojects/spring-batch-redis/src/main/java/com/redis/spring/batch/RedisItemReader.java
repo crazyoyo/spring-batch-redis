@@ -3,96 +3,72 @@ package com.redis.spring.batch;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.core.step.skip.LimitCheckingItemSkipPolicy;
-import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
+import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.reader.AbstractValueReader.ValueReaderFactory;
-import com.redis.spring.batch.reader.LiveRedisItemReader;
-import com.redis.spring.batch.reader.RedisValueEnqueuer;
-import com.redis.spring.batch.reader.ScanKeyItemReader;
-import com.redis.spring.batch.reader.StreamItemReader;
-import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
-import com.redis.spring.batch.reader.ValueReader;
-import com.redis.spring.batch.support.JobRunner;
-import com.redis.spring.batch.support.RedisConnectionBuilder;
-import com.redis.spring.batch.support.Utils;
+import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.JobRunner;
+import com.redis.spring.batch.common.KeyDump;
+import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Utils;
+import com.redis.spring.batch.reader.DataStructureValueReader;
+import com.redis.spring.batch.reader.KeyComparison;
+import com.redis.spring.batch.reader.KeyComparisonValueReader;
+import com.redis.spring.batch.reader.KeyDumpValueReader;
+import com.redis.spring.batch.reader.LiveReaderBuilder;
+import com.redis.spring.batch.reader.ReaderOptions;
+import com.redis.spring.batch.reader.ScanReaderBuilder;
+import com.redis.spring.batch.reader.StreamReaderBuilder;
 
-import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisCommandExecutionException;
-import io.lettuce.core.RedisCommandTimeoutException;
-import io.lettuce.core.XReadArgs.StreamOffset;
+import io.lettuce.core.Consumer;
+import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
+import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
-public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemStreamItemReader<T> {
+public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStreamItemReader<T> {
 
 	private final Log log = LogFactory.getLog(getClass());
 
-	public static final int DEFAULT_THREADS = 1;
-	public static final int DEFAULT_CHUNK_SIZE = 50;
-	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
-	public static final Duration DEFAULT_QUEUE_POLL_TIMEOUT = Duration.ofMillis(100);
-	public static final int DEFAULT_SKIP_LIMIT = 3;
-	public static final SkipPolicy DEFAULT_SKIP_POLICY = limitCheckingSkipPolicy(DEFAULT_SKIP_LIMIT);
-
-	private final AtomicInteger runningThreads = new AtomicInteger();
 	protected final ItemReader<K> keyReader;
-	private final ValueReader<K, T> valueReader;
-	protected final BlockingQueue<T> valueQueue;
-	protected final RedisValueEnqueuer<K, T> enqueuer;
-	private final Optional<JobRunner> jobRunner;
+	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
+	private final JobRunner jobRunner;
+	protected final ReaderOptions options;
 
-	private final int threads;
-	private final int chunkSize;
-	private final Duration queuePollTimeout;
-	private final SkipPolicy skipPolicy;
+	protected BlockingQueue<T> valueQueue;
 	private JobExecution jobExecution;
 	private String name;
+	private final AtomicInteger runningThreads = new AtomicInteger();
+	protected final Enqueuer enqueuer = new Enqueuer();
 
-	protected RedisItemReader(AbstractBuilder<K, ?, T, ?> builder) {
-		setName(builder.name.isPresent() ? builder.name.get() : ClassUtils.getShortName(getClass()));
-		this.chunkSize = builder.chunkSize;
-		this.queuePollTimeout = builder.queuePollTimeout;
-		this.skipPolicy = builder.skipPolicy;
-		this.threads = builder.threads;
-		this.keyReader = builder.keyReader();
-		this.valueReader = builder.valueReader();
-		this.valueQueue = new LinkedBlockingQueue<>(builder.valueQueueCapacity);
-		this.enqueuer = new RedisValueEnqueuer<>(valueReader, valueQueue);
-		this.jobRunner = builder.jobRunner;
-	}
-
-	private static SkipPolicy limitCheckingSkipPolicy(int skipLimit) {
-		return new LimitCheckingItemSkipPolicy(skipLimit, Stream
-				.of(RedisCommandExecutionException.class, RedisCommandTimeoutException.class, TimeoutException.class)
-				.collect(Collectors.toMap(t -> t, t -> true)));
-	}
-
-	public ValueReader<K, T> getValueReader() {
-		return valueReader;
+	public RedisItemReader(ItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader,
+			JobRunner jobRunner, ReaderOptions options) {
+		setName(ClassUtils.getShortName(getClass()));
+		this.keyReader = keyReader;
+		this.valueReader = valueReader;
+		this.jobRunner = jobRunner;
+		this.options = options;
 	}
 
 	@Override
@@ -105,6 +81,10 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	public void open(ExecutionContext executionContext) throws ItemStreamException {
 		synchronized (runningThreads) {
 			if (jobExecution == null) {
+				this.valueQueue = new LinkedBlockingQueue<>(options.getQueueCapacity());
+				if (valueReader instanceof ItemStream) {
+					((ItemStream) valueReader).open(executionContext);
+				}
 				doOpen();
 			}
 			runningThreads.incrementAndGet();
@@ -113,45 +93,38 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 	}
 
 	protected void doOpen() {
-		JobRunner runner;
-		if (jobRunner.isEmpty()) {
-			try {
-				runner = JobRunner.inMemory();
-			} catch (Exception e) {
-				throw new ItemStreamException("Could not initialize job runner", e);
-			}
-		} else {
-			runner = jobRunner.get();
-		}
 		Utils.createGaugeCollectionSize("reader.queue.size", valueQueue);
-		SimpleStepBuilder<K, K> step = createStep(runner);
+		SimpleStepBuilder<K, K> step = createStep();
 		FaultTolerantStepBuilder<K, K> stepBuilder = step.faultTolerant();
-		stepBuilder.skipPolicy(skipPolicy);
-		if (threads > 1) {
+		options.getSkip().forEach(stepBuilder::skip);
+		options.getNoSkip().forEach(stepBuilder::noSkip);
+		stepBuilder.skipLimit(options.getSkipLimit());
+		options.getSkipPolicy().ifPresent(stepBuilder::skipPolicy);
+		if (options.getThreads() > 1) {
 			ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-			taskExecutor.setMaxPoolSize(threads);
-			taskExecutor.setCorePoolSize(threads);
+			taskExecutor.setMaxPoolSize(options.getThreads());
+			taskExecutor.setCorePoolSize(options.getThreads());
 			taskExecutor.afterPropertiesSet();
-			stepBuilder.taskExecutor(taskExecutor).throttleLimit(threads);
+			stepBuilder.taskExecutor(taskExecutor).throttleLimit(options.getThreads());
 		}
-		SimpleJobBuilder simpleJobBuilder = runner.job(name).start(stepBuilder.build());
+		SimpleJobBuilder simpleJobBuilder = jobRunner.job(name).start(stepBuilder.build());
 		Job job = simpleJobBuilder.build();
 		try {
-			jobExecution = runner.runAsync(job);
+			jobExecution = jobRunner.runAsync(job);
 		} catch (JobExecutionException e) {
 			throw new ItemStreamException(String.format("Could not run job %s", name), e);
 		}
 	}
 
-	protected SimpleStepBuilder<K, K> createStep(JobRunner runner) {
-		return runner.step(name, chunkSize, keyReader, enqueuer);
+	protected SimpleStepBuilder<K, K> createStep() {
+		return jobRunner.step(name, options.getChunkSize(), keyReader, enqueuer);
 	}
 
 	@Override
 	public T read() throws Exception {
 		T item;
 		do {
-			item = valueQueue.poll(queuePollTimeout.toMillis(), TimeUnit.MILLISECONDS);
+			item = valueQueue.poll(options.getQueuePollTimeout().toMillis(), TimeUnit.MILLISECONDS);
 		} while (item == null && jobExecution.isRunning() && !jobExecution.getStatus().isUnsuccessful());
 		return item;
 	}
@@ -169,11 +142,12 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 			return;
 		}
 		synchronized (runningThreads) {
-			if (jobRunner.isPresent()) {
-				jobRunner.get().awaitTermination(jobExecution);
-			}
+			jobRunner.awaitTermination(jobExecution);
 			if (!valueQueue.isEmpty()) {
 				log.warn("Closing with items still in queue");
+			}
+			if (valueReader instanceof ItemStream) {
+				((ItemStream) valueReader).close();
 			}
 			jobExecution = null;
 		}
@@ -183,207 +157,123 @@ public class RedisItemReader<K, T extends KeyValue<K, ?>> extends AbstractItemSt
 		return jobExecution != null;
 	}
 
-	public static Builder<String, String, DataStructure<String>> dataStructure(AbstractRedisClient client) {
-		return dataStructure(client, StringCodec.UTF8);
-	}
+	private class Enqueuer extends AbstractItemStreamItemWriter<K> {
 
-	public static <K, V> Builder<K, V, DataStructure<K>> dataStructure(AbstractRedisClient client,
-			RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec, ValueReaderFactory.dataStructure());
-	}
-
-	public static Builder<String, String, KeyValue<String, byte[]>> keyDump(AbstractRedisClient client) {
-		return keyDump(client, StringCodec.UTF8);
-	}
-
-	public static <K, V> Builder<K, V, KeyValue<K, byte[]>> keyDump(AbstractRedisClient client,
-			RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec, ValueReaderFactory.keyDump());
-	}
-
-	public static <K, V> StreamBuilder<K, V> stream(AbstractRedisClient client, RedisCodec<K, V> codec, K name) {
-		return new StreamBuilder<>(client, codec, name);
-	}
-
-	public static StreamBuilder<String, String> stream(AbstractRedisClient client, String name) {
-		return stream(client, StringCodec.UTF8, name);
-	}
-
-	public static class Builder<K, V, T extends KeyValue<K, ?>> extends AbstractBuilder<K, V, T, Builder<K, V, T>> {
-
-		private String match = ScanKeyItemReader.DEFAULT_SCAN_MATCH;
-		private long count = ScanKeyItemReader.DEFAULT_SCAN_COUNT;
-		private Optional<String> type = Optional.empty();
-
-		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec,
-				ValueReaderFactory<K, V, T> valueReaderFactory) {
-			super(client, codec, valueReaderFactory);
-		}
-
-		public Builder<K, V, T> match(String match) {
-			this.match = match;
-			return this;
-		}
-
-		public Builder<K, V, T> count(long count) {
-			this.count = count;
-			return this;
-		}
-
-		public Builder<K, V, T> type(String type) {
-			this.type = Optional.of(type);
-			return this;
+		@Override
+		public void open(ExecutionContext executionContext) {
+			super.open(executionContext);
+			if (valueReader instanceof ItemStream) {
+				((ItemStream) valueReader).open(executionContext);
+			}
 		}
 
 		@Override
-		protected ItemReader<K> keyReader() {
-			return new ScanKeyItemReader<>(connectionSupplier(), sync(), match, count, type);
+		public void update(ExecutionContext executionContext) {
+			super.update(executionContext);
+			if (valueReader instanceof ItemStream) {
+				((ItemStream) valueReader).update(executionContext);
+			}
 		}
 
-		public RedisItemReader<K, T> build() {
-			return new RedisItemReader<>(this);
+		@Override
+		public void close() {
+			if (valueReader instanceof ItemStream) {
+				((ItemStream) valueReader).close();
+			}
+			super.close();
 		}
 
-		public LiveRedisItemReader.Builder<K, V, T> live() {
-			LiveRedisItemReader.Builder<K, V, T> live = new LiveRedisItemReader.Builder<>(client, codec,
-					valueReaderFactory);
-			live.keyPatterns(match);
-			live.threads(threads);
-			live.valueQueueCapacity(valueQueueCapacity);
-			live.queuePollTimeout(queuePollTimeout);
-			live.skipPolicy(skipPolicy);
-			return live;
-		}
-
-	}
-
-	public static class StreamBuilder<K, V> extends RedisConnectionBuilder<K, V, StreamBuilder<K, V>> {
-
-		public static final String DEFAULT_CONSUMER_GROUP = ClassUtils.getShortName(StreamItemReader.class);
-		public static final String DEFAULT_CONSUMER = "consumer1";
-
-		private final K stream;
-		private String offset = "0-0";
-		private Duration block = StreamItemReader.DEFAULT_BLOCK;
-		private long count = StreamItemReader.DEFAULT_COUNT;
-		private K consumerGroup;
-		private K consumer;
-		private AckPolicy ackPolicy = StreamItemReader.DEFAULT_ACK_POLICY;
-
-		public StreamBuilder(AbstractRedisClient client, RedisCodec<K, V> codec, K stream) {
-			super(client, codec);
-			this.stream = stream;
-		}
-
-		public StreamBuilder<K, V> offset(String offset) {
-			this.offset = offset;
-			return this;
-		}
-
-		public StreamBuilder<K, V> block(Duration block) {
-			this.block = block;
-			return this;
-		}
-
-		public StreamBuilder<K, V> count(long count) {
-			this.count = count;
-			return this;
-		}
-
-		public StreamBuilder<K, V> consumerGroup(K consumerGroup) {
-			this.consumerGroup = consumerGroup;
-			return this;
-		}
-
-		public StreamBuilder<K, V> consumer(K consumer) {
-			this.consumer = consumer;
-			return this;
-		}
-
-		public StreamBuilder<K, V> ackPolicy(AckPolicy ackPolicy) {
-			this.ackPolicy = ackPolicy;
-			return this;
-		}
-
-		public StreamItemReader<K, V> build() {
-			StreamItemReader<K, V> reader = new StreamItemReader<>(connectionSupplier(), poolConfig, sync(),
-					StreamOffset.from(stream, offset));
-			reader.setAckPolicy(ackPolicy);
-			reader.setBlock(block);
-			reader.setConsumer(consumer == null ? encodeKey(DEFAULT_CONSUMER) : consumer);
-			reader.setConsumerGroup(consumerGroup == null ? encodeKey(DEFAULT_CONSUMER_GROUP) : consumerGroup);
-			reader.setCount(count);
-			return reader;
+		@Override
+		public void write(List<? extends K> items) throws Exception {
+			List<T> values = valueReader.process(items);
+			if (values == null) {
+				return;
+			}
+			for (T value : values) {
+				valueQueue.removeIf(v -> v.getKey().equals(value.getKey()));
+				valueQueue.put(value);
+			}
 		}
 
 	}
 
-	public abstract static class AbstractBuilder<K, V, T extends KeyValue<K, ?>, B extends AbstractBuilder<K, V, T, B>>
-			extends RedisConnectionBuilder<K, V, B> {
+	public static ScanReaderBuilder<String, String, KeyComparison<String>> comparator(JobRunner jobRunner,
+			GenericObjectPool<StatefulConnection<String, String>> left,
+			GenericObjectPool<StatefulConnection<String, String>> right, Duration ttlTolerance) {
+		return new ScanReaderBuilder<>(left, jobRunner, new KeyComparisonValueReader(left, right, ttlTolerance));
+	}
 
-		protected Optional<String> name = Optional.empty();
-		protected final ValueReaderFactory<K, V, T> valueReaderFactory;
-		protected int chunkSize = RedisItemReader.DEFAULT_CHUNK_SIZE;
-		protected int threads = RedisItemReader.DEFAULT_THREADS;
-		protected int valueQueueCapacity = RedisItemReader.DEFAULT_QUEUE_CAPACITY;
-		protected Duration queuePollTimeout = RedisItemReader.DEFAULT_QUEUE_POLL_TIMEOUT;
-		protected SkipPolicy skipPolicy = RedisItemReader.DEFAULT_SKIP_POLICY;
-		protected Optional<JobRunner> jobRunner = Optional.empty();
+	public static <K, V> ScanReaderBuilder<K, V, DataStructure<K>> dataStructure(
+			GenericObjectPool<StatefulConnection<K, V>> connectionPool, JobRunner jobRunner) {
+		return new ScanReaderBuilder<>(connectionPool, jobRunner, new DataStructureValueReader<>(connectionPool));
+	}
 
-		protected AbstractBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
-				ValueReaderFactory<K, V, T> valueReaderFactory) {
-			super(client, codec);
-			this.valueReaderFactory = valueReaderFactory;
-		}
+	public static <K, V> ScanReaderBuilder<K, V, KeyDump<K>> keyDump(
+			GenericObjectPool<StatefulConnection<K, V>> connectionPool, JobRunner jobRunner) {
+		return new ScanReaderBuilder<>(connectionPool, jobRunner, new KeyDumpValueReader<>(connectionPool));
+	}
 
-		protected abstract ItemReader<K> keyReader();
+	public static <K, V> StreamReaderBuilder<K, V> stream(GenericObjectPool<StatefulConnection<K, V>> connectionPool,
+			K name, Consumer<K> consumer) {
+		return new StreamReaderBuilder<>(connectionPool, name, consumer);
+	}
 
-		@SuppressWarnings("unchecked")
-		public B name(String name) {
-			this.name = Optional.of(name);
-			return (B) this;
-		}
+	public static LiveReaderBuilder<String, String, DataStructure<String>> liveDataStructure(
+			GenericObjectPool<StatefulConnection<String, String>> pool, JobRunner jobRunner,
+			StatefulRedisPubSubConnection<String, String> pubSubConnection, String... keyPatterns) {
+		return liveDataStructure(pool, jobRunner, pubSubConnection, 0, keyPatterns);
+	}
 
-		@SuppressWarnings("unchecked")
-		public B jobRunner(JobRunner jobRunner) {
-			this.jobRunner = Optional.of(jobRunner);
-			return (B) this;
-		}
+	public static LiveReaderBuilder<String, String, DataStructure<String>> liveDataStructure(
+			GenericObjectPool<StatefulConnection<String, String>> pool, JobRunner jobRunner,
+			StatefulRedisPubSubConnection<String, String> pubSubConnection, int database, String... keyPatterns) {
+		return liveDataStructure(pool, jobRunner, pubSubConnection,
+				LiveReaderBuilder.pubSubPatterns(database, keyPatterns), LiveReaderBuilder.STRING_KEY_EXTRACTOR);
+	}
 
-		@SuppressWarnings("unchecked")
-		public B chunkSize(int chunkSize) {
-			this.chunkSize = chunkSize;
-			return (B) this;
-		}
+	public static <K, V> LiveReaderBuilder<K, V, DataStructure<K>> liveDataStructure(
+			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
+			StatefulRedisPubSubConnection<K, V> pubSubConnection, K[] pubSubPatterns,
+			Converter<K, K> eventKeyExtractor) {
+		return new LiveReaderBuilder<>(jobRunner, new DataStructureValueReader<>(pool), pubSubConnection,
+				pubSubPatterns, eventKeyExtractor);
+	}
 
-		@SuppressWarnings("unchecked")
-		public B threads(int threads) {
-			this.threads = threads;
-			return (B) this;
-		}
+	public static <K, V> LiveReaderBuilder<K, V, DataStructure<K>> liveDataStructure(
+			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
+			StatefulRedisPubSubConnection<K, V> pubSubConnection, RedisCodec<K, V> codec, int database,
+			String... keyPatterns) {
+		return new LiveReaderBuilder<>(jobRunner, new DataStructureValueReader<>(pool), pubSubConnection,
+				LiveReaderBuilder.pubSubPatterns(codec, database, keyPatterns), LiveReaderBuilder.keyExtractor(codec));
+	}
 
-		@SuppressWarnings("unchecked")
-		public B valueQueueCapacity(int queueCapacity) {
-			this.valueQueueCapacity = queueCapacity;
-			return (B) this;
-		}
+	public static <K, V> LiveReaderBuilder<K, V, KeyDump<K>> liveKeyDump(
+			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
+			StatefulRedisPubSubConnection<K, V> pubSubConnection, RedisCodec<K, V> codec, int database,
+			String... keyPatterns) {
+		return new LiveReaderBuilder<>(jobRunner, new KeyDumpValueReader<>(pool), pubSubConnection,
+				LiveReaderBuilder.pubSubPatterns(codec, database, keyPatterns), LiveReaderBuilder.keyExtractor(codec));
+	}
 
-		@SuppressWarnings("unchecked")
-		public B queuePollTimeout(Duration queuePollTimeout) {
-			this.queuePollTimeout = queuePollTimeout;
-			return (B) this;
-		}
+	public static LiveReaderBuilder<String, String, KeyDump<String>> liveKeyDump(
+			GenericObjectPool<StatefulConnection<String, String>> pool, JobRunner jobRunner,
+			StatefulRedisPubSubConnection<String, String> pubSubConnection, String... keyPatterns) {
+		return liveKeyDump(pool, jobRunner, pubSubConnection, 0, keyPatterns);
+	}
 
-		@SuppressWarnings("unchecked")
-		public B skipPolicy(SkipPolicy skipPolicy) {
-			this.skipPolicy = skipPolicy;
-			return (B) this;
-		}
+	public static LiveReaderBuilder<String, String, KeyDump<String>> liveKeyDump(
+			GenericObjectPool<StatefulConnection<String, String>> pool, JobRunner jobRunner,
+			StatefulRedisPubSubConnection<String, String> pubSubConnection, int database, String... keyPatterns) {
+		return liveKeyDump(pool, jobRunner, pubSubConnection, LiveReaderBuilder.pubSubPatterns(database, keyPatterns),
+				LiveReaderBuilder.STRING_KEY_EXTRACTOR);
+	}
 
-		protected ValueReader<K, T> valueReader() {
-			return valueReaderFactory.create(connectionSupplier(), poolConfig, async());
-		}
-
+	public static <K, V> LiveReaderBuilder<K, V, KeyDump<K>> liveKeyDump(
+			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
+			StatefulRedisPubSubConnection<K, V> pubSubConnection, K[] pubSubPatterns,
+			Converter<K, K> eventKeyExtractor) {
+		return new LiveReaderBuilder<>(jobRunner, new KeyDumpValueReader<>(pool), pubSubConnection, pubSubPatterns,
+				eventKeyExtractor);
 	}
 
 }

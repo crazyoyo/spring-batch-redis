@@ -11,9 +11,9 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 public class JsonDel<K, V, T> implements Operation<K, V, T> {
 
 	private final Converter<T, K> key;
-	private final Converter<T, K> path;
+	private final Converter<T, String> path;
 
-	public JsonDel(Converter<T, K> key, Converter<T, K> path) {
+	public JsonDel(Converter<T, K> key, Converter<T, String> path) {
 		this.key = key;
 		this.path = path;
 	}

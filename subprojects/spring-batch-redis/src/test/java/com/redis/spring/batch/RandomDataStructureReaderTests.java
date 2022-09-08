@@ -12,7 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
-import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
 
 class RandomDataStructureReaderTests {

@@ -1,4 +1,4 @@
-package com.redis.spring.batch.support;
+package com.redis.spring.batch.common;
 
 import java.util.Objects;
 

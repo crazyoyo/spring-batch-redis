@@ -5,17 +5,16 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.commons.pool2.impl.GenericObjectPool;
 
 import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
 import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.TimeRange;
-import com.redis.spring.batch.DataStructure;
-import com.redis.spring.batch.DataStructure.Type;
+import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.Utils;
+import com.redis.spring.batch.common.DataStructure.Type;
 
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
@@ -35,17 +34,15 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 	private static final RangeOptions RANGE_OPTIONS = RangeOptions.builder().build();
 	private static final Range<String> XRANGE = Range.create("-", "+");
 
-	public DataStructureValueReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
-			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
-		super(connectionSupplier, poolConfig, async);
+	public DataStructureValueReader(GenericObjectPool<StatefulConnection<K, V>> pool) {
+		super(pool);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
 	protected List<DataStructure<K>> read(StatefulConnection<K, V> connection, List<? extends K> keys)
 			throws InterruptedException, ExecutionException, TimeoutException {
-		BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
+		BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
 		List<RedisFuture<String>> typeFutures = new ArrayList<>(keys.size());
 		for (K key : keys) {
 			typeFutures.add(((RedisKeyAsyncCommands<K, V>) commands).type(key));

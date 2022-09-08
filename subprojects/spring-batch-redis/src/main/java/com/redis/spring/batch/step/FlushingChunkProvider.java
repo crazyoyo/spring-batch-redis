@@ -22,8 +22,8 @@ import org.springframework.classify.BinaryExceptionClassifier;
 import org.springframework.classify.Classifier;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.PollableItemReader;
-import com.redis.spring.batch.support.Utils;
 
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Tag;

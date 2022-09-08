@@ -1,58 +1,44 @@
 package com.redis.spring.batch;
 
-import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.springframework.batch.item.ItemWriter;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.core.convert.converter.Converter;
 
-import com.redis.spring.batch.support.ConnectionPoolItemStream;
-import com.redis.spring.batch.support.RedisConnectionBuilder;
+import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.writer.DataStructureOperation;
-import com.redis.spring.batch.writer.MultiExecOperation;
 import com.redis.spring.batch.writer.Operation;
 import com.redis.spring.batch.writer.PipelinedOperation;
 import com.redis.spring.batch.writer.SimplePipelinedOperation;
-import com.redis.spring.batch.writer.WaitForReplicationOperation;
+import com.redis.spring.batch.writer.WriterBuilder;
 
-import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> implements ItemWriter<T> {
+public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 
-	private final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
+	private final GenericObjectPool<StatefulConnection<K, V>> pool;
 	private final PipelinedOperation<K, V, T> operation;
 
-	public RedisItemWriter(Supplier<StatefulConnection<K, V>> connectionSupplier,
-			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async,
-			PipelinedOperation<K, V, T> operation) {
-		super(connectionSupplier, poolConfig);
-		this.async = async;
+	public RedisItemWriter(GenericObjectPool<StatefulConnection<K, V>> pool, PipelinedOperation<K, V, T> operation) {
+		this.pool = pool;
 		this.operation = operation;
 	}
 
 	@Override
 	public void write(List<? extends T> items) throws Exception {
-		try (StatefulConnection<K, V> connection = borrowConnection()) {
+		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
 			connection.setAutoFlushCommands(false);
 			try {
-				BaseRedisAsyncCommands<K, V> commands = async.apply(connection);
-				Collection<RedisFuture<?>> futures = operation.execute(commands, items);
+				Collection<RedisFuture<?>> futures = operation.execute(connection, items);
 				connection.flushCommands();
 				long timeout = connection.getTimeout().toMillis();
 				LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(Future[]::new));
@@ -62,119 +48,22 @@ public class RedisItemWriter<K, V, T> extends ConnectionPoolItemStream<K, V> imp
 		}
 	}
 
-	public static <K, V, T> Builder<K, V, T> operation(AbstractRedisClient client, RedisCodec<K, V> codec,
+	public static <K, V, T> WriterBuilder<K, V, T> operation(GenericObjectPool<StatefulConnection<K, V>> connectionPool,
 			Operation<K, V, T> operation) {
-		return new Builder<>(client, codec, operation);
+		return new WriterBuilder<>(connectionPool, operation);
 	}
 
-	public static <T> Builder<String, String, T> operation(AbstractRedisClient client,
-			Operation<String, String, T> operation) {
-		return new Builder<>(client, StringCodec.UTF8, operation);
+	public static <K, V> WriterBuilder<K, V, DataStructure<K>> dataStructure(
+			GenericObjectPool<StatefulConnection<K, V>> pool) {
+		return new WriterBuilder<>(pool, new DataStructureOperation<>());
 	}
 
-	public static <K, V> Builder<K, V, DataStructure<K>> dataStructure(AbstractRedisClient client,
-			RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec, new DataStructureOperation<>(codec));
+	public static <K, V> WriterBuilder<K, V, DataStructure<K>> dataStructure(
+			GenericObjectPool<StatefulConnection<K, V>> pool, Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
+		return new WriterBuilder<>(pool, new DataStructureOperation<>(xaddArgs));
 	}
 
-	public static <K, V> Builder<K, V, DataStructure<K>> dataStructure(AbstractRedisClient client,
-			RedisCodec<K, V> codec, Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
-		DataStructureOperation<K, V> executor = new DataStructureOperation<>(codec);
-		executor.getXadd().setArgs(xaddArgs);
-		return new Builder<>(client, codec, executor);
-	}
-
-	public static Builder<String, String, DataStructure<String>> dataStructure(AbstractRedisClient client) {
-		return new Builder<>(client, StringCodec.UTF8, new DataStructureOperation<>(StringCodec.UTF8));
-	}
-
-	public static Builder<String, String, DataStructure<String>> dataStructure(AbstractRedisClient client,
-			Converter<StreamMessage<String, String>, XAddArgs> xaddArgs) {
-		DataStructureOperation<String, String> executor = new DataStructureOperation<>(StringCodec.UTF8);
-		executor.getXadd().setArgs(xaddArgs);
-		return new Builder<>(client, StringCodec.UTF8, executor);
-	}
-
-	public static <K, V> Builder<K, V, KeyValue<K, byte[]>> keyDump(AbstractRedisClient client,
-			RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec, SimplePipelinedOperation.keyDump());
-	}
-
-	public static Builder<String, String, KeyValue<String, byte[]>> keyDump(AbstractRedisClient client) {
-		return new Builder<>(client, StringCodec.UTF8, SimplePipelinedOperation.keyDump());
-	}
-
-	public static class Builder<K, V, T> extends RedisConnectionBuilder<K, V, Builder<K, V, T>> {
-
-		private final PipelinedOperation<K, V, T> operation;
-		private boolean multiExec;
-		private Optional<WaitForReplication> waitForReplication = Optional.empty();
-
-		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec, Operation<K, V, T> operation) {
-			this(client, codec, new SimplePipelinedOperation<>(operation));
-		}
-
-		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec, PipelinedOperation<K, V, T> operation) {
-			super(client, codec);
-			this.operation = operation;
-		}
-
-		public Builder<K, V, T> multiExec() {
-			this.multiExec = true;
-			return this;
-		}
-
-		public Builder<K, V, T> waitForReplication(WaitForReplication replication) {
-			this.waitForReplication = Optional.of(replication);
-			return this;
-		}
-
-		private PipelinedOperation<K, V, T> operation() {
-			PipelinedOperation<K, V, T> op = multiExec ? new MultiExecOperation<>(operation) : operation;
-			if (waitForReplication.isPresent()) {
-				return new WaitForReplicationOperation<>(op, waitForReplication.get());
-			}
-			return op;
-		}
-
-		public RedisItemWriter<K, V, T> build() {
-			return new RedisItemWriter<>(connectionSupplier(), poolConfig, super.async(), operation());
-		}
-
-	}
-
-	public static class WaitForReplication {
-
-		public static final int DEFAULT_REPLICAS = 1;
-		public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(1);
-
-		private final int replicas;
-		private final Duration timeout;
-
-		private WaitForReplication(int replicas, Duration timeout) {
-			this.replicas = replicas;
-			this.timeout = timeout;
-		}
-
-		public int getReplicas() {
-			return replicas;
-		}
-
-		public Duration getTimeout() {
-			return timeout;
-		}
-
-		public static WaitForReplication of(int replicas, Duration timeout) {
-			return new WaitForReplication(replicas, timeout);
-		}
-
-		public static WaitForReplication of(int replicas) {
-			return new WaitForReplication(replicas, DEFAULT_TIMEOUT);
-		}
-
-		public static WaitForReplication of(Duration timeout) {
-			return new WaitForReplication(DEFAULT_REPLICAS, timeout);
-		}
-
+	public static <K, V> WriterBuilder<K, V, KeyDump<K>> keyDump(GenericObjectPool<StatefulConnection<K, V>> pool) {
+		return new WriterBuilder<>(pool, SimplePipelinedOperation.keyDump());
 	}
 }

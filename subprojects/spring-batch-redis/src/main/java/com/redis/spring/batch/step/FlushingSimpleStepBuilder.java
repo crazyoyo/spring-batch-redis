@@ -17,8 +17,8 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.repeat.CompletionPolicy;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.PollableItemReader;
-import com.redis.spring.batch.support.Utils;
 
 public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 

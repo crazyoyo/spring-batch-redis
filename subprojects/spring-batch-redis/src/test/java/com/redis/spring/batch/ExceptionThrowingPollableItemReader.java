@@ -4,7 +4,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStream;
+import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
@@ -13,13 +17,23 @@ import com.redis.spring.batch.reader.PollableItemReader;
 public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T>
 		implements PollableItemReader<T> {
 
+	public static final long DEFAULT_INTERVAL = 2;
+
 	private final ItemReader<T> delegate;
 	private Supplier<Exception> exceptionSupplier = () -> new TimeoutException("Simulated timeout");
-	private long interval = 2;
+	private long interval = DEFAULT_INTERVAL;
 
 	public ExceptionThrowingPollableItemReader(ItemReader<T> delegate) {
 		setName(ClassUtils.getShortName(ExceptionThrowingPollableItemReader.class));
 		this.delegate = delegate;
+	}
+
+	@Override
+	public void setName(String name) {
+		if (delegate instanceof ItemStreamSupport) {
+			((ItemStreamSupport) delegate).setName(name);
+		}
+		super.setName(name);
 	}
 
 	public void setInterval(long interval) {
@@ -42,6 +56,30 @@ public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCounting
 			throw exceptionSupplier.get();
 		}
 		return result;
+	}
+
+	@Override
+	public void open(ExecutionContext executionContext) throws ItemStreamException {
+		super.open(executionContext);
+		if (delegate instanceof ItemStream) {
+			((ItemStream) delegate).open(executionContext);
+		}
+	}
+
+	@Override
+	public void update(ExecutionContext executionContext) throws ItemStreamException {
+		super.update(executionContext);
+		if (delegate instanceof ItemStream) {
+			((ItemStream) delegate).update(executionContext);
+		}
+	}
+
+	@Override
+	public void close() throws ItemStreamException {
+		if (delegate instanceof ItemStream) {
+			((ItemStream) delegate).close();
+		}
+		super.close();
 	}
 
 	@Override

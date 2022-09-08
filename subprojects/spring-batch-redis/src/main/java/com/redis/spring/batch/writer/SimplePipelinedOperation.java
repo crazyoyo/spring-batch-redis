@@ -4,11 +4,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.common.KeyDump;
+import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.writer.operation.RestoreReplace;
 
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.StatefulConnection;
 
 public class SimplePipelinedOperation<K, V, T> implements PipelinedOperation<K, V, T> {
 
@@ -19,10 +20,10 @@ public class SimplePipelinedOperation<K, V, T> implements PipelinedOperation<K, 
 	}
 
 	@Override
-	public Collection<RedisFuture<?>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
+	public Collection<RedisFuture<?>> execute(StatefulConnection<K, V> connection, List<? extends T> items) {
 		Collection<RedisFuture<?>> futures = new ArrayList<>();
 		for (T item : items) {
-			RedisFuture<?> future = operation.execute(commands, item);
+			RedisFuture<?> future = operation.execute(Utils.async(connection), item);
 			if (future == null) {
 				continue;
 			}
@@ -35,7 +36,7 @@ public class SimplePipelinedOperation<K, V, T> implements PipelinedOperation<K, 
 		return new SimplePipelinedOperation<>(operation);
 	}
 
-	public static <K, V> SimplePipelinedOperation<K, V, KeyValue<K, byte[]>> keyDump() {
+	public static <K, V> SimplePipelinedOperation<K, V, KeyDump<K>> keyDump() {
 		return new SimplePipelinedOperation<>(RestoreReplace.keyDump());
 	}
 

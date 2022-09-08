@@ -3,22 +3,20 @@ package com.redis.spring.batch.reader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemStreamSupport;
+import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.FileCopyUtils;
 
-import com.redis.spring.batch.DataStructure;
-import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.support.ConnectionPoolItemStream;
+import com.redis.spring.batch.common.Utils;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScriptOutputType;
@@ -26,23 +24,22 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 
-public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extends ConnectionPoolItemStream<K, V>
-		implements ValueReader<K, T> {
+public abstract class AbstractValueReader<K, V, T> extends ItemStreamSupport
+		implements ItemProcessor<List<? extends K>, List<T>> {
 
 	private final Log log = LogFactory.getLog(getClass());
 
 	private static final String ABSTTL_LUA = "absttl.lua";
-	protected final Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async;
+
+	private final GenericObjectPool<StatefulConnection<K, V>> connectionPool;
 	private String digest;
 
-	protected AbstractValueReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
-			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-			Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async) {
-		super(connectionSupplier, poolConfig);
-		this.async = async;
+	protected AbstractValueReader(GenericObjectPool<StatefulConnection<K, V>> connectionPool) {
+		Assert.notNull(connectionPool, "Right connection pool is required");
+		setName(ClassUtils.getShortName(getClass()));
+		this.connectionPool = connectionPool;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
@@ -53,11 +50,10 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 			} catch (IOException e) {
 				throw new ItemStreamException("Could not load LUA script file " + ABSTTL_LUA);
 			}
-			try (StatefulConnection<K, V> connection = borrowConnection()) {
-				long timeout = connection.getTimeout().toMillis();
-				RedisFuture<String> load = ((RedisScriptingAsyncCommands<K, V>) async.apply(connection))
-						.scriptLoad(bytes);
-				this.digest = load.get(timeout, TimeUnit.MILLISECONDS);
+			try (StatefulConnection<K, V> connection = connectionPool.borrowObject()) {
+				RedisScriptingAsyncCommands<K, V> commands = Utils.async(connection);
+				RedisFuture<String> future = commands.scriptLoad(bytes);
+				this.digest = future.get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
 			} catch (InterruptedException e) {
 				log.warn("Interrupted!", e);
 				// Restore interrupted state...
@@ -74,34 +70,17 @@ public abstract class AbstractValueReader<K, V, T extends KeyValue<K, ?>> extend
 	}
 
 	@Override
-	public List<T> read(List<? extends K> keys) throws Exception {
-		try (StatefulConnection<K, V> connection = borrowConnection()) {
+	public List<T> process(List<? extends K> item) throws Exception {
+		try (StatefulConnection<K, V> connection = connectionPool.borrowObject()) {
 			connection.setAutoFlushCommands(false);
 			try {
-				return read(connection, keys);
+				return read(connection, item);
 			} finally {
 				connection.setAutoFlushCommands(true);
 			}
 		}
 	}
 
-	protected abstract List<T> read(StatefulConnection<K, V> connection, List<? extends K> keys)
-			throws InterruptedException, ExecutionException, TimeoutException;
-
-	public static interface ValueReaderFactory<K, V, T extends KeyValue<K, ?>> {
-
-		ValueReader<K, T> create(Supplier<StatefulConnection<K, V>> connectionSupplier,
-				GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-				Function<StatefulConnection<K, V>, BaseRedisAsyncCommands<K, V>> async);
-
-		static <K, V> ValueReaderFactory<K, V, DataStructure<K>> dataStructure() {
-			return DataStructureValueReader::new;
-		}
-
-		static <K, V> ValueReaderFactory<K, V, KeyValue<K, byte[]>> keyDump() {
-			return KeyDumpValueReader::new;
-		}
-
-	}
+	protected abstract List<T> read(StatefulConnection<K, V> connection, List<? extends K> keys) throws Exception;
 
 }

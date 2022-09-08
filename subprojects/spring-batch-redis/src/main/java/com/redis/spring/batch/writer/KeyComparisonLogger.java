@@ -1,4 +1,4 @@
-package com.redis.spring.batch.compare;
+package com.redis.spring.batch.writer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -10,11 +10,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import com.redis.spring.batch.reader.KeyComparison;
+
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
 @SuppressWarnings("unchecked")
-public class KeyComparisonLogger implements KeyComparisonListener {
+public class KeyComparisonLogger {
 
 	/**
 	 * Represents a failed index search.
@@ -32,8 +34,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		this.log = logger;
 	}
 
-	@Override
-	public void keyComparison(KeyComparison comparison) {
+	public void log(KeyComparison<String> comparison) {
 		switch (comparison.getStatus()) {
 		case MISSING:
 			log.log(Level.WARNING, "Missing key {0}", comparison.getSource().getKey());
@@ -80,10 +81,9 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		case OK:
 			break;
 		}
-
 	}
 
-	private void showHashDiff(KeyComparison comparison) {
+	private void showHashDiff(KeyComparison<String> comparison) {
 		Map<String, String> sourceHash = (Map<String, String>) comparison.getSource().getValue();
 		Map<String, String> targetHash = (Map<String, String>) comparison.getTarget().getValue();
 		Map<String, String> diff = new HashMap<>();
@@ -95,7 +95,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 				new Object[] { comparison.getSource().getKey(), diff.keySet() });
 	}
 
-	private void showStringDiff(KeyComparison comparison) {
+	private void showStringDiff(KeyComparison<String> comparison) {
 		String sourceString = (String) comparison.getSource().getValue();
 		String targetString = (String) comparison.getTarget().getValue();
 		int diffIndex = indexOfDifference(sourceString, targetString);
@@ -150,7 +150,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		return INDEX_NOT_FOUND;
 	}
 
-	private void showListDiff(KeyComparison comparison) {
+	private void showListDiff(KeyComparison<String> comparison) {
 		List<?> sourceList = (List<?>) comparison.getSource().getValue();
 		List<?> targetList = (List<?>) comparison.getTarget().getValue();
 		if (sourceList.size() != targetList.size()) {
@@ -169,7 +169,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 				new Object[] { comparison.getSource().getType(), comparison.getSource().getKey(), diff });
 	}
 
-	private void showSetDiff(KeyComparison comparison) {
+	private void showSetDiff(KeyComparison<String> comparison) {
 		Set<String> sourceSet = (Set<String>) comparison.getSource().getValue();
 		Set<String> targetSet = (Set<String>) comparison.getTarget().getValue();
 		Set<String> missing = new HashSet<>(sourceSet);
@@ -180,7 +180,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 				new Object[] { comparison.getSource().getKey(), missing, extra });
 	}
 
-	private void showSortedSetDiff(KeyComparison comparison) {
+	private void showSortedSetDiff(KeyComparison<String> comparison) {
 		List<ScoredValue<String>> sourceList = (List<ScoredValue<String>>) comparison.getSource().getValue();
 		List<ScoredValue<String>> targetList = (List<ScoredValue<String>>) comparison.getTarget().getValue();
 		List<ScoredValue<String>> missing = new ArrayList<>(sourceList);
@@ -195,7 +195,7 @@ public class KeyComparisonLogger implements KeyComparisonListener {
 		return list.stream().map(v -> v.getValue() + "@" + v.getScore()).collect(Collectors.toList());
 	}
 
-	private void showStreamDiff(KeyComparison comparison) {
+	private void showStreamDiff(KeyComparison<String> comparison) {
 		List<StreamMessage<String, String>> sourceMessages = (List<StreamMessage<String, String>>) comparison
 				.getSource().getValue();
 		List<StreamMessage<String, String>> targetMessages = (List<StreamMessage<String, String>>) comparison

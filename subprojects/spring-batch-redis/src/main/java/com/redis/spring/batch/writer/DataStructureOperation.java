@@ -7,10 +7,12 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
 import com.redis.lettucemod.timeseries.Sample;
-import com.redis.spring.batch.DataStructure;
+import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.writer.operation.Del;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.JsonSet;
@@ -24,10 +26,10 @@ import com.redis.spring.batch.writer.operation.ZaddAll;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
+import io.lettuce.core.XAddArgs;
+import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 
 public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, DataStructure<K>> {
 
@@ -41,21 +43,15 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 	private final XaddAll<K, V, DataStructure<K>> xadd = XaddAll.key(this::key).messages(this::messages).build();
 	private final Set<K, V, DataStructure<K>> set = Set.key(this::key).value(this::string).del(this::del).build();
 	private final ZaddAll<K, V, DataStructure<K>> zadd = ZaddAll.key(this::key).members(this::zmembers).build();
-	private final JsonSet<K, V, DataStructure<K>> jsonSet = JsonSet.key(this::key).path(this::jsonPath)
-			.value(this::string).del(this::del).build();
+	private final JsonSet<K, V, DataStructure<K>> jsonSet = JsonSet.key(this::key).value(this::string).del(this::del)
+			.build();
 	private final TsAddAll<K, V, DataStructure<K>> tsAdd = TsAddAll.key(this::key).<V>samples(this::samples).build();
-	private final RedisCodec<K, V> codec;
 
-	public enum UnknownTypePolicy {
-		IGNORE, FAIL, LOG
+	public DataStructureOperation() {
 	}
 
-	public DataStructureOperation(RedisCodec<K, V> codec) {
-		this.codec = codec;
-	}
-
-	public XaddAll<K, V, DataStructure<K>> getXadd() {
-		return xadd;
+	public DataStructureOperation(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
+		xadd.setArgs(xaddArgs);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -88,10 +84,6 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 		return (V) ds.getValue();
 	}
 
-	private K jsonPath(DataStructure<K> ds) {
-		return codec.decodeKey(StringCodec.UTF8.encodeKey("$"));
-	}
-
 	private boolean del(DataStructure<K> ds) {
 		return ds.getValue() == null;
 	}
@@ -107,8 +99,9 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public Collection<RedisFuture<?>> execute(BaseRedisAsyncCommands<K, V> commands,
+	public Collection<RedisFuture<?>> execute(StatefulConnection<K, V> connection,
 			List<? extends DataStructure<K>> items) {
+		BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
 		List<RedisFuture<?>> futures = new ArrayList<>();
 		for (DataStructure<K> ds : items) {
 			if (ds == null) {
@@ -162,16 +155,12 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 		case FAIL:
 			throw new IllegalArgumentException(String.format("Unknown type %s for key %s", ds.getType(), ds.getKey()));
 		case LOG:
-			log.warn(String.format("Unknown type %s for key %s", ds.getType(), string(ds.getKey())));
+			log.warn(String.format("Unknown type %s for key %s", ds.getType(), ds.getKey()));
 			break;
 		case IGNORE:
 			break;
 		}
 
-	}
-
-	private String string(K key) {
-		return StringCodec.UTF8.decodeKey(codec.encodeKey(key));
 	}
 
 }

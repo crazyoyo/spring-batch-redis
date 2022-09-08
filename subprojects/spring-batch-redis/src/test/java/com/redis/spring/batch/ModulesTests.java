@@ -18,7 +18,6 @@ import org.springframework.core.convert.converter.Converter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.search.IndexInfo;
 import com.redis.lettucemod.test.Beers;
@@ -28,8 +27,12 @@ import com.redis.lettucemod.timeseries.DuplicatePolicy;
 import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
-import com.redis.spring.batch.compare.KeyComparator;
-import com.redis.spring.batch.compare.KeyComparisonResults;
+import com.redis.lettucemod.util.RedisModulesUtils;
+import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.reader.KeyComparison;
+import com.redis.spring.batch.reader.KeyComparison.Status;
+import com.redis.spring.batch.writer.KeyComparisonCountItemWriter;
+import com.redis.spring.batch.writer.WriterOptions;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.TsAdd;
 import com.redis.spring.batch.writer.operation.Xadd;
@@ -72,9 +75,8 @@ class ModulesTests extends AbstractTestBase {
 	@RedisTestContextsSource
 	void jsonSet(RedisTestContext redis) throws Exception {
 		JsonSet<String, String, JsonNode> jsonSet = JsonSet.<String, JsonNode>key(n -> "beer:" + n.get("id").asText())
-				.path(".").value(JsonNode::toString).build();
-		RedisItemWriter<String, String, JsonNode> writer = RedisItemWriter.operation(redis.getClient(), jsonSet)
-				.build();
+				.value(JsonNode::toString).path(".").build();
+		RedisItemWriter<String, String, JsonNode> writer = RedisItemWriter.operation(pool(redis), jsonSet).build();
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
 		run(redis, reader, writer);
 		Assertions.assertEquals(BEER_COUNT, redis.sync().keys("beer:*").size());
@@ -97,7 +99,7 @@ class ModulesTests extends AbstractTestBase {
 		ListItemReader<Sample> reader = new ListItemReader<>(samples);
 		TsAdd<String, String, Sample> tsadd = TsAdd.<Sample>key(key).<String>sample(sampleConverter)
 				.options(v -> AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST).build()).build();
-		run(redis, reader, RedisItemWriter.operation(redis.getClient(), tsadd).build());
+		run(redis, reader, RedisItemWriter.operation(pool(redis), tsadd).build());
 		Assertions.assertEquals(count / 2,
 				redis.sync().tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
 	}
@@ -127,7 +129,7 @@ class ModulesTests extends AbstractTestBase {
 		}, Clock.SYSTEM);
 		Metrics.addRegistry(registry);
 		generate(redis);
-		RedisItemReader<String, DataStructure<String>> reader = RedisItemReader.dataStructure(redis.getClient())
+		RedisItemReader<String, DataStructure<String>> reader = RedisItemReader.dataStructure(pool(redis), jobRunner)
 				.build();
 		reader.open(new ExecutionContext());
 		Search search = registry.find("spring.batch.redis.reader.queue.size");
@@ -148,8 +150,8 @@ class ModulesTests extends AbstractTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
 		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-				.operation(redis.getClient(), Xadd.<String, Map<String, String>>key(stream).body(t -> t).build())
-				.multiExec().build();
+				.operation(pool(redis), Xadd.<String, Map<String, String>>key(stream).body(t -> t).build())
+				.options(WriterOptions.builder().multiExec(true).build()).build();
 		run(redis, reader, writer);
 		RedisModulesCommands<String, String> sync = redis.sync();
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -163,11 +165,11 @@ class ModulesTests extends AbstractTestBase {
 	@ParameterizedTest
 	@RedisTestContextsSource
 	void comparator(RedisTestContext redis) throws Exception {
-		RedisTestContext target = getContext(TARGET);
 		redis.sync().tsAdd("ts:1", Sample.of(123));
-		KeyComparator comparator = comparator(redis, target).build();
-		KeyComparisonResults results = comparator.call();
-		Assertions.assertEquals(1, results.getMissing());
+		RedisItemReader<String, KeyComparison<String>> reader = comparator(redis, getContext(TARGET)).build();
+		KeyComparisonCountItemWriter<String> writer = new KeyComparisonCountItemWriter<>();
+		run("comparator", reader, writer);
+		Assertions.assertEquals(1, writer.getResults().getCount(Status.MISSING));
 	}
 
 	@ParameterizedTest
@@ -178,8 +180,8 @@ class ModulesTests extends AbstractTestBase {
 		redis.sync().jsonSet("json:3", "$", JSON_BEER_1);
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
 		RedisTestContext target = getContext(TARGET);
-		run(redis, reader, RedisItemWriter.dataStructure(target.getClient()).build());
-		compare(redis, target);
+		run(redis, reader, RedisItemWriter.dataStructure(pool(target)).build());
+		Assertions.assertTrue(compare("replicateJSON", redis, target));
 	}
 
 	@ParameterizedTest
@@ -192,7 +194,7 @@ class ModulesTests extends AbstractTestBase {
 		redis.sync().tsAdd(key, Sample.of(1003, 3));
 		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
 		RedisTestContext target = getContext(TARGET);
-		run(redis, reader, RedisItemWriter.dataStructure(target.getClient()).build());
-		compare(redis, target);
+		run(redis, reader, RedisItemWriter.dataStructure(pool(target)).build());
+		Assertions.assertTrue(compare("replicateTimeSeries", redis, target));
 	}
 }

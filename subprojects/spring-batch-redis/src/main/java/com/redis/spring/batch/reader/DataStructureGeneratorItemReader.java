@@ -21,10 +21,10 @@ import org.springframework.util.ClassUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
-import com.redis.spring.batch.DataStructure;
-import com.redis.spring.batch.DataStructure.Type;
-import com.redis.spring.batch.support.DoubleRange;
-import com.redis.spring.batch.support.IntRange;
+import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.DoubleRange;
+import com.redis.spring.batch.common.IntRange;
+import com.redis.spring.batch.common.DataStructure.Type;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -51,7 +51,6 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 	public static final IntRange DEFAULT_LIST_SIZE = IntRange.is(10);
 	public static final IntRange DEFAULT_STRING_SIZE = IntRange.is(100);
 	public static final DoubleRange DEFAULT_ZSET_SCORE = DoubleRange.between(0, 100);
-	private static final String DEFAULT_NAME = ClassUtils.getShortName(DataStructureGeneratorItemReader.class);
 	private static final List<Type> DEFAULT_TYPES = Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM,
 			Type.STRING, Type.ZSET);
 
@@ -76,11 +75,10 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 	private long timeseriesStartTime;
 
 	public DataStructureGeneratorItemReader() {
-		setName(DEFAULT_NAME);
 	}
 
 	private DataStructureGeneratorItemReader(Builder builder) {
-		setName(builder.name);
+		setName(ClassUtils.getShortName(getClass()));
 		setSaveState(builder.saveState);
 		setCurrentItemCount(builder.currentItemCount);
 		setMaxItemCount(builder.maxItemCount);
@@ -231,7 +229,6 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 
 		private String keyspace = DEFAULT_KEYSPACE;
 		private List<Type> types = DEFAULT_TYPES;
-		private String name = DEFAULT_NAME;
 		private boolean saveState;
 		private int currentItemCount;
 		private int maxItemCount = DEFAULT_MAX_ITEM_COUNT;
@@ -253,11 +250,6 @@ public class DataStructureGeneratorItemReader extends AbstractItemCountingItemSt
 
 		public Builder keyspace(String keyspace) {
 			this.keyspace = keyspace;
-			return this;
-		}
-
-		public Builder name(String name) {
-			this.name = name;
 			return this;
 		}
 

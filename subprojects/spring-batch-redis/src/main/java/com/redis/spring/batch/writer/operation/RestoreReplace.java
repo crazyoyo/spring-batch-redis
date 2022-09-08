@@ -2,7 +2,7 @@ package com.redis.spring.batch.writer.operation;
 
 import org.springframework.core.convert.converter.Converter;
 
-import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.common.KeyDump;
 
 import io.lettuce.core.RestoreArgs;
 
@@ -22,7 +22,7 @@ public class RestoreReplace<K, V, T> extends Restore<K, V, T> {
 		return new RestoreReplace<>(key, value, absoluteTTL);
 	}
 
-	public static <K, V> RestoreReplace<K, V, KeyValue<K, byte[]>> keyDump() {
-		return new RestoreReplace<>(KeyValue::getKey, KeyValue::getValue, KeyValue::getTtl);
+	public static <K, V> RestoreReplace<K, V, KeyDump<K>> keyDump() {
+		return new RestoreReplace<>(KeyDump::getKey, KeyDump::getDump, KeyDump::getTtl);
 	}
 }

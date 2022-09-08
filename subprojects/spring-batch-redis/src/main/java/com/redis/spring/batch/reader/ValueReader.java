@@ -2,8 +2,10 @@ package com.redis.spring.batch.reader;
 
 import java.util.List;
 
-public interface ValueReader<K, T> {
+import org.springframework.batch.item.ItemProcessor;
 
-	List<T> read(List<? extends K> keys) throws Exception;
+public interface ValueReader<K, T> extends ItemProcessor<List<? extends K>, List<T>> {
+	
+	
 
 }

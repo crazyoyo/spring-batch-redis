@@ -1,23 +1,19 @@
 package com.redis.spring.batch.reader;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
 
-import com.redis.spring.batch.support.ConnectionPoolItemStream;
-import com.redis.spring.batch.support.Utils;
+import com.redis.spring.batch.common.Utils;
+import com.redis.spring.batch.reader.StreamReaderOptions.AckPolicy;
 
 import io.lettuce.core.Consumer;
 import io.lettuce.core.RedisBusyException;
@@ -26,74 +22,49 @@ import io.lettuce.core.XGroupCreateArgs;
 import io.lettuce.core.XReadArgs;
 import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 
-public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
-		implements PollableItemReader<StreamMessage<K, V>> {
+public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<K, V>> {
 
-	public enum AckPolicy {
-		AUTO, MANUAL
-	}
-
-	public static final Duration DEFAULT_BLOCK = Duration.ofMillis(100);
-	public static final long DEFAULT_COUNT = 50;
-	public static final AckPolicy DEFAULT_ACK_POLICY = AckPolicy.AUTO;
-
-	private final Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync;
-	private final StreamOffset<K> offset;
-	private long count = DEFAULT_COUNT;
-	private Optional<Duration> block = Optional.of(DEFAULT_BLOCK);
-	private K consumerGroup;
-	private K consumer;
-	private AckPolicy ackPolicy = DEFAULT_ACK_POLICY;
+	private final GenericObjectPool<StatefulConnection<K, V>> pool;
+	private final K stream;
+	private final Consumer<K> consumer;
+	private final StreamReaderOptions options;
 	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
+	private boolean open;
 
-	public StreamItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier,
-			GenericObjectPoolConfig<StatefulConnection<K, V>> poolConfig,
-			Function<StatefulConnection<K, V>, BaseRedisCommands<K, V>> sync, StreamOffset<K> offset) {
-		super(connectionSupplier, poolConfig);
-		Assert.notNull(sync, "A command provider is required");
-		Assert.notNull(offset, "A stream offset is required");
-		this.sync = sync;
-		this.offset = offset;
-	}
-
-	public void setConsumer(K consumer) {
+	public StreamItemReader(GenericObjectPool<StatefulConnection<K, V>> pool, K stream, Consumer<K> consumer,
+			StreamReaderOptions options) {
+		Assert.notNull(pool, "A connection pool is required");
+		this.pool = pool;
+		this.stream = stream;
 		this.consumer = consumer;
+		this.options = options;
 	}
 
-	public void setConsumerGroup(K consumerGroup) {
-		this.consumerGroup = consumerGroup;
-	}
-
-	public void setCount(long count) {
-		this.count = count;
-	}
-
-	public void setAckPolicy(AckPolicy ackPolicy) {
-		this.ackPolicy = ackPolicy;
-	}
-
-	public void setBlock(Duration block) {
-		Utils.assertPositive(block, "Block");
-		this.block = Optional.of(block);
-	}
-
-	@SuppressWarnings("unchecked")
 	@Override
 	public void open(ExecutionContext executionContext) {
-		super.open(executionContext);
-		synchronized (sync) {
-			try (StatefulConnection<K, V> connection = borrowConnection()) {
-				RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
-				commands.xgroupCreate(offset, consumerGroup, XGroupCreateArgs.Builder.mkstream(true));
+		synchronized (pool) {
+			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+				RedisStreamCommands<K, V> commands = Utils.sync(connection);
+				commands.xgroupCreate(StreamOffset.from(stream, options.getOffset()), consumer.getGroup(),
+						XGroupCreateArgs.Builder.mkstream(true));
+				open = true;
 			} catch (RedisBusyException e) {
 				// Consumer Group name already exists, ignore
 			} catch (Exception e) {
 				throw new ItemStreamException("Failed to initialize the reader", e);
 			}
 		}
+	}
+
+	public boolean isOpen() {
+		return open;
+	}
+
+	@Override
+	public void update(ExecutionContext executionContext) throws ItemStreamException {
+		// Do nothing
 	}
 
 	@Override
@@ -104,7 +75,7 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	@Override
 	public StreamMessage<K, V> poll(long timeout, TimeUnit unit) throws Exception {
 		if (!iterator.hasNext()) {
-			List<StreamMessage<K, V>> messages = readMessages(Optional.of(unit.toMillis(timeout)));
+			List<StreamMessage<K, V>> messages = readMessages(unit.toMillis(timeout));
 			if (messages == null || messages.isEmpty()) {
 				return null;
 			}
@@ -114,32 +85,28 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 	}
 
 	public List<StreamMessage<K, V>> readMessages() throws Exception {
-		return readMessages(block.map(Duration::toMillis));
+		return readMessages(options.getBlock().toMillis());
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<StreamMessage<K, V>> readMessages(Optional<Long> blockInMillis) throws Exception {
-		XReadArgs args = XReadArgs.Builder.count(count);
-		blockInMillis.ifPresent(args::block);
-		try (StatefulConnection<K, V> connection = borrowConnection()) {
-			RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
-			List<StreamMessage<K, V>> messages = commands.xreadgroup(Consumer.from(consumerGroup, consumer), args,
-					StreamOffset.lastConsumed(offset.getName()));
-			if (ackPolicy == AckPolicy.AUTO) {
+	private List<StreamMessage<K, V>> readMessages(long blockInMillis) throws Exception {
+		XReadArgs args = XReadArgs.Builder.count(options.getCount()).block(blockInMillis);
+		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+			RedisStreamCommands<K, V> commands = Utils.sync(connection);
+			List<StreamMessage<K, V>> messages = commands.xreadgroup(consumer, args, StreamOffset.lastConsumed(stream));
+			if (options.getAckPolicy() == AckPolicy.AUTO) {
 				ack(messages, commands);
 			}
 			return messages;
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	public void ack(List<? extends StreamMessage<K, V>> messages) throws Exception {
 		if (messages.isEmpty()) {
 			return;
 		}
-		try (StatefulConnection<K, V> connection = borrowConnection()) {
-			RedisStreamCommands<K, V> commands = (RedisStreamCommands<K, V>) sync.apply(connection);
-			ack(messages, commands);
+		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+			ack(messages, Utils.sync(connection));
 		}
 	}
 
@@ -148,8 +115,13 @@ public class StreamItemReader<K, V> extends ConnectionPoolItemStream<K, V>
 				.collect(Collectors.groupingBy(StreamMessage::getStream));
 		for (Map.Entry<K, List<StreamMessage<K, V>>> entry : streams.entrySet()) {
 			String[] messageIds = entry.getValue().stream().map(StreamMessage::getId).toArray(String[]::new);
-			commands.xack(entry.getKey(), consumerGroup, messageIds);
+			commands.xack(entry.getKey(), consumer.getGroup(), messageIds);
 		}
+	}
+
+	@Override
+	public void close() throws ItemStreamException {
+		open = false;
 	}
 
 }
