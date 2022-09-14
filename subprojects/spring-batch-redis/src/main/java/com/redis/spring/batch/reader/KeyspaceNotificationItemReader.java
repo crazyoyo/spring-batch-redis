@@ -15,7 +15,7 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.common.Utils;
 
-public class LiveKeyItemReader<K> extends ItemStreamSupport
+public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 		implements PollableItemReader<K>, KeyspaceNotificationListener<K> {
 
 	public static final String QUEUE_SIZE_GAUGE_NAME = "reader.notification.queue.size";
@@ -30,7 +30,7 @@ public class LiveKeyItemReader<K> extends ItemStreamSupport
 	private boolean open;
 	private BlockingQueue<K> queue;
 
-	public LiveKeyItemReader(KeyspaceNotificationPublisher<K> publisher, Converter<K, K> keyExtractor, K[] patterns,
+	public KeyspaceNotificationItemReader(KeyspaceNotificationPublisher<K> publisher, Converter<K, K> keyExtractor, K[] patterns,
 			QueueOptions queueOptions) {
 		Assert.notNull(patterns, "Patterns must not be null");
 		setName(ClassUtils.getShortName(getClass()));

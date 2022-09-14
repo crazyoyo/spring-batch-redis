@@ -27,12 +27,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import com.redis.spring.batch.common.ConnectionPoolBuilder;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.RedisConnectionPoolBuilder;
-import com.redis.spring.batch.common.RedisConnectionPoolOptions;
 import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.KeyComparison;
@@ -174,8 +173,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	private static <K, V> GenericObjectPool<StatefulConnection<K, V>> connectionPool(RedisTestContext redis,
 			RedisCodec<K, V> codec) {
-		return RedisConnectionPoolBuilder.create(RedisConnectionPoolOptions.builder().build()).pool(redis.getClient(),
-				codec);
+		return ConnectionPoolBuilder.create(redis.getClient()).build(codec);
 	}
 
 	protected RedisItemReader<String, DataStructure<String>> dataStructureReader(RedisTestContext redis)

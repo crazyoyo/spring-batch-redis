@@ -59,7 +59,7 @@ import com.redis.spring.batch.convert.ScoredValueConverter;
 import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
-import com.redis.spring.batch.reader.LiveKeyItemReader;
+import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
 import com.redis.spring.batch.reader.ReaderOptions;
@@ -136,7 +136,7 @@ class BatchTests extends AbstractTestBase {
 		return Arrays.asList(REDIS, REDIS_ENTERPRISE);
 	}
 
-	private LiveKeyItemReader<String> keyspaceNotificationReader(RedisTestContext redis) {
+	private KeyspaceNotificationItemReader<String> keyspaceNotificationReader(RedisTestContext redis) {
 		return RedisItemReader.liveDataStructure(pool(redis), jobRunner, redis.getPubSubConnection()).keyReader();
 	}
 
@@ -328,7 +328,7 @@ class BatchTests extends AbstractTestBase {
 		@RedisTestContextsSource
 		void readKeyspaceNotifications(RedisTestContext redis) throws Exception {
 			enableKeyspaceNotifications(redis);
-			LiveKeyItemReader<String> keyReader = keyspaceNotificationReader(redis);
+			KeyspaceNotificationItemReader<String> keyReader = keyspaceNotificationReader(redis);
 			keyReader.open(new ExecutionContext());
 			int count = 2;
 			generate(redis, DataStructureGeneratorItemReader.builder()
@@ -719,7 +719,7 @@ class BatchTests extends AbstractTestBase {
 		@RedisTestContextsSource
 		void flushingStep(RedisTestContext redis) throws Exception {
 			enableKeyspaceNotifications(redis);
-			LiveKeyItemReader<String> reader = keyspaceNotificationReader(redis);
+			KeyspaceNotificationItemReader<String> reader = keyspaceNotificationReader(redis);
 			ListItemWriter<String> writer = new ListItemWriter<>();
 			JobExecution execution = runFlushing(redis, reader, writer);
 			log.info("Keyspace-notification reader open={}", reader.isOpen());
