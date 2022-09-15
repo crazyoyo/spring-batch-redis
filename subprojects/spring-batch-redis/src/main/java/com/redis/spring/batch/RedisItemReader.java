@@ -61,6 +61,10 @@ public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStrea
 		this.options = options;
 	}
 
+	public ItemReader<K> getKeyReader() {
+		return keyReader;
+	}
+
 	@Override
 	public void setName(String name) {
 		this.name = name;

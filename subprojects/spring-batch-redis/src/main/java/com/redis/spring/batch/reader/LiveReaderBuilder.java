@@ -1,6 +1,8 @@
 package com.redis.spring.batch.reader;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import org.springframework.batch.item.ItemProcessor;
@@ -26,6 +28,7 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 	private final Converter<K, K> keyExtractor;
 	private LiveReaderOptions options = LiveReaderOptions.builder().build();
 	private final K[] pubSubPatterns;
+	private Optional<Predicate<K>> keyFilter = Optional.empty();
 
 	public LiveReaderBuilder(JobRunner jobRunner, ItemProcessor<List<? extends K>, List<T>> valueReader,
 			StatefulRedisPubSubConnection<K, V> pubSubConnection, K[] pubSubPatterns,
@@ -37,18 +40,21 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 		this.keyExtractor = eventKeyExtractor;
 	}
 
+	public LiveReaderBuilder<K, V, T> keyFilter(Predicate<K> keyFilter) {
+		this.keyFilter = Optional.of(keyFilter);
+		return this;
+	}
+
 	public LiveReaderBuilder<K, V, T> options(LiveReaderOptions options) {
 		this.options = options;
 		return this;
 	}
 
 	public LiveRedisItemReader<K, T> build() {
-		return new LiveRedisItemReader<>(keyReader(), valueReader, jobRunner, options);
-	}
-
-	public KeyspaceNotificationItemReader<K> keyReader() {
-		return new KeyspaceNotificationItemReader<>(keyspaceNotificationPublisher(), keyExtractor, pubSubPatterns,
-				options.getNotificationQueueOptions());
+		KeyspaceNotificationItemReader<K> keyReader = new KeyspaceNotificationItemReader<>(
+				keyspaceNotificationPublisher(), keyExtractor, pubSubPatterns, options.getNotificationQueueOptions());
+		keyFilter.ifPresent(keyReader::setFilter);
+		return new LiveRedisItemReader<>(keyReader, valueReader, jobRunner, options);
 	}
 
 	private KeyspaceNotificationPublisher<K> keyspaceNotificationPublisher() {

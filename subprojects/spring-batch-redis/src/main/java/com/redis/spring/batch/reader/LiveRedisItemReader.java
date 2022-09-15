@@ -15,15 +15,21 @@ import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 public class LiveRedisItemReader<K, T extends KeyValue<K>> extends RedisItemReader<K, T>
 		implements PollableItemReader<T> {
 
-	public LiveRedisItemReader(KeyspaceNotificationItemReader<K> keyReader, ItemProcessor<List<? extends K>, List<T>> valueReader,
-			JobRunner jobRunner, LiveReaderOptions options) {
+	public LiveRedisItemReader(KeyspaceNotificationItemReader<K> keyReader,
+			ItemProcessor<List<? extends K>, List<T>> valueReader, JobRunner jobRunner, LiveReaderOptions options) {
 		super(keyReader, valueReader, jobRunner, options);
+	}
+
+	@Override
+	public KeyspaceNotificationItemReader<K> getKeyReader() {
+		return (KeyspaceNotificationItemReader<K>) super.getKeyReader();
 	}
 
 	@Override
 	protected void doOpen() {
 		super.doOpen();
-		Awaitility.await().timeout(JobRunner.DEFAULT_RUNNING_TIMEOUT).until(((KeyspaceNotificationItemReader<K>) keyReader)::isOpen);
+		Awaitility.await().timeout(JobRunner.DEFAULT_RUNNING_TIMEOUT)
+				.until(((KeyspaceNotificationItemReader<K>) keyReader)::isOpen);
 	}
 
 	@Override

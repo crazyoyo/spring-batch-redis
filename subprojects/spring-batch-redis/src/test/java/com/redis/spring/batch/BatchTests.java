@@ -37,8 +37,6 @@ import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStream;
-import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
@@ -59,6 +57,7 @@ import com.redis.spring.batch.convert.ScoredValueConverter;
 import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
+import com.redis.spring.batch.reader.KeySlotPredicate;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
@@ -103,6 +102,7 @@ import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
+import io.lettuce.core.cluster.SlotHash;
 import io.lettuce.core.codec.ByteArrayCodec;
 
 class BatchTests extends AbstractTestBase {
@@ -134,10 +134,6 @@ class BatchTests extends AbstractTestBase {
 	@Override
 	protected Collection<RedisServer> testRedisServers() {
 		return Arrays.asList(REDIS, REDIS_ENTERPRISE);
-	}
-
-	private KeyspaceNotificationItemReader<String> keyspaceNotificationReader(RedisTestContext redis) {
-		return RedisItemReader.liveDataStructure(pool(redis), jobRunner, redis.getPubSubConnection()).keyReader();
 	}
 
 	@Nested
@@ -326,31 +322,44 @@ class BatchTests extends AbstractTestBase {
 
 		@ParameterizedTest
 		@RedisTestContextsSource
+		void filterKeyspaceNotifications(RedisTestContext redis) throws Exception {
+			enableKeyspaceNotifications(redis);
+			KeyspaceNotificationItemReader<String> keyReader = RedisItemReader
+					.liveDataStructure(pool(redis), jobRunner, redis.getPubSubConnection())
+					.keyFilter(KeySlotPredicate.of(0, 8000)).build().getKeyReader();
+			keyReader.setName(name(redis) + "-reader");
+			keyReader.open(new ExecutionContext());
+			int count = 1000;
+			generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(count).build());
+			List<String> keys = readFully(keyReader);
+			for (String key : keys) {
+				int slot = SlotHash.getSlot(key);
+				Assertions.assertFalse(slot < 0 || slot > 8000);
+			}
+			keyReader.close();
+		}
+
+		@ParameterizedTest
+		@RedisTestContextsSource
 		void readKeyspaceNotifications(RedisTestContext redis) throws Exception {
 			enableKeyspaceNotifications(redis);
-			KeyspaceNotificationItemReader<String> keyReader = keyspaceNotificationReader(redis);
+			KeyspaceNotificationItemReader<String> keyReader = RedisItemReader
+					.liveDataStructure(pool(redis), jobRunner, redis.getPubSubConnection()).build().getKeyReader();
+			keyReader.setName(name(redis) + "-reader");
 			keyReader.open(new ExecutionContext());
 			int count = 2;
 			generate(redis, DataStructureGeneratorItemReader.builder()
 					.types(Type.HASH, Type.STRING, Type.LIST, Type.SET, Type.ZSET).maxItemCount(count).build());
-			Set<String> keys = new HashSet<>(readFully(redis, keyReader));
+			Set<String> keys = new HashSet<>(readFully(keyReader));
 			assertEquals(new HashSet<>(redis.sync().keys("*")), keys);
+			keyReader.close();
 		}
 
-		private <T> List<T> readFully(RedisTestContext redis, ItemReader<T> reader) throws Exception {
-			if (reader instanceof ItemStream) {
-				if (reader instanceof ItemStreamSupport) {
-					((ItemStreamSupport) reader).setName(name(redis) + "-reader");
-				}
-				((ItemStream) reader).open(new ExecutionContext());
-			}
+		private <T> List<T> readFully(ItemReader<T> reader) throws Exception {
 			List<T> list = new ArrayList<>();
 			T value;
 			while ((value = reader.read()) != null) {
 				list.add(value);
-			}
-			if (reader instanceof ItemStream) {
-				((ItemStream) reader).close();
 			}
 			return list;
 		}
@@ -719,7 +728,8 @@ class BatchTests extends AbstractTestBase {
 		@RedisTestContextsSource
 		void flushingStep(RedisTestContext redis) throws Exception {
 			enableKeyspaceNotifications(redis);
-			KeyspaceNotificationItemReader<String> reader = keyspaceNotificationReader(redis);
+			KeyspaceNotificationItemReader<String> reader = RedisItemReader
+					.liveDataStructure(pool(redis), jobRunner, redis.getPubSubConnection()).build().getKeyReader();
 			ListItemWriter<String> writer = new ListItemWriter<>();
 			JobExecution execution = runFlushing(redis, reader, writer);
 			log.info("Keyspace-notification reader open={}", reader.isOpen());

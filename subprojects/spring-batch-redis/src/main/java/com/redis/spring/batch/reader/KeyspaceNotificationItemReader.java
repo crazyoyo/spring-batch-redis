@@ -1,8 +1,10 @@
 package com.redis.spring.batch.reader;
 
+import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -13,6 +15,7 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import com.redis.spring.batch.common.OrPredicate;
 import com.redis.spring.batch.common.Utils;
 
 public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
@@ -26,12 +29,13 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 	private final Converter<K, K> keyExtractor;
 	protected final K[] patterns;
 	private final QueueOptions queueOptions;
+	private Predicate<K> filter = Objects::isNull;
 
 	private boolean open;
 	private BlockingQueue<K> queue;
 
-	public KeyspaceNotificationItemReader(KeyspaceNotificationPublisher<K> publisher, Converter<K, K> keyExtractor, K[] patterns,
-			QueueOptions queueOptions) {
+	public KeyspaceNotificationItemReader(KeyspaceNotificationPublisher<K> publisher, Converter<K, K> keyExtractor,
+			K[] patterns, QueueOptions queueOptions) {
 		Assert.notNull(patterns, "Patterns must not be null");
 		setName(ClassUtils.getShortName(getClass()));
 		this.publisher = publisher;
@@ -40,16 +44,22 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 		this.queueOptions = queueOptions;
 	}
 
+	public void setFilter(Predicate<K> filter) {
+		this.filter = OrPredicate.of(this.filter, filter);
+	}
+
 	@Override
 	public void notification(K notification) {
 		if (notification == null) {
 			return;
 		}
 		K key = keyExtractor.convert(notification);
-		if (key == null) {
+		if (filter.test(key)) {
 			return;
 		}
-		if (!queue.offer(key)) {
+		queue.removeIf(e -> e.equals(key));
+		boolean result = queue.offer(key);
+		if (!result) {
 			log.warn("Could not add key because queue is full");
 		}
 	}

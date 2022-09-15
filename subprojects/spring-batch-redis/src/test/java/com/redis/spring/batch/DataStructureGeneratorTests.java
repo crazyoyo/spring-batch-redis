@@ -16,7 +16,7 @@ import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
 
-class RandomDataStructureReaderTests {
+class DataStructureGeneratorTests {
 
 	@Test
 	void defaults() throws UnexpectedInputException, ParseException, Exception {
