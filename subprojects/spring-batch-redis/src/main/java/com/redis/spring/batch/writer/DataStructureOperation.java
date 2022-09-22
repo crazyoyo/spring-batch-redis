@@ -5,10 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.springframework.core.convert.converter.Converter;
-import org.springframework.util.Assert;
 
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.common.DataStructure;
@@ -33,9 +30,6 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
 public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, DataStructure<K>> {
 
-	private final Log log = LogFactory.getLog(getClass());
-
-	private UnknownTypePolicy unknownTypePolicy = UnknownTypePolicy.LOG;
 	private final Del<K, V, DataStructure<K>> del = Del.of(this::key);
 	private final Hset<K, V, DataStructure<K>> hset = Hset.key(this::key).map(this::map).build();
 	private final RpushAll<K, V, DataStructure<K>> push = RpushAll.key(this::key).members(this::members).build();
@@ -92,11 +86,6 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 		return ds.getKey();
 	}
 
-	public void setUnknownTypePolicy(UnknownTypePolicy unknownTypePolicy) {
-		Assert.notNull(unknownTypePolicy, "Unknown-type policy must not be null");
-		this.unknownTypePolicy = unknownTypePolicy;
-	}
-
 	@SuppressWarnings("unchecked")
 	@Override
 	public Collection<RedisFuture<?>> execute(StatefulConnection<K, V> connection,
@@ -138,10 +127,11 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 				futures.add(del.execute(commands, ds));
 				futures.addAll(tsAdd.execute(commands, ds));
 				break;
-			case UNKNOWN:
 			case NONE:
-				handleUnknownType(ds);
+				futures.add(del.execute(commands, ds));
 				break;
+			case UNKNOWN:
+				throw new UnknownTypeException(ds);
 			}
 			if (ds.hasTtl()) {
 				futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getTtl()));
@@ -150,15 +140,17 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 		return futures;
 	}
 
-	private void handleUnknownType(DataStructure<K> ds) {
-		switch (unknownTypePolicy) {
-		case FAIL:
-			throw new IllegalArgumentException(String.format("Unknown type %s for key %s", ds.getType(), ds.getKey()));
-		case LOG:
-			log.warn(String.format("Unknown type %s for key %s", ds.getType(), ds.getKey()));
-			break;
-		case IGNORE:
-			break;
+	public static class UnknownTypeException extends RuntimeException {
+
+		private static final long serialVersionUID = 1L;
+		private final DataStructure<?> dataStructure;
+
+		public UnknownTypeException(DataStructure<?> dataStructure) {
+			this.dataStructure = dataStructure;
+		}
+
+		public DataStructure<?> getDataStructure() {
+			return dataStructure;
 		}
 
 	}
