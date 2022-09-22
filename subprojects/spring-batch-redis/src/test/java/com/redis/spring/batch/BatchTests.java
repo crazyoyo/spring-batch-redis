@@ -458,9 +458,11 @@ class BatchTests extends AbstractTestBase {
 	@Nested
 	class Stream extends NestedTestInstance {
 
+		private static final String DEFAULT_CONSUMER_GROUP = "consumerGroup";
+
 		private void generateStreams(RedisTestContext redis) throws JobExecutionException {
 			generate(redis, DataStructureGeneratorItemReader.builder().types(Type.STREAM).streamSize(IntRange.is(COUNT))
-					.maxItemCount(1).build());
+					.maxItemCount(10).build());
 		}
 
 		private StreamReaderBuilder<String, String> streamReader(RedisTestContext redis, String key,
@@ -498,7 +500,6 @@ class BatchTests extends AbstractTestBase {
 			List<String> keys = ScanIterator.scan(redis.sync(), KeyScanArgs.Builder.type(Type.STREAM.getString()))
 					.stream().collect(Collectors.toList());
 			for (String key : keys) {
-				assertEquals(COUNT, redis.sync().xlen(key));
 				StreamItemReader<String, String> reader = streamReader(redis, key,
 						Consumer.from("batchtests-readstreamjob", "consumer1")).build();
 				ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
@@ -513,21 +514,20 @@ class BatchTests extends AbstractTestBase {
 		@ParameterizedTest
 		@RedisTestContextsSource
 		void readMultipleStreams(RedisTestContext redis) throws Exception {
-			String consumerGroup = "consumerGroup";
 			generateStreams(redis);
 			final List<String> keys = ScanIterator.scan(redis.sync(), KeyScanArgs.Builder.type(Type.STREAM.getString()))
 					.stream().collect(Collectors.toList());
 			for (String key : keys) {
 				StreamItemReader<String, String> reader1 = streamReader(redis, key,
-						Consumer.from(consumerGroup, "consumer1"))
+						Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"))
 						.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).build()).build();
 				StreamItemReader<String, String> reader2 = streamReader(redis, key,
-						Consumer.from(consumerGroup, "consumer2"))
+						Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"))
 						.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).build()).build();
 				ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
-				JobExecution execution1 = runFlushing(name(redis) + "-reader1", reader1, writer1);
+				JobExecution execution1 = runFlushing(name(redis) + "-" + key + "-reader1", reader1, writer1);
 				ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
-				JobExecution execution2 = runFlushing(name(redis) + "-reader2", reader2, writer2);
+				JobExecution execution2 = runFlushing(name(redis) + "-" + key + "-reader2", reader2, writer2);
 				jobRunner.awaitTermination(execution1);
 				jobRunner.awaitTermination(execution2);
 				Awaitility.await().until(() -> !reader1.isOpen());
@@ -536,12 +536,12 @@ class BatchTests extends AbstractTestBase {
 				assertMessageBody(writer1.getWrittenItems());
 				assertMessageBody(writer2.getWrittenItems());
 				RedisModulesCommands<String, String> sync = redis.sync();
-				assertEquals(COUNT, sync.xpending(key, consumerGroup).getCount());
+				assertEquals(COUNT, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
 				reader1.open(new ExecutionContext());
 				reader1.ack(writer1.getWrittenItems());
 				reader2.open(new ExecutionContext());
 				reader2.ack(writer2.getWrittenItems());
-				assertEquals(0, sync.xpending(key, consumerGroup).getCount());
+				assertEquals(0, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
 			}
 		}
 
