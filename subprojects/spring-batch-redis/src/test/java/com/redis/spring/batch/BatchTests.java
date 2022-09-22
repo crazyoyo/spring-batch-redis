@@ -493,9 +493,9 @@ class BatchTests extends AbstractTestBase {
 			}
 		}
 
-		@ParameterizedTest
-		@RedisTestContextsSource
-		void readStreamJob(RedisTestContext redis) throws Exception {
+		@Test
+		void readStreamJob() throws Exception {
+			RedisTestContext redis = getContext(REDIS);
 			generateStreams(redis);
 			List<String> keys = ScanIterator.scan(redis.sync(), KeyScanArgs.Builder.type(Type.STREAM.getString()))
 					.stream().collect(Collectors.toList());
@@ -511,9 +511,9 @@ class BatchTests extends AbstractTestBase {
 			}
 		}
 
-		@ParameterizedTest
-		@RedisTestContextsSource
-		void readMultipleStreams(RedisTestContext redis) throws Exception {
+		@Test
+		void readMultipleStreams() throws Exception {
+			RedisTestContext redis = getContext(REDIS);
 			generateStreams(redis);
 			final List<String> keys = ScanIterator.scan(redis.sync(), KeyScanArgs.Builder.type(Type.STREAM.getString()))
 					.stream().collect(Collectors.toList());
