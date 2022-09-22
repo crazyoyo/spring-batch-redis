@@ -506,7 +506,7 @@ class BatchTests extends AbstractTestBase {
 				JobExecution execution = runFlushing(name(redis) + "-" + key, reader, writer);
 				jobRunner.awaitTermination(execution);
 				Awaitility.await().until(() -> !reader.isOpen());
-				assertEquals(COUNT, writer.getWrittenItems().size());
+				Awaitility.await().until(() -> COUNT == writer.getWrittenItems().size());
 				assertMessageBody(writer.getWrittenItems());
 			}
 		}
@@ -532,7 +532,8 @@ class BatchTests extends AbstractTestBase {
 				jobRunner.awaitTermination(execution2);
 				Awaitility.await().until(() -> !reader1.isOpen());
 				Awaitility.await().until(() -> !reader2.isOpen());
-				assertEquals(COUNT, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
+				Awaitility.await()
+						.until(() -> COUNT == writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
 				assertMessageBody(writer1.getWrittenItems());
 				assertMessageBody(writer2.getWrittenItems());
 				RedisModulesCommands<String, String> sync = redis.sync();
