@@ -22,7 +22,7 @@ public class SaddAll<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	@Override
 	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Collection<V> collection = members.convert(item);
-		if (collection == null) {
+		if (collection == null || collection.isEmpty()) {
 			return null;
 		}
 		return ((RedisSetAsyncCommands<K, V>) commands).sadd(key, (V[]) collection.toArray());

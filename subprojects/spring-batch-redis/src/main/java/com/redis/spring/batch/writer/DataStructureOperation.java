@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.core.convert.converter.Converter;
 
@@ -96,6 +97,10 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 			if (ds == null) {
 				continue;
 			}
+			if (ds.getValue() == null) {
+				futures.add(del.execute(commands, ds));
+				continue;
+			}
 			switch (ds.getType()) {
 			case HASH:
 				futures.add(del.execute(commands, ds));
@@ -137,6 +142,7 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 				futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getTtl()));
 			}
 		}
+		futures.removeIf(Objects::isNull);
 		return futures;
 	}
 

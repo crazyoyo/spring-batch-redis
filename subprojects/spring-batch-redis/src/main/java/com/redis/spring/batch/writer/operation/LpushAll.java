@@ -22,7 +22,7 @@ public class LpushAll<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	@Override
 	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Collection<V> collection = members.convert(item);
-		if (collection == null) {
+		if (collection == null || collection.isEmpty()) {
 			return null;
 		}
 		return ((RedisListAsyncCommands<K, V>) commands).lpush(key, (V[]) collection.toArray());

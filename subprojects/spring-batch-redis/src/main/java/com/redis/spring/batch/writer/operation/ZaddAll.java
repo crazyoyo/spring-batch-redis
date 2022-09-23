@@ -22,11 +22,11 @@ public class ZaddAll<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	@SuppressWarnings("unchecked")
 	@Override
 	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		Collection<ScoredValue<V>> zset = members.convert(item);
-		if (zset == null) {
+		Collection<ScoredValue<V>> collection = members.convert(item);
+		if (collection == null || collection.isEmpty()) {
 			return null;
 		}
-		return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key, zset.toArray(new ScoredValue[0]));
+		return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key, collection.toArray(new ScoredValue[0]));
 	}
 
 	public static <K, T> MembersBuilder<K, T> key(K key) {

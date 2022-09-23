@@ -44,7 +44,6 @@ public class RedisKeyspaceNotificationPublisher<K, V> extends RedisPubSubAdapter
 		connection.sync().punsubscribe(patterns);
 		log.debug("Removing listener");
 		connection.removeListener(this);
-		connection.close();
 	}
 
 	private void notification(K notification) {

@@ -23,7 +23,7 @@ public class GeoaddAll<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	@Override
 	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Collection<GeoValue<V>> collection = members.convert(item);
-		if (collection == null) {
+		if (collection == null || collection.isEmpty()) {
 			return null;
 		}
 		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, collection.toArray(new GeoValue[0]));

@@ -28,7 +28,11 @@ public class Xadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	@SuppressWarnings("unchecked")
 	@Override
 	protected RedisFuture<String> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.convert(item), body.convert(item));
+		Map<K, V> map = body.convert(item);
+		if (map.isEmpty()) {
+			return null;
+		}
+		return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.convert(item), map);
 	}
 
 	public static <K, V> Converter<StreamMessage<K, V>, XAddArgs> identity() {

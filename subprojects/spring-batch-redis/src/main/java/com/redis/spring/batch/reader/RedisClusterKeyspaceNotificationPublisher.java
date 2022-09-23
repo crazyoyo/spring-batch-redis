@@ -49,7 +49,6 @@ public class RedisClusterKeyspaceNotificationPublisher<K, V> extends RedisCluste
 		connection.sync().upstream().commands().punsubscribe(patterns);
 		log.debug("Removing pub/sub listener");
 		connection.removeListener(this);
-		connection.close();
 	}
 
 	private void notification(K notification) {

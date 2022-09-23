@@ -27,6 +27,9 @@ public class Hset<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	protected RedisFuture<Long> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		RedisHashAsyncCommands<K, V> hashCommands = ((RedisHashAsyncCommands<K, V>) commands);
 		Map<K, V> map = mapConverter.convert(item);
+		if (map.isEmpty()) {
+			return null;
+		}
 		if (hdel.test(item)) {
 			return hashCommands.hdel(key, (K[]) map.keySet().toArray());
 		}

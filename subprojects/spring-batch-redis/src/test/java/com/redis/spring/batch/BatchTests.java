@@ -686,7 +686,10 @@ class BatchTests extends AbstractTestBase {
 				LiveRedisItemReader<String, T> liveReader, RedisItemWriter<String, String, T> liveWriter)
 				throws Exception {
 			String name = name(redis);
-			generate(redis, DataStructureGeneratorItemReader.builder().maxItemCount(3000).build());
+			generate(redis,
+					DataStructureGeneratorItemReader.builder()
+							.types(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET)
+							.maxItemCount(3000).build());
 			TaskletStep step = step(name + "-snapshot", reader, writer).build();
 			SimpleFlow flow = flow(name + "-snapshot-flow").start(step).build();
 			TaskletStep liveStep = new FlushingSimpleStepBuilder<>(step(name + "-live-step", liveReader, liveWriter))
@@ -699,8 +702,8 @@ class BatchTests extends AbstractTestBase {
 			awaitOpen(liveReader);
 			generate(name(redis) + "-generate-2", redis,
 					DataStructureGeneratorItemReader.builder()
-							.types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).maxItemCount(4000)
-							.currentItemCount(3000).build());
+							.types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).expiration(IntRange.is(100))
+							.currentItemCount(3000).maxItemCount(10000).build());
 			jobRunner.awaitTermination(execution);
 			Assertions.assertTrue(compare(name, redis, getContext(TARGET)));
 		}
