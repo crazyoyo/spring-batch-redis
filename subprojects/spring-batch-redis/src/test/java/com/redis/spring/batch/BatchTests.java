@@ -539,9 +539,9 @@ class BatchTests extends AbstractTestBase {
 				RedisModulesCommands<String, String> sync = redis.sync();
 				assertEquals(COUNT, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
 				reader1.open(new ExecutionContext());
-				reader1.ack(writer1.getWrittenItems());
+				reader1.ack(writer1.getWrittenItems().stream().map(StreamMessage::getId).toArray(String[]::new));
 				reader2.open(new ExecutionContext());
-				reader2.ack(writer2.getWrittenItems());
+				reader2.ack(writer2.getWrittenItems().stream().map(StreamMessage::getId).toArray(String[]::new));
 				assertEquals(0, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
 			}
 		}

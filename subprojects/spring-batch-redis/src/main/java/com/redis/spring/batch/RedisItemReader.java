@@ -3,8 +3,13 @@ package com.redis.spring.batch;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
@@ -15,9 +20,11 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
+import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.ClassUtils;
@@ -25,9 +32,8 @@ import org.springframework.util.ClassUtils;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
-import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.DataStructureValueReader;
-import com.redis.spring.batch.reader.Enqueuer;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparisonValueReader;
 import com.redis.spring.batch.reader.KeyDumpValueReader;
@@ -41,10 +47,14 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
-public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStreamItemReader<T> {
+public class RedisItemReader<K, T> extends AbstractItemStreamItemReader<T> {
+
+	private final Log log = LogFactory.getLog(getClass());
 
 	protected final ItemReader<K> keyReader;
-	protected final Enqueuer<K, T> enqueuer;
+	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
+	protected final BlockingQueue<T> queue;
+	private final RedisItemReader<K, T>.Enqueuer enqueuer = new Enqueuer();
 	private final JobRunner jobRunner;
 	protected final ReaderOptions options;
 
@@ -56,7 +66,8 @@ public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStrea
 			JobRunner jobRunner, ReaderOptions options) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.keyReader = keyReader;
-		this.enqueuer = new Enqueuer<>(valueReader, options.getQueueOptions());
+		this.valueReader = valueReader;
+		this.queue = new LinkedBlockingQueue<>(options.getQueueOptions().getCapacity());
 		this.jobRunner = jobRunner;
 		this.options = options;
 	}
@@ -105,6 +116,50 @@ public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStrea
 		}
 	}
 
+	private class Enqueuer extends AbstractItemStreamItemWriter<K> {
+
+		@Override
+		public void open(ExecutionContext executionContext) {
+			Utils.createGaugeCollectionSize("reader.queue.size", queue);
+			super.open(executionContext);
+			if (valueReader instanceof ItemStream) {
+				((ItemStream) valueReader).open(executionContext);
+			}
+		}
+
+		@Override
+		public void update(ExecutionContext executionContext) {
+			super.update(executionContext);
+			if (valueReader instanceof ItemStream) {
+				((ItemStream) valueReader).update(executionContext);
+			}
+		}
+
+		@Override
+		public void close() {
+			if (!queue.isEmpty()) {
+				log.warn("Closing with items still in queue");
+			}
+			if (valueReader instanceof ItemStream) {
+				((ItemStream) valueReader).close();
+			}
+			super.close();
+		}
+
+		@Override
+		public void write(List<? extends K> items) throws Exception {
+			List<T> values = valueReader.process(items);
+			for (T value : values) {
+				queue.put(value);
+			}
+		}
+
+	}
+
+	private T poll() throws InterruptedException {
+		return queue.poll(options.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+	}
+
 	protected SimpleStepBuilder<K, K> createStep() {
 		if (keyReader instanceof ItemStreamSupport) {
 			((ItemStreamSupport) keyReader).setName(name + "-reader");
@@ -117,14 +172,14 @@ public class RedisItemReader<K, T extends KeyValue<K>> extends AbstractItemStrea
 	public T read() throws Exception {
 		T item;
 		do {
-			item = enqueuer.poll();
+			item = poll();
 		} while (item == null && jobExecution.isRunning() && !jobExecution.getStatus().isUnsuccessful());
 		return item;
 	}
 
 	public List<T> read(int maxElements) {
 		List<T> items = new ArrayList<>(maxElements);
-		enqueuer.drainTo(items, maxElements);
+		queue.drainTo(items, maxElements);
 		return items;
 	}
 

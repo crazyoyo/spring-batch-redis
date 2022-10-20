@@ -40,7 +40,7 @@ public class LiveRedisItemReader<K, T extends KeyValue<K>> extends RedisItemRead
 
 	@Override
 	public T poll(long timeout, TimeUnit unit) throws InterruptedException {
-		return enqueuer.poll(timeout, unit);
+		return queue.poll(timeout, unit);
 	}
 
 }

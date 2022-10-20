@@ -3,9 +3,7 @@ package com.redis.spring.batch.reader;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ExecutionContext;
@@ -95,27 +93,24 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 			RedisStreamCommands<K, V> commands = Utils.sync(connection);
 			List<StreamMessage<K, V>> messages = commands.xreadgroup(consumer, args, StreamOffset.lastConsumed(stream));
 			if (options.getAckPolicy() == AckPolicy.AUTO) {
-				ack(messages, commands);
+				ack(messages.stream().map(StreamMessage::getId).toArray(String[]::new));
 			}
 			return messages;
 		}
 	}
 
-	public void ack(List<? extends StreamMessage<K, V>> messages) throws Exception {
-		if (messages.isEmpty()) {
+	/**
+	 * Acks given message ids
+	 * @param ids message ids to be acked
+	 * @throws Exception if a connection could not be obtained from the pool 
+	 */
+	public void ack(String... ids) throws Exception {
+		if (ids.length == 0) {
 			return;
 		}
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-			ack(messages, Utils.sync(connection));
-		}
-	}
-
-	private void ack(List<? extends StreamMessage<K, V>> messages, RedisStreamCommands<K, V> commands) {
-		Map<K, List<StreamMessage<K, V>>> streams = messages.stream()
-				.collect(Collectors.groupingBy(StreamMessage::getStream));
-		for (Map.Entry<K, List<StreamMessage<K, V>>> entry : streams.entrySet()) {
-			String[] messageIds = entry.getValue().stream().map(StreamMessage::getId).toArray(String[]::new);
-			commands.xack(entry.getKey(), consumer.getGroup(), messageIds);
+			RedisStreamCommands<K, V> commands = Utils.sync(connection);
+			commands.xack(stream, consumer.getGroup(), ids);
 		}
 	}
 
