@@ -93,16 +93,30 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 			RedisStreamCommands<K, V> commands = Utils.sync(connection);
 			List<StreamMessage<K, V>> messages = commands.xreadgroup(consumer, args, StreamOffset.lastConsumed(stream));
 			if (options.getAckPolicy() == AckPolicy.AUTO) {
-				ack(messages.stream().map(StreamMessage::getId).toArray(String[]::new));
+				ack(messages);
 			}
 			return messages;
 		}
 	}
 
 	/**
+	 * Acks given messages
+	 * 
+	 * @param messages to be acked
+	 * @throws Exception if a connection could not be obtained from the pool
+	 */
+	public void ack(List<? extends StreamMessage<K, V>> messages) throws Exception {
+		if (messages == null) {
+			return;
+		}
+		ack(messages.stream().map(StreamMessage::getId).toArray(String[]::new));
+	}
+
+	/**
 	 * Acks given message ids
+	 * 
 	 * @param ids message ids to be acked
-	 * @throws Exception if a connection could not be obtained from the pool 
+	 * @throws Exception if a connection could not be obtained from the pool
 	 */
 	public void ack(String... ids) throws Exception {
 		if (ids.length == 0) {
