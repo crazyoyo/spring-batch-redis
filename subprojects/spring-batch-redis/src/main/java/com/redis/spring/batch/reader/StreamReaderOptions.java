@@ -8,7 +8,7 @@ public class StreamReaderOptions {
 		AUTO, MANUAL
 	}
 
-	public static final String DEFAULT_OFFSET = "0-0";
+	public static final String DEFAULT_OFFSET = StreamItemReader.START_OFFSET;
 	public static final Duration DEFAULT_BLOCK = Duration.ofMillis(100);
 	public static final long DEFAULT_COUNT = 50;
 	public static final AckPolicy DEFAULT_ACK_POLICY = AckPolicy.AUTO;

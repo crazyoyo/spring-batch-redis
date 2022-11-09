@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -43,6 +44,7 @@ import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.util.Assert;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.enterprise.Database;
@@ -104,6 +106,7 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.cluster.SlotHash;
 import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.models.stream.PendingMessages;
 
 class BatchTests extends AbstractTestBase {
 
@@ -355,15 +358,6 @@ class BatchTests extends AbstractTestBase {
 			keyReader.close();
 		}
 
-		private <T> List<T> readFully(ItemReader<T> reader) throws Exception {
-			List<T> list = new ArrayList<>();
-			T value;
-			while ((value = reader.read()) != null) {
-				list.add(value);
-			}
-			return list;
-		}
-
 		private class SynchronizedListItemWriter<T> extends AbstractItemStreamItemWriter<T> {
 
 			private List<T> writtenItems = new ArrayList<>();
@@ -458,6 +452,8 @@ class BatchTests extends AbstractTestBase {
 	@Nested
 	class Stream extends NestedTestInstance {
 
+		private static final int COUNT = 100;
+
 		private static final String DEFAULT_CONSUMER_GROUP = "consumerGroup";
 
 		private void generateStreams(RedisTestContext redis) throws JobExecutionException {
@@ -477,19 +473,249 @@ class BatchTests extends AbstractTestBase {
 			}
 		}
 
+		private void assertEquals(String expectedId, Map<String, String> expectedBody, String expectedStream,
+				StreamMessage<String, String> message) {
+			Assertions.assertEquals(expectedId, message.getId());
+			Assertions.assertEquals(expectedBody, message.getBody());
+			Assertions.assertEquals(expectedStream, message.getStream());
+		}
+
+		private Map<String, String> map(String... args) {
+			Assert.notNull(args, "Args cannot be null");
+			Assert.isTrue(args.length % 2 == 0, "Args length is not a multiple of 2");
+			Map<String, String> body = new LinkedHashMap<>();
+			for (int index = 0; index < args.length / 2; index++) {
+				body.put(args[index * 2], args[index * 2 + 1]);
+			}
+			return body;
+		}
+
 		@ParameterizedTest
 		@RedisTestContextsSource
-		void readStream(RedisTestContext redis) throws Exception {
+		void readStreamAutoAck(RedisTestContext redis) throws InterruptedException {
+			String stream = "stream1";
+			String consumerGroup = "batchtests-readStreamAutoAck";
+			Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
+			final StreamItemReader<String, String> reader = RedisItemReader.stream(pool(redis), stream, consumer)
+					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.AUTO).build()).build();
+			reader.open(new ExecutionContext());
+			String field1 = "field1";
+			String value1 = "value1";
+			String field2 = "field2";
+			String value2 = "value2";
+			Map<String, String> body = map(field1, value1, field2, value2);
+			String id1 = redis.sync().xadd(stream, body);
+			String id2 = redis.sync().xadd(stream, body);
+			String id3 = redis.sync().xadd(stream, body);
+			List<StreamMessage<String, String>> messages = new ArrayList<>();
+			Awaitility.await().until(() -> messages.addAll(reader.readMessages()));
+			Assertions.assertEquals(3, messages.size());
+			assertEquals(id1, body, stream, messages.get(0));
+			assertEquals(id2, body, stream, messages.get(1));
+			assertEquals(id3, body, stream, messages.get(2));
+			Assertions.assertEquals(0, redis.sync().xpending(stream, consumerGroup).getCount(), "pending messages");
+		}
+
+		@ParameterizedTest
+		@RedisTestContextsSource
+		void readStreamManualAck(RedisTestContext redis) throws Exception {
+			String stream = "stream1";
+			String consumerGroup = "batchtests-readStreamManualAck";
+			Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
+			final StreamItemReader<String, String> reader = RedisItemReader.stream(pool(redis), stream, consumer)
+					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).build()).build();
+			reader.open(new ExecutionContext());
+			String field1 = "field1";
+			String value1 = "value1";
+			String field2 = "field2";
+			String value2 = "value2";
+			Map<String, String> body = map(field1, value1, field2, value2);
+			String id1 = redis.sync().xadd(stream, body);
+			String id2 = redis.sync().xadd(stream, body);
+			String id3 = redis.sync().xadd(stream, body);
+			List<StreamMessage<String, String>> messages = new ArrayList<>();
+			Awaitility.await().until(() -> messages.addAll(reader.readMessages()));
+			Assertions.assertEquals(3, messages.size());
+
+			assertEquals(id1, body, stream, messages.get(0));
+			assertEquals(id2, body, stream, messages.get(1));
+			assertEquals(id3, body, stream, messages.get(2));
+			PendingMessages pendingMsgsBeforeCommit = redis.sync().xpending(stream, consumerGroup);
+			Assertions.assertEquals(3, pendingMsgsBeforeCommit.getCount(), "pending messages before commit");
+			redis.sync().xack(stream, consumerGroup, messages.get(0).getId(), messages.get(1).getId());
+			PendingMessages pendingMsgsAfterCommit = redis.sync().xpending(stream, consumerGroup);
+			Assertions.assertEquals(1, pendingMsgsAfterCommit.getCount(), "pending messages after commit");
+		}
+
+		@ParameterizedTest
+		@RedisTestContextsSource
+		void readStreamManualAckRecover(RedisTestContext redis) throws InterruptedException {
+			String stream = "stream1";
+			Consumer<String> consumer = Consumer.from("batchtests-readStreamManualAckRecover", "consumer1");
+			final StreamItemReader<String, String> reader = RedisItemReader.stream(pool(redis), stream, consumer)
+					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).build()).build();
+			reader.open(new ExecutionContext());
+			String field1 = "field1";
+			String value1 = "value1";
+			String field2 = "field2";
+			String value2 = "value2";
+			Map<String, String> body = map(field1, value1, field2, value2);
+			redis.sync().xadd(stream, body);
+			redis.sync().xadd(stream, body);
+			redis.sync().xadd(stream, body);
+			List<StreamMessage<String, String>> messages = new ArrayList<>();
+			Awaitility.await().until(() -> messages.addAll(reader.readMessages()));
+			Assertions.assertEquals(3, messages.size());
+
+			List<StreamMessage<String, String>> recoveredMessages = new ArrayList<>();
+			redis.sync().xadd(stream, body);
+			redis.sync().xadd(stream, body);
+			redis.sync().xadd(stream, body);
+
+			final StreamItemReader<String, String> reader2 = RedisItemReader.stream(pool(redis), stream, consumer)
+					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).build()).build();
+			reader2.open(new ExecutionContext());
+
+			Awaitility.await().until(() -> recoveredMessages.addAll(reader2.readMessages()));
+			Awaitility.await().until(() -> !recoveredMessages.addAll(reader2.readMessages()));
+
+			Assertions.assertEquals(6, recoveredMessages.size());
+		}
+
+		@ParameterizedTest
+		@RedisTestContextsSource
+		void readStreamManualAckRecoverUncommitted(RedisTestContext redis) throws InterruptedException {
+			String stream = "stream1";
+			String consumerGroup = "batchtests-readStreamManualAckRecoverUncommitted";
+			Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
+			final StreamItemReader<String, String> reader = RedisItemReader.stream(pool(redis), stream, consumer)
+					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).build()).build();
+			reader.open(new ExecutionContext());
+			String field1 = "field1";
+			String value1 = "value1";
+			String field2 = "field2";
+			String value2 = "value2";
+			Map<String, String> body = map(field1, value1, field2, value2);
+			redis.sync().xadd(stream, body);
+			redis.sync().xadd(stream, body);
+			String id3 = redis.sync().xadd(stream, body);
+			List<StreamMessage<String, String>> messages = new ArrayList<>();
+			Awaitility.await().until(() -> messages.addAll(reader.readMessages()));
+			Assertions.assertEquals(3, messages.size());
+			redis.sync().xack(stream, consumerGroup, messages.get(0).getId(), messages.get(1).getId());
+
+			List<StreamMessage<String, String>> recoveredMessages = new ArrayList<>();
+			String id4 = redis.sync().xadd(stream, body);
+			String id5 = redis.sync().xadd(stream, body);
+			String id6 = redis.sync().xadd(stream, body);
+
+			final StreamItemReader<String, String> reader2 = RedisItemReader.stream(pool(redis), stream, consumer)
+					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).offset(messages.get(1).getId())
+							.build())
+					.build();
+			reader2.open(new ExecutionContext());
+
+			// Wait until task.poll() doesn't return any more records
+			Awaitility.await().until(() -> recoveredMessages.addAll(reader2.readMessages()));
+			Awaitility.await().until(() -> !recoveredMessages.addAll(reader2.readMessages()));
+			List<String> recoveredIds = recoveredMessages.stream().map(StreamMessage::getId)
+					.collect(Collectors.toList());
+			Assertions.assertEquals(Arrays.<String>asList(id3, id4, id5, id6), recoveredIds, "recoveredIds");
+		}
+
+		@ParameterizedTest
+		@RedisTestContextsSource
+		void readStreamManualAckRecoverFromOffset(RedisTestContext redis) throws Exception {
+			String stream = "stream1";
+			String consumerGroup = "batchtests-readStreamManualAckRecoverFromOffset";
+			Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
+			final StreamItemReader<String, String> reader = RedisItemReader.stream(pool(redis), stream, consumer)
+					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).build()).build();
+			reader.open(new ExecutionContext());
+			String field1 = "field1";
+			String value1 = "value1";
+			String field2 = "field2";
+			String value2 = "value2";
+			Map<String, String> body = map(field1, value1, field2, value2);
+			redis.sync().xadd(stream, body);
+			redis.sync().xadd(stream, body);
+			String id3 = redis.sync().xadd(stream, body);
+			List<StreamMessage<String, String>> sourceRecords = new ArrayList<>();
+			Awaitility.await().until(() -> sourceRecords.addAll(reader.readMessages()));
+			Assertions.assertEquals(3, sourceRecords.size());
+
+			List<StreamMessage<String, String>> recoveredRecords = new ArrayList<>();
+			String id4 = redis.sync().xadd(stream, body);
+			String id5 = redis.sync().xadd(stream, body);
+			String id6 = redis.sync().xadd(stream, body);
+
+			final StreamItemReader<String, String> reader2 = RedisItemReader.stream(pool(redis), stream, consumer)
+					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).offset(id3).build()).build();
+			reader2.open(new ExecutionContext());
+
+			// Wait until task.poll() doesn't return any more records
+			Awaitility.await().until(() -> recoveredRecords.addAll(reader2.readMessages()));
+			Awaitility.await().until(() -> !recoveredRecords.addAll(reader2.readMessages()));
+			List<String> recoveredIds = recoveredRecords.stream().map(StreamMessage::getId)
+					.collect(Collectors.toList());
+			Assertions.assertEquals(Arrays.<String>asList(id4, id5, id6), recoveredIds, "recoveredIds");
+		}
+
+		@ParameterizedTest
+		@RedisTestContextsSource
+		void readStreamRecoverManualAckToAutoAck(RedisTestContext redis) throws InterruptedException {
+			String stream = "stream1";
+			String consumerGroup = "readStreamRecoverManualAckToAutoAck";
+			Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
+			final StreamItemReader<String, String> reader = RedisItemReader.stream(pool(redis), stream, consumer)
+					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).build()).build();
+			reader.open(new ExecutionContext());
+			String field1 = "field1";
+			String value1 = "value1";
+			String field2 = "field2";
+			String value2 = "value2";
+			Map<String, String> body = map(field1, value1, field2, value2);
+			redis.sync().xadd(stream, body);
+			redis.sync().xadd(stream, body);
+			redis.sync().xadd(stream, body);
+			List<StreamMessage<String, String>> sourceRecords = new ArrayList<>();
+			Awaitility.await().until(() -> sourceRecords.addAll(reader.readMessages()));
+			Assertions.assertEquals(3, sourceRecords.size());
+
+			List<StreamMessage<String, String>> recoveredRecords = new ArrayList<>();
+			String id4 = redis.sync().xadd(stream, body);
+			String id5 = redis.sync().xadd(stream, body);
+			String id6 = redis.sync().xadd(stream, body);
+
+			final StreamItemReader<String, String> reader2 = RedisItemReader.stream(pool(redis), stream, consumer)
+					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.AUTO).build()).build();
+			reader2.open(new ExecutionContext());
+
+			// Wait until task.poll() doesn't return any more records
+			Awaitility.await().until(() -> recoveredRecords.addAll(reader2.readMessages()));
+			Awaitility.await().until(() -> !recoveredRecords.addAll(reader2.readMessages()));
+			List<String> recoveredIds = recoveredRecords.stream().map(StreamMessage::getId)
+					.collect(Collectors.toList());
+			Assertions.assertEquals(Arrays.asList(id4, id5, id6), recoveredIds, "recoveredIds");
+
+			PendingMessages pending = redis.sync().xpending(stream, consumerGroup);
+			Assertions.assertEquals(0, pending.getCount(), "pending message count");
+		}
+
+		@ParameterizedTest
+		@RedisTestContextsSource
+		void readMessages(RedisTestContext redis) throws Exception {
 			generateStreams(redis);
 			List<String> keys = ScanIterator.scan(redis.sync(), KeyScanArgs.Builder.type(Type.STREAM.getString()))
 					.stream().collect(Collectors.toList());
 			for (String key : keys) {
 				StreamItemReader<String, String> reader = streamReader(redis, key,
-						Consumer.from("batchtests-readstream", "consumer1")).build();
+						Consumer.from("batchtests-readmessages", "consumer1")).build();
 				reader.open(new ExecutionContext());
 				List<StreamMessage<String, String>> messages = reader.readMessages();
-				assertEquals(StreamReaderOptions.DEFAULT_COUNT, messages.size());
+				Assertions.assertEquals(StreamReaderOptions.DEFAULT_COUNT, messages.size());
 				assertMessageBody(messages);
+				Awaitility.await().until(() -> reader.ack(reader.readMessages()) == 0);
 			}
 		}
 
@@ -537,12 +763,12 @@ class BatchTests extends AbstractTestBase {
 				assertMessageBody(writer1.getWrittenItems());
 				assertMessageBody(writer2.getWrittenItems());
 				RedisModulesCommands<String, String> sync = redis.sync();
-				assertEquals(COUNT, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
+				Assertions.assertEquals(COUNT, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
 				reader1.open(new ExecutionContext());
 				reader1.ack(writer1.getWrittenItems().stream().map(StreamMessage::getId).toArray(String[]::new));
 				reader2.open(new ExecutionContext());
 				reader2.ack(writer2.getWrittenItems().stream().map(StreamMessage::getId).toArray(String[]::new));
-				assertEquals(0, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
+				Assertions.assertEquals(0, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
 			}
 		}
 
@@ -563,11 +789,11 @@ class BatchTests extends AbstractTestBase {
 					.build();
 			run(false, name(redis), reader, writer);
 			RedisModulesCommands<String, String> sync = redis.sync();
-			assertEquals(messages.size(), sync.xlen(stream));
+			Assertions.assertEquals(messages.size(), sync.xlen(stream));
 			List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
 			for (int index = 0; index < xrange.size(); index++) {
 				StreamMessage<String, String> message = xrange.get(index);
-				assertEquals(messages.get(index), message.getBody());
+				Assertions.assertEquals(messages.get(index), message.getBody());
 			}
 		}
 	}
@@ -746,8 +972,6 @@ class BatchTests extends AbstractTestBase {
 		}
 	}
 
-	private static final int COUNT = 100;
-
 	private void enableKeyspaceNotifications(RedisTestContext redis) {
 		redis.sync().configSet("notify-keyspace-events", "AK");
 	}
@@ -767,6 +991,15 @@ class BatchTests extends AbstractTestBase {
 		RedisTestContext target = getContext(TARGET);
 		RedisItemWriter<String, String, KeyDump<String>> writer = keyDumpWriter(target);
 		return run(false, name + "-" + name(redis), reader, writer);
+	}
+
+	private <T> List<T> readFully(ItemReader<T> reader) throws Exception {
+		List<T> list = new ArrayList<>();
+		T value;
+		while ((value = reader.read()) != null) {
+			list.add(value);
+		}
+		return list;
 	}
 
 	@Nested
