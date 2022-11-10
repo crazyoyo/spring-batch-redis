@@ -1,10 +1,11 @@
 package com.redis.spring.batch.writer;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.core.convert.converter.Converter;
 
@@ -35,18 +36,18 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 	private final Hset<K, V, DataStructure<K>> hset = Hset.key(this::key).map(this::map).build();
 	private final RpushAll<K, V, DataStructure<K>> push = RpushAll.key(this::key).members(this::members).build();
 	private final SaddAll<K, V, DataStructure<K>> sadd = SaddAll.key(this::key).members(this::members).build();
-	private final XaddAll<K, V, DataStructure<K>> xadd = XaddAll.key(this::key).messages(this::messages).build();
+	private final XaddAll<K, V, DataStructure<K>> xaddAll = XaddAll.key(this::key).messages(this::messages).build();
 	private final Set<K, V, DataStructure<K>> set = Set.key(this::key).value(this::string).del(this::del).build();
 	private final ZaddAll<K, V, DataStructure<K>> zadd = ZaddAll.key(this::key).members(this::zmembers).build();
 	private final JsonSet<K, V, DataStructure<K>> jsonSet = JsonSet.key(this::key).value(this::string).del(this::del)
 			.build();
-	private final TsAddAll<K, V, DataStructure<K>> tsAdd = TsAddAll.key(this::key).<V>samples(this::samples).build();
+	private final TsAddAll<K, V, DataStructure<K>> tsAddAll = TsAddAll.key(this::key).<V>samples(this::samples).build();
 
 	public DataStructureOperation() {
 	}
 
 	public DataStructureOperation(Converter<StreamMessage<K, V>, XAddArgs> xaddArgs) {
-		xadd.setArgs(xaddArgs);
+		xaddAll.setArgs(xaddArgs);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -87,69 +88,17 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 		return ds.getKey();
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public Collection<RedisFuture<?>> execute(StatefulConnection<K, V> connection,
 			List<? extends DataStructure<K>> items) {
 		BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
-		List<RedisFuture<?>> futures = new ArrayList<>();
-		for (DataStructure<K> ds : items) {
-			if (ds == null) {
-				continue;
-			}
-			if (ds.getValue() == null) {
-				futures.add(del.execute(commands, ds));
-				continue;
-			}
-			switch (ds.getType()) {
-			case HASH:
-				futures.add(del.execute(commands, ds));
-				futures.add(hset.execute(commands, ds));
-				break;
-			case STRING:
-				futures.add(set.execute(commands, ds));
-				break;
-			case LIST:
-				futures.add(del.execute(commands, ds));
-				futures.add(push.execute(commands, ds));
-				break;
-			case SET:
-				futures.add(del.execute(commands, ds));
-				futures.add(sadd.execute(commands, ds));
-				break;
-			case ZSET:
-				futures.add(del.execute(commands, ds));
-				futures.add(zadd.execute(commands, ds));
-				break;
-			case STREAM:
-				futures.add(del.execute(commands, ds));
-				futures.addAll(xadd.execute(commands, ds));
-				break;
-			case JSON:
-				futures.add(jsonSet.execute(commands, ds));
-				break;
-			case TIMESERIES:
-				futures.add(del.execute(commands, ds));
-				futures.addAll(tsAdd.execute(commands, ds));
-				break;
-			case NONE:
-				futures.add(del.execute(commands, ds));
-				break;
-			case UNKNOWN:
-				throw new UnknownTypeException(ds);
-			}
-			if (ds.hasTtl()) {
-				futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getTtl()));
-			}
-		}
-		futures.removeIf(Objects::isNull);
-		return futures;
+		return items.stream().filter(Objects::nonNull).flatMap(s -> execute(commands, s)).collect(Collectors.toList());
 	}
 
 	public static class UnknownTypeException extends RuntimeException {
 
 		private static final long serialVersionUID = 1L;
-		private final DataStructure<?> dataStructure;
+		private final transient DataStructure<?> dataStructure;
 
 		public UnknownTypeException(DataStructure<?> dataStructure) {
 			this.dataStructure = dataStructure;
@@ -159,6 +108,44 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 			return dataStructure;
 		}
 
+	}
+
+	@SuppressWarnings("unchecked")
+	private Stream<RedisFuture<?>> execute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds) {
+		if (ds.getValue() == null) {
+			return Stream.of(del.execute(commands, ds));
+		}
+		Stream<RedisFuture<?>> writes = write(commands, ds);
+		if (ds.hasTtl()) {
+			RedisFuture<Boolean> expire = ((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getTtl());
+			return Stream.concat(writes, Stream.of(expire));
+		}
+		return writes;
+	}
+
+	private Stream<RedisFuture<?>> write(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds) {
+		switch (ds.getType()) {
+		case HASH:
+			return Stream.of(del.execute(commands, ds), hset.execute(commands, ds));
+		case STRING:
+			return Stream.of(set.execute(commands, ds));
+		case LIST:
+			return Stream.of(del.execute(commands, ds), push.execute(commands, ds));
+		case SET:
+			return Stream.of(del.execute(commands, ds), sadd.execute(commands, ds));
+		case ZSET:
+			return Stream.of(del.execute(commands, ds), zadd.execute(commands, ds));
+		case STREAM:
+			return Stream.concat(Stream.of(del.execute(commands, ds)), xaddAll.execute(commands, ds).stream());
+		case JSON:
+			return Stream.of(jsonSet.execute(commands, ds));
+		case TIMESERIES:
+			return Stream.concat(Stream.of(del.execute(commands, ds)), tsAddAll.execute(commands, ds).stream());
+		case NONE:
+			return Stream.of(del.execute(commands, ds));
+		default:
+			throw new UnknownTypeException(ds);
+		}
 	}
 
 }

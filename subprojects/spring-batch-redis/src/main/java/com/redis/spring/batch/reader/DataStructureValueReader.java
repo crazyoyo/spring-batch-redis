@@ -13,6 +13,7 @@ import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
 import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.NoOpRedisFuture;
 import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.common.DataStructure.Type;
 
@@ -91,7 +92,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 	private RedisFuture<?> value(BaseRedisAsyncCommands<K, V> commands, K key, String typeName) {
 		Type type = Type.of(typeName);
 		if (type == null) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		switch (type) {
 		case HASH:
@@ -111,7 +112,7 @@ public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, Da
 		case TIMESERIES:
 			return ((RedisTimeSeriesAsyncCommands<K, V>) commands).tsRange(key, TIME_RANGE, RANGE_OPTIONS);
 		default:
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 	}
 

@@ -5,6 +5,8 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.common.NoOpRedisFuture;
+
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -49,7 +51,7 @@ public class Restore<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	protected RedisFuture<String> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		byte[] value = valueConverter.convert(item);
 		if (value == null) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisKeyAsyncCommands<K, V>) commands).restore(key, value, args(item));
 	}

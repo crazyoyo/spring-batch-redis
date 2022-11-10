@@ -4,6 +4,8 @@ import java.util.function.Predicate;
 
 import org.springframework.core.convert.converter.Converter;
 
+import com.redis.spring.batch.common.NoOpRedisFuture;
+
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
@@ -22,7 +24,7 @@ public class Rpush<K, V, T> extends AbstractCollectionAdd<K, V, T> {
 	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		V member = memberConverter.convert(item);
 		if (member == null) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisListAsyncCommands<K, V>) commands).rpush(key, member);
 	}
@@ -32,7 +34,7 @@ public class Rpush<K, V, T> extends AbstractCollectionAdd<K, V, T> {
 	protected RedisFuture<Long> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		V member = this.memberConverter.convert(item);
 		if (member == null) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisListAsyncCommands<K, V>) commands).lrem(key, -1, member);
 	}

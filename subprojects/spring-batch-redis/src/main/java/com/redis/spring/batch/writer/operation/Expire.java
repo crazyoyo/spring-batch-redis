@@ -5,6 +5,8 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.common.NoOpRedisFuture;
+
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
@@ -24,10 +26,10 @@ public class Expire<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	protected RedisFuture<Boolean> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Long millis = milliseconds.convert(item);
 		if (millis == null) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		if (millis < 0) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisKeyAsyncCommands<K, V>) commands).pexpire(key, millis);
 	}

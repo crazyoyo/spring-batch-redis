@@ -5,6 +5,8 @@ import java.util.function.Predicate;
 
 import org.springframework.core.convert.converter.Converter;
 
+import com.redis.spring.batch.common.NoOpRedisFuture;
+
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -24,7 +26,7 @@ public class ZaddAll<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Collection<ScoredValue<V>> collection = members.convert(item);
 		if (collection == null || collection.isEmpty()) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key, collection.toArray(new ScoredValue[0]));
 	}

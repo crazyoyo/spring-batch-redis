@@ -5,6 +5,8 @@ import java.util.function.Predicate;
 
 import org.springframework.core.convert.converter.Converter;
 
+import com.redis.spring.batch.common.NoOpRedisFuture;
+
 import io.lettuce.core.GeoValue;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -24,7 +26,7 @@ public class GeoaddAll<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Collection<GeoValue<V>> collection = members.convert(item);
 		if (collection == null || collection.isEmpty()) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, collection.toArray(new GeoValue[0]));
 	}

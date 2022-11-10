@@ -7,6 +7,7 @@ import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.async.RediSearchAsyncCommands;
 import com.redis.lettucemod.search.Suggestion;
+import com.redis.spring.batch.common.NoOpRedisFuture;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -47,7 +48,7 @@ public class Sugadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	protected RedisFuture<Boolean> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Suggestion<V> suggestion = this.suggestionConverter.convert(item);
 		if (suggestion == null) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RediSearchAsyncCommands<K, V>) commands).ftSugdel(key, suggestion.getString());
 	}

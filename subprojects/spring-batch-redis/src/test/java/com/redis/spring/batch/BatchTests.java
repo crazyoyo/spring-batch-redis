@@ -59,7 +59,7 @@ import com.redis.spring.batch.convert.ScoredValueConverter;
 import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
-import com.redis.spring.batch.reader.KeySlotPredicate;
+import com.redis.spring.batch.reader.SlotRangeFilter;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
@@ -329,7 +329,7 @@ class BatchTests extends AbstractTestBase {
 			enableKeyspaceNotifications(redis);
 			KeyspaceNotificationItemReader<String> keyReader = RedisItemReader
 					.liveDataStructure(pool(redis), jobRunner, redis.getPubSubConnection())
-					.keyFilter(KeySlotPredicate.of(0, 8000)).build().getKeyReader();
+					.keyFilter(SlotRangeFilter.of(0, 8000)).build().getKeyReader();
 			keyReader.setName(name(redis) + "-reader");
 			keyReader.open(new ExecutionContext());
 			int count = 1000;
@@ -337,7 +337,7 @@ class BatchTests extends AbstractTestBase {
 			List<String> keys = readFully(keyReader);
 			for (String key : keys) {
 				int slot = SlotHash.getSlot(key);
-				Assertions.assertFalse(slot < 0 || slot > 8000);
+				Assertions.assertTrue(slot >= 0 && slot <= 8000);
 			}
 			keyReader.close();
 		}

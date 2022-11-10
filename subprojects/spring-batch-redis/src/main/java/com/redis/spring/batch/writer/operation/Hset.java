@@ -6,6 +6,8 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.common.NoOpRedisFuture;
+
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisHashAsyncCommands;
@@ -27,8 +29,8 @@ public class Hset<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	protected RedisFuture<Long> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		RedisHashAsyncCommands<K, V> hashCommands = ((RedisHashAsyncCommands<K, V>) commands);
 		Map<K, V> map = mapConverter.convert(item);
-		if (map.isEmpty()) {
-			return null;
+		if (map == null || map.isEmpty()) {
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		if (hdel.test(item)) {
 			return hashCommands.hdel(key, (K[]) map.keySet().toArray());

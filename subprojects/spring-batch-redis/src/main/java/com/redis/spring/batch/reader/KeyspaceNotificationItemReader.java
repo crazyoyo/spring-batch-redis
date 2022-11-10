@@ -1,6 +1,5 @@
 package com.redis.spring.batch.reader;
 
-import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -15,7 +14,6 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.common.OrPredicate;
 import com.redis.spring.batch.common.Utils;
 
 public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
@@ -29,7 +27,7 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 	private final Converter<K, K> keyExtractor;
 	protected final K[] patterns;
 	private final QueueOptions queueOptions;
-	private Predicate<K> filter = Objects::isNull;
+	private Predicate<K> filter = k -> true;
 
 	private boolean open;
 	private BlockingQueue<K> queue;
@@ -45,7 +43,7 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 	}
 
 	public void setFilter(Predicate<K> filter) {
-		this.filter = OrPredicate.of(this.filter, filter);
+		this.filter = filter;
 	}
 
 	@Override
@@ -54,7 +52,7 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 			return;
 		}
 		K key = keyExtractor.convert(notification);
-		if (filter.test(key)) {
+		if (!filter.test(key)) {
 			return;
 		}
 		queue.removeIf(e -> e.equals(key));

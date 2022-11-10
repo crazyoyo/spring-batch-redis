@@ -46,18 +46,18 @@ public class RedisKeyspaceNotificationPublisher<K, V> extends RedisPubSubAdapter
 		connection.removeListener(this);
 	}
 
-	private void notification(K notification) {
+	private void message(K notification) {
 		listeners.forEach(l -> l.notification(notification));
 	}
 
 	@Override
 	public void message(K channel, V message) {
-		notification(channel);
+		message(channel);
 	}
 
 	@Override
 	public void message(K pattern, K channel, V message) {
-		notification(channel);
+		message(channel);
 	}
 
 }

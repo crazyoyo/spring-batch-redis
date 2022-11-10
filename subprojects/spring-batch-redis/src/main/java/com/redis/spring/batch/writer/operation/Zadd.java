@@ -5,6 +5,8 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.common.NoOpRedisFuture;
+
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.ZAddArgs;
@@ -29,7 +31,7 @@ public class Zadd<K, V, T> extends AbstractCollectionAdd<K, V, T> {
 	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		ScoredValue<V> scoredValue = value.convert(item);
 		if (scoredValue == null) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key, args, scoredValue);
 	}
@@ -39,7 +41,7 @@ public class Zadd<K, V, T> extends AbstractCollectionAdd<K, V, T> {
 	protected RedisFuture<Long> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		ScoredValue<V> scoredValue = value.convert(item);
 		if (scoredValue == null) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, scoredValue.getValue());
 	}

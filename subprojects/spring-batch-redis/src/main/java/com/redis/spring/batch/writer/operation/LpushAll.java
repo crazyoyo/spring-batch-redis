@@ -5,6 +5,8 @@ import java.util.function.Predicate;
 
 import org.springframework.core.convert.converter.Converter;
 
+import com.redis.spring.batch.common.NoOpRedisFuture;
+
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
@@ -23,7 +25,7 @@ public class LpushAll<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Collection<V> collection = members.convert(item);
 		if (collection == null || collection.isEmpty()) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisListAsyncCommands<K, V>) commands).lpush(key, (V[]) collection.toArray());
 	}

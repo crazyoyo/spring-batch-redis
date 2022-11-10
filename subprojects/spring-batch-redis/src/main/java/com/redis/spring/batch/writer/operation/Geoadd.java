@@ -5,6 +5,8 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.common.NoOpRedisFuture;
+
 import io.lettuce.core.GeoAddArgs;
 import io.lettuce.core.GeoValue;
 import io.lettuce.core.RedisFuture;
@@ -30,7 +32,7 @@ public class Geoadd<K, V, T> extends AbstractCollectionAdd<K, V, T> {
 	protected RedisFuture<Long> add(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		GeoValue<V> value = valueConverter.convert(item);
 		if (value == null) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args, value);
 	}
@@ -40,7 +42,7 @@ public class Geoadd<K, V, T> extends AbstractCollectionAdd<K, V, T> {
 	protected RedisFuture<Long> remove(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		GeoValue<V> value = this.valueConverter.convert(item);
 		if (value == null) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisSortedSetAsyncCommands<K, V>) commands).zrem(key, value.getValue());
 	}

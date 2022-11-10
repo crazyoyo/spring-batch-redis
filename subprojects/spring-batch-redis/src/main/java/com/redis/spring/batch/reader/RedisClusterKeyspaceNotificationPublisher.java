@@ -51,18 +51,18 @@ public class RedisClusterKeyspaceNotificationPublisher<K, V> extends RedisCluste
 		connection.removeListener(this);
 	}
 
-	private void notification(K notification) {
-		listeners.forEach(l -> l.notification(notification));
+	private void message(K message) {
+		listeners.forEach(l -> l.notification(message));
 	}
 
 	@Override
 	public void message(RedisClusterNode node, K channel, V message) {
-		notification(channel);
+		message(channel);
 	}
 
 	@Override
 	public void message(RedisClusterNode node, K pattern, K channel, V message) {
-		notification(channel);
+		message(channel);
 	}
 
 }

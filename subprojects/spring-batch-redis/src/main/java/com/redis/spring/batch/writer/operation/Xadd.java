@@ -6,6 +6,8 @@ import java.util.function.Predicate;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.common.NoOpRedisFuture;
+
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
@@ -30,7 +32,7 @@ public class Xadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	protected RedisFuture<String> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Map<K, V> map = body.convert(item);
 		if (map.isEmpty()) {
-			return null;
+			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.convert(item), map);
 	}
