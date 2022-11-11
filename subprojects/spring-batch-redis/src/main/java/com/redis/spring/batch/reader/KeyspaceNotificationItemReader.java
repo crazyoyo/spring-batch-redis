@@ -1,5 +1,7 @@
 package com.redis.spring.batch.reader;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -27,10 +29,11 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 	private final Converter<K, K> keyExtractor;
 	protected final K[] patterns;
 	private final QueueOptions queueOptions;
+	private final Set<K> set;
+	private final BlockingQueue<K> queue;
 	private Predicate<K> filter = k -> true;
 
 	private boolean open;
-	private BlockingQueue<K> queue;
 
 	public KeyspaceNotificationItemReader(KeyspaceNotificationPublisher<K> publisher, Converter<K, K> keyExtractor,
 			K[] patterns, QueueOptions queueOptions) {
@@ -40,6 +43,8 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 		this.keyExtractor = keyExtractor;
 		this.patterns = patterns;
 		this.queueOptions = queueOptions;
+		this.set = new HashSet<>();
+		this.queue = new LinkedBlockingQueue<>(queueOptions.getCapacity());
 	}
 
 	public void setFilter(Predicate<K> filter) {
@@ -52,12 +57,16 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 			return;
 		}
 		K key = keyExtractor.convert(notification);
+		if (set.contains(key)) {
+			return;
+		}
 		if (!filter.test(key)) {
 			return;
 		}
-		queue.removeIf(e -> e.equals(key));
 		boolean result = queue.offer(key);
-		if (!result) {
+		if (result) {
+			set.add(key);
+		} else {
 			log.warn("Could not add key because queue is full");
 		}
 	}
@@ -69,30 +78,36 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
-		if (queue == null) {
-			this.queue = new LinkedBlockingQueue<>(queueOptions.getCapacity());
-			Utils.createGaugeCollectionSize(QUEUE_SIZE_GAUGE_NAME, queue);
-			publisher.addListener(this);
-			publisher.subscribe(patterns);
-			this.open = true;
+		if (open) {
+			return;
 		}
+		Utils.createGaugeCollectionSize(QUEUE_SIZE_GAUGE_NAME, queue);
+		publisher.addListener(this);
+		publisher.subscribe(patterns);
+		this.open = true;
 	}
 
 	@Override
 	public K poll(long timeout, TimeUnit unit) throws InterruptedException {
-		return queue.poll(timeout, unit);
+		K key = queue.poll(timeout, unit);
+		if (key == null) {
+			return null;
+		}
+		set.remove(key);
+		return key;
 	}
 
 	@Override
 	public synchronized void close() throws ItemStreamException {
-		if (queue == null) {
+		if (!open) {
 			return;
 		}
 		if (!queue.isEmpty()) {
 			log.warn("Closing with items still in queue");
+			queue.clear();
 		}
+		set.clear();
 		publisher.unsubscribe(patterns);
-		queue = null;
 		this.open = false;
 	}
 
