@@ -1,14 +1,8 @@
 package com.redis.spring.batch.reader;
 
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamSupport;
@@ -16,21 +10,15 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.common.Utils;
-
 public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 		implements PollableItemReader<K>, KeyspaceNotificationListener<K> {
-
-	public static final String QUEUE_SIZE_GAUGE_NAME = "reader.notification.queue.size";
-
-	private final Log log = LogFactory.getLog(getClass());
 
 	private final KeyspaceNotificationPublisher<K> publisher;
 	private final Converter<K, K> keyExtractor;
 	protected final K[] patterns;
 	private final QueueOptions queueOptions;
-	private final Set<K> set;
-	private final BlockingQueue<K> queue;
+	private final KeyQueue<K> queue;
+
 	private Predicate<K> filter = k -> true;
 
 	private boolean open;
@@ -43,8 +31,7 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 		this.keyExtractor = keyExtractor;
 		this.patterns = patterns;
 		this.queueOptions = queueOptions;
-		this.set = new HashSet<>();
-		this.queue = new LinkedBlockingQueue<>(queueOptions.getCapacity());
+		this.queue = new DedupingQueue<>(queueOptions);
 	}
 
 	public void setFilter(Predicate<K> filter) {
@@ -57,18 +44,10 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 			return;
 		}
 		K key = keyExtractor.convert(notification);
-		if (set.contains(key)) {
-			return;
-		}
 		if (!filter.test(key)) {
 			return;
 		}
-		boolean result = queue.offer(key);
-		if (result) {
-			set.add(key);
-		} else {
-			log.warn("Could not add key because queue is full");
-		}
+		queue.offer(key);
 	}
 
 	@Override
@@ -81,7 +60,6 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 		if (open) {
 			return;
 		}
-		Utils.createGaugeCollectionSize(QUEUE_SIZE_GAUGE_NAME, queue);
 		publisher.addListener(this);
 		publisher.subscribe(patterns);
 		this.open = true;
@@ -89,12 +67,7 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 
 	@Override
 	public K poll(long timeout, TimeUnit unit) throws InterruptedException {
-		K key = queue.poll(timeout, unit);
-		if (key == null) {
-			return null;
-		}
-		set.remove(key);
-		return key;
+		return queue.poll(timeout, unit);
 	}
 
 	@Override
@@ -102,11 +75,7 @@ public class KeyspaceNotificationItemReader<K> extends ItemStreamSupport
 		if (!open) {
 			return;
 		}
-		if (!queue.isEmpty()) {
-			log.warn("Closing with items still in queue");
-			queue.clear();
-		}
-		set.clear();
+		queue.clear();
 		publisher.unsubscribe(patterns);
 		this.open = false;
 	}
