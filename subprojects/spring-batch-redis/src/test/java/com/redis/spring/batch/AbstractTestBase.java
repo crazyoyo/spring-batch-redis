@@ -7,6 +7,8 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.runner.RunWith;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -54,6 +56,8 @@ import io.lettuce.core.codec.StringCodec;
 @RunWith(SpringRunner.class)
 public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBase {
 
+	private static final Logger log = LoggerFactory.getLogger(AbstractTestBase.class);
+
 	public static final long DEFAULT_IDLE_TIMEOUT = 500;
 
 	@Autowired
@@ -89,9 +93,10 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	 * @throws Exception
 	 */
 	protected boolean compare(String name, RedisTestContext left, RedisTestContext right) throws Exception {
-		Long leftSize = left.sync().dbsize();
-		Long rightSize = right.sync().dbsize();
-		if (!leftSize.equals(rightSize)) {
+		long leftSize = left.sync().dbsize();
+		long rightSize = right.sync().dbsize();
+		if (leftSize != rightSize) {
+			log.info("dbsize {} != {}", leftSize, rightSize);
 			return false;
 		}
 		RedisItemReader<String, KeyComparison<String>> reader = comparisonReader(left, right);
@@ -99,6 +104,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		KeyComparison<String> comparison;
 		while ((comparison = reader.read()) != null) {
 			if (comparison.getStatus() != Status.OK) {
+				log.info("Comparison status: {}", comparison.getStatus());
 				return false;
 			}
 		}
