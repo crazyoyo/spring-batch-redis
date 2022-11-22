@@ -64,15 +64,20 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 
 	@Override
 	protected Job job() {
-		ItemWriter<K> writer = new ProcessingItemWriter<>(new KeyMetadataValueReader<>(pool), this::write);
+		ItemWriter<K> writer = new ProcessingItemWriter<>(new KeyMetadataValueReader<>(pool), new MetadataWriter());
 		FaultTolerantStepBuilder<K, K> step = jobRunner.step(name, reader, null, writer, options.getStepOptions());
 		return jobRunner.job(name).start(step.build()).build();
 	}
 
-	private void write(List<? extends KeyMetadata<K>> items) {
-		for (KeyMetadata<K> item : items) {
-			metadatas.put(new KeyWrapper<>(item.getKey()), item);
+	private class MetadataWriter implements ItemWriter<KeyMetadata<K>> {
+
+		@Override
+		public void write(List<? extends KeyMetadata<K>> items) throws Exception {
+			for (KeyMetadata<K> item : items) {
+				metadatas.put(new KeyWrapper<>(item.getKey()), item);
+			}
 		}
+
 	}
 
 	public boolean onDuplicate(K key) {
