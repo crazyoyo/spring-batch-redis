@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.awaitility.Awaitility;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemStreamException;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.FlushingStepOptions;
@@ -21,8 +23,8 @@ public class LiveRedisItemReader<K, T extends KeyValue<K>> extends RedisItemRead
 	}
 
 	@Override
-	protected void doOpen() {
-		super.doOpen();
+	public void open(ExecutionContext executionContext) throws ItemStreamException {
+		super.open(executionContext);
 		Awaitility.await().timeout(JobRunner.DEFAULT_RUNNING_TIMEOUT)
 				.until(((PollableItemReader<K>) keyReader)::isOpen);
 	}

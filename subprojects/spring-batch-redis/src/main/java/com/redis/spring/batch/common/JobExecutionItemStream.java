@@ -33,18 +33,14 @@ public abstract class JobExecutionItemStream extends ItemStreamSupport {
 	public void open(ExecutionContext executionContext) throws ItemStreamException {
 		synchronized (runningThreads) {
 			if (jobExecution == null) {
-				doOpen();
+				try {
+					jobExecution = jobRunner.runAsync(job());
+				} catch (JobExecutionException e) {
+					throw new ItemStreamException(String.format("Could not run job %s", name), e);
+				}
 			}
 			runningThreads.incrementAndGet();
 			super.open(executionContext);
-		}
-	}
-
-	protected void doOpen() {
-		try {
-			jobExecution = jobRunner.runAsync(job());
-		} catch (JobExecutionException e) {
-			throw new ItemStreamException(String.format("Could not run job %s", name), e);
 		}
 	}
 
@@ -57,13 +53,9 @@ public abstract class JobExecutionItemStream extends ItemStreamSupport {
 			return;
 		}
 		synchronized (runningThreads) {
-			doClose();
+			jobRunner.awaitTermination(jobExecution);
+			jobExecution = null;
 		}
-	}
-
-	protected void doClose() {
-		jobRunner.awaitTermination(jobExecution);
-		jobExecution = null;
 	}
 
 	public boolean isOpen() {

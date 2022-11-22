@@ -549,6 +549,7 @@ class BatchTests extends AbstractTestBase {
 			assertEquals(id1, body, stream, messages.get(0));
 			assertEquals(id2, body, stream, messages.get(1));
 			assertEquals(id3, body, stream, messages.get(2));
+			reader.close();
 			Assertions.assertEquals(0, redis.sync().xpending(stream, consumerGroup).getCount(), "pending messages");
 		}
 
@@ -581,6 +582,7 @@ class BatchTests extends AbstractTestBase {
 			redis.sync().xack(stream, consumerGroup, messages.get(0).getId(), messages.get(1).getId());
 			PendingMessages pendingMsgsAfterCommit = redis.sync().xpending(stream, consumerGroup);
 			Assertions.assertEquals(1, pendingMsgsAfterCommit.getCount(), "pending messages after commit");
+			reader.close();
 		}
 
 		@ParameterizedTest
@@ -607,6 +609,8 @@ class BatchTests extends AbstractTestBase {
 			redis.sync().xadd(stream, body);
 			redis.sync().xadd(stream, body);
 			redis.sync().xadd(stream, body);
+
+			reader.close();
 
 			final StreamItemReader<String, String> reader2 = RedisItemReader.stream(pool(redis), stream, consumer)
 					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).build()).build();
@@ -644,6 +648,7 @@ class BatchTests extends AbstractTestBase {
 			String id4 = redis.sync().xadd(stream, body);
 			String id5 = redis.sync().xadd(stream, body);
 			String id6 = redis.sync().xadd(stream, body);
+			reader.close();
 
 			final StreamItemReader<String, String> reader2 = RedisItemReader.stream(pool(redis), stream, consumer)
 					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).offset(messages.get(1).getId())
@@ -657,6 +662,7 @@ class BatchTests extends AbstractTestBase {
 			List<String> recoveredIds = recoveredMessages.stream().map(StreamMessage::getId)
 					.collect(Collectors.toList());
 			Assertions.assertEquals(Arrays.<String>asList(id3, id4, id5, id6), recoveredIds, "recoveredIds");
+			reader2.close();
 		}
 
 		@ParameterizedTest
@@ -685,6 +691,8 @@ class BatchTests extends AbstractTestBase {
 			String id5 = redis.sync().xadd(stream, body);
 			String id6 = redis.sync().xadd(stream, body);
 
+			reader.close();
+
 			final StreamItemReader<String, String> reader2 = RedisItemReader.stream(pool(redis), stream, consumer)
 					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).offset(id3).build()).build();
 			reader2.open(new ExecutionContext());
@@ -695,6 +703,7 @@ class BatchTests extends AbstractTestBase {
 			List<String> recoveredIds = recoveredRecords.stream().map(StreamMessage::getId)
 					.collect(Collectors.toList());
 			Assertions.assertEquals(Arrays.<String>asList(id4, id5, id6), recoveredIds, "recoveredIds");
+			reader2.close();
 		}
 
 		@ParameterizedTest
@@ -722,6 +731,7 @@ class BatchTests extends AbstractTestBase {
 			String id4 = redis.sync().xadd(stream, body);
 			String id5 = redis.sync().xadd(stream, body);
 			String id6 = redis.sync().xadd(stream, body);
+			reader.close();
 
 			final StreamItemReader<String, String> reader2 = RedisItemReader.stream(pool(redis), stream, consumer)
 					.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.AUTO).build()).build();
@@ -736,6 +746,7 @@ class BatchTests extends AbstractTestBase {
 
 			PendingMessages pending = redis.sync().xpending(stream, consumerGroup);
 			Assertions.assertEquals(0, pending.getCount(), "pending message count");
+			reader2.close();
 		}
 
 		@ParameterizedTest
@@ -749,11 +760,13 @@ class BatchTests extends AbstractTestBase {
 						Consumer.from("batchtests-readmessages", "consumer1")).build();
 				reader.open(new ExecutionContext());
 				List<StreamMessage<String, String>> messages = new ArrayList<>();
-				while (messages.addAll(reader.readMessages())) {
-				}
-				Assertions.assertEquals(COUNT, messages.size());
+				Awaitility.await().until(() -> {
+					messages.addAll(reader.readMessages());
+					return messages.size() == COUNT;
+				});
 				assertMessageBody(messages);
 				Awaitility.await().until(() -> reader.ack(reader.readMessages()) == 0);
+				reader.close();
 			}
 		}
 
@@ -804,8 +817,10 @@ class BatchTests extends AbstractTestBase {
 				Assertions.assertEquals(COUNT, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
 				reader1.open(new ExecutionContext());
 				reader1.ack(writer1.getWrittenItems().stream().map(StreamMessage::getId).toArray(String[]::new));
+				reader1.close();
 				reader2.open(new ExecutionContext());
 				reader2.ack(writer2.getWrittenItems().stream().map(StreamMessage::getId).toArray(String[]::new));
+				reader2.close();
 				Assertions.assertEquals(0, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
 			}
 		}
