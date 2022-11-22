@@ -51,24 +51,22 @@ public class BlockingQueueItemReader<T> extends AbstractItemStreamItemReader<T> 
 		this.open = true;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public void close() {
 		super.close();
-		if (!queue.isEmpty()) {
-			log.warn(String.format("Closing with %s items still in queue", queue.size()));
+		try {
+			queue.put((T) FlushingChunkProvider.POISON_PILL);
+			this.open = false;
+		} catch (InterruptedException e) {
+			log.warn("Interrupted while enqueuing poison pill");
+			Thread.currentThread().interrupt();
 		}
-		queue.clear();
-		this.open = false;
 	}
 
 	@Override
 	public boolean isOpen() {
 		return open;
-	}
-
-	@SuppressWarnings("unchecked")
-	public void stop() throws InterruptedException {
-		queue.put((T) FlushingChunkProvider.POISON_PILL);
 	}
 
 }

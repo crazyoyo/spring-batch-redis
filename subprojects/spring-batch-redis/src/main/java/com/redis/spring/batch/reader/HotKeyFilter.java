@@ -12,7 +12,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemWriter;
 
 import com.redis.spring.batch.common.JobExecutionItemStream;
@@ -100,11 +99,7 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 
 	@Override
 	public void close() {
-		try {
-			reader.stop();
-		} catch (InterruptedException e) {
-			throw new ItemStreamException("Could not stop reader", e);
-		}
+		reader.close();
 		super.close();
 	}
 
