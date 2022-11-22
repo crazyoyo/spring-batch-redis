@@ -9,8 +9,10 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.ObjectUtils;
 
+import com.redis.spring.batch.common.FlushingStepOptions;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.StepOptions;
 
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 import io.lettuce.core.codec.RedisCodec;
@@ -26,18 +28,20 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
 	private final StatefulRedisPubSubConnection<K, V> pubSubConnection;
 	private final Converter<K, K> keyExtractor;
-	private LiveReaderOptions options = LiveReaderOptions.builder().build();
+	private FlushingStepOptions stepOptions = StepOptions.builder().flushing().build();
+	private QueueOptions queueOptions = QueueOptions.builder().build();
+	private QueueOptions notificationQueueOptions = QueueOptions.builder().build();
+
 	private final K[] pubSubPatterns;
 	private Optional<Predicate<K>> keyFilter = Optional.empty();
 
 	public LiveReaderBuilder(JobRunner jobRunner, ItemProcessor<List<? extends K>, List<T>> valueReader,
-			StatefulRedisPubSubConnection<K, V> pubSubConnection, K[] pubSubPatterns,
-			Converter<K, K> eventKeyExtractor) {
+			StatefulRedisPubSubConnection<K, V> pubSubConnection, K[] pubSubPatterns, Converter<K, K> keyExtractor) {
 		this.jobRunner = jobRunner;
 		this.valueReader = valueReader;
 		this.pubSubConnection = pubSubConnection;
 		this.pubSubPatterns = pubSubPatterns;
-		this.keyExtractor = eventKeyExtractor;
+		this.keyExtractor = keyExtractor;
 	}
 
 	public LiveReaderBuilder<K, V, T> keyFilter(Predicate<K> keyFilter) {
@@ -45,19 +49,29 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 		return this;
 	}
 
-	public LiveReaderBuilder<K, V, T> options(LiveReaderOptions options) {
-		this.options = options;
+	public LiveReaderBuilder<K, V, T> stepOptions(FlushingStepOptions options) {
+		this.stepOptions = options;
+		return this;
+	}
+
+	public LiveReaderBuilder<K, V, T> queueOptions(QueueOptions options) {
+		this.queueOptions = options;
+		return this;
+	}
+
+	public LiveReaderBuilder<K, V, T> notificationQueueOptions(QueueOptions options) {
+		this.notificationQueueOptions = options;
 		return this;
 	}
 
 	public LiveRedisItemReader<K, T> build() {
-		KeyspaceNotificationItemReader<K> keyReader = new KeyspaceNotificationItemReader<>(
-				keyspaceNotificationPublisher(), keyExtractor, pubSubPatterns, options.getNotificationQueueOptions());
+		KeyspaceNotificationItemReader<K> keyReader = new KeyspaceNotificationItemReader<>(notificationPublisher(),
+				keyExtractor, pubSubPatterns, notificationQueueOptions);
 		keyFilter.ifPresent(keyReader::setFilter);
-		return new LiveRedisItemReader<>(keyReader, valueReader, jobRunner, options);
+		return new LiveRedisItemReader<>(jobRunner, keyReader, valueReader, stepOptions, queueOptions);
 	}
 
-	private KeyspaceNotificationPublisher<K> keyspaceNotificationPublisher() {
+	private KeyspaceNotificationPublisher<K> notificationPublisher() {
 		if (pubSubConnection instanceof StatefulRedisClusterPubSubConnection) {
 			return new RedisClusterKeyspaceNotificationPublisher<>(
 					(StatefulRedisClusterPubSubConnection<K, V>) pubSubConnection);
@@ -84,7 +98,7 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 
 	public static String[] pubSubPatterns(int database, String... keyPatterns) {
 		if (ObjectUtils.isEmpty(keyPatterns)) {
-			return new String[] { pubSubPattern(database, ScanReaderOptions.DEFAULT_MATCH) };
+			return new String[] { pubSubPattern(database, ScanOptions.DEFAULT_MATCH) };
 		}
 		String[] patterns = new String[keyPatterns.length];
 		for (int index = 0; index < keyPatterns.length; index++) {

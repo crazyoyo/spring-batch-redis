@@ -31,7 +31,7 @@ public class Xadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	@Override
 	protected RedisFuture<String> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Map<K, V> map = body.convert(item);
-		if (map.isEmpty()) {
+		if (map == null || map.isEmpty()) {
 			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
 		}
 		return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.convert(item), map);

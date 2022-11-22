@@ -23,6 +23,8 @@ public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCounting
 	private Supplier<Exception> exceptionSupplier = () -> new TimeoutException("Simulated timeout");
 	private long interval = DEFAULT_INTERVAL;
 
+	private boolean open;
+
 	public ExceptionThrowingPollableItemReader(ItemReader<T> delegate) {
 		setName(ClassUtils.getShortName(ExceptionThrowingPollableItemReader.class));
 		this.delegate = delegate;
@@ -84,12 +86,16 @@ public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCounting
 
 	@Override
 	protected void doOpen() throws Exception {
-		// do nothing
+		this.open = true;
 	}
 
 	@Override
 	protected void doClose() throws Exception {
-		// do nothing
+		this.open = false;
 	}
 
+	@Override
+	public boolean isOpen() {
+		return open;
+	}
 }

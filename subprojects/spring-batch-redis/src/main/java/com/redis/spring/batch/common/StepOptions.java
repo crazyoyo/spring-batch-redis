@@ -1,4 +1,4 @@
-package com.redis.spring.batch.reader;
+package com.redis.spring.batch.common;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -7,26 +7,24 @@ import java.util.Optional;
 
 import org.springframework.batch.core.step.skip.SkipPolicy;
 
-public class ReaderOptions {
+public class StepOptions {
 
 	public static final int DEFAULT_SKIP_LIMIT = 0;
 	public static final int DEFAULT_THREADS = 1;
 	public static final int DEFAULT_CHUNK_SIZE = 50;
 
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
-	private QueueOptions queueOptions = QueueOptions.builder().build();
-	private int skipLimit = DEFAULT_SKIP_LIMIT;
-	private Optional<SkipPolicy> skipPolicy = Optional.empty();
 	private int threads = DEFAULT_THREADS;
+	private Optional<SkipPolicy> skipPolicy = Optional.empty();
+	private int skipLimit = DEFAULT_SKIP_LIMIT;
 	private List<Class<? extends Throwable>> skip = new ArrayList<>();
 	private List<Class<? extends Throwable>> noSkip = new ArrayList<>();
 
-	public ReaderOptions() {
+	public StepOptions() {
 	}
 
-	protected ReaderOptions(Builder<?> builder) {
+	protected StepOptions(BaseBuilder<?> builder) {
 		this.chunkSize = builder.chunkSize;
-		this.queueOptions = builder.queueOptions;
 		this.skip = builder.skip;
 		this.noSkip = builder.noSkip;
 		this.skipLimit = builder.skipLimit;
@@ -52,14 +50,6 @@ public class ReaderOptions {
 
 	public int getChunkSize() {
 		return chunkSize;
-	}
-
-	public QueueOptions getQueueOptions() {
-		return queueOptions;
-	}
-
-	public void setQueueOptions(QueueOptions queueOptions) {
-		this.queueOptions = queueOptions;
 	}
 
 	public void setChunkSize(int chunkSize) {
@@ -92,32 +82,50 @@ public class ReaderOptions {
 
 	@Override
 	public String toString() {
-		return "ReaderOptions [chunkSize=" + chunkSize + ", queueOptions=" + queueOptions + ", skipLimit=" + skipLimit
-				+ ", skipPolicy=" + skipPolicy + ", threads=" + threads + ", skip=" + skip + ", noSkip=" + noSkip + "]";
+		return "ReaderOptions [chunkSize=" + chunkSize + ", skipLimit=" + skipLimit + ", skipPolicy=" + skipPolicy
+				+ ", threads=" + threads + ", skip=" + skip + ", noSkip=" + noSkip + "]";
 	}
 
-	public static class Builder<B extends Builder<B>> {
+	public static Builder builder() {
+		return new Builder();
+	}
+
+	public static class Builder extends BaseBuilder<Builder> {
+
+		public StepOptions build() {
+			return new StepOptions(this);
+		}
+
+		public FlushingStepOptions.Builder flushing() {
+			return new FlushingStepOptions.Builder(this);
+		}
+
+	}
+
+	public static class BaseBuilder<B extends BaseBuilder<B>> {
 
 		private int chunkSize = DEFAULT_CHUNK_SIZE;
-		private QueueOptions queueOptions = QueueOptions.builder().build();
 		private int skipLimit = DEFAULT_SKIP_LIMIT;
 		private List<Class<? extends Throwable>> skip = new ArrayList<>();
 		private List<Class<? extends Throwable>> noSkip = new ArrayList<>();
 		private Optional<SkipPolicy> skipPolicy = Optional.empty();
 		private int threads = DEFAULT_THREADS;
 
-		protected Builder() {
+		protected BaseBuilder() {
+		}
+
+		protected BaseBuilder(BaseBuilder<?> builder) {
+			this.chunkSize = builder.chunkSize;
+			this.skipLimit = builder.skipLimit;
+			this.skip = builder.skip;
+			this.noSkip = builder.noSkip;
+			this.skipPolicy = builder.skipPolicy;
+			this.threads = builder.threads;
 		}
 
 		@SuppressWarnings("unchecked")
 		public B chunkSize(int chunkSize) {
 			this.chunkSize = chunkSize;
-			return (B) this;
-		}
-
-		@SuppressWarnings("unchecked")
-		public B queueOptions(QueueOptions queueOptions) {
-			this.queueOptions = queueOptions;
 			return (B) this;
 		}
 

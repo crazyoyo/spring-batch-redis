@@ -12,12 +12,21 @@ import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamSupport;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
+
+import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 
 public class JobRunner {
 
@@ -114,6 +123,38 @@ public class JobRunner {
 		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
 		awaitRunning(execution);
 		return execution;
+	}
+
+	public <I, O> FaultTolerantStepBuilder<I, O> step(String name, ItemReader<I> reader, ItemProcessor<I, O> processor,
+			ItemWriter<O> writer, StepOptions options) {
+		if (reader instanceof ItemStreamSupport) {
+			((ItemStreamSupport) reader).setName(name + "-reader");
+		}
+		if (writer instanceof ItemStreamSupport) {
+			((ItemStreamSupport) writer).setName(name + "-writer");
+		}
+		SimpleStepBuilder<I, O> step = step(name).<I, O>chunk(options.getChunkSize()).reader(reader)
+				.processor(processor).writer(writer);
+		if (options instanceof FlushingStepOptions) {
+			FlushingStepOptions flushingOptions = (FlushingStepOptions) options;
+			FlushingSimpleStepBuilder<I, O> flushingStep = new FlushingSimpleStepBuilder<>(step);
+			flushingStep.interval(flushingOptions.getInterval().toMillis());
+			flushingOptions.getIdleTimeout().map(Duration::toMillis).ifPresent(flushingStep::idleTimeout);
+			step = flushingStep;
+		}
+		if (options.getThreads() > 1) {
+			ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+			executor.setMaxPoolSize(options.getThreads());
+			executor.setCorePoolSize(options.getThreads());
+			executor.afterPropertiesSet();
+			step.taskExecutor(executor).throttleLimit(options.getThreads());
+		}
+		FaultTolerantStepBuilder<I, O> ftStep = step.faultTolerant();
+		options.getSkip().forEach(ftStep::skip);
+		options.getNoSkip().forEach(ftStep::noSkip);
+		ftStep.skipLimit(options.getSkipLimit());
+		options.getSkipPolicy().ifPresent(ftStep::skipPolicy);
+		return ftStep;
 	}
 
 	public static JobRunner inMemory() throws Exception {

@@ -13,9 +13,9 @@ import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
 import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.common.NoOpRedisFuture;
 import com.redis.spring.batch.common.Utils;
-import com.redis.spring.batch.common.DataStructure.Type;
 
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;

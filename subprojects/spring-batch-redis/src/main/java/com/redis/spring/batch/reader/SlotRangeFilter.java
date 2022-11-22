@@ -8,7 +8,7 @@ import io.lettuce.core.codec.StringCodec;
 
 /**
  * 
- * Predicate for filtering out unwanted keys that fall outside of a given slot
+ * KeyFilter that filters out unwanted keys that fall outside of a given slot
  * range. Returns true if a given key is within the slot range.
  * 
  * @author jruaux

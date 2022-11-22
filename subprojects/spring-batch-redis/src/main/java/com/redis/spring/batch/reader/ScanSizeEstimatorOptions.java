@@ -6,7 +6,7 @@ public class ScanSizeEstimatorOptions {
 
 	private static final long DEFAULT_SAMPLE_SIZE = 100;
 
-	private String match = ScanReaderOptions.DEFAULT_MATCH;
+	private String match = ScanOptions.DEFAULT_MATCH;
 	private long sampleSize = DEFAULT_SAMPLE_SIZE;
 	private Optional<String> type = Optional.empty();
 
@@ -53,7 +53,7 @@ public class ScanSizeEstimatorOptions {
 
 	public static final class Builder {
 
-		private String match = ScanReaderOptions.DEFAULT_MATCH;
+		private String match = ScanOptions.DEFAULT_MATCH;
 		private long sampleSize = DEFAULT_SAMPLE_SIZE;
 		private Optional<String> type = Optional.empty();
 

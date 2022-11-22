@@ -26,6 +26,7 @@ import com.redis.spring.batch.reader.PollableItemReader;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.Timer.Sample;
 
 /**
  * Fault-tolerant implementation of the ChunkProvider interface, that allows for
@@ -41,19 +42,31 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	 * problem).
 	 */
 	public static final int DEFAULT_MAX_SKIPS_ON_READ = 100;
+	public static final long NO_IDLE_TIMEOUT = -1;
+	public static final Object POISON_PILL = new Object();
 
 	private final RepeatOperations repeatOperations;
 
 	private SkipPolicy skipPolicy = new LimitCheckingItemSkipPolicy();
 	private Classifier<Throwable, Boolean> rollbackClassifier = new BinaryExceptionClassifier(true);
 	private int maxSkipsOnRead = DEFAULT_MAX_SKIPS_ON_READ;
-	private FlushingOptions flushingOptions = FlushingOptions.builder().build();
+
+	private long interval = FlushingSimpleStepBuilder.DEFAULT_FLUSHING_INTERVAL;
+	private long idleTimeout = NO_IDLE_TIMEOUT;
 	private long lastActivity = 0;
 
 	public FlushingChunkProvider(ItemReader<? extends I> itemReader, RepeatOperations repeatOperations) {
 		super(itemReader, repeatOperations);
 		Assert.isTrue(itemReader instanceof PollableItemReader, "Reader must extend PollableItemReader");
 		this.repeatOperations = repeatOperations;
+	}
+
+	public void setInterval(long interval) {
+		this.interval = interval;
+	}
+
+	public void setIdleTimeout(long millis) {
+		this.idleTimeout = millis;
 	}
 
 	/**
@@ -87,10 +100,6 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 		this.rollbackClassifier = rollbackClassifier;
 	}
 
-	public void setFlushingOptions(FlushingOptions flushingOptions) {
-		this.flushingOptions = flushingOptions;
-	}
-
 	private void stopTimer(Timer.Sample sample, StepExecution stepExecution, String status) {
 		sample.stop(BatchMetrics.createTimer("item.read", "Item reading duration",
 				Tag.of("job.name", stepExecution.getJobExecution().getJobInstance().getJobName()),
@@ -105,11 +114,11 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 		}
 		final Chunk<I> inputs = new Chunk<>();
 		repeatOperations.iterate(context -> {
-			long pollingTimeout = flushingOptions.getInterval().toMillis() - (System.currentTimeMillis() - start);
+			long pollingTimeout = interval - (System.currentTimeMillis() - start);
 			if (pollingTimeout < 0) {
 				return RepeatStatus.FINISHED;
 			}
-			Timer.Sample sample = Timer.start(Metrics.globalRegistry);
+			Sample sample = Timer.start(Metrics.globalRegistry);
 			I item;
 			try {
 				item = read(contribution, inputs, pollingTimeout);
@@ -118,15 +127,12 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 				stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_FAILURE);
 				return RepeatStatus.FINISHED;
 			}
-			if (item == null) {
-				flushingOptions.getTimeout().ifPresent(timeout -> {
-					long idleDuration = System.currentTimeMillis() - lastActivity;
-					if (idleDuration > timeout.toMillis()) {
-						inputs.setEnd();
-					}
-				});
+			if (item == null || item == POISON_PILL) {
+				if (item == POISON_PILL || (idleTimeout != NO_IDLE_TIMEOUT
+						&& System.currentTimeMillis() - lastActivity > idleTimeout)) {
+					inputs.setEnd();
+				}
 				return RepeatStatus.CONTINUABLE;
-
 			}
 			stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_SUCCESS);
 			inputs.add(item);

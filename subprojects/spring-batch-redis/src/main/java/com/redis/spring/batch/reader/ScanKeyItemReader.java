@@ -14,10 +14,10 @@ import io.lettuce.core.api.StatefulConnection;
 public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 
 	private final GenericObjectPool<StatefulConnection<K, V>> connectionPool;
-	private final ScanReaderOptions options;
+	private final ScanOptions options;
 	private ScanIterator<K> scanIterator;
 
-	public ScanKeyItemReader(GenericObjectPool<StatefulConnection<K, V>> connectionPool, ScanReaderOptions options) {
+	public ScanKeyItemReader(GenericObjectPool<StatefulConnection<K, V>> connectionPool, ScanOptions options) {
 		this.connectionPool = connectionPool;
 		this.options = options;
 	}

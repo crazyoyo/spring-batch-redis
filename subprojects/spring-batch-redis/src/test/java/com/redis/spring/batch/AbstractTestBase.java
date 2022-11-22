@@ -31,18 +31,16 @@ import com.redis.spring.batch.common.ConnectionPoolBuilder;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
-import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.reader.DataStructureGeneratorItemReader;
+import com.redis.spring.batch.common.StepOptions;
+import com.redis.spring.batch.reader.DataGeneratorItemReader;
+import com.redis.spring.batch.reader.DataGeneratorOptions;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 import com.redis.spring.batch.reader.LiveReaderBuilder;
-import com.redis.spring.batch.reader.LiveReaderOptions;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
-import com.redis.spring.batch.reader.ReaderOptions;
-import com.redis.spring.batch.step.FlushingOptions;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.testcontainers.junit.AbstractTestcontainersRedisTestBase;
 import com.redis.testcontainers.junit.RedisTestContext;
@@ -56,9 +54,7 @@ import io.lettuce.core.codec.StringCodec;
 @RunWith(SpringRunner.class)
 public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBase {
 
-	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
-	public static final FlushingOptions DEFAULT_FLUSHING_OPTIONS = FlushingOptions.builder()
-			.timeout(DEFAULT_IDLE_TIMEOUT).build();
+	public static final long DEFAULT_IDLE_TIMEOUT = 500;
 
 	@Autowired
 	protected JobRepository jobRepository;
@@ -135,7 +131,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		if (reader instanceof ItemStreamSupport) {
 			((ItemStreamSupport) reader).setName(name + "-reader");
 		}
-		return jobRunner.step(name).<T, T>chunk(ReaderOptions.DEFAULT_CHUNK_SIZE).reader(reader).writer(writer);
+		return jobRunner.step(name).<T, T>chunk(StepOptions.DEFAULT_CHUNK_SIZE).reader(reader).writer(writer);
 	}
 
 	protected FlowBuilder<SimpleFlow> flow(String name) {
@@ -150,7 +146,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	protected <T> JobExecution runFlushing(String name, PollableItemReader<T> reader, ItemWriter<T> writer)
 			throws JobExecutionException {
 		SimpleStepBuilder<T, T> stepBuilder = step(name, reader, writer);
-		TaskletStep step = new FlushingSimpleStepBuilder<>(stepBuilder).options(DEFAULT_FLUSHING_OPTIONS).build();
+		TaskletStep step = new FlushingSimpleStepBuilder<>(stepBuilder).idleTimeout(DEFAULT_IDLE_TIMEOUT).build();
 		return jobRunner.runAsync(jobRunner.job(name).start(step).build());
 	}
 
@@ -159,8 +155,9 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	protected void generate(RedisTestContext redis) throws JobExecutionException {
-		run(false, name(redis) + "-gen", DataStructureGeneratorItemReader.builder().build(),
-				RedisItemWriter.dataStructure(pool(redis)).build());
+		DataGeneratorOptions options = DataGeneratorOptions.builder().build();
+		DataGeneratorItemReader reader = new DataGeneratorItemReader(options);
+		run(false, name(redis) + "-gen", reader, RedisItemWriter.dataStructure(pool(redis)).build());
 	}
 
 	protected static GenericObjectPool<StatefulConnection<String, String>> pool(RedisTestContext redis) {
@@ -199,12 +196,11 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 				notificationQueueCapacity).build();
 	}
 
-	private <K, V, T extends KeyValue<K>, B extends LiveReaderBuilder<K, V, T>> B configureLiveReader(B builder,
-			int notificationQueueCapacity) {
-		builder.options(LiveReaderOptions.builder()
-				.notificationQueueOptions(QueueOptions.builder().capacity(notificationQueueCapacity).build())
-				.flushingOptions(DEFAULT_FLUSHING_OPTIONS).build());
-		return builder;
+	@SuppressWarnings("unchecked")
+	private <B extends LiveReaderBuilder<?, ?, ?>> B configureLiveReader(B builder, int notificationQueueCapacity) {
+		return (B) builder.notificationQueueOptions(QueueOptions.builder().capacity(notificationQueueCapacity).build())
+				.stepOptions(
+						StepOptions.builder().flushing().idleTimeout(Duration.ofMillis(DEFAULT_IDLE_TIMEOUT)).build());
 	}
 
 	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisTestContext context,

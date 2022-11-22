@@ -55,4 +55,8 @@ public class IntRange {
 		return new IntRange(min, max);
 	}
 
+	public static IntRange to(int max) {
+		return new IntRange(0, max);
+	}
+
 }

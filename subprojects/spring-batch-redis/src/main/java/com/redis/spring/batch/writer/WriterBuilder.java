@@ -1,5 +1,7 @@
 package com.redis.spring.batch.writer;
 
+import java.util.Optional;
+
 import org.apache.commons.pool2.impl.GenericObjectPool;
 
 import com.redis.spring.batch.RedisItemWriter;
@@ -28,8 +30,9 @@ public class WriterBuilder<K, V, T> {
 	}
 
 	private PipelinedOperation<K, V, T> operation() {
-		if (options.getWaitForReplication().isPresent()) {
-			return new WaitForReplicationOperation<>(operation, options.getWaitForReplication().get());
+		Optional<WaitForReplication> waitForReplication = options.getWaitForReplication();
+		if (waitForReplication.isPresent()) {
+			return new WaitForReplicationOperation<>(operation, waitForReplication.get());
 		}
 		return operation;
 	}

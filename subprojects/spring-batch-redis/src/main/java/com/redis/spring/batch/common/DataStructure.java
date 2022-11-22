@@ -64,7 +64,8 @@ public class DataStructure<K> extends KeyTtlValue<K> {
 
 	public enum Type {
 
-		NONE, UNKNOWN, SET, LIST, ZSET, STREAM, STRING, HASH, JSON("ReJSON-RL"), TIMESERIES("TSDB-TYPE");
+		NONE("none"), UNKNOWN, SET("set"), LIST("list"), ZSET("zset"), STREAM("stream"), STRING("string"), HASH("hash"),
+		JSON("ReJSON-RL"), TIMESERIES("TSDB-TYPE");
 
 		private static final Map<String, Type> TYPES = Stream.of(Type.values())
 				.collect(Collectors.toMap(t -> t.string.toLowerCase(), t -> t));

@@ -96,9 +96,9 @@ public class ScanSizeEstimator {
 						: ((RedisKeyAsyncCommands<String, String>) commands).type(key));
 			}
 			connection.flushCommands();
-			Predicate<String> matchPredicate = matchPredicate();
+			Predicate<String> matchFilter = matchFilter();
 			for (Map.Entry<String, RedisFuture<String>> entry : keyTypeFutures.entrySet()) {
-				if (!matchPredicate.test(entry.getKey())) {
+				if (!matchFilter.test(entry.getKey())) {
 					continue;
 				}
 				Optional<String> type = options.getType();
@@ -113,7 +113,7 @@ public class ScanSizeEstimator {
 		}
 	}
 
-	private Predicate<String> matchPredicate() {
+	private Predicate<String> matchFilter() {
 		MatchingEngine engine = GlobPattern.compile(options.getMatch());
 		return engine::matches;
 	}
