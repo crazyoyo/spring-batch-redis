@@ -58,7 +58,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 
 	private static final Logger log = LoggerFactory.getLogger(AbstractTestBase.class);
 
-	public static final long DEFAULT_IDLE_TIMEOUT = 500;
+	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
 
 	@Autowired
 	protected JobRepository jobRepository;
@@ -203,17 +203,14 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	}
 
 	@SuppressWarnings("unchecked")
-	private <B extends LiveReaderBuilder<?, ?, ?>> B configureLiveReader(B builder, int notificationQueueCapacity) {
+	protected <B extends LiveReaderBuilder<?, ?, ?>> B configureLiveReader(B builder, int notificationQueueCapacity) {
 		return (B) builder.notificationQueueOptions(QueueOptions.builder().capacity(notificationQueueCapacity).build())
-				.stepOptions(
-						StepOptions.builder().flushing().idleTimeout(Duration.ofMillis(DEFAULT_IDLE_TIMEOUT)).build());
+				.stepOptions(StepOptions.builder().flushing().idleTimeout(DEFAULT_IDLE_TIMEOUT).build());
 	}
 
-	protected LiveReaderBuilder<String, String, DataStructure<String>> liveDataStructureReader(RedisTestContext context,
-			int notificationQueueCapacity) throws Exception {
-		return configureLiveReader(
-				RedisItemReader.liveDataStructure(pool(context), jobRunner, context.getPubSubConnection()),
-				notificationQueueCapacity);
+	protected LiveReaderBuilder<String, String, DataStructure<String>> liveDataStructureReader(RedisTestContext context)
+			throws Exception {
+		return RedisItemReader.liveDataStructure(pool(context), jobRunner, context.getPubSubConnection());
 	}
 
 	protected void flushAll(RedisTestContext context) {

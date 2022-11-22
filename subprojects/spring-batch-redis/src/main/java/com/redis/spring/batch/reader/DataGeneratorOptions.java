@@ -12,10 +12,10 @@ import com.redis.spring.batch.common.IntRange;
 public class DataGeneratorOptions {
 
 	public static final String DEFAULT_KEYSPACE = "gen";
-	public static final MapOptions DEFAULT_HASH_OPTIONS = MapOptions.builder().build();
+	public static final HashOptions DEFAULT_HASH_OPTIONS = HashOptions.builder().build();
 	public static final StreamOptions DEFAULT_STREAM_OPTIONS = StreamOptions.builder().build();
 	public static final TimeSeriesOptions DEFAULT_TIMESERIES_OPTIONS = TimeSeriesOptions.builder().build();
-	public static final MapOptions DEFAULT_JSON_OPTIONS = MapOptions.builder().build();
+	public static final JsonOptions DEFAULT_JSON_OPTIONS = JsonOptions.builder().build();
 	public static final SetOptions DEFAULT_SET_OPTIONS = SetOptions.builder().build();
 	public static final ListOptions DEFAULT_LIST_OPTIONS = ListOptions.builder().build();
 	public static final StringOptions DEFAULT_STRING_OPTIONS = StringOptions.builder().build();
@@ -339,10 +339,10 @@ public class DataGeneratorOptions {
 	public static class StreamOptions {
 
 		public static final IntRange DEFAULT_MESSAGE_COUNT = IntRange.is(10);
-		private static final MapOptions DEFAULT_BODY_OPTIONS = MapOptions.builder().build();
+		private static final BodyOptions DEFAULT_BODY_OPTIONS = BodyOptions.builder().build();
 
 		private IntRange messageCount = DEFAULT_MESSAGE_COUNT;
-		private MapOptions bodyOptions = DEFAULT_BODY_OPTIONS;
+		private BodyOptions bodyOptions = DEFAULT_BODY_OPTIONS;
 
 		private StreamOptions(Builder builder) {
 			this.messageCount = builder.messageCount;
@@ -361,8 +361,26 @@ public class DataGeneratorOptions {
 			return bodyOptions;
 		}
 
-		public void setBodyOptions(MapOptions bodyOptions) {
+		public void setBodyOptions(BodyOptions bodyOptions) {
 			this.bodyOptions = bodyOptions;
+		}
+
+		public static class BodyOptions extends MapOptions {
+
+			private BodyOptions(Builder builder) {
+				super(builder);
+			}
+
+			public static Builder builder() {
+				return new Builder();
+			}
+
+			public static class Builder extends MapOptions.Builder<Builder> {
+
+				public BodyOptions build() {
+					return new BodyOptions(this);
+				}
+			}
 		}
 
 		public static Builder builder() {
@@ -372,7 +390,7 @@ public class DataGeneratorOptions {
 		public static final class Builder {
 
 			private IntRange messageCount = DEFAULT_MESSAGE_COUNT;
-			private MapOptions bodyOptions = DEFAULT_BODY_OPTIONS;
+			private BodyOptions bodyOptions = DEFAULT_BODY_OPTIONS;
 
 			private Builder() {
 			}
@@ -386,8 +404,8 @@ public class DataGeneratorOptions {
 				return messageCount(IntRange.is(count));
 			}
 
-			public Builder bodyOptions(MapOptions bodyOptions) {
-				this.bodyOptions = bodyOptions;
+			public Builder bodyOptions(BodyOptions options) {
+				this.bodyOptions = options;
 				return this;
 			}
 
@@ -509,6 +527,42 @@ public class DataGeneratorOptions {
 
 	}
 
+	public static class HashOptions extends MapOptions {
+
+		private HashOptions(Builder builder) {
+			super(builder);
+		}
+
+		public static Builder builder() {
+			return new Builder();
+		}
+
+		public static class Builder extends MapOptions.Builder<Builder> {
+
+			public HashOptions build() {
+				return new HashOptions(this);
+			}
+		}
+	}
+
+	public static class JsonOptions extends MapOptions {
+
+		private JsonOptions(Builder builder) {
+			super(builder);
+		}
+
+		public static Builder builder() {
+			return new Builder();
+		}
+
+		public static class Builder extends MapOptions.Builder<Builder> {
+
+			public JsonOptions build() {
+				return new JsonOptions(this);
+			}
+		}
+	}
+
 	public static class MapOptions {
 
 		public static final IntRange DEFAULT_FIELD_COUNT = IntRange.is(10);
@@ -517,7 +571,7 @@ public class DataGeneratorOptions {
 		private IntRange fieldCount = DEFAULT_FIELD_COUNT;
 		private IntRange fieldLength = DEFAULT_FIELD_LENGTH;
 
-		private MapOptions(Builder builder) {
+		protected MapOptions(Builder<?> builder) {
 			this.fieldCount = builder.fieldCount;
 			this.fieldLength = builder.fieldLength;
 		}
@@ -538,11 +592,7 @@ public class DataGeneratorOptions {
 			this.fieldLength = length;
 		}
 
-		public static Builder builder() {
-			return new Builder();
-		}
-
-		public static final class Builder {
+		public static class Builder<B extends Builder<B>> {
 
 			private IntRange fieldCount = DEFAULT_FIELD_COUNT;
 			private IntRange fieldLength = DEFAULT_FIELD_LENGTH;
@@ -550,14 +600,16 @@ public class DataGeneratorOptions {
 			private Builder() {
 			}
 
-			public Builder fieldCount(IntRange count) {
+			@SuppressWarnings("unchecked")
+			public B fieldCount(IntRange count) {
 				this.fieldCount = count;
-				return this;
+				return (B) this;
 			}
 
-			public Builder fieldLength(IntRange length) {
+			@SuppressWarnings("unchecked")
+			public B fieldLength(IntRange length) {
 				this.fieldLength = length;
-				return this;
+				return (B) this;
 			}
 
 			public MapOptions build() {

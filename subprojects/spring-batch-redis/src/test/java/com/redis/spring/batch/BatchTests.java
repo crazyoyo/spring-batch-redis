@@ -123,7 +123,7 @@ class BatchTests extends AbstractTestBase {
 			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 	protected static final RedisEnterpriseContainer REDIS_ENTERPRISE = new RedisEnterpriseContainer(
 			RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
-			.withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(90)).ossCluster(true).build());
+			.withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(50)).ossCluster(true).build());
 	private static final RedisContainer TARGET = new RedisContainer(
 			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 
@@ -339,7 +339,7 @@ class BatchTests extends AbstractTestBase {
 					.keyFilter(SlotRangeFilter.of(0, 8000)).build().getKeyReader();
 			keyReader.setName(name(redis) + "-reader");
 			keyReader.open(new ExecutionContext());
-			int count = 1000;
+			int count = 100;
 			generate(redis, DataGeneratorOptions.builder().count(count).build());
 			Set<String> keys = new HashSet<>(readFully(keyReader));
 			Assertions.assertFalse(keys.stream().map(SlotHash::getSlot).anyMatch(s -> s < 0 || s > 8000));
@@ -488,7 +488,7 @@ class BatchTests extends AbstractTestBase {
 	@Nested
 	class Stream extends NestedTestInstance {
 
-		private static final int COUNT = 100;
+		private static final int COUNT = 57;
 
 		private static final String DEFAULT_CONSUMER_GROUP = "consumerGroup";
 
@@ -916,7 +916,8 @@ class BatchTests extends AbstractTestBase {
 			enableKeyspaceNotifications(redis);
 			String key = "myset";
 			redis.sync().sadd(key, "1", "2", "3", "4", "5");
-			LiveRedisItemReader<String, DataStructure<String>> reader = liveDataStructureReader(redis, 100).build();
+			LiveRedisItemReader<String, DataStructure<String>> reader = configureLiveReader(
+					liveDataStructureReader(redis), 100).build();
 			RedisItemWriter<String, String, DataStructure<String>> writer = replicationDataStructureWriter().build();
 			JobExecution execution = run(true, name(redis), reader, writer);
 			awaitOpen(reader);
@@ -953,7 +954,8 @@ class BatchTests extends AbstractTestBase {
 		void liveDataStructures(RedisTestContext redis) throws Exception {
 			enableKeyspaceNotifications(redis);
 			liveReplication(redis, dataStructureReader(redis), replicationDataStructureWriter().build(),
-					liveDataStructureReader(redis, 100000).build(), replicationDataStructureWriter().build());
+					configureLiveReader(liveDataStructureReader(redis), 100000).build(),
+					replicationDataStructureWriter().build());
 		}
 
 		@ParameterizedTest
@@ -962,9 +964,9 @@ class BatchTests extends AbstractTestBase {
 			enableKeyspaceNotifications(redis);
 			RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
 			RedisItemWriter<String, String, DataStructure<String>> writer = replicationDataStructureWriter().build();
-			Duration idleTimeout = Duration.ofMillis(500);
-			LiveRedisItemReader<String, DataStructure<String>> liveReader = liveDataStructureReader(redis, 100000)
-					.stepOptions(StepOptions.builder().flushing().idleTimeout(idleTimeout).build()).build();
+			LiveRedisItemReader<String, DataStructure<String>> liveReader = configureLiveReader(
+					liveDataStructureReader(redis), 100000)
+					.stepOptions(StepOptions.builder().flushing().idleTimeout(DEFAULT_IDLE_TIMEOUT).build()).build();
 			KeyspaceNotificationItemReader<String> keyReader = (KeyspaceNotificationItemReader<String>) liveReader
 					.getKeyReader();
 			HotKeyFilterOptions options = HotKeyFilterOptions.builder().maxMemoryUsage(DataSize.of(100, DataUnit.BYTES))
@@ -977,11 +979,11 @@ class BatchTests extends AbstractTestBase {
 					.build();
 			String name = name(redis);
 			generate(redis, DataGeneratorOptions.builder()
-					.types(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET).count(3000).build());
+					.types(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET).count(300).build());
 			TaskletStep step = step(name + "-snapshot", reader, writer).build();
 			SimpleFlow flow = flow(name + "-snapshot-flow").start(step).build();
 			TaskletStep liveStep = new FlushingSimpleStepBuilder<>(step(name + "-live-step", liveReader, liveWriter))
-					.idleTimeout(idleTimeout).build();
+					.idleTimeout(DEFAULT_IDLE_TIMEOUT).build();
 			SimpleFlow liveFlow = flow(name + "-live-flow").start(liveStep).build();
 			Job job = jobBuilderFactory.get(name + "-job")
 					.start(flow(name + "-flow").split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build())
@@ -1013,7 +1015,7 @@ class BatchTests extends AbstractTestBase {
 				throws Exception {
 			String name = name(redis);
 			generate(redis, DataGeneratorOptions.builder()
-					.types(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET).count(3000).build());
+					.types(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET).count(300).build());
 			TaskletStep step = step(name + "-snapshot", reader, writer).build();
 			SimpleFlow flow = flow(name + "-snapshot-flow").start(step).build();
 			TaskletStep liveStep = new FlushingSimpleStepBuilder<>(step(name + "-live-step", liveReader, liveWriter))
@@ -1026,7 +1028,7 @@ class BatchTests extends AbstractTestBase {
 			awaitOpen(liveReader);
 			generate(name(redis) + "-generate-2", redis,
 					DataGeneratorOptions.builder().types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET)
-							.expiration(IntRange.is(100)).range(IntRange.between(3000, 10000)).build());
+							.expiration(IntRange.is(100)).range(IntRange.between(300, 1000)).build());
 			jobRunner.awaitTermination(execution);
 			Assertions.assertTrue(compare(name, redis, getContext(TARGET)));
 		}
@@ -1103,7 +1105,7 @@ class BatchTests extends AbstractTestBase {
 		@RedisTestContextsSource
 		void scanSizeEstimator(RedisTestContext redis) throws Exception {
 			String pattern = DataGeneratorOptions.DEFAULT_KEYSPACE + "*";
-			int count = 12345;
+			int count = 543;
 			generate(redis, DataGeneratorOptions.builder().count(count).build());
 			long expectedCount = redis.sync().dbsize();
 			Builder estimator = ScanSizeEstimator.builder(pool(redis));
