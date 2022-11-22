@@ -349,8 +349,8 @@ class BatchTests extends AbstractTestBase {
 		@ParameterizedTest
 		@RedisTestContextsSource
 		void filterHotKeys(RedisTestContext redis) throws Exception {
-			generate(redis, DataGeneratorOptions.builder().types(Type.SET)
-					.setOptions(SetOptions.builder().memberCount(IntRange.is(1000)).build()).count(1).build());
+			SetOptions setOptions = SetOptions.builder().memberCount(IntRange.is(1000)).build();
+			generate(redis, DataGeneratorOptions.builder().types(Type.SET).setOptions(setOptions).count(1).build());
 			HotKeyFilterOptions options = HotKeyFilterOptions.builder().maxMemoryUsage(DataSize.of(100, DataUnit.BYTES))
 					.maxThroughput(1).build();
 			HotKeyFilter<String, String> filter = new HotKeyFilter<>(pool(redis), jobRunner, options);

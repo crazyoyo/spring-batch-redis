@@ -100,7 +100,7 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 
 	@Override
 	public void close() {
-		reader.close();
+		reader.stop();
 		super.close();
 	}
 
