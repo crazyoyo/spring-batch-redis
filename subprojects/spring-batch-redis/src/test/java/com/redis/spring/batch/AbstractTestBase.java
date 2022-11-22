@@ -203,11 +203,11 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 						StepOptions.builder().flushing().idleTimeout(Duration.ofMillis(DEFAULT_IDLE_TIMEOUT)).build());
 	}
 
-	protected LiveRedisItemReader<String, DataStructure<String>> liveDataStructureReader(RedisTestContext context,
+	protected LiveReaderBuilder<String, String, DataStructure<String>> liveDataStructureReader(RedisTestContext context,
 			int notificationQueueCapacity) throws Exception {
 		return configureLiveReader(
 				RedisItemReader.liveDataStructure(pool(context), jobRunner, context.getPubSubConnection()),
-				notificationQueueCapacity).build();
+				notificationQueueCapacity);
 	}
 
 	protected void flushAll(RedisTestContext context) {

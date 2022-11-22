@@ -17,6 +17,7 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -357,7 +358,10 @@ class BatchTests extends AbstractTestBase {
 			filter.open(new ExecutionContext());
 			String key = "gen:1";
 			Assertions.assertTrue(filter.test(key));
-			Awaitility.await().pollInterval(Duration.ofMillis(1)).until(() -> !filter.onDuplicate(key));
+			Awaitility.await().pollInterval(Duration.ofMillis(1)).until(() -> {
+				filter.onDuplicate(key);
+				return filter.test(key);
+			});
 			filter.close();
 		}
 
@@ -835,7 +839,7 @@ class BatchTests extends AbstractTestBase {
 
 		@ParameterizedTest
 		@RedisTestContextsSource
-		void dataStructure(RedisTestContext redis) throws Exception {
+		void dataStructures(RedisTestContext redis) throws Exception {
 			RedisTestContext target = getContext(TARGET);
 			generate(redis, DataGeneratorOptions.builder().count(100).build());
 			RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
@@ -891,11 +895,11 @@ class BatchTests extends AbstractTestBase {
 
 		@ParameterizedTest
 		@RedisTestContextsSource
-		void liveDataStructureSet(RedisTestContext redis) throws Exception {
+		void liveSet(RedisTestContext redis) throws Exception {
 			enableKeyspaceNotifications(redis);
 			String key = "myset";
 			redis.sync().sadd(key, "1", "2", "3", "4", "5");
-			LiveRedisItemReader<String, DataStructure<String>> reader = liveDataStructureReader(redis, 100);
+			LiveRedisItemReader<String, DataStructure<String>> reader = liveDataStructureReader(redis, 100).build();
 			RedisItemWriter<String, String, DataStructure<String>> writer = replicationDataStructureWriter().build();
 			JobExecution execution = run(true, name(redis), reader, writer);
 			awaitOpen(reader);
@@ -929,10 +933,57 @@ class BatchTests extends AbstractTestBase {
 
 		@ParameterizedTest
 		@RedisTestContextsSource
-		void liveDataStructure(RedisTestContext redis) throws Exception {
+		void liveDataStructures(RedisTestContext redis) throws Exception {
 			enableKeyspaceNotifications(redis);
 			liveReplication(redis, dataStructureReader(redis), replicationDataStructureWriter().build(),
-					liveDataStructureReader(redis, 100000), replicationDataStructureWriter().build());
+					liveDataStructureReader(redis, 100000).build(), replicationDataStructureWriter().build());
+		}
+
+		@ParameterizedTest
+		@RedisTestContextsSource
+		void liveDataStructuresWithHotKeyFilter(RedisTestContext redis) throws Exception {
+			enableKeyspaceNotifications(redis);
+			RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
+			RedisItemWriter<String, String, DataStructure<String>> writer = replicationDataStructureWriter().build();
+			Duration idleTimeout = Duration.ofMillis(500);
+			LiveRedisItemReader<String, DataStructure<String>> liveReader = liveDataStructureReader(redis, 100000)
+					.stepOptions(StepOptions.builder().flushing().idleTimeout(idleTimeout).build()).build();
+			KeyspaceNotificationItemReader<String> keyReader = (KeyspaceNotificationItemReader<String>) liveReader
+					.getKeyReader();
+			HotKeyFilterOptions options = HotKeyFilterOptions.builder().maxMemoryUsage(DataSize.of(100, DataUnit.BYTES))
+					.maxThroughput(1).build();
+			HotKeyFilter<String, String> filter = new HotKeyFilter<>(pool(redis), jobRunner, options);
+			filter.setName(name(redis) + "-filter");
+			keyReader.addKeyListener(filter);
+			keyReader.setFilter(filter);
+			RedisItemWriter<String, String, DataStructure<String>> liveWriter = replicationDataStructureWriter()
+					.build();
+			String name = name(redis);
+			generate(redis, DataGeneratorOptions.builder()
+					.types(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET).count(3000).build());
+			TaskletStep step = step(name + "-snapshot", reader, writer).build();
+			SimpleFlow flow = flow(name + "-snapshot-flow").start(step).build();
+			TaskletStep liveStep = new FlushingSimpleStepBuilder<>(step(name + "-live-step", liveReader, liveWriter))
+					.idleTimeout(idleTimeout).build();
+			SimpleFlow liveFlow = flow(name + "-live-flow").start(liveStep).build();
+			Job job = jobBuilderFactory.get(name + "-job")
+					.start(flow(name + "-flow").split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build())
+					.build().build();
+			JobExecution execution = jobRunner.runAsync(job);
+			awaitOpen(liveReader);
+
+			String hotkey = "hotkey:1";
+			for (int index = 0; index < 1000; index++) {
+				redis.sync().sadd(hotkey, "member:" + index);
+			}
+			RedisTestContext target = getContext(TARGET);
+			Awaitility.await().until(() -> !target.sync().keys("hotkey:*").isEmpty());
+			AtomicInteger index = new AtomicInteger(1000);
+			Awaitility.await().timeout(Duration.ofMinutes(5)).pollDelay(Duration.ofMillis(1)).until(() -> {
+				redis.sync().sadd(hotkey, "member:" + index.getAndIncrement());
+				return redis.sync().scard(hotkey) > target.sync().scard(hotkey) + 1000;
+			});
+			jobRunner.awaitTermination(execution);
 		}
 
 		private WriterBuilder<String, String, DataStructure<String>> replicationDataStructureWriter() {

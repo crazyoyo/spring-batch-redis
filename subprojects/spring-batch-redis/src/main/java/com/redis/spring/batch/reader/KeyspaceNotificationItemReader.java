@@ -1,5 +1,7 @@
 package com.redis.spring.batch.reader;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -30,6 +32,7 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 	private final Converter<K, K> keyExtractor;
 	private final K[] patterns;
 	private final QueueOptions queueOptions;
+	private final List<KeyListener<K>> listeners = new ArrayList<>();
 	private BlockingQueue<KeyWrapper<K>> queue;
 
 	private Predicate<K> filter = k -> true;
@@ -44,6 +47,10 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 		this.queueOptions = queueOptions;
 	}
 
+	public void addKeyListener(KeyListener<K> listener) {
+		this.listeners.add(listener);
+	}
+
 	public void setFilter(Predicate<K> filter) {
 		this.filter = filter;
 	}
@@ -55,7 +62,12 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 		}
 		K key = keyExtractor.convert(notification);
 		if (filter.test(key)) {
-			boolean added = queue.offer(new KeyWrapper<>(key));
+			KeyWrapper<K> wrapper = new KeyWrapper<>(key);
+			if (queue.contains(wrapper)) {
+				listeners.forEach(l -> l.onDuplicate(key));
+				return false;
+			}
+			boolean added = queue.offer(wrapper);
 			if (!added) {
 				log.warn("Could not enqueue key");
 			}
@@ -118,6 +130,12 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 			return null;
 		}
 		return wrapper.getKey();
+	}
+
+	public interface KeyListener<K> {
+
+		void onDuplicate(K key);
+
 	}
 
 }

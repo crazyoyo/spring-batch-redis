@@ -18,10 +18,11 @@ import com.redis.spring.batch.common.JobExecutionItemStream;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.ProcessingItemWriter;
 import com.redis.spring.batch.common.queue.ConcurrentSetBlockingQueue;
+import com.redis.spring.batch.reader.KeyspaceNotificationItemReader.KeyListener;
 
 import io.lettuce.core.api.StatefulConnection;
 
-public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predicate<K> {
+public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predicate<K>, KeyListener<K> {
 
 	private final Log log = LogFactory.getLog(getClass());
 
@@ -79,7 +80,8 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 
 	}
 
-	public boolean onDuplicate(K key) {
+	@Override
+	public void onDuplicate(K key) {
 		KeyInfo info = keyInfos.computeIfAbsent(new KeyWrapper<>(key), w -> new KeyInfo());
 		long count = info.incrementCount();
 		long duration = info.getDuration();
@@ -94,7 +96,6 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 				}
 			}
 		}
-		return test(key);
 	}
 
 	@Override
