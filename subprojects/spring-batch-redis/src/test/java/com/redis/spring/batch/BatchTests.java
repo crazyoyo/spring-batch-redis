@@ -748,8 +748,10 @@ class BatchTests extends AbstractTestBase {
 				StreamItemReader<String, String> reader = streamReader(redis, key,
 						Consumer.from("batchtests-readmessages", "consumer1")).build();
 				reader.open(new ExecutionContext());
-				List<StreamMessage<String, String>> messages = reader.readMessages();
-				Assertions.assertEquals(StreamReaderOptions.DEFAULT_COUNT, messages.size());
+				List<StreamMessage<String, String>> messages = new ArrayList<>();
+				while (messages.addAll(reader.readMessages())) {
+				}
+				Assertions.assertEquals(COUNT, messages.size());
 				assertMessageBody(messages);
 				Awaitility.await().until(() -> reader.ack(reader.readMessages()) == 0);
 			}
