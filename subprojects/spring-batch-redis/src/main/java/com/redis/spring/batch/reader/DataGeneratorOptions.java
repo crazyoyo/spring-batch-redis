@@ -21,7 +21,8 @@ public class DataGeneratorOptions {
 	public static final StringOptions DEFAULT_STRING_OPTIONS = StringOptions.builder().build();
 	public static final ZsetOptions DEFAULT_ZSET_OPTIONS = ZsetOptions.builder().build();
 	private static final Type[] DEFAULT_TYPES = { Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET };
-	public static final IntRange DEFAULT_RANGE = IntRange.between(0, 100);
+	public static final int DEFAULT_KEY_RANGE_MAX = 100;
+	public static final IntRange DEFAULT_KEY_RANGE = IntRange.between(1, DEFAULT_KEY_RANGE_MAX);
 
 	private Optional<IntRange> expiration = Optional.empty();
 	private MapOptions hashOptions = DEFAULT_HASH_OPTIONS;
@@ -34,7 +35,7 @@ public class DataGeneratorOptions {
 	private ZsetOptions zsetOptions = DEFAULT_ZSET_OPTIONS;
 	private String keyspace = DEFAULT_KEYSPACE;
 	private Set<Type> types = defaultTypes();
-	private IntRange keyRange = DEFAULT_RANGE;
+	private IntRange keyRange = DEFAULT_KEY_RANGE;
 
 	public static Set<Type> defaultTypes() {
 		return Stream.of(DEFAULT_TYPES).collect(Collectors.toSet());
@@ -156,7 +157,7 @@ public class DataGeneratorOptions {
 	}
 
 	public static class Builder {
-		private IntRange keyRange = DEFAULT_RANGE;
+		private IntRange keyRange = DEFAULT_KEY_RANGE;
 		private String keyspace = DEFAULT_KEYSPACE;
 		private Set<Type> types = defaultTypes();
 		private Optional<IntRange> expiration = Optional.empty();
@@ -230,7 +231,7 @@ public class DataGeneratorOptions {
 		}
 
 		public Builder count(int count) {
-			return range(IntRange.to(count));
+			return range(IntRange.between(1, count));
 		}
 
 		public DataGeneratorOptions build() {
@@ -418,29 +419,48 @@ public class DataGeneratorOptions {
 
 	protected static class CollectionOptions {
 
-		public static final IntRange DEFAULT_MEMBER_COUNT = IntRange.is(10);
+		public static final IntRange DEFAULT_MEMBER_RANGE = IntRange.between(1, 100);
+		public static final IntRange DEFAULT_CARDINALITY = IntRange.is(100);
 
-		private IntRange memberCount = DEFAULT_MEMBER_COUNT;
+		private IntRange memberRange = DEFAULT_MEMBER_RANGE;
+		private IntRange cardinality = DEFAULT_CARDINALITY;
 
 		protected CollectionOptions(Builder<?> builder) {
-			this.memberCount = builder.memberCount;
+			this.memberRange = builder.memberRange;
+			this.cardinality = builder.cardinality;
 		}
 
-		public IntRange getMemberCount() {
-			return memberCount;
+		public IntRange getMemberRange() {
+			return memberRange;
 		}
 
-		public void setMemberCount(IntRange count) {
-			this.memberCount = count;
+		public void setMemberRange(IntRange range) {
+			this.memberRange = range;
+		}
+
+		public IntRange getCardinality() {
+			return cardinality;
+		}
+
+		public void setCardinality(IntRange cardinality) {
+			this.cardinality = cardinality;
 		}
 
 		public static class Builder<B extends Builder<B>> {
 
-			private IntRange memberCount = DEFAULT_MEMBER_COUNT;
+			private IntRange memberRange = DEFAULT_MEMBER_RANGE;
+
+			private IntRange cardinality = DEFAULT_CARDINALITY;
 
 			@SuppressWarnings("unchecked")
-			public B memberCount(IntRange memberCount) {
-				this.memberCount = memberCount;
+			public B memberRange(IntRange range) {
+				this.memberRange = range;
+				return (B) this;
+			}
+
+			@SuppressWarnings("unchecked")
+			public B cardinality(IntRange cardinality) {
+				this.cardinality = cardinality;
 				return (B) this;
 			}
 

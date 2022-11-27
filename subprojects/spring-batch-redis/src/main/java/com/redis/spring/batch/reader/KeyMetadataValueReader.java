@@ -42,7 +42,9 @@ public class KeyMetadataValueReader<K, V> extends AbstractValueReader<K, V, KeyM
 			KeyMetadata<K> metadata = new KeyMetadata<>();
 			metadata.setKey(key);
 			metadata.setType(type);
-			metadata.setMemoryUsage(mem);
+			if (mem != null) {
+				metadata.setMemoryUsage(mem);
+			}
 			metadatas.add(metadata);
 		}
 		return metadatas;

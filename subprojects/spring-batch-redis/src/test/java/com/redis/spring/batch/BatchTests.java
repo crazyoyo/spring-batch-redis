@@ -349,19 +349,21 @@ class BatchTests extends AbstractTestBase {
 		@ParameterizedTest
 		@RedisTestContextsSource
 		void filterHotKeys(RedisTestContext redis) throws Exception {
-			SetOptions setOptions = SetOptions.builder().memberCount(IntRange.is(1000)).build();
+			SetOptions setOptions = SetOptions.builder().cardinality(IntRange.is(1000)).build();
 			generate(redis, DataGeneratorOptions.builder().types(Type.SET).setOptions(setOptions).count(1).build());
 			HotKeyFilterOptions options = HotKeyFilterOptions.builder().maxMemoryUsage(DataSize.of(100, DataUnit.BYTES))
-					.maxThroughput(1).build();
+					.maxThroughput(1).pruneInterval(Duration.ofSeconds(1)).build();
 			HotKeyFilter<String, String> filter = new HotKeyFilter<>(pool(redis), jobRunner, options);
-			filter.setName(name(redis) + "-reader");
+			filter.setName(name(redis) + "-filter");
 			filter.open(new ExecutionContext());
 			String key = "gen:1";
 			Assertions.assertTrue(filter.test(key));
 			Awaitility.await().pollInterval(Duration.ofMillis(1)).until(() -> {
 				filter.onDuplicate(key);
-				return filter.test(key);
+				return !filter.test(key);
 			});
+			Assertions.assertTrue(filter.getKeyInfos().containsKey(key));
+			Awaitility.await().until(() -> filter.getKeyInfos().isEmpty());
 			filter.close();
 		}
 
@@ -476,7 +478,7 @@ class BatchTests extends AbstractTestBase {
 			GenericObjectPool<StatefulConnection<String, String>> pool = pool(redis);
 			KeyMetadataValueReader<String, String> reader = new KeyMetadataValueReader<>(pool);
 			List<KeyMetadata<String>> metadatas = reader.process(redis.sync().keys("*"));
-			Assertions.assertEquals(DataGeneratorOptions.DEFAULT_RANGE.getMax(), metadatas.size());
+			Assertions.assertEquals(DataGeneratorOptions.DEFAULT_KEY_RANGE_MAX, metadatas.size());
 			for (KeyMetadata<String> metadata : metadatas) {
 				Assertions.assertEquals(redis.sync().type(metadata.getKey()), metadata.getType());
 				Assertions.assertEquals(redis.sync().memoryUsage(metadata.getKey()), metadata.getMemoryUsage());
@@ -1078,8 +1080,9 @@ class BatchTests extends AbstractTestBase {
 
 	private void generate(String name, RedisTestContext redis, DataGeneratorOptions options)
 			throws JobExecutionException {
-		run(false, name + "-generate", new DataGeneratorItemReader(options),
-				RedisItemWriter.dataStructure(pool(redis)).build());
+		DataGeneratorItemReader reader = new DataGeneratorItemReader(options);
+		reader.setMaxItemCount(options.getKeyRange().getMax() - options.getKeyRange().getMin() + 1);
+		run(false, name + "-generate", reader, RedisItemWriter.dataStructure(pool(redis)).build());
 	}
 
 	private JobExecution doReplicate(String name, RedisTestContext redis) throws Exception {
@@ -1105,7 +1108,7 @@ class BatchTests extends AbstractTestBase {
 		@RedisTestContextsSource
 		void scanSizeEstimator(RedisTestContext redis) throws Exception {
 			String pattern = DataGeneratorOptions.DEFAULT_KEYSPACE + "*";
-			int count = 543;
+			int count = 12345;
 			generate(redis, DataGeneratorOptions.builder().count(count).build());
 			long expectedCount = redis.sync().dbsize();
 			Builder estimator = ScanSizeEstimator.builder(pool(redis));

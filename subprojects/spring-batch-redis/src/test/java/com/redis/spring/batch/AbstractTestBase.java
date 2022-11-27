@@ -163,6 +163,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	protected void generate(RedisTestContext redis) throws JobExecutionException {
 		DataGeneratorOptions options = DataGeneratorOptions.builder().build();
 		DataGeneratorItemReader reader = new DataGeneratorItemReader(options);
+		reader.setMaxItemCount(options.getKeyRange().getMax() - options.getKeyRange().getMin() + 1);
 		run(false, name(redis) + "-gen", reader, RedisItemWriter.dataStructure(pool(redis)).build());
 	}
 

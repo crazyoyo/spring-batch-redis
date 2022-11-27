@@ -38,18 +38,21 @@ public class DataGeneratorItemReader extends AbstractItemCountingItemStreamItemR
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final Random random = new Random();
 	private final DataGeneratorOptions options;
-	private final List<Type> types;
+	private final Type[] types;
 
 	public DataGeneratorItemReader(DataGeneratorOptions options) {
 		setName(ClassUtils.getShortName(getClass()));
-		setCurrentItemCount(options.getKeyRange().getMin());
-		setMaxItemCount(options.getKeyRange().getMax() - options.getKeyRange().getMin());
 		this.options = options;
-		this.types = new ArrayList<>(options.getTypes());
+		this.types = options.getTypes().toArray(Type[]::new);
 	}
 
-	public String key() {
-		return options.getKeyspace() + ":" + getCurrentItemCount();
+	private String key() {
+		int index = index(options.getKeyRange());
+		return options.getKeyspace() + ":" + index;
+	}
+
+	private int index(IntRange range) {
+		return range.getMin() + index() % (range.getMax() - range.getMin() + 1);
 	}
 
 	private Object value(Type type) {
@@ -108,7 +111,7 @@ public class DataGeneratorItemReader extends AbstractItemCountingItemStreamItemR
 		return messages;
 	}
 
-	public Map<String, String> map(MapOptions options) {
+	private Map<String, String> map(MapOptions options) {
 		Map<String, String> hash = new HashMap<>();
 		for (int index = 0; index < randomInt(options.getFieldCount()); index++) {
 			int fieldIndex = index + 1;
@@ -126,8 +129,10 @@ public class DataGeneratorItemReader extends AbstractItemCountingItemStreamItemR
 
 	private List<String> members(CollectionOptions options) {
 		List<String> members = new ArrayList<>();
-		for (int index = 0; index < randomInt(options.getMemberCount()); index++) {
-			members.add(String.valueOf(index));
+		for (int index = 0; index < randomInt(options.getCardinality()); index++) {
+			int memberId = options.getMemberRange().getMin()
+					+ index % (options.getMemberRange().getMax() - options.getMemberRange().getMin() + 1);
+			members.add(String.valueOf(memberId));
 		}
 		return members;
 	}
@@ -149,7 +154,7 @@ public class DataGeneratorItemReader extends AbstractItemCountingItemStreamItemR
 	@Override
 	protected DataStructure<String> doRead() throws Exception {
 		DataStructure<String> ds = new DataStructure<>();
-		Type type = types.get(index() % options.getTypes().size());
+		Type type = types[index() % options.getTypes().size()];
 		ds.setType(type);
 		ds.setKey(key());
 		ds.setValue(value(type));

@@ -21,13 +21,15 @@ public class HotKeyFilterOptions {
 	private static final Type[] DEFAULT_BLOCKED_TYPES = { Type.LIST, Type.SET, Type.STREAM, Type.TIMESERIES,
 			Type.ZSET };
 	public static final DataSize DEFAULT_MAX_MEMORY_USAGE = DataSize.ofMegabytes(1);
+	public static final Duration DEFAULT_PRUNE_INTERVAL = Duration.ofSeconds(10);
 
 	private QueueOptions candidateQueueOptions = QueueOptions.builder().build();
-	private double updateRate = DEFAULT_MAX_THROUGHPUT; // Update rate threshold above which to make corresponding key a
+	private double updateRate = DEFAULT_MAX_THROUGHPUT; // Update rate threshold above which a key is considered hot
 	private long window = DEFAULT_WINDOW.toMillis();
 	private DataSize maxMemoryUsage = DEFAULT_MAX_MEMORY_USAGE;
 	private Set<String> blockedTypes = defaultBlockedTypes();
 	private FlushingStepOptions stepOptions = StepOptions.builder().flushing().build();
+	private Duration pruneInterval = DEFAULT_PRUNE_INTERVAL;
 
 	private HotKeyFilterOptions(Builder builder) {
 		this.candidateQueueOptions = builder.candidateQueueOptions;
@@ -36,6 +38,7 @@ public class HotKeyFilterOptions {
 		this.blockedTypes = builder.blockedTypes;
 		this.stepOptions = builder.stepOptions;
 		this.maxMemoryUsage = builder.maxMemoryUsage;
+		this.pruneInterval = builder.pruneInterval;
 	}
 
 	public static Set<String> defaultBlockedTypes() {
@@ -48,6 +51,14 @@ public class HotKeyFilterOptions {
 
 	public void setMaxMemoryUsage(DataSize maxMemoryUsage) {
 		this.maxMemoryUsage = maxMemoryUsage;
+	}
+
+	public Duration getPruneInterval() {
+		return pruneInterval;
+	}
+
+	public void setPruneInterval(Duration pruneInterval) {
+		this.pruneInterval = pruneInterval;
 	}
 
 	public long getWindow() {
@@ -98,6 +109,7 @@ public class HotKeyFilterOptions {
 		private DataSize maxMemoryUsage = DEFAULT_MAX_MEMORY_USAGE;
 		private Set<String> blockedTypes = defaultBlockedTypes();
 		private FlushingStepOptions stepOptions = StepOptions.builder().flushing().build();
+		private Duration pruneInterval = DEFAULT_PRUNE_INTERVAL;
 
 		public Builder candidateQueueOptions(QueueOptions queueOptions) {
 			this.candidateQueueOptions = queueOptions;
@@ -126,6 +138,11 @@ public class HotKeyFilterOptions {
 
 		public Builder window(Duration window) {
 			this.window = window;
+			return this;
+		}
+
+		public Builder pruneInterval(Duration interval) {
+			this.pruneInterval = interval;
 			return this;
 		}
 

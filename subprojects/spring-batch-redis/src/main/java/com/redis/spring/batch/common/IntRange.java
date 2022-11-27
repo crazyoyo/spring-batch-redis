@@ -55,6 +55,10 @@ public class IntRange {
 		return new IntRange(min, max);
 	}
 
+	public static IntRange from(int min) {
+		return new IntRange(min, Integer.MAX_VALUE);
+	}
+
 	public static IntRange to(int max) {
 		return new IntRange(0, max);
 	}
