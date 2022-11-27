@@ -758,13 +758,14 @@ class BatchTests extends AbstractTestBase {
 			List<String> keys = ScanIterator.scan(redis.sync(), KeyScanArgs.Builder.type(Type.STREAM.getString()))
 					.stream().collect(Collectors.toList());
 			for (String key : keys) {
+				long count = redis.sync().xlen(key);
 				StreamItemReader<String, String> reader = streamReader(redis, key,
 						Consumer.from("batchtests-readmessages", "consumer1")).build();
 				reader.open(new ExecutionContext());
 				List<StreamMessage<String, String>> messages = new ArrayList<>();
 				Awaitility.await().until(() -> {
 					messages.addAll(reader.readMessages());
-					return messages.size() == COUNT;
+					return messages.size() == count;
 				});
 				assertMessageBody(messages);
 				Awaitility.await().until(() -> reader.ack(reader.readMessages()) == 0);
