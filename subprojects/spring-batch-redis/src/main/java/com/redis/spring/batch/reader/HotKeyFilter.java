@@ -142,7 +142,7 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 	public void close() {
 		reader.stop();
 		pruneFuture.cancel(true);
-		executor.close();
+		executor.shutdown();
 		super.close();
 	}
 
