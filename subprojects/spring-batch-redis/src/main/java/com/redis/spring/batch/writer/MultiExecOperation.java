@@ -19,11 +19,11 @@ public class MultiExecOperation<K, V, T> implements PipelinedOperation<K, V, T> 
 		this.operation = operation;
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	public Collection<RedisFuture<?>> execute(StatefulConnection<K, V> connection, List<? extends T> items) {
+	public Collection<RedisFuture> execute(StatefulConnection<K, V> connection, List<? extends T> items) {
 		BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
-		List<RedisFuture<?>> futures = new ArrayList<>();
+		List<RedisFuture> futures = new ArrayList<>();
 		futures.add(((RedisTransactionalAsyncCommands<K, V>) commands).multi());
 		futures.addAll(operation.execute(connection, items));
 		futures.add(((RedisTransactionalAsyncCommands<K, V>) commands).exec());

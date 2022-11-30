@@ -27,13 +27,13 @@ public class TsAddAll<K, V, T> extends AbstractCollectionAddAll<K, V, T> {
 		this.options = options;
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	protected Collection<RedisFuture<?>> doExecute(BaseRedisAsyncCommands<K, V> commands, T item) {
-		Collection<RedisFuture<?>> futures = new ArrayList<>();
+	protected Collection<RedisFuture> doExecute(BaseRedisAsyncCommands<K, V> commands, T item) {
+		Collection<RedisFuture> futures = new ArrayList<>();
 		for (Sample sample : samples.convert(item)) {
-			AddOptions<K, V> addOptions = this.options.convert(sample);
-			futures.add(((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(key.convert(item), sample, addOptions));
+			futures.add(((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(key.convert(item), sample,
+					options.convert(sample)));
 		}
 		return futures;
 	}

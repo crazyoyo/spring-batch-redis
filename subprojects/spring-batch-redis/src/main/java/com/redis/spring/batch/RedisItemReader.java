@@ -43,13 +43,13 @@ import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 public class RedisItemReader<K, T> extends JobExecutionItemStream implements ItemStreamReader<T> {
 
 	protected final ItemReader<K> keyReader;
-	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
+	private final ItemProcessor<List<K>, List<T>> valueReader;
 	protected final StepOptions stepOptions;
 	private final QueueOptions queueOptions;
 	protected final BlockingQueue<T> queue;
 
-	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader,
-			ItemProcessor<List<? extends K>, List<T>> valueReader, StepOptions stepOptions, QueueOptions queueOptions) {
+	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, ItemProcessor<List<K>, List<T>> valueReader,
+			StepOptions stepOptions, QueueOptions queueOptions) {
 		super(jobRunner);
 		this.keyReader = keyReader;
 		this.valueReader = valueReader;

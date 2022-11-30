@@ -88,34 +88,20 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 		return ds.getKey();
 	}
 
+	@SuppressWarnings("rawtypes")
 	@Override
-	public Collection<RedisFuture<?>> execute(StatefulConnection<K, V> connection,
+	public Collection<RedisFuture> execute(StatefulConnection<K, V> connection,
 			List<? extends DataStructure<K>> items) {
 		BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
 		return items.stream().filter(Objects::nonNull).flatMap(s -> execute(commands, s)).collect(Collectors.toList());
 	}
 
-	public static class UnknownTypeException extends RuntimeException {
-
-		private static final long serialVersionUID = 1L;
-		private final transient DataStructure<?> dataStructure;
-
-		public UnknownTypeException(DataStructure<?> dataStructure) {
-			this.dataStructure = dataStructure;
-		}
-
-		public DataStructure<?> getDataStructure() {
-			return dataStructure;
-		}
-
-	}
-
-	@SuppressWarnings("unchecked")
-	private Stream<RedisFuture<?>> execute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds) {
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private Stream<RedisFuture> execute(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds) {
 		if (ds.getValue() == null) {
 			return Stream.of(del.execute(commands, ds));
 		}
-		Stream<RedisFuture<?>> writes = write(commands, ds);
+		Stream<RedisFuture> writes = write(commands, ds);
 		if (ds.hasTtl()) {
 			RedisFuture<Boolean> expire = ((RedisKeyAsyncCommands<K, V>) commands).pexpireat(ds.getKey(), ds.getTtl());
 			return Stream.concat(writes, Stream.of(expire));
@@ -123,7 +109,8 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 		return writes;
 	}
 
-	private Stream<RedisFuture<?>> write(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds) {
+	@SuppressWarnings("rawtypes")
+	private Stream<RedisFuture> write(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> ds) {
 		switch (ds.getType()) {
 		case HASH:
 			return Stream.of(del.execute(commands, ds), hset.execute(commands, ds));
@@ -144,7 +131,7 @@ public class DataStructureOperation<K, V> implements PipelinedOperation<K, V, Da
 		case NONE:
 			return Stream.of(del.execute(commands, ds));
 		default:
-			throw new UnknownTypeException(ds);
+			throw new IllegalArgumentException("Unknown data-structure type: " + ds.getType());
 		}
 	}
 

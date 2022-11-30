@@ -378,6 +378,7 @@ public class DataGeneratorOptions {
 
 			public static class Builder extends MapOptions.Builder<Builder> {
 
+				@Override
 				public BodyOptions build() {
 					return new BodyOptions(this);
 				}
@@ -559,6 +560,7 @@ public class DataGeneratorOptions {
 
 		public static class Builder extends MapOptions.Builder<Builder> {
 
+			@Override
 			public HashOptions build() {
 				return new HashOptions(this);
 			}
@@ -577,6 +579,7 @@ public class DataGeneratorOptions {
 
 		public static class Builder extends MapOptions.Builder<Builder> {
 
+			@Override
 			public JsonOptions build() {
 				return new JsonOptions(this);
 			}

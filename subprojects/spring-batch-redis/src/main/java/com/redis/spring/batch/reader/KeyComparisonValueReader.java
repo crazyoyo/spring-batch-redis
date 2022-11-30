@@ -4,9 +4,12 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.util.Assert;
 
 import com.redis.spring.batch.common.DataStructure;
@@ -15,62 +18,72 @@ import com.redis.spring.batch.reader.KeyComparison.Status;
 
 import io.lettuce.core.api.StatefulConnection;
 
-public class KeyComparisonValueReader extends AbstractValueReader<String, String, KeyComparison<String>> {
+public class KeyComparisonValueReader extends ItemStreamSupport
+		implements ItemProcessor<List<String>, List<KeyComparison<String>>> {
 
-	private final DataStructureValueReader<String, String> left;
-	private final DataStructureValueReader<String, String> right;
+	private final DataStructureValueReader<String, String> leftValueReader;
+	private final DataStructureValueReader<String, String> rightValueReader;
 	private final long ttlToleranceMillis;
 
 	public KeyComparisonValueReader(GenericObjectPool<StatefulConnection<String, String>> left,
 			GenericObjectPool<StatefulConnection<String, String>> right, Duration ttlTolerance) {
-		super(left);
+		Assert.notNull(left, "Right connection pool is required");
 		Assert.notNull(right, "Right connection pool is required");
-		this.left = new DataStructureValueReader<>(left);
-		this.right = new DataStructureValueReader<>(right);
+		this.leftValueReader = new DataStructureValueReader<>(left);
+		this.rightValueReader = new DataStructureValueReader<>(right);
 		this.ttlToleranceMillis = ttlTolerance.toMillis();
 	}
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
-		right.open(executionContext);
-		left.open(executionContext);
+		rightValueReader.open(executionContext);
+		leftValueReader.open(executionContext);
 		super.open(executionContext);
 	}
 
 	@Override
 	public void close() {
 		super.close();
-		left.close();
-		right.close();
+		leftValueReader.close();
+		rightValueReader.close();
 	}
 
 	@Override
-	protected List<KeyComparison<String>> read(StatefulConnection<String, String> connection,
-			List<? extends String> keys) throws Exception {
+	public List<KeyComparison<String>> process(List<String> keys) throws Exception {
 		List<KeyComparison<String>> comparisons = new ArrayList<>();
-		List<DataStructure<String>> sourceItems = left.process(keys);
-		List<DataStructure<String>> targetItems = right.process(keys);
-		Assert.isTrue(targetItems != null && targetItems.size() == keys.size(),
+		List<DataStructure<String>> leftItems;
+		try {
+			leftItems = leftValueReader.process(keys);
+		} catch (Exception e) {
+			throw new ExecutionException("Could not read keys from left", e);
+		}
+		List<DataStructure<String>> rightItems;
+		try {
+			rightItems = rightValueReader.process(keys);
+		} catch (Exception e) {
+			throw new ExecutionException("Could not read keys from right", e);
+		}
+		Assert.isTrue(rightItems != null && rightItems.size() == keys.size(),
 				"Missing values in value reader response");
 		for (int index = 0; index < keys.size(); index++) {
-			DataStructure<String> source = sourceItems.get(index);
-			DataStructure<String> target = targetItems.get(index);
-			comparisons.add(new KeyComparison<>(source, target, compare(source, target)));
+			DataStructure<String> leftItem = leftItems.get(index);
+			DataStructure<String> rightItem = rightItems.get(index);
+			comparisons.add(new KeyComparison<>(leftItem, rightItem, compare(leftItem, rightItem)));
 		}
 		return comparisons;
 	}
 
-	private Status compare(DataStructure<String> source, DataStructure<String> target) {
-		if (!Objects.equals(source.getType(), target.getType())) {
-			if (target.getType() == Type.NONE) {
+	private Status compare(DataStructure<String> left, DataStructure<String> right) {
+		if (!Objects.equals(left.getType(), right.getType())) {
+			if (right.getType() == Type.NONE) {
 				return Status.MISSING;
 			}
 			return Status.TYPE;
 		}
-		if (!Objects.deepEquals(source.getValue(), target.getValue())) {
+		if (!Objects.deepEquals(left.getValue(), right.getValue())) {
 			return Status.VALUE;
 		}
-		if (!ttlEquals(source.getTtl(), target.getTtl())) {
+		if (!ttlEquals(left.getTtl(), right.getTtl())) {
 			return Status.TTL;
 		}
 		return Status.OK;

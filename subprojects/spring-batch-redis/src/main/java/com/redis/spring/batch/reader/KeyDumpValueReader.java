@@ -16,7 +16,7 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyDump<K>> {
+public class KeyDumpValueReader<K, V> extends AbstractRedisValueReader<K, V, KeyDump<K>> {
 
 	public KeyDumpValueReader(GenericObjectPool<StatefulConnection<K, V>> pool) {
 		super(pool);

@@ -26,7 +26,7 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 
 	private final JobRunner jobRunner;
-	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
+	private final ItemProcessor<List<K>, List<T>> valueReader;
 	private final StatefulRedisPubSubConnection<K, V> pubSubConnection;
 	private final Converter<K, K> keyExtractor;
 	private StepOptions stepOptions = StepOptions.builder().flushingInterval(DEFAULT_FLUSHING_INTERVAL).build();
@@ -36,7 +36,7 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 	private final K[] pubSubPatterns;
 	private Optional<Predicate<K>> keyFilter = Optional.empty();
 
-	public LiveReaderBuilder(JobRunner jobRunner, ItemProcessor<List<? extends K>, List<T>> valueReader,
+	public LiveReaderBuilder(JobRunner jobRunner, ItemProcessor<List<K>, List<T>> valueReader,
 			StatefulRedisPubSubConnection<K, V> pubSubConnection, K[] pubSubPatterns, Converter<K, K> keyExtractor) {
 		this.jobRunner = jobRunner;
 		this.valueReader = valueReader;

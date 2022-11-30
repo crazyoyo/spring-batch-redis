@@ -19,9 +19,10 @@ public class SimplePipelinedOperation<K, V, T> implements PipelinedOperation<K, 
 		this.operation = operation;
 	}
 
+	@SuppressWarnings("rawtypes")
 	@Override
-	public Collection<RedisFuture<?>> execute(StatefulConnection<K, V> connection, List<? extends T> items) {
-		Collection<RedisFuture<?>> futures = new ArrayList<>();
+	public Collection<RedisFuture> execute(StatefulConnection<K, V> connection, List<? extends T> items) {
+		Collection<RedisFuture> futures = new ArrayList<>();
 		for (T item : items) {
 			RedisFuture<?> future = operation.execute(Utils.async(connection), item);
 			if (future == null) {

@@ -16,13 +16,13 @@ public class ScanReaderBuilder<K, V, T extends KeyValue<K>> {
 
 	private final GenericObjectPool<StatefulConnection<K, V>> connectionPool;
 	private final JobRunner jobRunner;
-	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
+	private final ItemProcessor<List<K>, List<T>> valueReader;
 	private StepOptions stepOptions = StepOptions.builder().build();
 	private QueueOptions queueOptions = QueueOptions.builder().build();
 	private ScanOptions scanOptions = ScanOptions.builder().build();
 
 	public ScanReaderBuilder(GenericObjectPool<StatefulConnection<K, V>> connectionPool, JobRunner jobRunner,
-			ItemProcessor<List<? extends K>, List<T>> valueReader) {
+			ItemProcessor<List<K>, List<T>> valueReader) {
 		this.connectionPool = connectionPool;
 		this.jobRunner = jobRunner;
 		this.valueReader = valueReader;

@@ -8,6 +8,7 @@ import io.lettuce.core.api.StatefulConnection;
 
 public interface PipelinedOperation<K, V, T> {
 
-	Collection<RedisFuture<?>> execute(StatefulConnection<K, V> connection, List<? extends T> items);
+	@SuppressWarnings("rawtypes")
+	Collection<RedisFuture> execute(StatefulConnection<K, V> connection, List<? extends T> items);
 
 }

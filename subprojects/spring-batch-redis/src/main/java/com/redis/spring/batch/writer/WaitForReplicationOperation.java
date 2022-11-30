@@ -22,9 +22,10 @@ public class WaitForReplicationOperation<K, V, T> implements PipelinedOperation<
 		this.options = options;
 	}
 
+	@SuppressWarnings("rawtypes")
 	@Override
-	public Collection<RedisFuture<?>> execute(StatefulConnection<K, V> connection, List<? extends T> items) {
-		Collection<RedisFuture<?>> futures = new ArrayList<>();
+	public Collection<RedisFuture> execute(StatefulConnection<K, V> connection, List<? extends T> items) {
+		Collection<RedisFuture> futures = new ArrayList<>();
 		futures.addAll(delegate.execute(connection, items));
 		BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
 		PipelinedRedisFuture<Void> replicationFuture = new PipelinedRedisFuture<>(

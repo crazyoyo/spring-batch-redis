@@ -90,7 +90,6 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 		super.open(executionContext);
 	}
 
-	@Override
 	public boolean isOpen() {
 		return queue != null;
 	}

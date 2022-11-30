@@ -19,8 +19,9 @@ public abstract class AbstractCollectionAddAll<K, V, T> {
 		this.del = del;
 	}
 
-	public Collection<RedisFuture<?>> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
-		Collection<RedisFuture<?>> futures = new ArrayList<>();
+	@SuppressWarnings("rawtypes")
+	public Collection<RedisFuture> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
+		Collection<RedisFuture> futures = new ArrayList<>();
 		if (delPredicate.test(item)) {
 			futures.add(del.execute(commands, item));
 		}
@@ -28,6 +29,7 @@ public abstract class AbstractCollectionAddAll<K, V, T> {
 		return futures;
 	}
 
-	protected abstract Collection<RedisFuture<?>> doExecute(BaseRedisAsyncCommands<K, V> commands, T item);
+	@SuppressWarnings("rawtypes")
+	protected abstract Collection<RedisFuture> doExecute(BaseRedisAsyncCommands<K, V> commands, T item);
 
 }

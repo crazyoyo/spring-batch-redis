@@ -30,10 +30,10 @@ public class XaddAll<K, V, T> extends AbstractCollectionAddAll<K, V, T> {
 		this.args = args;
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	protected Collection<RedisFuture<?>> doExecute(BaseRedisAsyncCommands<K, V> commands, T item) {
-		Collection<RedisFuture<?>> futures = new ArrayList<>();
+	protected Collection<RedisFuture> doExecute(BaseRedisAsyncCommands<K, V> commands, T item) {
+		Collection<RedisFuture> futures = new ArrayList<>();
 		for (StreamMessage<K, V> message : messages.convert(item)) {
 			futures.add(((RedisStreamAsyncCommands<K, V>) commands).xadd(message.getStream(), args.convert(message),
 					message.getBody()));

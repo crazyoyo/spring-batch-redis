@@ -10,10 +10,10 @@ import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 
 public class ProcessingItemWriter<I, O> extends AbstractItemStreamItemWriter<I> {
 
-	private final ItemProcessor<List<? extends I>, List<O>> processor;
+	private final ItemProcessor<List<I>, List<O>> processor;
 	private final ItemWriter<O> writer;
 
-	public ProcessingItemWriter(ItemProcessor<List<? extends I>, List<O>> processor, ItemWriter<O> writer) {
+	public ProcessingItemWriter(ItemProcessor<List<I>, List<O>> processor, ItemWriter<O> writer) {
 		this.processor = processor;
 		this.writer = writer;
 	}
@@ -51,9 +51,10 @@ public class ProcessingItemWriter<I, O> extends AbstractItemStreamItemWriter<I> 
 		super.close();
 	}
 
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
 	public void write(List<? extends I> items) throws Exception {
-		List<O> values = processor.process(items);
+		List values = processor.process((List) items);
 		if (values == null) {
 			return;
 		}

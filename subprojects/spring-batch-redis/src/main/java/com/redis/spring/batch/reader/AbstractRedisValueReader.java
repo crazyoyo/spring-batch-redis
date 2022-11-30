@@ -3,7 +3,9 @@ package com.redis.spring.batch.reader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -24,8 +26,8 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 
-public abstract class AbstractValueReader<K, V, T> extends ItemStreamSupport
-		implements ItemProcessor<List<? extends K>, List<T>> {
+public abstract class AbstractRedisValueReader<K, V, T> extends ItemStreamSupport
+		implements ItemProcessor<List<K>, List<T>> {
 
 	private final Log log = LogFactory.getLog(getClass());
 
@@ -34,7 +36,7 @@ public abstract class AbstractValueReader<K, V, T> extends ItemStreamSupport
 	private final GenericObjectPool<StatefulConnection<K, V>> connectionPool;
 	private String digest;
 
-	protected AbstractValueReader(GenericObjectPool<StatefulConnection<K, V>> connectionPool) {
+	protected AbstractRedisValueReader(GenericObjectPool<StatefulConnection<K, V>> connectionPool) {
 		Assert.notNull(connectionPool, "Right connection pool is required");
 		setName(ClassUtils.getShortName(getClass()));
 		this.connectionPool = connectionPool;
@@ -70,7 +72,7 @@ public abstract class AbstractValueReader<K, V, T> extends ItemStreamSupport
 	}
 
 	@Override
-	public List<T> process(List<? extends K> item) throws Exception {
+	public List<T> process(List<K> item) throws Exception {
 		try (StatefulConnection<K, V> connection = connectionPool.borrowObject()) {
 			connection.setAutoFlushCommands(false);
 			try {
@@ -81,6 +83,7 @@ public abstract class AbstractValueReader<K, V, T> extends ItemStreamSupport
 		}
 	}
 
-	protected abstract List<T> read(StatefulConnection<K, V> connection, List<? extends K> keys) throws Exception;
+	protected abstract List<T> read(StatefulConnection<K, V> connection, List<? extends K> keys)
+			throws TimeoutException, InterruptedException, ExecutionException;
 
 }

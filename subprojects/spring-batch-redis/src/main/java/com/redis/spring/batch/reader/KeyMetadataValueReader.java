@@ -16,7 +16,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.api.async.RedisServerAsyncCommands;
 
-public class KeyMetadataValueReader<K, V> extends AbstractValueReader<K, V, KeyMetadata<K>> {
+public class KeyMetadataValueReader<K, V> extends AbstractRedisValueReader<K, V, KeyMetadata<K>> {
 
 	public KeyMetadataValueReader(GenericObjectPool<StatefulConnection<K, V>> pool) {
 		super(pool);

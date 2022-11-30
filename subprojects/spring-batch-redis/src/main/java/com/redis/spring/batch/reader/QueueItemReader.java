@@ -67,7 +67,6 @@ public class QueueItemReader<T> extends AbstractItemStreamItemReader<T> implemen
 		}
 	}
 
-	@Override
 	public boolean isOpen() {
 		return open;
 	}

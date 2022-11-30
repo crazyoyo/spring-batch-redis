@@ -29,7 +29,7 @@ import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
-public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, DataStructure<K>> {
+public class DataStructureValueReader<K, V> extends AbstractRedisValueReader<K, V, DataStructure<K>> {
 
 	private static final TimeRange TIME_RANGE = TimeRange.unbounded();
 	private static final RangeOptions RANGE_OPTIONS = RangeOptions.builder().build();

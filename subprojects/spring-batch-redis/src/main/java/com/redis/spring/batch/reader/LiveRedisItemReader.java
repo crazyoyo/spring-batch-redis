@@ -17,7 +17,7 @@ public class LiveRedisItemReader<K, T extends KeyValue<K>> extends RedisItemRead
 		implements PollableItemReader<T> {
 
 	public LiveRedisItemReader(JobRunner jobRunner, PollableItemReader<K> keyReader,
-			ItemProcessor<List<? extends K>, List<T>> valueReader, StepOptions stepOptions, QueueOptions queueOptions) {
+			ItemProcessor<List<K>, List<T>> valueReader, StepOptions stepOptions, QueueOptions queueOptions) {
 		super(jobRunner, keyReader, valueReader, stepOptions, queueOptions);
 	}
 
@@ -25,7 +25,7 @@ public class LiveRedisItemReader<K, T extends KeyValue<K>> extends RedisItemRead
 	public void open(ExecutionContext executionContext) throws ItemStreamException {
 		super.open(executionContext);
 		Awaitility.await().timeout(JobRunner.DEFAULT_RUNNING_TIMEOUT)
-				.until(((PollableItemReader<K>) keyReader)::isOpen);
+				.until(((KeyspaceNotificationItemReader<K>) keyReader)::isOpen);
 	}
 
 	@Override

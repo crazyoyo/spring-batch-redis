@@ -28,14 +28,16 @@ public abstract class AbstractKeyOperation<K, V, T> implements Operation<K, V, T
 		this.del = del;
 	}
 
+	@SuppressWarnings("rawtypes")
 	@Override
-	public RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
+	public RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item) {
 		if (delPredicate.test(item)) {
 			return del.execute(commands, item);
 		}
 		return doExecute(commands, item, this.keyConverter.convert(item));
 	}
 
-	protected abstract RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key);
+	@SuppressWarnings("rawtypes")
+	protected abstract RedisFuture doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key);
 
 }

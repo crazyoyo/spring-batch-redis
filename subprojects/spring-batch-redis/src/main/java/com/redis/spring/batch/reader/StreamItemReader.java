@@ -129,9 +129,29 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 		 * @param args     Stream read command args
 		 * @return list of messages retrieved from the stream or empty list if no
 		 *         messages available
-		 * @throws Exception
+		 * @throws MessageReadException
 		 */
-		List<StreamMessage<K, V>> read(long blockMillis) throws Exception;
+		List<StreamMessage<K, V>> read(long blockMillis) throws MessageReadException;
+
+	}
+
+	private static final class MessageReadException extends Exception {
+
+		public MessageReadException(Exception e) {
+			super(e);
+		}
+
+		private static final long serialVersionUID = 1L;
+
+	}
+
+	private static final class MessageAckException extends Exception {
+
+		public MessageAckException(Exception e) {
+			super(e);
+		}
+
+		private static final long serialVersionUID = 1L;
 
 	}
 
@@ -172,10 +192,12 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 		}
 
 		@Override
-		public List<StreamMessage<K, V>> read(long blockMillis) throws Exception {
+		public List<StreamMessage<K, V>> read(long blockMillis) throws MessageReadException {
 			List<StreamMessage<K, V>> messages;
 			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
 				messages = readMessages(commands(connection), args(blockMillis));
+			} catch (Exception e) {
+				throw new MessageReadException(e);
 			}
 			if (messages.isEmpty()) {
 				reader = messageReader();
@@ -190,9 +212,11 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 
 		@SuppressWarnings("unchecked")
 		@Override
-		public List<StreamMessage<K, V>> read(long blockMillis) throws Exception {
+		public List<StreamMessage<K, V>> read(long blockMillis) throws MessageReadException {
 			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
 				return commands(connection).xreadgroup(consumer, args(blockMillis), StreamOffset.lastConsumed(stream));
+			} catch (Exception e) {
+				throw new MessageReadException(e);
 			}
 		}
 	}
@@ -216,9 +240,13 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 	private class AutoAckMessageReader extends ExplicitAckMessageReader {
 
 		@Override
-		public List<StreamMessage<K, V>> read(long blockMillis) throws Exception {
+		public List<StreamMessage<K, V>> read(long blockMillis) throws MessageReadException {
 			List<StreamMessage<K, V>> messages = super.read(blockMillis);
-			ack(messages);
+			try {
+				ack(messages);
+			} catch (MessageAckException e) {
+				throw new MessageReadException(e);
+			}
 			return messages;
 		}
 
@@ -268,9 +296,14 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 	}
 
 	@Override
-	public StreamMessage<K, V> poll(long timeout, TimeUnit unit) throws Exception {
+	public StreamMessage<K, V> poll(long timeout, TimeUnit unit) throws PollingException {
 		if (!iterator.hasNext()) {
-			List<StreamMessage<K, V>> messages = reader.read(unit.toMillis(timeout));
+			List<StreamMessage<K, V>> messages;
+			try {
+				messages = reader.read(unit.toMillis(timeout));
+			} catch (MessageReadException e) {
+				throw new PollingException(e);
+			}
 			if (messages == null || messages.isEmpty()) {
 				return null;
 			}
@@ -279,7 +312,7 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 		return iterator.next();
 	}
 
-	public List<StreamMessage<K, V>> readMessages() throws Exception {
+	public List<StreamMessage<K, V>> readMessages() throws MessageReadException {
 		return reader.read(options.getBlock().toMillis());
 	}
 
@@ -287,9 +320,10 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 	 * Acks given messages
 	 * 
 	 * @param messages to be acked
-	 * @throws Exception if a connection could not be obtained from the pool
+	 * @throws MessageAckException
+	 * @throws MessageAckException if any error occurs while trying to ack messages
 	 */
-	public long ack(Iterable<? extends StreamMessage<K, V>> messages) throws Exception {
+	public long ack(Iterable<? extends StreamMessage<K, V>> messages) throws MessageAckException {
 		if (messages == null) {
 			return 0;
 		}
@@ -303,18 +337,21 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 	 * 
 	 * @param ids message ids to be acked
 	 * @return
-	 * @throws Exception if a connection could not be obtained from the pool
+	 * @throws MessageAckException if any error occurs while trying to ack IDs
 	 */
-	public long ack(String... ids) throws Exception {
-		if (ids.length > 0) {
-			synchronized (pool) {
-				try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-					ack(Utils.sync(connection), ids);
-				}
+	public long ack(String... ids) throws MessageAckException {
+		if (ids.length == 0) {
+			return 0;
+		}
+		synchronized (pool) {
+			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+				long count = ack(Utils.sync(connection), ids);
 				lastId = ids[ids.length - 1];
+				return count;
+			} catch (Exception e) {
+				throw new MessageAckException(e);
 			}
 		}
-		return ids.length;
 	}
 
 	private void ack(RedisStreamCommands<K, V> commands, Iterable<StreamMessage<K, V>> messages) {
@@ -325,11 +362,11 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 		ack(commands, ids.toArray(String[]::new));
 	}
 
-	private void ack(RedisStreamCommands<K, V> commands, String... ids) {
+	private Long ack(RedisStreamCommands<K, V> commands, String... ids) {
 		if (ids.length == 0) {
-			return;
+			return 0L;
 		}
-		commands.xack(stream, consumer.getGroup(), ids);
+		return commands.xack(stream, consumer.getGroup(), ids);
 	}
 
 	@Override

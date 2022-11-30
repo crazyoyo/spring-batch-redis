@@ -53,12 +53,16 @@ public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implemen
 	}
 
 	@Override
-	public T poll(long timeout, TimeUnit unit) throws Exception {
-		return read();
+	public T poll(long timeout, TimeUnit unit) throws PollingException {
+		try {
+			return read();
+		} catch (Exception e) {
+			throw new PollingException(e);
+		}
 	}
 
 	@Override
-	public T read() throws Exception, UnexpectedInputException, ParseException, NonTransientResourceException {
+	public T read() throws UnexpectedInputException, ParseException, NonTransientResourceException, Exception {
 		T result = delegate.read();
 		if (result != null) {
 			if (currentItemCount.getAndIncrement() % Math.round(1 / errorRate) == 0) {
@@ -94,7 +98,6 @@ public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implemen
 		this.open = false;
 	}
 
-	@Override
 	public boolean isOpen() {
 		return open;
 	}

@@ -5,6 +5,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public interface Operation<K, V, T> {
 
-	RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item);
+	@SuppressWarnings("rawtypes")
+	RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item);
 
 }
