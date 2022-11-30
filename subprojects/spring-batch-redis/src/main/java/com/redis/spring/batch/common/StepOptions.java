@@ -1,5 +1,6 @@
 package com.redis.spring.batch.common;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,17 +20,40 @@ public class StepOptions {
 	private int skipLimit = DEFAULT_SKIP_LIMIT;
 	private List<Class<? extends Throwable>> skip = new ArrayList<>();
 	private List<Class<? extends Throwable>> noSkip = new ArrayList<>();
+	private Optional<Duration> flushingInterval = Optional.empty(); // no flushing by default
+	private Optional<Duration> idleTimeout = Optional.empty(); // no idle stream detection by default
+	private boolean faultTolerant;
 
-	public StepOptions() {
-	}
-
-	protected StepOptions(BaseBuilder<?> builder) {
+	private StepOptions(Builder builder) {
 		this.chunkSize = builder.chunkSize;
 		this.skip = builder.skip;
 		this.noSkip = builder.noSkip;
 		this.skipLimit = builder.skipLimit;
 		this.skipPolicy = builder.skipPolicy;
 		this.threads = builder.threads;
+		this.flushingInterval = builder.flushingInterval;
+		this.idleTimeout = builder.idleTimeout;
+		this.faultTolerant = builder.faultTolerant;
+	}
+
+	public boolean isFaultTolerant() {
+		return faultTolerant;
+	}
+
+	public Optional<Duration> getFlushingInterval() {
+		return flushingInterval;
+	}
+
+	public void setFlushingInterval(Duration interval) {
+		this.flushingInterval = Optional.of(interval);
+	}
+
+	public Optional<Duration> getIdleTimeout() {
+		return idleTimeout;
+	}
+
+	public void setIdleTimeout(Optional<Duration> timeout) {
+		this.idleTimeout = timeout;
 	}
 
 	public List<Class<? extends Throwable>> getSkip() {
@@ -80,29 +104,11 @@ public class StepOptions {
 		this.threads = threads;
 	}
 
-	@Override
-	public String toString() {
-		return "ReaderOptions [chunkSize=" + chunkSize + ", skipLimit=" + skipLimit + ", skipPolicy=" + skipPolicy
-				+ ", threads=" + threads + ", skip=" + skip + ", noSkip=" + noSkip + "]";
-	}
-
 	public static Builder builder() {
 		return new Builder();
 	}
 
-	public static class Builder extends BaseBuilder<Builder> {
-
-		public StepOptions build() {
-			return new StepOptions(this);
-		}
-
-		public FlushingStepOptions.Builder flushing() {
-			return new FlushingStepOptions.Builder(this);
-		}
-
-	}
-
-	public static class BaseBuilder<B extends BaseBuilder<B>> {
+	public static class Builder {
 
 		private int chunkSize = DEFAULT_CHUNK_SIZE;
 		private int skipLimit = DEFAULT_SKIP_LIMIT;
@@ -110,67 +116,79 @@ public class StepOptions {
 		private List<Class<? extends Throwable>> noSkip = new ArrayList<>();
 		private Optional<SkipPolicy> skipPolicy = Optional.empty();
 		private int threads = DEFAULT_THREADS;
+		private Optional<Duration> flushingInterval = Optional.empty();
+		private Optional<Duration> idleTimeout = Optional.empty();
+		private boolean faultTolerant;
 
-		protected BaseBuilder() {
+		public Builder flushingInterval(Duration interval) {
+			Utils.assertPositive(interval, "Flushing interval");
+			this.flushingInterval = Optional.of(interval);
+			return this;
 		}
 
-		protected BaseBuilder(BaseBuilder<?> builder) {
-			this.chunkSize = builder.chunkSize;
-			this.skipLimit = builder.skipLimit;
-			this.skip = builder.skip;
-			this.noSkip = builder.noSkip;
-			this.skipPolicy = builder.skipPolicy;
-			this.threads = builder.threads;
+		public Builder faultTolerant(boolean ft) {
+			this.faultTolerant = ft;
+			return this;
 		}
 
-		@SuppressWarnings("unchecked")
-		public B chunkSize(int chunkSize) {
+		public Builder idleTimeout(Duration timeout) {
+			return idleTimeout(Optional.of(timeout));
+		}
+
+		public Builder idleTimeout(Optional<Duration> timeout) {
+			this.idleTimeout = timeout;
+			return this;
+		}
+
+		public StepOptions build() {
+			return new StepOptions(this);
+		}
+
+		private Builder() {
+		}
+
+		public Builder chunkSize(int chunkSize) {
 			this.chunkSize = chunkSize;
-			return (B) this;
+			return this;
 		}
 
 		@SuppressWarnings("unchecked")
-		public B skip(Class<? extends Throwable>... types) {
+		public Builder skip(Class<? extends Throwable>... types) {
 			return skip(Arrays.asList(types));
 		}
 
-		@SuppressWarnings("unchecked")
-		public B skip(List<Class<? extends Throwable>> types) {
+		public Builder skip(List<Class<? extends Throwable>> types) {
 			this.skip.addAll(types);
-			return (B) this;
+			return this;
 		}
 
-		@SuppressWarnings("unchecked")
-		public B noSkip(List<Class<? extends Throwable>> types) {
+		public Builder noSkip(List<Class<? extends Throwable>> types) {
 			this.noSkip.addAll(types);
-			return (B) this;
+			return this;
 		}
 
 		@SuppressWarnings("unchecked")
-		public B noSkip(Class<? extends Throwable>... types) {
+		public Builder noSkip(Class<? extends Throwable>... types) {
 			return noSkip(Arrays.asList(types));
 		}
 
-		@SuppressWarnings("unchecked")
-		public B skipLimit(int skipLimit) {
+		public Builder skipLimit(int skipLimit) {
 			this.skipLimit = skipLimit;
-			return (B) this;
+			return this;
 		}
 
-		public B skipPolicy(SkipPolicy skipPolicy) {
+		public Builder skipPolicy(SkipPolicy skipPolicy) {
 			return skipPolicy(Optional.of(skipPolicy));
 		}
 
-		@SuppressWarnings("unchecked")
-		public B skipPolicy(Optional<SkipPolicy> skipPolicy) {
+		public Builder skipPolicy(Optional<SkipPolicy> skipPolicy) {
 			this.skipPolicy = skipPolicy;
-			return (B) this;
+			return this;
 		}
 
-		@SuppressWarnings("unchecked")
-		public B threads(int threads) {
+		public Builder threads(int threads) {
 			this.threads = threads;
-			return (B) this;
+			return this;
 		}
 
 	}

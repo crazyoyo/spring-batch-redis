@@ -13,7 +13,7 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.step.FlushingChunkProvider;
 
-public class BlockingQueueItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
+public class QueueItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
 	private final Log log = LogFactory.getLog(getClass());
 
@@ -22,7 +22,7 @@ public class BlockingQueueItemReader<T> extends AbstractItemStreamItemReader<T> 
 
 	private boolean open;
 
-	public BlockingQueueItemReader(BlockingQueue<T> queue, Duration defaultPollTimeout) {
+	public QueueItemReader(BlockingQueue<T> queue, Duration defaultPollTimeout) {
 		Assert.notNull(queue, "Queue must not be null");
 		Assert.notNull(defaultPollTimeout, "Default poll timeout must not be null");
 		Assert.isTrue(!defaultPollTimeout.isNegative() && !defaultPollTimeout.isZero(),

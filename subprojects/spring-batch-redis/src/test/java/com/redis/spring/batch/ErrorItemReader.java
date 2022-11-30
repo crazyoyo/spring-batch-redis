@@ -2,6 +2,7 @@ package com.redis.spring.batch;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import org.springframework.batch.item.ExecutionContext;
@@ -9,25 +10,33 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamSupport;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.batch.item.NonTransientResourceException;
+import org.springframework.batch.item.ParseException;
+import org.springframework.batch.item.UnexpectedInputException;
+import org.springframework.batch.item.support.AbstractItemStreamItemReader;
+import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.reader.PollableItemReader;
 
-public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T>
-		implements PollableItemReader<T> {
+public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
-	public static final long DEFAULT_INTERVAL = 2;
+	public static final float DEFAULT_ERROR_RATE = .5f;
 
 	private final ItemReader<T> delegate;
-	private Supplier<Exception> exceptionSupplier = () -> new TimeoutException("Simulated timeout");
-	private long interval = DEFAULT_INTERVAL;
-
+	private final Supplier<Exception> exceptionSupplier;
+	private float errorRate = DEFAULT_ERROR_RATE;
 	private boolean open;
+	private final AtomicLong currentItemCount = new AtomicLong();
 
-	public ExceptionThrowingPollableItemReader(ItemReader<T> delegate) {
-		setName(ClassUtils.getShortName(ExceptionThrowingPollableItemReader.class));
+	public ErrorItemReader(ItemReader<T> delegate) {
+		this(delegate, () -> new TimeoutException("Simulated timeout"));
+	}
+
+	public ErrorItemReader(ItemReader<T> delegate, Supplier<Exception> exceptionSupplier) {
+		setName(ClassUtils.getShortName(ErrorItemReader.class));
 		this.delegate = delegate;
+		this.exceptionSupplier = exceptionSupplier;
 	}
 
 	@Override
@@ -38,12 +47,9 @@ public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCounting
 		super.setName(name);
 	}
 
-	public void setInterval(long interval) {
-		this.interval = interval;
-	}
-
-	public void setExceptionSupplier(Supplier<Exception> exceptionSupplier) {
-		this.exceptionSupplier = exceptionSupplier;
+	public void setErrorRate(float rate) {
+		Assert.isTrue(rate >= 0 && rate <= 1, "Rate must be between 0 and 1");
+		this.errorRate = rate;
 	}
 
 	@Override
@@ -52,10 +58,12 @@ public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCounting
 	}
 
 	@Override
-	protected T doRead() throws Exception {
+	public T read() throws Exception, UnexpectedInputException, ParseException, NonTransientResourceException {
 		T result = delegate.read();
-		if (getCurrentItemCount() % interval == 0) {
-			throw exceptionSupplier.get();
+		if (result != null) {
+			if (currentItemCount.getAndIncrement() % Math.round(1 / errorRate) == 0) {
+				throw exceptionSupplier.get();
+			}
 		}
 		return result;
 	}
@@ -66,6 +74,7 @@ public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCounting
 		if (delegate instanceof ItemStream) {
 			((ItemStream) delegate).open(executionContext);
 		}
+		this.open = true;
 	}
 
 	@Override
@@ -82,15 +91,6 @@ public class ExceptionThrowingPollableItemReader<T> extends AbstractItemCounting
 			((ItemStream) delegate).close();
 		}
 		super.close();
-	}
-
-	@Override
-	protected void doOpen() throws Exception {
-		this.open = true;
-	}
-
-	@Override
-	protected void doClose() throws Exception {
 		this.open = false;
 	}
 

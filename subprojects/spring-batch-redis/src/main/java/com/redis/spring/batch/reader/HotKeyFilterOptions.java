@@ -10,7 +10,6 @@ import java.util.stream.Stream;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.common.DataStructure.Type;
-import com.redis.spring.batch.common.FlushingStepOptions;
 import com.redis.spring.batch.common.StepOptions;
 
 public class HotKeyFilterOptions {
@@ -22,13 +21,14 @@ public class HotKeyFilterOptions {
 			Type.ZSET };
 	public static final DataSize DEFAULT_MAX_MEMORY_USAGE = DataSize.ofMegabytes(1);
 	public static final Duration DEFAULT_PRUNE_INTERVAL = Duration.ofSeconds(10);
+	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 
 	private QueueOptions candidateQueueOptions = QueueOptions.builder().build();
 	private double updateRate = DEFAULT_MAX_THROUGHPUT; // Update rate threshold above which a key is considered hot
 	private long window = DEFAULT_WINDOW.toMillis();
 	private DataSize maxMemoryUsage = DEFAULT_MAX_MEMORY_USAGE;
 	private Set<String> blockedTypes = defaultBlockedTypes();
-	private FlushingStepOptions stepOptions = StepOptions.builder().flushing().build();
+	private StepOptions stepOptions = StepOptions.builder().flushingInterval(DEFAULT_FLUSHING_INTERVAL).build();
 	private Duration pruneInterval = DEFAULT_PRUNE_INTERVAL;
 
 	private HotKeyFilterOptions(Builder builder) {
@@ -65,11 +65,11 @@ public class HotKeyFilterOptions {
 		return window;
 	}
 
-	public FlushingStepOptions getStepOptions() {
+	public StepOptions getStepOptions() {
 		return stepOptions;
 	}
 
-	public void setStepOptions(FlushingStepOptions stepOptions) {
+	public void setStepOptions(StepOptions stepOptions) {
 		this.stepOptions = stepOptions;
 	}
 
@@ -108,7 +108,7 @@ public class HotKeyFilterOptions {
 		private Duration window = DEFAULT_WINDOW;
 		private DataSize maxMemoryUsage = DEFAULT_MAX_MEMORY_USAGE;
 		private Set<String> blockedTypes = defaultBlockedTypes();
-		private FlushingStepOptions stepOptions = StepOptions.builder().flushing().build();
+		private StepOptions stepOptions = StepOptions.builder().flushingInterval(DEFAULT_FLUSHING_INTERVAL).build();
 		private Duration pruneInterval = DEFAULT_PRUNE_INTERVAL;
 
 		public Builder candidateQueueOptions(QueueOptions queueOptions) {
@@ -116,7 +116,7 @@ public class HotKeyFilterOptions {
 			return this;
 		}
 
-		public Builder stepOptions(FlushingStepOptions stepOptions) {
+		public Builder stepOptions(StepOptions stepOptions) {
 			this.stepOptions = stepOptions;
 			return this;
 		}

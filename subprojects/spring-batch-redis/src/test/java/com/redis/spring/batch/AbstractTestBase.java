@@ -9,21 +9,12 @@ import org.junit.jupiter.api.TestInfo;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.core.job.builder.FlowBuilder;
-import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStreamSupport;
-import org.springframework.batch.item.ItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -41,9 +32,7 @@ import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 import com.redis.spring.batch.reader.LiveReaderBuilder;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
-import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
-import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.testcontainers.junit.AbstractTestcontainersRedisTestBase;
 import com.redis.testcontainers.junit.RedisTestContext;
 
@@ -59,6 +48,11 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	private static final Logger log = LoggerFactory.getLogger(AbstractTestBase.class);
 
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
+
+	protected static final StepOptions DEFAULT_FLUSHING_STEP_OPTIONS = StepOptions.builder()
+			.flushingInterval(LiveReaderBuilder.DEFAULT_FLUSHING_INTERVAL).idleTimeout(DEFAULT_IDLE_TIMEOUT).build();
+
+	protected static final StepOptions DEFAULT_STEP_OPTIONS = StepOptions.builder().build();
 
 	@Autowired
 	protected JobRepository jobRepository;
@@ -124,38 +118,6 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		Awaitility.await().until(() -> !reader.isOpen());
 	}
 
-	protected <T> JobExecution run(boolean async, String name, ItemReader<T> reader, ItemWriter<T> writer)
-			throws JobExecutionException {
-		Job job = jobRunner.job(name).start(step(name, reader, writer).build()).build();
-		if (async) {
-			return jobRunner.runAsync(job);
-		}
-		return jobRunner.run(job);
-	}
-
-	protected <T> SimpleStepBuilder<T, T> step(String name, ItemReader<T> reader, ItemWriter<T> writer) {
-		if (reader instanceof ItemStreamSupport) {
-			((ItemStreamSupport) reader).setName(name + "-reader");
-		}
-		return jobRunner.step(name).<T, T>chunk(StepOptions.DEFAULT_CHUNK_SIZE).reader(reader).writer(writer);
-	}
-
-	protected FlowBuilder<SimpleFlow> flow(String name) {
-		return new FlowBuilder<>(name);
-	}
-
-	protected <T> JobExecution runFlushing(RedisTestContext redis, PollableItemReader<T> reader, ItemWriter<T> writer)
-			throws JobExecutionException {
-		return runFlushing(name(redis), reader, writer);
-	}
-
-	protected <T> JobExecution runFlushing(String name, PollableItemReader<T> reader, ItemWriter<T> writer)
-			throws JobExecutionException {
-		SimpleStepBuilder<T, T> stepBuilder = step(name, reader, writer);
-		TaskletStep step = new FlushingSimpleStepBuilder<>(stepBuilder).idleTimeout(DEFAULT_IDLE_TIMEOUT).build();
-		return jobRunner.runAsync(jobRunner.job(name).start(step).build());
-	}
-
 	protected String name(RedisTestContext redis) {
 		return testInfo.getTestMethod().get().getName() + "-" + redis.hashCode();
 	}
@@ -164,7 +126,8 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		DataGeneratorOptions options = DataGeneratorOptions.builder().build();
 		DataGeneratorItemReader reader = new DataGeneratorItemReader(options);
 		reader.setMaxItemCount(options.getKeyRange().getMax() - options.getKeyRange().getMin() + 1);
-		run(false, name(redis) + "-gen", reader, RedisItemWriter.dataStructure(pool(redis)).build());
+		jobRunner.run(name(redis) + "-gen", reader, null, RedisItemWriter.dataStructure(pool(redis)).build(),
+				StepOptions.builder().build());
 	}
 
 	protected static GenericObjectPool<StatefulConnection<String, String>> pool(RedisTestContext redis) {
@@ -206,7 +169,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	@SuppressWarnings("unchecked")
 	protected <B extends LiveReaderBuilder<?, ?, ?>> B configureLiveReader(B builder, int notificationQueueCapacity) {
 		return (B) builder.notificationQueueOptions(QueueOptions.builder().capacity(notificationQueueCapacity).build())
-				.stepOptions(StepOptions.builder().flushing().idleTimeout(DEFAULT_IDLE_TIMEOUT).build());
+				.stepOptions(DEFAULT_FLUSHING_STEP_OPTIONS);
 	}
 
 	protected LiveReaderBuilder<String, String, DataStructure<String>> liveDataStructureReader(RedisTestContext context)

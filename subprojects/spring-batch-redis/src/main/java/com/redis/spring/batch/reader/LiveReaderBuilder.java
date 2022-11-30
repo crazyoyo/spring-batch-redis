@@ -1,5 +1,6 @@
 package com.redis.spring.batch.reader;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -9,7 +10,6 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.ObjectUtils;
 
-import com.redis.spring.batch.common.FlushingStepOptions;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.StepOptions;
@@ -23,12 +23,13 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 	public static final Converter<String, String> STRING_KEY_EXTRACTOR = m -> m.substring(m.indexOf(":") + 1);
+	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 
 	private final JobRunner jobRunner;
 	private final ItemProcessor<List<? extends K>, List<T>> valueReader;
 	private final StatefulRedisPubSubConnection<K, V> pubSubConnection;
 	private final Converter<K, K> keyExtractor;
-	private FlushingStepOptions stepOptions = StepOptions.builder().flushing().build();
+	private StepOptions stepOptions = StepOptions.builder().flushingInterval(DEFAULT_FLUSHING_INTERVAL).build();
 	private QueueOptions queueOptions = QueueOptions.builder().build();
 	private QueueOptions notificationQueueOptions = QueueOptions.builder().build();
 
@@ -49,7 +50,7 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 		return this;
 	}
 
-	public LiveReaderBuilder<K, V, T> stepOptions(FlushingStepOptions options) {
+	public LiveReaderBuilder<K, V, T> stepOptions(StepOptions options) {
 		this.stepOptions = options;
 		return this;
 	}

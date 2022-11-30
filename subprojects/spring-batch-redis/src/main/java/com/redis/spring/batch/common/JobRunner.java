@@ -1,6 +1,7 @@
 package com.redis.spring.batch.common;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 
 import org.awaitility.Awaitility;
@@ -10,6 +11,7 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
@@ -82,6 +84,16 @@ public class JobRunner {
 		return new StepBuilder(name).repository(jobRepository).transactionManager(transactionManager);
 	}
 
+	public <I, O> JobExecution run(String name, ItemReader<I> reader, ItemProcessor<I, O> processor,
+			ItemWriter<O> writer, StepOptions options) throws JobExecutionException {
+		return run(job(name, reader, processor, writer, options).build());
+	}
+
+	public <I, O> SimpleJobBuilder job(String name, ItemReader<I> reader, ItemProcessor<I, O> processor,
+			ItemWriter<O> writer, StepOptions options) {
+		return job(name).start(step(name, reader, processor, writer, options).build());
+	}
+
 	public JobExecution run(Job job) throws JobExecutionException {
 		JobExecution execution = jobLauncher.run(job, new JobParameters());
 		awaitTermination(execution);
@@ -125,7 +137,7 @@ public class JobRunner {
 		return execution;
 	}
 
-	public <I, O> FaultTolerantStepBuilder<I, O> step(String name, ItemReader<I> reader, ItemProcessor<I, O> processor,
+	public <I, O> SimpleStepBuilder<I, O> step(String name, ItemReader<I> reader, ItemProcessor<I, O> processor,
 			ItemWriter<O> writer, StepOptions options) {
 		if (reader instanceof ItemStreamSupport) {
 			((ItemStreamSupport) reader).setName(name + "-reader");
@@ -135,11 +147,11 @@ public class JobRunner {
 		}
 		SimpleStepBuilder<I, O> step = step(name).<I, O>chunk(options.getChunkSize()).reader(reader)
 				.processor(processor).writer(writer);
-		if (options instanceof FlushingStepOptions) {
-			FlushingStepOptions flushingOptions = (FlushingStepOptions) options;
+		Optional<Duration> flushingInterval = options.getFlushingInterval();
+		if (flushingInterval.isPresent()) {
 			FlushingSimpleStepBuilder<I, O> flushingStep = new FlushingSimpleStepBuilder<>(step);
-			flushingStep.interval(flushingOptions.getInterval().toMillis());
-			flushingOptions.getIdleTimeout().map(Duration::toMillis).ifPresent(flushingStep::idleTimeout);
+			flushingStep.flushingInterval(flushingInterval.get().toMillis());
+			options.getIdleTimeout().map(Duration::toMillis).ifPresent(flushingStep::idleTimeout);
 			step = flushingStep;
 		}
 		if (options.getThreads() > 1) {
@@ -149,12 +161,15 @@ public class JobRunner {
 			executor.afterPropertiesSet();
 			step.taskExecutor(executor).throttleLimit(options.getThreads());
 		}
-		FaultTolerantStepBuilder<I, O> ftStep = step.faultTolerant();
-		options.getSkip().forEach(ftStep::skip);
-		options.getNoSkip().forEach(ftStep::noSkip);
-		ftStep.skipLimit(options.getSkipLimit());
-		options.getSkipPolicy().ifPresent(ftStep::skipPolicy);
-		return ftStep;
+		if (options.isFaultTolerant()) {
+			FaultTolerantStepBuilder<I, O> faultTolerantStep = step.faultTolerant();
+			options.getSkip().forEach(faultTolerantStep::skip);
+			options.getNoSkip().forEach(faultTolerantStep::noSkip);
+			faultTolerantStep.skipLimit(options.getSkipLimit());
+			options.getSkipPolicy().ifPresent(faultTolerantStep::skipPolicy);
+			step = faultTolerantStep;
+		}
+		return step;
 	}
 
 	public static JobRunner inMemory() throws Exception {
@@ -162,6 +177,11 @@ public class JobRunner {
 		org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean bean = new org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean();
 		bean.afterPropertiesSet();
 		return new JobRunner(bean.getObject(), bean.getTransactionManager());
+	}
+
+	public <I, O> JobExecution runAsync(String name, ItemReader<I> reader, ItemProcessor<I, O> processor,
+			ItemWriter<O> writer, StepOptions options) throws JobExecutionException {
+		return runAsync(job(name, reader, processor, writer, options).build());
 	}
 
 }

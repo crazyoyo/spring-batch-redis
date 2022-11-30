@@ -1,5 +1,6 @@
 package com.redis.spring.batch.step;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.core.StepContribution;
@@ -42,6 +43,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	 * problem).
 	 */
 	public static final int DEFAULT_MAX_SKIPS_ON_READ = 100;
+	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 	public static final long NO_IDLE_TIMEOUT = -1;
 	public static final Object POISON_PILL = new Object();
 
@@ -51,7 +53,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	private Classifier<Throwable, Boolean> rollbackClassifier = new BinaryExceptionClassifier(true);
 	private int maxSkipsOnRead = DEFAULT_MAX_SKIPS_ON_READ;
 
-	private long interval = FlushingSimpleStepBuilder.DEFAULT_FLUSHING_INTERVAL;
+	private long interval = DEFAULT_FLUSHING_INTERVAL.toMillis();
 	private long idleTimeout = NO_IDLE_TIMEOUT;
 	private long lastActivity = 0;
 

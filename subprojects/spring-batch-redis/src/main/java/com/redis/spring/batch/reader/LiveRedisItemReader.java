@@ -9,16 +9,15 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamException;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.common.FlushingStepOptions;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.StepOptions;
 
 public class LiveRedisItemReader<K, T extends KeyValue<K>> extends RedisItemReader<K, T>
 		implements PollableItemReader<T> {
 
 	public LiveRedisItemReader(JobRunner jobRunner, PollableItemReader<K> keyReader,
-			ItemProcessor<List<? extends K>, List<T>> valueReader, FlushingStepOptions stepOptions,
-			QueueOptions queueOptions) {
+			ItemProcessor<List<? extends K>, List<T>> valueReader, StepOptions stepOptions, QueueOptions queueOptions) {
 		super(jobRunner, keyReader, valueReader, stepOptions, queueOptions);
 	}
 

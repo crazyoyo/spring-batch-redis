@@ -20,11 +20,9 @@ import com.redis.spring.batch.reader.PollableItemReader;
 
 public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 
-	public static final long DEFAULT_FLUSHING_INTERVAL = 50;
-
 	private final Log log = LogFactory.getLog(getClass());
 
-	private long interval = FlushingSimpleStepBuilder.DEFAULT_FLUSHING_INTERVAL;
+	private long interval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL.toMillis();
 	private long idleTimeout = FlushingChunkProvider.NO_IDLE_TIMEOUT;
 
 	public FlushingSimpleStepBuilder(StepBuilderHelper<?> parent) {
@@ -45,7 +43,7 @@ public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I,
 		return (FlushingSimpleStepBuilder<I, O>) super.chunk(completionPolicy);
 	}
 
-	public FlushingSimpleStepBuilder<I, O> interval(long millis) {
+	public FlushingSimpleStepBuilder<I, O> flushingInterval(long millis) {
 		this.interval = millis;
 		return this;
 	}

@@ -17,7 +17,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemWriter;
@@ -37,7 +37,7 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 	private final Map<KeyWrapper<K>, KeyInfo> keyInfos = new HashMap<>();
 	private final GenericObjectPool<StatefulConnection<K, V>> pool;
 	private final HotKeyFilterOptions options;
-	private final BlockingQueueItemReader<K> reader;
+	private final QueueItemReader<K> reader;
 	private final BlockingQueue<K> candidateQueue;
 	private ScheduledExecutorService executor;
 	private ScheduledFuture<?> pruneFuture;
@@ -48,8 +48,7 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 		this.pool = pool;
 		this.options = options;
 		this.candidateQueue = new ConcurrentSetBlockingQueue<>(options.getCandidateQueueOptions().getCapacity());
-		this.reader = new BlockingQueueItemReader<>(candidateQueue,
-				options.getCandidateQueueOptions().getPollTimeout());
+		this.reader = new QueueItemReader<>(candidateQueue, options.getCandidateQueueOptions().getPollTimeout());
 	}
 
 	@Override
@@ -86,7 +85,7 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 	@Override
 	protected Job job() {
 		ItemWriter<K> writer = new ProcessingItemWriter<>(new KeyMetadataValueReader<>(pool), new MetadataWriter());
-		FaultTolerantStepBuilder<K, K> step = jobRunner.step(name, reader, null, writer, options.getStepOptions());
+		SimpleStepBuilder<K, K> step = jobRunner.step(name, reader, null, writer, options.getStepOptions());
 		return jobRunner.job(name).start(step.build()).build();
 	}
 
