@@ -49,7 +49,7 @@ import io.micrometer.core.instrument.search.Search;
 import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-class ModulesTests extends AbstractTestBase {
+class RedisModulesIntegrationTests extends AbstractTestBase {
 
 	protected static final RedisModulesContainer REDISMOD = new RedisModulesContainer(
 			RedisModulesContainer.DEFAULT_IMAGE_NAME.withTag(RedisModulesContainer.DEFAULT_TAG));

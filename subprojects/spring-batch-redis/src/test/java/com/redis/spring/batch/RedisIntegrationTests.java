@@ -16,6 +16,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -34,6 +38,7 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
@@ -65,10 +70,12 @@ import com.redis.spring.batch.reader.HotKeyFilter;
 import com.redis.spring.batch.reader.HotKeyFilterOptions;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
-import com.redis.spring.batch.reader.KeyMetadata;
-import com.redis.spring.batch.reader.KeyMetadataValueReader;
+import com.redis.spring.batch.reader.KeyContext;
+import com.redis.spring.batch.reader.KeyContextWriter;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
+import com.redis.spring.batch.reader.LiveReaderBuilder;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.QueueOptions;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.ScanSizeEstimator.Builder;
 import com.redis.spring.batch.reader.ScanSizeEstimatorOptions;
@@ -107,13 +114,14 @@ import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
+import io.lettuce.core.api.sync.RedisSortedSetCommands;
 import io.lettuce.core.cluster.SlotHash;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.models.stream.PendingMessages;
 
-class BatchTests extends AbstractTestBase {
+class RedisIntegrationTests extends AbstractTestBase {
 
-	private static final Logger log = LoggerFactory.getLogger(BatchTests.class);
+	private static final Logger log = LoggerFactory.getLogger(RedisIntegrationTests.class);
 
 	protected static final RedisContainer REDIS = new RedisContainer(
 			RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
@@ -128,7 +136,7 @@ class BatchTests extends AbstractTestBase {
 
 		@Override
 		public List<RedisTestContext> getContexts() {
-			return BatchTests.this.getContexts();
+			return RedisIntegrationTests.this.getContexts();
 		}
 	}
 
@@ -359,8 +367,8 @@ class BatchTests extends AbstractTestBase {
 				filter.onDuplicate(key);
 				return !filter.test(key);
 			});
-			Assertions.assertTrue(filter.getKeyInfos().containsKey(key));
-			Awaitility.await().until(() -> filter.getKeyInfos().isEmpty());
+			Assertions.assertTrue(filter.getMetadata().containsKey(key));
+			Awaitility.await().until(() -> filter.getMetadata().isEmpty());
 			filter.close();
 		}
 
@@ -454,10 +462,12 @@ class BatchTests extends AbstractTestBase {
 		void readKeyMetadata(RedisTestContext redis) throws Exception {
 			generate(redis, DataGeneratorOptions.builder().build());
 			GenericObjectPool<StatefulConnection<String, String>> pool = pool(redis);
-			KeyMetadataValueReader<String, String> reader = new KeyMetadataValueReader<>(pool);
-			List<KeyMetadata<String>> metadatas = reader.process(redis.sync().keys("*"));
+			KeyContextWriter<String, String> reader = new KeyContextWriter<>(pool);
+			List<KeyContext<String>> metadatas = redis.sync().keys("*").stream().map(KeyContext::new)
+					.collect(Collectors.toList());
+			reader.write(metadatas);
 			Assertions.assertEquals(DataGeneratorOptions.DEFAULT_KEY_RANGE_MAX, metadatas.size());
-			for (KeyMetadata<String> metadata : metadatas) {
+			for (KeyContext<String> metadata : metadatas) {
 				Assertions.assertEquals(redis.sync().type(metadata.getKey()), metadata.getType());
 				Assertions.assertEquals(redis.sync().memoryUsage(metadata.getKey()), metadata.getMemoryUsage());
 			}
@@ -937,6 +947,73 @@ class BatchTests extends AbstractTestBase {
 
 		@ParameterizedTest
 		@RedisTestContextsSource
+		void filterHotKeys(RedisTestContext redis) throws Exception {
+			StepOptions stepOptions = StepOptions.builder()
+					.flushingInterval(LiveReaderBuilder.DEFAULT_FLUSHING_INTERVAL).idleTimeout(Duration.ofSeconds(1))
+					.build();
+			enableKeyspaceNotifications(redis);
+			LiveRedisItemReader<String, DataStructure<String>> reader = liveDataStructureReader(redis)
+					.notificationQueueOptions(QueueOptions.builder().capacity(100000).build()).stepOptions(stepOptions)
+					.build();
+			KeyspaceNotificationItemReader<String> keyReader = (KeyspaceNotificationItemReader<String>) reader
+					.getKeyReader();
+			HotKeyFilterOptions options = HotKeyFilterOptions.builder().maxMemoryUsage(DataSize.of(1, DataUnit.BYTES))
+					.maxThroughput(300).build();
+			HotKeyFilter<String, String> filter = new HotKeyFilter<>(pool(redis), jobRunner, options);
+			filter.setName(name(redis) + "-filter");
+			keyReader.setFilter(filter);
+			RedisItemWriter<String, String, DataStructure<String>> writer = replicationDataStructureWriter().build();
+			String name = name(redis);
+			SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = jobRunner.step(name, reader, null,
+					writer, stepOptions);
+			JobExecution execution = jobRunner.runAsync(jobRunner.job(name).start(step.build()).build());
+			awaitOpen(reader);
+			List<String> coldkeys = Arrays.asList("c1", "c2", "c3");
+			List<String> hotkeys = Arrays.asList("h1", "h2", "h3");
+			ZaddRunnable hotUpdater = new ZaddRunnable(redis, hotkeys);
+			ZaddRunnable coldUpdater = new ZaddRunnable(redis, coldkeys);
+			ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+			ScheduledFuture<?> coldFuture = executor.scheduleAtFixedRate(coldUpdater, 0, 10, TimeUnit.MILLISECONDS);
+			ScheduledFuture<?> hotFuture = executor.scheduleAtFixedRate(hotUpdater, 0, 1, TimeUnit.MILLISECONDS);
+			Awaitility.await().until(() -> coldUpdater.getIndex() > 100);
+			Awaitility.await().until(() -> hotUpdater.getIndex() > 1000);
+			coldFuture.cancel(true);
+			hotFuture.cancel(true);
+			jobRunner.awaitTermination(execution);
+			RedisTestContext target = getContext(TARGET);
+			coldkeys.forEach(k -> Assertions.assertEquals(redis.sync().zcard(k), target.sync().zcard(k)));
+			hotkeys.forEach(k -> Assertions.assertTrue(redis.sync().zcard(k) > target.sync().zcard(k)));
+			Map<String, KeyContext<String>> metadata = filter.getMetadata();
+			coldkeys.forEach(k -> Assertions.assertFalse(metadata.containsKey(k)));
+			hotkeys.forEach(k -> Assertions.assertTrue(metadata.containsKey(k)));
+		}
+
+		private class ZaddRunnable implements Runnable {
+
+			private final AtomicInteger index = new AtomicInteger();
+			private final RedisSortedSetCommands<String, String> commands;
+			private final List<String> keys;
+
+			public int getIndex() {
+				return index.get();
+			}
+
+			public ZaddRunnable(RedisTestContext redis, List<String> keys) {
+				this.commands = redis.sync();
+				this.keys = keys;
+			}
+
+			@Override
+			public void run() {
+				int memberId = index.incrementAndGet();
+				for (String key : keys) {
+					commands.zadd(key, System.nanoTime(), String.valueOf(memberId));
+				}
+			}
+		}
+
+		@ParameterizedTest
+		@RedisTestContextsSource
 		void liveDataStructures(RedisTestContext redis) throws Exception {
 			enableKeyspaceNotifications(redis);
 			liveReplication(redis, dataStructureReader(redis), replicationDataStructureWriter().build(),
@@ -958,7 +1035,6 @@ class BatchTests extends AbstractTestBase {
 					.maxThroughput(1).build();
 			HotKeyFilter<String, String> filter = new HotKeyFilter<>(pool(redis), jobRunner, options);
 			filter.setName(name(redis) + "-filter");
-			keyReader.addKeyListener(filter);
 			keyReader.setFilter(filter);
 			RedisItemWriter<String, String, DataStructure<String>> liveWriter = replicationDataStructureWriter()
 					.build();

@@ -20,7 +20,7 @@ public class HotKeyFilterOptions {
 	private static final Type[] DEFAULT_BLOCKED_TYPES = { Type.LIST, Type.SET, Type.STREAM, Type.TIMESERIES,
 			Type.ZSET };
 	public static final DataSize DEFAULT_MAX_MEMORY_USAGE = DataSize.ofMegabytes(1);
-	public static final Duration DEFAULT_PRUNE_INTERVAL = Duration.ofSeconds(10);
+	public static final Duration DEFAULT_PRUNE_INTERVAL = Duration.ofMinutes(1);
 	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 
 	private QueueOptions candidateQueueOptions = QueueOptions.builder().build();

@@ -33,8 +33,8 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 	private final K[] patterns;
 	private final QueueOptions queueOptions;
 	private final List<KeyListener<K>> listeners = new ArrayList<>();
-	private BlockingQueue<KeyWrapper<K>> queue;
 
+	private BlockingQueue<KeyWrapper<K>> queue;
 	private Predicate<K> filter = k -> true;
 
 	public KeyspaceNotificationItemReader(KeyspaceNotificationPublisher<K> publisher, Converter<K, K> keyExtractor,
@@ -45,10 +45,6 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 		this.keyExtractor = keyExtractor;
 		this.patterns = patterns;
 		this.queueOptions = queueOptions;
-	}
-
-	public void addKeyListener(KeyListener<K> listener) {
-		this.listeners.add(listener);
 	}
 
 	public void setFilter(Predicate<K> filter) {
@@ -76,16 +72,20 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 		return false;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
 		if (queue == null) {
-			if (filter instanceof ItemStream) {
-				((ItemStream) filter).open(executionContext);
-			}
 			this.queue = new ConcurrentSetBlockingQueue<>(queueOptions.getCapacity());
 			Utils.createGaugeCollectionSize(QUEUE_SIZE_GAUGE_NAME, queue);
 			publisher.addListener(this);
 			publisher.subscribe(patterns);
+			if (filter instanceof ItemStream) {
+				((ItemStream) filter).open(executionContext);
+			}
+			if (filter instanceof KeyListener) {
+				listeners.add((KeyListener<K>) filter);
+			}
 		}
 		super.open(executionContext);
 	}
@@ -102,18 +102,22 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public synchronized void close() throws ItemStreamException {
 		super.close();
 		if (queue != null) {
+			if (filter instanceof KeyListener) {
+				listeners.remove((KeyListener<K>) filter);
+			}
+			if (filter instanceof ItemStream) {
+				((ItemStream) filter).close();
+			}
 			if (!queue.isEmpty()) {
 				log.warn("Closing with items still in queue");
 			}
 			queue = null;
 			publisher.unsubscribe(patterns);
-			if (filter instanceof ItemStream) {
-				((ItemStream) filter).close();
-			}
 		}
 	}
 
