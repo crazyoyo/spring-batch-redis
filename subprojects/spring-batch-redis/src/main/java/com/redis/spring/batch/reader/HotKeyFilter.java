@@ -23,11 +23,11 @@ import org.springframework.batch.item.ItemStreamException;
 import com.redis.spring.batch.common.JobExecutionItemStream;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.queue.ConcurrentSetBlockingQueue;
-import com.redis.spring.batch.reader.KeyspaceNotificationItemReader.KeyListener;
+import com.redis.spring.batch.reader.KeyspaceNotificationItemReader.Listener;
 
 import io.lettuce.core.api.StatefulConnection;
 
-public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predicate<K>, KeyListener<K> {
+public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predicate<K>, Listener<K> {
 
 	private final Log log = LogFactory.getLog(getClass());
 
@@ -60,6 +60,11 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 		this.executor = Executors.newSingleThreadScheduledExecutor();
 		this.pruneFuture = executor.scheduleAtFixedRate(this::prune, options.getPruneInterval().toMillis(),
 				options.getPruneInterval().toMillis(), TimeUnit.MILLISECONDS);
+	}
+
+	@Override
+	public boolean isOpen() {
+		return super.isOpen() && reader.isOpen();
 	}
 
 	public Map<K, KeyContext<K>> getMetadata() {
@@ -101,6 +106,21 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 
 	private KeyContext<K> getKeyContext(K key) {
 		return metadata.computeIfAbsent(new KeyWrapper<>(key), w -> new KeyContext<>(key));
+	}
+
+	@Override
+	public void onAccept(K key) {
+		// do nothing
+	}
+
+	@Override
+	public void onKey(K key) {
+		// do nothing
+	}
+
+	@Override
+	public void onReject(K key) {
+		// do nothing
 	}
 
 	@Override

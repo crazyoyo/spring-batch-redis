@@ -32,7 +32,7 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 	private final Converter<K, K> keyExtractor;
 	private final K[] patterns;
 	private final QueueOptions queueOptions;
-	private final List<KeyListener<K>> listeners = new ArrayList<>();
+	private final List<Listener<K>> listeners = new ArrayList<>();
 
 	private BlockingQueue<KeyWrapper<K>> queue;
 	private Predicate<K> filter = k -> true;
@@ -57,7 +57,9 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 			return false;
 		}
 		K key = keyExtractor.convert(notification);
+		listeners.forEach(l -> l.onKey(key));
 		if (filter.test(key)) {
+			listeners.forEach(l -> l.onAccept(key));
 			KeyWrapper<K> wrapper = new KeyWrapper<>(key);
 			if (queue.contains(wrapper)) {
 				listeners.forEach(l -> l.onDuplicate(key));
@@ -69,6 +71,7 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 			}
 			return added;
 		}
+		listeners.forEach(l -> l.onReject(key));
 		return false;
 	}
 
@@ -83,8 +86,8 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 			if (filter instanceof ItemStream) {
 				((ItemStream) filter).open(executionContext);
 			}
-			if (filter instanceof KeyListener) {
-				listeners.add((KeyListener<K>) filter);
+			if (filter instanceof Listener) {
+				listeners.add((Listener<K>) filter);
 			}
 		}
 		super.open(executionContext);
@@ -107,8 +110,8 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 	public synchronized void close() throws ItemStreamException {
 		super.close();
 		if (queue != null) {
-			if (filter instanceof KeyListener) {
-				listeners.remove((KeyListener<K>) filter);
+			if (filter instanceof Listener) {
+				listeners.remove((Listener<K>) filter);
 			}
 			if (filter instanceof ItemStream) {
 				((ItemStream) filter).close();
@@ -135,7 +138,13 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 		return wrapper.getKey();
 	}
 
-	public interface KeyListener<K> {
+	public interface Listener<K> {
+
+		void onKey(K key);
+
+		void onAccept(K key);
+
+		void onReject(K key);
 
 		void onDuplicate(K key);
 

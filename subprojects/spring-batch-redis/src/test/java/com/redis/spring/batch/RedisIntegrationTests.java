@@ -359,8 +359,9 @@ class RedisIntegrationTests extends AbstractTestBase {
 			HotKeyFilterOptions options = HotKeyFilterOptions.builder().maxMemoryUsage(DataSize.of(100, DataUnit.BYTES))
 					.maxThroughput(1).pruneInterval(Duration.ofSeconds(1)).build();
 			HotKeyFilter<String, String> filter = new HotKeyFilter<>(pool(redis), jobRunner, options);
-			filter.setName(name(redis) + "-filter");
+			filter.setName(name(redis) + "-filterHotKeys");
 			filter.open(new ExecutionContext());
+			Awaitility.await().until(filter::isOpen);
 			String key = "gen:1";
 			Assertions.assertTrue(filter.test(key));
 			Awaitility.await().pollInterval(Duration.ofMillis(1)).until(() -> {
@@ -947,7 +948,7 @@ class RedisIntegrationTests extends AbstractTestBase {
 
 		@ParameterizedTest
 		@RedisTestContextsSource
-		void filterHotKeys(RedisTestContext redis) throws Exception {
+		void replicateWithHotKeyFilter(RedisTestContext redis) throws Exception {
 			StepOptions stepOptions = StepOptions.builder()
 					.flushingInterval(LiveReaderBuilder.DEFAULT_FLUSHING_INTERVAL).idleTimeout(Duration.ofSeconds(1))
 					.build();
