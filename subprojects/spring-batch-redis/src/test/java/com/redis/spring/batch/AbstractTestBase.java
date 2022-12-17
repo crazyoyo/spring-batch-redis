@@ -191,11 +191,11 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 	 * @return true if left and right have same keys
 	 * @throws Exception
 	 */
-	protected void compare(String name, RedisTestContext left, RedisTestContext right) throws Exception {
+	protected void compare(RedisTestContext left, RedisTestContext right) throws Exception {
 		Assertions.assertEquals(left.sync().dbsize(), right.sync().dbsize());
 		RedisItemReader<String, KeyComparison<String>> reader = comparisonReader(left, right);
 		ListItemWriter<KeyComparison<String>> writer = new ListItemWriter<>();
-		run(name + "-compare", reader, writer);
+		run(name(left) + "-compare", reader, writer);
 		Awaitility.await().until(() -> !reader.isOpen());
 		Assertions.assertFalse(writer.getWrittenItems().isEmpty());
 		for (KeyComparison<String> comparison : writer.getWrittenItems()) {

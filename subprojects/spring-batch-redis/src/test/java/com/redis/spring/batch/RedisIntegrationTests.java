@@ -863,7 +863,7 @@ class RedisIntegrationTests extends AbstractTestBase {
 			RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis).build();
 			run(redis, reader, dataStructureWriter(target).build());
 			awaitClosed(reader);
-			compare("replicateDataStructures", redis, target);
+			compare(redis, target);
 		}
 
 		@ParameterizedTest
@@ -874,7 +874,7 @@ class RedisIntegrationTests extends AbstractTestBase {
 			RedisItemReader<String, KeyDump<String>> reader = keyDumpReader(redis).build();
 			run("dumpAndRestore-" + name(redis), reader, keyDumpWriter(target).build());
 			awaitClosed(reader);
-			compare("replicate", redis, target);
+			compare(redis, target);
 		}
 
 		@Test
@@ -900,7 +900,7 @@ class RedisIntegrationTests extends AbstractTestBase {
 					connection.setAutoFlushCommands(true);
 				}
 				run(redis, keyDumpReader(redis).build(), keyDumpWriter(target).build());
-				compare("replicateBinary", redis, target);
+				compare(redis, target);
 			}
 		}
 
@@ -1043,7 +1043,7 @@ class RedisIntegrationTests extends AbstractTestBase {
 					DataGeneratorOptions.builder().types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET)
 							.expiration(IntRange.is(100)).range(IntRange.between(300, 1000)).build());
 			awaitTermination(execution);
-			compare(name, redis, target);
+			compare(redis, target);
 		}
 
 	}

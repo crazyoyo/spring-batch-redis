@@ -180,7 +180,7 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 		redis.sync().jsonSet("json:3", "$", JSON_BEER_1);
 		RedisTestContext target = getContext(TARGET);
 		run(redis, dataStructureReader(redis).build(), RedisItemWriter.dataStructure(pool(target)).build());
-		compare("replicateJSON", redis, target);
+		compare(redis, target);
 	}
 
 	@ParameterizedTest
@@ -193,6 +193,6 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 		redis.sync().tsAdd(key, Sample.of(1003, 3));
 		RedisTestContext target = getContext(TARGET);
 		run(redis, dataStructureReader(redis).build(), RedisItemWriter.dataStructure(pool(target)).build());
-		compare("replicateTimeSeries", redis, target);
+		compare(redis, target);
 	}
 }
