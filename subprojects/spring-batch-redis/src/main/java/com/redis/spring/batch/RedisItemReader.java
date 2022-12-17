@@ -17,6 +17,7 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.common.DataStructure;
@@ -80,20 +81,24 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 		if (jobExecution == null) {
 			this.queue = new LinkedBlockingQueue<>(queueOptions.getCapacity());
 			Utils.createGaugeCollectionSize("reader.queue.size", queue);
-			ItemWriter<K> writer = new ProcessingItemWriter<>(valueReader, this::enqueue);
+			ItemWriter<K> writer = new ProcessingItemWriter<>(valueReader, new Enqueuer());
 			SimpleStepBuilder<K, K> step = jobRunner.step(name, keyReader, keyProcessor, writer, stepOptions);
 			Job job = jobRunner.job(name).start(step.build()).build();
 			jobExecution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
 		}
 	}
 
-	private void enqueue(List<? extends T> items) throws InterruptedException {
-		for (T item : items) {
-			try {
-				queue.put(item);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				throw e;
+	private class Enqueuer extends AbstractItemStreamItemWriter<T> {
+
+		@Override
+		public void write(List<? extends T> items) throws InterruptedException {
+			for (T item : items) {
+				try {
+					queue.put(item);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw e;
+				}
 			}
 		}
 	}
