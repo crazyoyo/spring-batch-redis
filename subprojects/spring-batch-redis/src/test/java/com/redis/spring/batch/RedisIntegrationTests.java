@@ -527,6 +527,10 @@ class RedisIntegrationTests extends AbstractTestBase {
 			return body;
 		}
 
+		private void awaitClosed(StreamItemReader<?, ?> reader) {
+			Awaitility.await().until(() -> !reader.isOpen());
+		}
+
 		@ParameterizedTest
 		@RedisTestContextsSource
 		void readStreamAutoAck(RedisTestContext redis) throws InterruptedException {
@@ -783,7 +787,7 @@ class RedisIntegrationTests extends AbstractTestBase {
 						Consumer.from("batchtests-readstreamjob", "consumer1")).build();
 				ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
 				run(name(redis) + "-" + key, reader, writer);
-				Awaitility.await().until(() -> !reader.isOpen());
+				awaitClosed(reader);
 				Awaitility.await().until(() -> COUNT == writer.getWrittenItems().size());
 				assertMessageBody(writer.getWrittenItems());
 			}
@@ -808,8 +812,8 @@ class RedisIntegrationTests extends AbstractTestBase {
 				JobExecution execution2 = runAsync(name(redis) + "-" + key + "-reader2", reader2, writer2);
 				awaitTermination(execution1);
 				awaitTermination(execution2);
-				Awaitility.await().until(() -> !reader1.isOpen());
-				Awaitility.await().until(() -> !reader2.isOpen());
+				awaitClosed(reader1);
+				awaitClosed(reader2);
 				Awaitility.await()
 						.until(() -> COUNT == writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
 				assertMessageBody(writer1.getWrittenItems());
@@ -1044,6 +1048,8 @@ class RedisIntegrationTests extends AbstractTestBase {
 					DataGeneratorOptions.builder().types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET)
 							.expiration(IntRange.is(100)).range(IntRange.between(300, 1000)).build());
 			awaitTermination(execution);
+			awaitClosed(reader);
+			awaitClosed(liveReader);
 			compare(redis, target);
 		}
 

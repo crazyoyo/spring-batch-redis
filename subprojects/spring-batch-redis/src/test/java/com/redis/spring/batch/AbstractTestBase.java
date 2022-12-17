@@ -196,7 +196,7 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		RedisItemReader<String, KeyComparison<String>> reader = comparisonReader(left, right);
 		ListItemWriter<KeyComparison<String>> writer = new ListItemWriter<>();
 		run(name(left) + "-compare", reader, writer);
-		Awaitility.await().until(() -> !reader.isOpen());
+		awaitClosed(reader);
 		Assertions.assertFalse(writer.getWrittenItems().isEmpty());
 		for (KeyComparison<String> comparison : writer.getWrittenItems()) {
 			Assertions.assertEquals(Status.OK, comparison.getStatus());
