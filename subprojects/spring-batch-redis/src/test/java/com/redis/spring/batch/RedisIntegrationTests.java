@@ -464,9 +464,11 @@ class RedisIntegrationTests extends AbstractTestBase {
 		void readHotKeyContext(RedisTestContext redis) throws Exception {
 			generate(redis, DataGeneratorOptions.builder().build());
 			GenericObjectPool<StatefulConnection<String, String>> pool = pool(redis);
-			HotKeyFilter<String, String> filter = new HotKeyFilter<>(pool, jobRunner,
-					HotKeyFilterOptions.builder().maxMemoryUsage(DataSize.ofBytes(1)).build());
+			HotKeyFilter<String, String> filter = new HotKeyFilter<>(pool, jobRunner, HotKeyFilterOptions.builder()
+					.maxMemoryUsage(DataSize.ofBytes(1)).stepOptions(DEFAULT_FLUSHING_STEP_OPTIONS).build());
+			filter.setName(name(redis) + "-filter");
 			filter.open(new ExecutionContext());
+			Awaitility.await().until(() -> filter.isOpen());
 			List<String> keys = redis.sync().keys("*");
 			keys.forEach(filter::test);
 			Awaitility.await().until(() -> filter.contexts().stream().allMatch(e -> e.getValue().getType() != null));

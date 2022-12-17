@@ -73,42 +73,40 @@ public class HotKeyFilter<K, V> extends ItemStreamSupport implements Predicate<K
 	@Override
 	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
 		super.open(executionContext);
-		if (jobExecution != null) {
-			return;
-		}
-		this.executor = Executors.newSingleThreadScheduledExecutor();
-		this.pruneFuture = executor.scheduleAtFixedRate(this::prune, options.getPruneInterval().toMillis(),
-				options.getPruneInterval().toMillis(), TimeUnit.MILLISECONDS);
-		this.candidateQueue = new LinkedBlockingDeque<>(options.getCandidateQueueOptions().getCapacity());
-		this.reader = new QueueItemReader<>(candidateQueue, options.getCandidateQueueOptions().getPollTimeout());
-		this.reader.setName(name + "-reader");
-		SimpleStepBuilder<K, K> step = jobRunner.step(name, reader, null, new ContextWriter(),
-				options.getStepOptions());
-		Job job = jobRunner.job(name).start(step.build()).build();
-		try {
-			this.jobExecution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
-		} catch (JobExecutionException e) {
-			throw new ItemStreamException("Could not start job");
+		if (jobExecution == null) {
+			this.executor = Executors.newSingleThreadScheduledExecutor();
+			this.pruneFuture = executor.scheduleAtFixedRate(this::prune, options.getPruneInterval().toMillis(),
+					options.getPruneInterval().toMillis(), TimeUnit.MILLISECONDS);
+			this.candidateQueue = new LinkedBlockingDeque<>(options.getCandidateQueueOptions().getCapacity());
+			this.reader = new QueueItemReader<>(candidateQueue, options.getCandidateQueueOptions().getPollTimeout());
+			this.reader.setName(name + "-reader");
+			SimpleStepBuilder<K, K> step = jobRunner.step(name, reader, null, new ContextWriter(),
+					options.getStepOptions());
+			Job job = jobRunner.job(name).start(step.build()).build();
+			try {
+				this.jobExecution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
+			} catch (JobExecutionException e) {
+				throw new ItemStreamException("Could not start job");
+			}
 		}
 	}
 
 	@Override
 	public synchronized void close() {
-		if (jobExecution == null) {
-			return;
+		if (jobExecution != null) {
+			pruneFuture.cancel(true);
+			pruneFuture = null;
+			executor.shutdown();
+			executor = null;
+			reader.close();
+			Awaitility.await().until(() -> !jobExecution.isRunning());
+			jobExecution = null;
 		}
-		pruneFuture.cancel(true);
-		pruneFuture = null;
-		executor.shutdown();
-		executor = null;
-		reader.close();
-		Awaitility.await().until(() -> !jobExecution.isRunning());
-		jobExecution = null;
 		super.close();
 	}
 
-	public synchronized boolean isOpen() {
-		return jobExecution != null;
+	public boolean isOpen() {
+		return jobExecution != null && jobExecution.isRunning() && !jobExecution.getStatus().isUnsuccessful();
 	}
 
 	public Map<K, KeyContext> getMetadata() {
