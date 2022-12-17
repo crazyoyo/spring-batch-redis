@@ -28,6 +28,7 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamSupport;
+import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.common.JobRunner;
@@ -80,7 +81,7 @@ public class HotKeyFilter<K, V> extends ItemStreamSupport implements Predicate<K
 		this.candidateQueue = new LinkedBlockingDeque<>(options.getCandidateQueueOptions().getCapacity());
 		this.reader = new QueueItemReader<>(candidateQueue, options.getCandidateQueueOptions().getPollTimeout());
 		this.reader.setName(name + "-reader");
-		SimpleStepBuilder<K, K> step = jobRunner.step(name, reader, null, this::populateContexts,
+		SimpleStepBuilder<K, K> step = jobRunner.step(name, reader, null, new ContextWriter(),
 				options.getStepOptions());
 		Job job = jobRunner.job(name).start(step.build()).build();
 		try {
@@ -126,33 +127,39 @@ public class HotKeyFilter<K, V> extends ItemStreamSupport implements Predicate<K
 		return keys.stream().map(KeyWrapper::getKey).collect(Collectors.toList());
 	}
 
-	@SuppressWarnings("unchecked")
-	private void populateContexts(List<? extends K> keys) throws Exception {
-		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-			connection.setAutoFlushCommands(false);
-			try {
-				BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
-				List<RedisFuture<String>> typeFutures = new ArrayList<>(keys.size());
-				List<RedisFuture<Long>> memFutures = new ArrayList<>(keys.size());
-				for (K key : keys) {
-					typeFutures.add(((RedisKeyAsyncCommands<K, V>) commands).type(key));
-					memFutures.add(((RedisServerAsyncCommands<K, V>) commands).memoryUsage(key));
-				}
-				connection.flushCommands();
-				for (int index = 0; index < keys.size(); index++) {
-					K key = keys.get(index);
-					String type = typeFutures.get(index).get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
-					Long mem = memFutures.get(index).get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
-					KeyContext context = getContext(key);
-					context.setType(type);
-					if (mem != null) {
-						context.setMemoryUsage(mem);
+	private class ContextWriter extends AbstractItemStreamItemWriter<K> {
+
+		@SuppressWarnings("unchecked")
+		@Override
+		public void write(List<? extends K> items) throws Exception {
+			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+				connection.setAutoFlushCommands(false);
+				try {
+					BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
+					List<RedisFuture<String>> typeFutures = new ArrayList<>(items.size());
+					List<RedisFuture<Long>> memFutures = new ArrayList<>(items.size());
+					for (K key : items) {
+						typeFutures.add(((RedisKeyAsyncCommands<K, V>) commands).type(key));
+						memFutures.add(((RedisServerAsyncCommands<K, V>) commands).memoryUsage(key));
 					}
+					connection.flushCommands();
+					for (int index = 0; index < items.size(); index++) {
+						K key = items.get(index);
+						String type = typeFutures.get(index).get(connection.getTimeout().toMillis(),
+								TimeUnit.MILLISECONDS);
+						Long mem = memFutures.get(index).get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
+						KeyContext context = getContext(key);
+						context.setType(type);
+						if (mem != null) {
+							context.setMemoryUsage(mem);
+						}
+					}
+				} finally {
+					connection.setAutoFlushCommands(true);
 				}
-			} finally {
-				connection.setAutoFlushCommands(true);
 			}
 		}
+
 	}
 
 	public Map<K, KeyContext> contexts() {
