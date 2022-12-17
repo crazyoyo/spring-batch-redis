@@ -4,18 +4,11 @@ import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.support.AbstractItemStreamItemReader;
+import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.step.FlushingChunkProvider;
-
-public class QueueItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
-
-	private final Log log = LogFactory.getLog(getClass());
+public class QueueItemReader<T> extends AbstractItemCountingItemStreamItemReader<T> implements PollableItemReader<T> {
 
 	private final BlockingQueue<T> queue;
 	private final long defaultPollTimeout;
@@ -33,7 +26,7 @@ public class QueueItemReader<T> extends AbstractItemStreamItemReader<T> implemen
 	}
 
 	@Override
-	public T read() throws InterruptedException {
+	protected T doRead() throws Exception {
 		return poll(defaultPollTimeout, TimeUnit.MILLISECONDS);
 	}
 
@@ -46,27 +39,16 @@ public class QueueItemReader<T> extends AbstractItemStreamItemReader<T> implemen
 	}
 
 	@Override
-	public void open(ExecutionContext executionContext) {
-		super.open(executionContext);
+	protected void doOpen() throws Exception {
 		this.open = true;
 	}
 
 	@Override
-	public void close() {
-		super.close();
+	protected void doClose() throws Exception {
 		this.open = false;
 	}
 
-	@SuppressWarnings("unchecked")
-	public void stop() {
-		try {
-			queue.put((T) FlushingChunkProvider.POISON_PILL);
-		} catch (InterruptedException e) {
-			log.warn("Interrupted while enqueuing poison pill");
-			Thread.currentThread().interrupt();
-		}
-	}
-
+	@Override
 	public boolean isOpen() {
 		return open;
 	}

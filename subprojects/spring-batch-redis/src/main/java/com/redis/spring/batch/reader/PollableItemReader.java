@@ -2,9 +2,9 @@ package com.redis.spring.batch.reader;
 
 import java.util.concurrent.TimeUnit;
 
-import org.springframework.batch.item.ItemStreamReader;
+import org.springframework.batch.item.ItemReader;
 
-public interface PollableItemReader<T> extends ItemStreamReader<T> {
+public interface PollableItemReader<T> extends ItemReader<T> {
 
 	/**
 	 * Tries to read a piece of input data. If such input is available within the
@@ -19,6 +19,8 @@ public interface PollableItemReader<T> extends ItemStreamReader<T> {
 	 * @throws PollingException if an exception occurred while polling
 	 */
 	T poll(long timeout, TimeUnit unit) throws InterruptedException, PollingException;
+
+	boolean isOpen();
 
 	public static final class PollingException extends Exception {
 

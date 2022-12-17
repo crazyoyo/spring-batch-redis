@@ -4,9 +4,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.awaitility.Awaitility;
-import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemStreamException;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.JobRunner;
@@ -16,16 +14,20 @@ import com.redis.spring.batch.common.StepOptions;
 public class LiveRedisItemReader<K, T extends KeyValue<K>> extends RedisItemReader<K, T>
 		implements PollableItemReader<T> {
 
-	public LiveRedisItemReader(JobRunner jobRunner, PollableItemReader<K> keyReader,
+	public LiveRedisItemReader(JobRunner jobRunner, PollableItemReader<K> keyReader, ItemProcessor<K, K> keyProcessor,
 			ItemProcessor<List<K>, List<T>> valueReader, StepOptions stepOptions, QueueOptions queueOptions) {
-		super(jobRunner, keyReader, valueReader, stepOptions, queueOptions);
+		super(jobRunner, keyReader, keyProcessor, valueReader, stepOptions, queueOptions);
 	}
 
 	@Override
-	public void open(ExecutionContext executionContext) throws ItemStreamException {
-		super.open(executionContext);
-		Awaitility.await().timeout(JobRunner.DEFAULT_RUNNING_TIMEOUT)
-				.until(((KeyspaceNotificationItemReader<K>) keyReader)::isOpen);
+	protected synchronized void doOpen() throws Exception {
+		super.doOpen();
+		Awaitility.await().timeout(JobRunner.DEFAULT_RUNNING_TIMEOUT).until(this::isOpen);
+	}
+
+	@Override
+	public boolean isOpen() {
+		return super.isOpen() && ((PollableItemReader<K>) keyReader).isOpen();
 	}
 
 	@Override

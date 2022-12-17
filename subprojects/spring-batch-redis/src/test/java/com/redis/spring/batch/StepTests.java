@@ -14,11 +14,14 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
+import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
@@ -68,8 +71,12 @@ class StepTests {
 		generator.setMaxItemCount(count);
 		ErrorItemReader<DataStructure<String>> reader = new ErrorItemReader<>(generator);
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
-		jobRunner.run("readKeyValueFaultTolerance", reader, null, writer, StepOptions.builder().faultTolerant(true)
-				.skip(TimeoutException.class).skipPolicy(new AlwaysSkipItemSkipPolicy()).chunkSize(1).build());
+		String name = "readKeyValueFaultTolerance";
+		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = jobRunner.step(name, reader, null,
+				writer, StepOptions.builder().faultTolerant(true).skip(TimeoutException.class)
+						.skipPolicy(new AlwaysSkipItemSkipPolicy()).chunkSize(1).build());
+		Job job = jobRunner.job(name).start(step.build()).build();
+		jobRunner.getJobLauncher().run(job, new JobParameters());
 		assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getWrittenItems().size());
 	}
 
@@ -82,7 +89,8 @@ class StepTests {
 		FlushingSimpleStepBuilder<Integer, Integer> stepBuilder = new FlushingSimpleStepBuilder<>(
 				stepBuilderFactory.get(name).<Integer, Integer>chunk(1).reader(reader).writer(writer));
 		stepBuilder.idleTimeout(100).skip(TimeoutException.class).skipPolicy(new AlwaysSkipItemSkipPolicy());
-		jobRunner.run(jobBuilderFactory.get(name).start(stepBuilder.build()).build());
+		Job job = jobBuilderFactory.get(name).start(stepBuilder.build()).build();
+		jobRunner.getJobLauncher().run(job, new JobParameters());
 		assertEquals(items.size(), writer.getWrittenItems().size() * 2);
 	}
 
@@ -93,15 +101,16 @@ class StepTests {
 		BlockingQueue<String> queue = new LinkedBlockingDeque<>(count);
 		QueueItemReader<String> reader = new QueueItemReader<>(queue, Duration.ofMillis(10));
 		ListItemWriter<String> writer = new ListItemWriter<>();
-		JobExecution execution = jobRunner.runAsync(name, reader, null, writer,
+		SimpleStepBuilder<String, String> step = jobRunner.step(name, reader, null, writer,
 				StepOptions.builder().flushingInterval(FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL)
 						.idleTimeout(Duration.ofMillis(500)).build());
+		Job job = jobRunner.job(name).start(step.build()).build();
+		JobExecution execution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
 		Awaitility.await().until(() -> reader.isOpen());
 		for (int index = 1; index <= count; index++) {
 			queue.offer("key" + index);
 		}
-		jobRunner.awaitTermination(execution);
-		Awaitility.await().until(() -> !reader.isOpen());
+		Awaitility.await().until(() -> JobRunner.isTerminated(execution));
 		assertEquals(count, writer.getWrittenItems().size());
 	}
 }

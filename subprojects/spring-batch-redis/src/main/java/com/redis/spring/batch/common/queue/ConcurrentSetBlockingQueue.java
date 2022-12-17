@@ -68,7 +68,6 @@ public class ConcurrentSetBlockingQueue<E> extends ConcurrentSetQueue<E> impleme
 		fullyLock();
 		try {
 			if (set.contains(e)) {
-				listeners.forEach(l -> l.onDuplicate(e));
 				return;
 			}
 
@@ -100,7 +99,6 @@ public class ConcurrentSetBlockingQueue<E> extends ConcurrentSetQueue<E> impleme
 		putLock.lockInterruptibly();
 		try {
 			if (set.contains(e)) {
-				listeners.forEach(l -> l.onDuplicate(e));
 				return true;
 			}
 

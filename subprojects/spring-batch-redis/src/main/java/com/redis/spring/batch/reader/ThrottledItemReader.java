@@ -6,9 +6,9 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 
 public class ThrottledItemReader<T> extends AbstractItemStreamItemReader<T> {
 
@@ -16,6 +16,7 @@ public class ThrottledItemReader<T> extends AbstractItemStreamItemReader<T> {
 	private final long sleep;
 
 	public ThrottledItemReader(ItemReader<T> delegate, Duration sleepDuration) {
+		setName(ClassUtils.getShortName(getClass()));
 		Assert.notNull(delegate, "Reader delegate must not be null");
 		Assert.notNull(sleepDuration, "Sleep duration must not be null");
 		Assert.isTrue(!sleepDuration.isNegative() && !sleepDuration.isZero(),
@@ -46,14 +47,6 @@ public class ThrottledItemReader<T> extends AbstractItemStreamItemReader<T> {
 			((ItemStream) delegate).close();
 		}
 		super.close();
-	}
-
-	@Override
-	public void setName(String name) {
-		super.setName(name);
-		if (delegate instanceof ItemStreamSupport) {
-			((ItemStreamSupport) delegate).setName(name);
-		}
 	}
 
 	@Override

@@ -1,26 +1,25 @@
 package com.redis.spring.batch;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.awaitility.Awaitility;
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.step.tasklet.TaskletStep;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStreamReader;
+import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
-import org.springframework.core.convert.converter.Converter;
+import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.common.DataStructure;
-import com.redis.spring.batch.common.JobExecutionItemStream;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.ProcessingItemWriter;
@@ -40,80 +39,90 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
-public class RedisItemReader<K, T> extends JobExecutionItemStream implements ItemStreamReader<T> {
+public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemReader<T> {
 
+	public static final Duration DEFAULT_RUNNING_TIMEOUT = Duration.ofSeconds(5);
+
+	private final JobRunner jobRunner;
 	protected final ItemReader<K> keyReader;
+	private final ItemProcessor<K, K> keyProcessor;
 	private final ItemProcessor<List<K>, List<T>> valueReader;
 	protected final StepOptions stepOptions;
 	private final QueueOptions queueOptions;
-	protected final BlockingQueue<T> queue;
+	protected BlockingQueue<T> queue;
+	private String name;
+	private JobExecution jobExecution;
 
 	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, ItemProcessor<List<K>, List<T>> valueReader,
 			StepOptions stepOptions, QueueOptions queueOptions) {
-		super(jobRunner);
+		this(jobRunner, keyReader, null, valueReader, stepOptions, queueOptions);
+	}
+
+	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, ItemProcessor<K, K> keyProcessor,
+			ItemProcessor<List<K>, List<T>> valueReader, StepOptions stepOptions, QueueOptions queueOptions) {
+		setName(ClassUtils.getShortName(getClass()));
+		this.jobRunner = jobRunner;
 		this.keyReader = keyReader;
+		this.keyProcessor = keyProcessor;
 		this.valueReader = valueReader;
 		this.stepOptions = stepOptions;
 		this.queueOptions = queueOptions;
-		this.queue = new LinkedBlockingQueue<>(queueOptions.getCapacity());
-	}
-
-	public ItemReader<K> getKeyReader() {
-		return keyReader;
 	}
 
 	@Override
-	protected Job job() {
-		Utils.createGaugeCollectionSize("reader.queue.size", queue);
-		ItemWriter<K> writer = new ProcessingItemWriter<>(valueReader, new QueueWriter<>(queue));
-		TaskletStep step = jobRunner.step(name, keyReader, null, writer, stepOptions).build();
-		return jobRunner.job(name).start(step).build();
+	public void setName(String name) {
+		super.setName(name);
+		this.name = name;
 	}
 
-	private static class QueueWriter<T> extends AbstractItemStreamItemWriter<T> {
-
-		private final Log log = LogFactory.getLog(getClass());
-
-		private final BlockingQueue<T> queue;
-
-		public QueueWriter(BlockingQueue<T> queue) {
-			this.queue = queue;
+	@Override
+	protected synchronized void doOpen() throws Exception {
+		if (jobExecution == null) {
+			this.queue = new LinkedBlockingQueue<>(queueOptions.getCapacity());
+			Utils.createGaugeCollectionSize("reader.queue.size", queue);
+			ItemWriter<K> writer = new ProcessingItemWriter<>(valueReader, this::enqueue);
+			SimpleStepBuilder<K, K> step = jobRunner.step(name, keyReader, keyProcessor, writer, stepOptions);
+			Job job = jobRunner.job(name).start(step.build()).build();
+			jobExecution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
 		}
+	}
 
-		@Override
-		public void close() {
-			if (!queue.isEmpty()) {
-				log.warn("Closing with items still in queue");
-			}
-			super.close();
-		}
-
-		@Override
-		public void write(List<? extends T> items) throws Exception {
-			for (T item : items) {
+	private void enqueue(List<? extends T> items) throws InterruptedException {
+		for (T item : items) {
+			try {
 				queue.put(item);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw e;
 			}
 		}
-
-	}
-
-	private T poll() throws InterruptedException {
-		return queue.poll(queueOptions.getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
 	}
 
 	@Override
-	public T read() throws Exception {
+	protected synchronized void doClose() {
+		if (keyReader instanceof ItemStream) {
+			((ItemStream) keyReader).close();
+		}
+		if (keyProcessor instanceof ItemStream) {
+			((ItemStream) keyProcessor).close();
+		}
+		if (jobExecution != null) {
+			Awaitility.await().until(() -> !jobExecution.isRunning());
+			jobExecution = null;
+		}
+	}
+
+	@Override
+	protected T doRead() throws Exception {
 		T item;
 		do {
-			item = poll();
-		} while (item == null && jobExecution.isRunning() && !jobExecution.getStatus().isUnsuccessful());
+			item = queue.poll(queueOptions.getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+		} while (item == null && isOpen());
 		return item;
 	}
 
-	public List<T> read(int maxElements) {
-		List<T> items = new ArrayList<>(maxElements);
-		queue.drainTo(items, maxElements);
-		return items;
+	public boolean isOpen() {
+		return jobExecution != null && jobExecution.isRunning() && !jobExecution.getStatus().isUnsuccessful();
 	}
 
 	public static ScanReaderBuilder<String, String, KeyComparison<String>> comparator(JobRunner jobRunner,
@@ -137,61 +146,16 @@ public class RedisItemReader<K, T> extends JobExecutionItemStream implements Ite
 		return new StreamReaderBuilder<>(connectionPool, name, consumer);
 	}
 
-	public static LiveReaderBuilder<String, String, DataStructure<String>> liveDataStructure(
-			GenericObjectPool<StatefulConnection<String, String>> pool, JobRunner jobRunner,
-			StatefulRedisPubSubConnection<String, String> pubSubConnection, String... keyPatterns) {
-		return liveDataStructure(pool, jobRunner, pubSubConnection, 0, keyPatterns);
-	}
-
-	public static LiveReaderBuilder<String, String, DataStructure<String>> liveDataStructure(
-			GenericObjectPool<StatefulConnection<String, String>> pool, JobRunner jobRunner,
-			StatefulRedisPubSubConnection<String, String> pubSubConnection, int database, String... keyPatterns) {
-		return liveDataStructure(pool, jobRunner, pubSubConnection,
-				LiveReaderBuilder.pubSubPatterns(database, keyPatterns), LiveReaderBuilder.STRING_KEY_EXTRACTOR);
-	}
-
 	public static <K, V> LiveReaderBuilder<K, V, DataStructure<K>> liveDataStructure(
 			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
-			StatefulRedisPubSubConnection<K, V> pubSubConnection, K[] pubSubPatterns, Converter<K, K> keyExtractor) {
-		return new LiveReaderBuilder<>(jobRunner, new DataStructureValueReader<>(pool), pubSubConnection,
-				pubSubPatterns, keyExtractor);
-	}
-
-	public static <K, V> LiveReaderBuilder<K, V, DataStructure<K>> liveDataStructure(
-			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
-			StatefulRedisPubSubConnection<K, V> pubSubConnection, RedisCodec<K, V> codec, int database,
-			String... keyPatterns) {
-		return new LiveReaderBuilder<>(jobRunner, new DataStructureValueReader<>(pool), pubSubConnection,
-				LiveReaderBuilder.pubSubPatterns(codec, database, keyPatterns), LiveReaderBuilder.keyExtractor(codec));
+			StatefulRedisPubSubConnection<K, V> pubSubConnection, RedisCodec<K, V> codec) {
+		return new LiveReaderBuilder<>(jobRunner, new DataStructureValueReader<>(pool), pubSubConnection, codec);
 	}
 
 	public static <K, V> LiveReaderBuilder<K, V, KeyDump<K>> liveKeyDump(
 			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
-			StatefulRedisPubSubConnection<K, V> pubSubConnection, RedisCodec<K, V> codec, int database,
-			String... keyPatterns) {
-		return new LiveReaderBuilder<>(jobRunner, new KeyDumpValueReader<>(pool), pubSubConnection,
-				LiveReaderBuilder.pubSubPatterns(codec, database, keyPatterns), LiveReaderBuilder.keyExtractor(codec));
-	}
-
-	public static LiveReaderBuilder<String, String, KeyDump<String>> liveKeyDump(
-			GenericObjectPool<StatefulConnection<String, String>> pool, JobRunner jobRunner,
-			StatefulRedisPubSubConnection<String, String> pubSubConnection, String... keyPatterns) {
-		return liveKeyDump(pool, jobRunner, pubSubConnection, 0, keyPatterns);
-	}
-
-	public static LiveReaderBuilder<String, String, KeyDump<String>> liveKeyDump(
-			GenericObjectPool<StatefulConnection<String, String>> pool, JobRunner jobRunner,
-			StatefulRedisPubSubConnection<String, String> pubSubConnection, int database, String... keyPatterns) {
-		return liveKeyDump(pool, jobRunner, pubSubConnection, LiveReaderBuilder.pubSubPatterns(database, keyPatterns),
-				LiveReaderBuilder.STRING_KEY_EXTRACTOR);
-	}
-
-	public static <K, V> LiveReaderBuilder<K, V, KeyDump<K>> liveKeyDump(
-			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
-			StatefulRedisPubSubConnection<K, V> pubSubConnection, K[] pubSubPatterns,
-			Converter<K, K> eventKeyExtractor) {
-		return new LiveReaderBuilder<>(jobRunner, new KeyDumpValueReader<>(pool), pubSubConnection, pubSubPatterns,
-				eventKeyExtractor);
+			StatefulRedisPubSubConnection<K, V> pubSubConnection, RedisCodec<K, V> codec) {
+		return new LiveReaderBuilder<>(jobRunner, new KeyDumpValueReader<>(pool), pubSubConnection, codec);
 	}
 
 }

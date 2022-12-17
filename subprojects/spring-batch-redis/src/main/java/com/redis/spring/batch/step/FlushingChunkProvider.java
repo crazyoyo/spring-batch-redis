@@ -45,7 +45,6 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	public static final int DEFAULT_MAX_SKIPS_ON_READ = 100;
 	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 	public static final long NO_IDLE_TIMEOUT = -1;
-	public static final Object POISON_PILL = new Object();
 
 	private final RepeatOperations repeatOperations;
 
@@ -108,6 +107,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 				Tag.of("step.name", stepExecution.getStepName()), Tag.of("status", status)));
 	}
 
+	@SuppressWarnings("rawtypes")
 	@Override
 	public Chunk<I> provide(StepContribution contribution) {
 		long start = System.currentTimeMillis();
@@ -129,8 +129,8 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 				stopTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_FAILURE);
 				return RepeatStatus.FINISHED;
 			}
-			if (item == null || item == POISON_PILL) {
-				if (item == POISON_PILL || (idleTimeout != NO_IDLE_TIMEOUT
+			if (item == null) {
+				if (!((PollableItemReader) itemReader).isOpen() || (idleTimeout != NO_IDLE_TIMEOUT
 						&& System.currentTimeMillis() - lastActivity > idleTimeout)) {
 					inputs.setEnd();
 				}

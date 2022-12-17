@@ -78,7 +78,7 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 				.value(JsonNode::toString).path(".").build();
 		RedisItemWriter<String, String, JsonNode> writer = RedisItemWriter.operation(pool(redis), jsonSet).build();
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
-		jobRunner.run(name(redis), reader, null, writer, DEFAULT_STEP_OPTIONS);
+		run(redis, reader, writer);
 		Assertions.assertEquals(BEER_COUNT, redis.sync().keys("beer:*").size());
 		Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
 				new ObjectMapper().readTree(redis.sync().jsonGet("beer:1")));
@@ -99,8 +99,7 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 		ListItemReader<Sample> reader = new ListItemReader<>(samples);
 		TsAdd<String, String, Sample> tsadd = TsAdd.<Sample>key(key).<String>sample(sampleConverter)
 				.options(v -> AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST).build()).build();
-		jobRunner.run(name(redis), reader, null, RedisItemWriter.operation(pool(redis), tsadd).build(),
-				DEFAULT_STEP_OPTIONS);
+		run(redis, reader, RedisItemWriter.operation(pool(redis), tsadd).build());
 		Assertions.assertEquals(count / 2,
 				redis.sync().tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
 	}
@@ -153,7 +152,7 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
 				.operation(pool(redis), Xadd.<String, Map<String, String>>key(stream).body(t -> t).build())
 				.options(WriterOptions.builder().multiExec(true).build()).build();
-		jobRunner.run(name(redis), reader, null, writer, DEFAULT_STEP_OPTIONS);
+		run(redis, reader, writer);
 		RedisModulesCommands<String, String> sync = redis.sync();
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
 		List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
@@ -169,7 +168,7 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 		redis.sync().tsAdd("ts:1", Sample.of(123));
 		RedisItemReader<String, KeyComparison<String>> reader = comparisonReader(redis, getContext(TARGET));
 		KeyComparisonCountItemWriter<String> writer = new KeyComparisonCountItemWriter<>();
-		jobRunner.run("comparator", reader, null, writer, DEFAULT_STEP_OPTIONS);
+		run(name(redis) + "-comparator", reader, writer);
 		Assertions.assertEquals(1, writer.getResults().getCount(Status.MISSING));
 	}
 
@@ -179,11 +178,9 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 		redis.sync().jsonSet("json:1", "$", JSON_BEER_1);
 		redis.sync().jsonSet("json:2", "$", JSON_BEER_1);
 		redis.sync().jsonSet("json:3", "$", JSON_BEER_1);
-		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
 		RedisTestContext target = getContext(TARGET);
-		jobRunner.run(name(redis), reader, null, RedisItemWriter.dataStructure(pool(target)).build(),
-				DEFAULT_STEP_OPTIONS);
-		Assertions.assertTrue(compare("replicateJSON", redis, target));
+		run(redis, dataStructureReader(redis).build(), RedisItemWriter.dataStructure(pool(target)).build());
+		compare("replicateJSON", redis, target);
 	}
 
 	@ParameterizedTest
@@ -194,10 +191,8 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 		redis.sync().tsAdd(key, Sample.of(1000, 1));
 		redis.sync().tsAdd(key, Sample.of(1001, 2));
 		redis.sync().tsAdd(key, Sample.of(1003, 3));
-		RedisItemReader<String, DataStructure<String>> reader = dataStructureReader(redis);
 		RedisTestContext target = getContext(TARGET);
-		jobRunner.run(name(redis), reader, null, RedisItemWriter.dataStructure(pool(target)).build(),
-				DEFAULT_STEP_OPTIONS);
-		Assertions.assertTrue(compare("replicateTimeSeries", redis, target));
+		run(redis, dataStructureReader(redis).build(), RedisItemWriter.dataStructure(pool(target)).build());
+		compare("replicateTimeSeries", redis, target);
 	}
 }

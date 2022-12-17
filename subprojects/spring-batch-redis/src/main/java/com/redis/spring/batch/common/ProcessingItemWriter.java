@@ -7,6 +7,7 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
+import org.springframework.util.ClassUtils;
 
 public class ProcessingItemWriter<I, O> extends AbstractItemStreamItemWriter<I> {
 
@@ -14,6 +15,7 @@ public class ProcessingItemWriter<I, O> extends AbstractItemStreamItemWriter<I> 
 	private final ItemWriter<O> writer;
 
 	public ProcessingItemWriter(ItemProcessor<List<I>, List<O>> processor, ItemWriter<O> writer) {
+		setName(ClassUtils.getShortName(getClass()));
 		this.processor = processor;
 		this.writer = writer;
 	}

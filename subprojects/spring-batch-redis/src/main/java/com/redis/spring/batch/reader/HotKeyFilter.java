@@ -1,51 +1,65 @@
 package com.redis.spring.batch.reader;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.awaitility.Awaitility;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobExecutionException;
+import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemStreamSupport;
+import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.common.JobExecutionItemStream;
 import com.redis.spring.batch.common.JobRunner;
-import com.redis.spring.batch.common.queue.ConcurrentSetBlockingQueue;
-import com.redis.spring.batch.reader.KeyspaceNotificationItemReader.Listener;
+import com.redis.spring.batch.common.Utils;
 
+import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import io.lettuce.core.api.async.RedisServerAsyncCommands;
 
-public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predicate<K>, Listener<K> {
+public class HotKeyFilter<K, V> extends ItemStreamSupport implements Predicate<K> {
 
 	private final Log log = LogFactory.getLog(getClass());
 
-	private final Map<KeyWrapper<K>, KeyContext<K>> metadata = new HashMap<>();
+	private final Map<KeyWrapper<K>, KeyContext> metadata = new HashMap<>();
+	private final GenericObjectPool<StatefulConnection<K, V>> pool;
 	private final HotKeyFilterOptions options;
-	private final QueueItemReader<K> reader;
-	private final KeyContextWriter<K, V> writer;
-	private final BlockingQueue<K> candidateQueue;
+	private final JobRunner jobRunner;
+	private QueueItemReader<K> reader;
+	private BlockingQueue<K> candidateQueue;
 	private ScheduledExecutorService executor;
 	private ScheduledFuture<?> pruneFuture;
+	private String name;
+	private JobExecution jobExecution;
 
 	public HotKeyFilter(GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
 			HotKeyFilterOptions options) {
-		super(jobRunner);
+		setName(ClassUtils.getShortName(getClass()));
+		this.jobRunner = jobRunner;
+		this.pool = pool;
 		this.options = options;
-		this.candidateQueue = new ConcurrentSetBlockingQueue<>(options.getCandidateQueueOptions().getCapacity());
-		this.reader = new QueueItemReader<>(candidateQueue, options.getCandidateQueueOptions().getPollTimeout());
-		this.writer = new KeyContextWriter<>(pool);
 	}
 
 	@Override
@@ -55,19 +69,47 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 	}
 
 	@Override
-	public void open(ExecutionContext executionContext) throws ItemStreamException {
+	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
 		super.open(executionContext);
+		if (jobExecution != null) {
+			return;
+		}
 		this.executor = Executors.newSingleThreadScheduledExecutor();
 		this.pruneFuture = executor.scheduleAtFixedRate(this::prune, options.getPruneInterval().toMillis(),
 				options.getPruneInterval().toMillis(), TimeUnit.MILLISECONDS);
+		this.candidateQueue = new LinkedBlockingDeque<>(options.getCandidateQueueOptions().getCapacity());
+		this.reader = new QueueItemReader<>(candidateQueue, options.getCandidateQueueOptions().getPollTimeout());
+		this.reader.setName(name + "-reader");
+		SimpleStepBuilder<K, K> step = jobRunner.step(name, reader, null, this::populateContexts,
+				options.getStepOptions());
+		Job job = jobRunner.job(name).start(step.build()).build();
+		try {
+			this.jobExecution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
+		} catch (JobExecutionException e) {
+			throw new ItemStreamException("Could not start job");
+		}
 	}
 
 	@Override
-	public boolean isOpen() {
-		return super.isOpen() && reader.isOpen();
+	public synchronized void close() {
+		if (jobExecution == null) {
+			return;
+		}
+		pruneFuture.cancel(true);
+		pruneFuture = null;
+		executor.shutdown();
+		executor = null;
+		reader.close();
+		Awaitility.await().until(() -> !jobExecution.isRunning());
+		jobExecution = null;
+		super.close();
 	}
 
-	public Map<K, KeyContext<K>> getMetadata() {
+	public synchronized boolean isOpen() {
+		return jobExecution != null;
+	}
+
+	public Map<K, KeyContext> getMetadata() {
 		return metadata.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getKey(), Entry::getValue));
 	}
 
@@ -76,56 +118,50 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 	 * 
 	 * @return list of keys that have been pruned
 	 */
-	private List<KeyWrapper<K>> prune() {
+	private List<K> prune() {
 		long cutoff = System.currentTimeMillis() - options.getPruneInterval().toMillis();
 		List<KeyWrapper<K>> keys = metadata.entrySet().stream().filter(e -> e.getValue().getEndTime() < cutoff)
 				.map(Entry::getKey).collect(Collectors.toList());
 		keys.forEach(metadata::remove);
-		return keys;
+		return keys.stream().map(KeyWrapper::getKey).collect(Collectors.toList());
 	}
 
-	@Override
-	protected Job job() {
-		SimpleStepBuilder<K, KeyContext<K>> step = jobRunner.step(name, reader, this::getKeyContext, writer,
-				options.getStepOptions());
-		return jobRunner.job(name).start(step.build()).build();
+	@SuppressWarnings("unchecked")
+	private void populateContexts(List<? extends K> keys) throws Exception {
+		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+			connection.setAutoFlushCommands(false);
+			try {
+				BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
+				List<RedisFuture<String>> typeFutures = new ArrayList<>(keys.size());
+				List<RedisFuture<Long>> memFutures = new ArrayList<>(keys.size());
+				for (K key : keys) {
+					typeFutures.add(((RedisKeyAsyncCommands<K, V>) commands).type(key));
+					memFutures.add(((RedisServerAsyncCommands<K, V>) commands).memoryUsage(key));
+				}
+				connection.flushCommands();
+				for (int index = 0; index < keys.size(); index++) {
+					K key = keys.get(index);
+					String type = typeFutures.get(index).get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
+					Long mem = memFutures.get(index).get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
+					KeyContext context = getContext(key);
+					context.setType(type);
+					if (mem != null) {
+						context.setMemoryUsage(mem);
+					}
+				}
+			} finally {
+				connection.setAutoFlushCommands(true);
+			}
+		}
+	}
+
+	public Map<K, KeyContext> contexts() {
+		return metadata.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getKey(), Entry::getValue));
 	}
 
 	@Override
 	public boolean test(K key) {
-		KeyWrapper<K> wrapper = new KeyWrapper<>(key);
-		if (!metadata.containsKey(wrapper)) {
-			return true;
-		}
-		KeyContext<K> info = metadata.get(wrapper);
-		if (!options.getBlockedTypes().contains(info.getType())) {
-			return true;
-		}
-		return info.getMemoryUsage() < options.getMaxMemoryUsage().toBytes();
-	}
-
-	private KeyContext<K> getKeyContext(K key) {
-		return metadata.computeIfAbsent(new KeyWrapper<>(key), w -> new KeyContext<>(key));
-	}
-
-	@Override
-	public void onAccept(K key) {
-		// do nothing
-	}
-
-	@Override
-	public void onKey(K key) {
-		// do nothing
-	}
-
-	@Override
-	public void onReject(K key) {
-		// do nothing
-	}
-
-	@Override
-	public void onDuplicate(K key) {
-		KeyContext<K> context = getKeyContext(key);
+		KeyContext context = getContext(key);
 		long count = context.incrementCount();
 		long duration = context.getDuration();
 		if (duration > options.getWindow()) {
@@ -139,14 +175,115 @@ public class HotKeyFilter<K, V> extends JobExecutionItemStream implements Predic
 				}
 			}
 		}
+		return test(context);
 	}
 
-	@Override
-	public void close() {
-		reader.stop();
-		pruneFuture.cancel(true);
-		executor.shutdown();
-		super.close();
+	public boolean test(KeyContext context) {
+		if (options.getBlockedTypes().contains(context.getType())) {
+			return context.getMemoryUsage() < options.getMaxMemoryUsage().toBytes();
+		}
+		return true;
+	}
+
+	private KeyContext getContext(K key) {
+		return metadata.computeIfAbsent(new KeyWrapper<>(key), w -> new KeyContext());
+	}
+
+	private static class KeyWrapper<K> {
+
+		protected final K key;
+
+		public KeyWrapper(K name) {
+			this.key = name;
+		}
+
+		public K getKey() {
+			return key;
+		}
+
+		@Override
+		public int hashCode() {
+
+			if (key instanceof byte[]) {
+				return Arrays.hashCode((byte[]) key);
+			}
+			return key.hashCode();
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+
+			if (!(obj instanceof HotKeyFilter.KeyWrapper)) {
+				return false;
+			}
+
+			KeyWrapper<?> that = (KeyWrapper<?>) obj;
+
+			if (key instanceof byte[] && that.key instanceof byte[]) {
+				return Arrays.equals((byte[]) key, (byte[]) that.key);
+			}
+
+			return key.equals(that.key);
+		}
+
+		@Override
+		public String toString() {
+			final StringBuilder sb = new StringBuilder();
+			sb.append(getClass().getSimpleName());
+			sb.append(" [key=").append(key);
+			sb.append(']');
+			return sb.toString();
+		}
+
+	}
+
+	public static class KeyContext {
+
+		private final AtomicLong count = new AtomicLong();
+		private String type;
+		private long memoryUsage;
+		private long startTime = System.currentTimeMillis();
+		private long endTime;
+
+		public String getType() {
+			return type;
+		}
+
+		public void setType(String type) {
+			this.type = type;
+		}
+
+		public long getMemoryUsage() {
+			return memoryUsage;
+		}
+
+		public void setMemoryUsage(long memoryUsage) {
+			this.memoryUsage = memoryUsage;
+		}
+
+		public long getEndTime() {
+			return endTime;
+		}
+
+		public long incrementCount() {
+			endTime = System.currentTimeMillis();
+			return count.incrementAndGet();
+		}
+
+		public long getDuration() {
+			return endTime - startTime;
+		}
+
+		public long getCount() {
+			return count.get();
+		}
+
+		public void reset() {
+			this.startTime = System.currentTimeMillis();
+			this.endTime = this.startTime;
+			this.count.set(0);
+		}
+
 	}
 
 }

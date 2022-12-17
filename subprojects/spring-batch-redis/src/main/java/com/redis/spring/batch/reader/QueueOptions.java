@@ -5,7 +5,8 @@ import java.time.Duration;
 public class QueueOptions {
 
 	public static final int DEFAULT_CAPACITY = 10000;
-	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
+	public static final long DEFAULT_POLL_TIMEOUT_MILLIS = 100;
+	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(DEFAULT_POLL_TIMEOUT_MILLIS);
 
 	private int capacity = DEFAULT_CAPACITY;
 	private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;

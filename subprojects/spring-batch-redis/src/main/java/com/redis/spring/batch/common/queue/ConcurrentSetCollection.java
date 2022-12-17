@@ -1,22 +1,14 @@
 package com.redis.spring.batch.common.queue;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ConcurrentSetCollection<E> extends AbstractConcurrentSet<E> implements Collection<E> {
 
-	protected final List<ConcurrentSetListener<E>> listeners = new ArrayList<>();
-
 	ConcurrentSetCollection(final int capacity) {
 		super(capacity);
-	}
-
-	public void addListener(ConcurrentSetListener<E> listener) {
-		listeners.add(listener);
 	}
 
 	@Override
@@ -51,7 +43,6 @@ public class ConcurrentSetCollection<E> extends AbstractConcurrentSet<E> impleme
 		fullyLock();
 		try {
 			if (set.contains(e)) {
-				listeners.forEach(l -> l.onDuplicate(e));
 				c = count.get();
 			} else {
 				if (count.get() < capacity) {
