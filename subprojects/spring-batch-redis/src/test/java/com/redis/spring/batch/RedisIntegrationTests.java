@@ -461,7 +461,7 @@ class RedisIntegrationTests extends AbstractTestBase {
 
 		@ParameterizedTest
 		@RedisTestContextsSource
-		void readKeyMetadata(RedisTestContext redis) throws Exception {
+		void readHotKeyContext(RedisTestContext redis) throws Exception {
 			generate(redis, DataGeneratorOptions.builder().build());
 			GenericObjectPool<StatefulConnection<String, String>> pool = pool(redis);
 			HotKeyFilter<String, String> filter = new HotKeyFilter<>(pool, jobRunner,
@@ -469,15 +469,16 @@ class RedisIntegrationTests extends AbstractTestBase {
 			filter.open(new ExecutionContext());
 			List<String> keys = redis.sync().keys("*");
 			keys.forEach(filter::test);
-			Awaitility.await().until(() -> filter.contexts().size() == keys.size());
-			for (Entry<String, KeyContext> entry : filter.contexts().entrySet()) {
+			Awaitility.await().until(() -> filter.contexts().stream().allMatch(e -> e.getValue().getType() != null));
+			for (Entry<String, KeyContext> entry : filter.contexts()) {
 				Assertions.assertEquals(redis.sync().type(entry.getKey()), entry.getValue().getType());
 				Assertions.assertEquals(redis.sync().memoryUsage(entry.getKey()), entry.getValue().getMemoryUsage());
 			}
-			Awaitility.await().until(() -> filter.contexts().values().stream().anyMatch(c -> !filter.test(c)));
-			for (KeyContext context : filter.contexts().values()) {
-				if (!filter.test(context)) {
-					Assertions.assertTrue(HotKeyFilterOptions.defaultBlockedTypes().contains(context.getType()));
+			Awaitility.await().until(() -> filter.contexts().stream().anyMatch(e -> !filter.test(e.getValue())));
+			for (Entry<String, KeyContext> entry : filter.contexts()) {
+				if (!filter.test(entry.getValue())) {
+					Assertions
+							.assertTrue(HotKeyFilterOptions.defaultBlockedTypes().contains(entry.getValue().getType()));
 				}
 			}
 			filter.close();

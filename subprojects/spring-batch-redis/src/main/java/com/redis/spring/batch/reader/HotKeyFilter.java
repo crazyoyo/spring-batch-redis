@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -162,8 +163,9 @@ public class HotKeyFilter<K, V> extends ItemStreamSupport implements Predicate<K
 
 	}
 
-	public Map<K, KeyContext> contexts() {
-		return metadata.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getKey(), Entry::getValue));
+	public Set<Entry<K, KeyContext>> contexts() {
+		return metadata.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getKey(), Entry::getValue))
+				.entrySet();
 	}
 
 	@Override
