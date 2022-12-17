@@ -974,21 +974,21 @@ class RedisIntegrationTests extends AbstractTestBase {
 			String name = name(redis);
 			JobExecution execution = runAsync(name, reader, writer, stepOptions);
 			awaitOpen(reader);
+			Awaitility.await().until(() -> filter.isOpen());
 			ZaddRunnable hotUpdater = new ZaddRunnable(redis, hotkeys);
 			ZaddRunnable coldUpdater = new ZaddRunnable(redis, coldkeys);
 			ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-			log.info("Starting key updaters");
 			ScheduledFuture<?> coldFuture = executor.scheduleAtFixedRate(coldUpdater, 0, 10, TimeUnit.MILLISECONDS);
 			ScheduledFuture<?> hotFuture = executor.scheduleAtFixedRate(hotUpdater, 0, 1, TimeUnit.MILLISECONDS);
 			Awaitility.await().pollInterval(Duration.ofMillis(100))
 					.until(() -> hotkeys.stream().allMatch(k -> redis.sync().zcard(k) > target.sync().zcard(k)));
-			log.info("Stopping updaters");
 			coldFuture.cancel(true);
 			hotFuture.cancel(true);
 			Awaitility.await().until(coldFuture::isDone);
 			Awaitility.await().until(hotFuture::isDone);
-			log.info("Updaters stopped");
 			awaitTermination(execution);
+			awaitClosed(reader);
+			Awaitility.await().until(() -> !filter.isOpen());
 			coldkeys.forEach(k -> Assertions.assertEquals(redis.sync().zcard(k), target.sync().zcard(k)));
 			hotkeys.forEach(k -> Assertions.assertTrue(redis.sync().zcard(k) > target.sync().zcard(k)));
 			Map<String, KeyContext> metadata = filter.getMetadata();
