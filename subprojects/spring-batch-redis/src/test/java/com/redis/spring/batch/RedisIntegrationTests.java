@@ -961,6 +961,10 @@ class RedisIntegrationTests extends AbstractTestBase {
 		@ParameterizedTest
 		@RedisTestContextsSource
 		void replicateWithHotKeyFilter(RedisTestContext redis) throws Exception {
+			// TODO Make this test case reliable 
+			if (false) {
+				return;
+			}
 			RedisTestContext target = getContext(TARGET);
 			List<String> coldkeys = IntStream.range(1, 100).mapToObj(i -> "cold:" + i).collect(Collectors.toList());
 			List<String> hotkeys = IntStream.range(1, 100).mapToObj(i -> "hot:" + i).collect(Collectors.toList());
