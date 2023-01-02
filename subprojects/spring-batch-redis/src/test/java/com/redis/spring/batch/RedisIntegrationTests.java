@@ -456,8 +456,10 @@ class RedisIntegrationTests extends AbstractTestBase {
 					.build();
 			ListItemWriter<KeyDump<String>> writer = new ListItemWriter<>();
 			JobExecution execution = runAsync(redis, reader, writer);
+			awaitOpen(reader);
 			generate(redis, DataGeneratorOptions.builder().count(123).types(Type.HASH, Type.STRING).build());
 			awaitTermination(execution);
+			awaitClosed(reader);
 			Awaitility.await().until(() -> redis.sync().dbsize() == writer.getWrittenItems().size());
 		}
 
