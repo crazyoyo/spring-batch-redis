@@ -8,7 +8,7 @@ jobs:
   earlyaccess:
     name: 'Early Access'
     if: github.repository == 'redis-developer/spring-batch-redis' && startsWith(github.event.head_commit.message, 'Releasing version') != true
-    uses: kordamp/kordamp-gradle-plugin-workflow/.github/workflows/early-access.yml@main
+    uses: redis-field-engineering/redis-github-workflows/.github/workflows/early-access.yml@main
     with:
       java-version: 11
     secrets:
