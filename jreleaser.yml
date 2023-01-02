@@ -22,6 +22,7 @@ project:
 release:
   github:
     overwrite: true
+    sign: true
     changelog:
       formatted: ALWAYS
       preset: conventional-commits
@@ -47,6 +48,10 @@ release:
           - 'Merge'
       replacers:
         - search: 'deps: '
+        
+signing:
+  active: ALWAYS
+  armored: true      
         
 deploy:
   maven:
