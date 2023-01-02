@@ -3,6 +3,7 @@ package com.redis.spring.batch.common;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -68,7 +69,7 @@ public class DataStructure<K> extends KeyTtlValue<K> {
 		JSON("ReJSON-RL"), TIMESERIES("TSDB-TYPE");
 
 		private static final Map<String, Type> TYPES = Stream.of(Type.values())
-				.collect(Collectors.toMap(t -> t.string.toLowerCase(), t -> t));
+				.collect(Collectors.toMap(t -> t.string.toLowerCase(), Function.identity()));
 
 		private String string;
 

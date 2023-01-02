@@ -62,6 +62,7 @@ import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.StepOptions;
 import com.redis.spring.batch.convert.GeoValueConverter;
+import com.redis.spring.batch.convert.IdentityConverter;
 import com.redis.spring.batch.convert.ScoredValueConverter;
 import com.redis.spring.batch.reader.DataGeneratorItemReader;
 import com.redis.spring.batch.reader.DataGeneratorOptions;
@@ -164,7 +165,8 @@ class RedisIntegrationTests extends AbstractTestBase {
 			ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
 			RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
 					.operation(pool(redis),
-							Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
+							Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id"))
+									.map(IdentityConverter.instance()).build())
 					.options(WriterOptions.builder()
 							.waitForReplication(WaitForReplication.of(1, Duration.ofMillis(300))).build())
 					.build();
@@ -190,8 +192,8 @@ class RedisIntegrationTests extends AbstractTestBase {
 			}
 			ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
 			RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-					.operation(pool(redis),
-							Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id")).map(m -> m).build())
+					.operation(pool(redis), Hset.<String, Map<String, String>>key(m -> "hash:" + m.remove("id"))
+							.map(IdentityConverter.instance()).build())
 					.build();
 			run(redis, reader, writer);
 			assertEquals(maps.size(), redis.sync().keys("hash:*").size());
@@ -844,8 +846,8 @@ class RedisIntegrationTests extends AbstractTestBase {
 				messages.add(body);
 			}
 			ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-			RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-					.operation(pool(redis), Xadd.<String, Map<String, String>>key(stream).<String>body(t -> t).build())
+			RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter.operation(pool(redis),
+					Xadd.<String, Map<String, String>>key(stream).<String>body(IdentityConverter.instance()).build())
 					.build();
 			run(redis, reader, writer);
 			RedisModulesCommands<String, String> sync = redis.sync();

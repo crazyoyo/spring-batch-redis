@@ -14,7 +14,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
-import org.springframework.core.convert.converter.Converter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,6 +28,7 @@ import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.convert.IdentityConverter;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter;
@@ -88,7 +88,6 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 	@RedisTestContextsSource
 	void tsAdd(RedisTestContext redis) throws Exception {
 		String key = "ts:1";
-		Converter<Sample, Sample> sampleConverter = v -> v;
 		Random random = new Random();
 		int count = 100;
 		List<Sample> samples = new ArrayList<>(count);
@@ -97,7 +96,7 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 			samples.add(Sample.of(timestamp, random.nextDouble()));
 		}
 		ListItemReader<Sample> reader = new ListItemReader<>(samples);
-		TsAdd<String, String, Sample> tsadd = TsAdd.<Sample>key(key).<String>sample(sampleConverter)
+		TsAdd<String, String, Sample> tsadd = TsAdd.<Sample>key(key).<String>sample(IdentityConverter.instance())
 				.options(v -> AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST).build()).build();
 		run(redis, reader, RedisItemWriter.operation(pool(redis), tsadd).build());
 		Assertions.assertEquals(count / 2,
@@ -150,7 +149,8 @@ class RedisModulesIntegrationTests extends AbstractTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
 		RedisItemWriter<String, String, Map<String, String>> writer = RedisItemWriter
-				.operation(pool(redis), Xadd.<String, Map<String, String>>key(stream).body(t -> t).build())
+				.operation(pool(redis),
+						Xadd.<String, Map<String, String>>key(stream).body(IdentityConverter.instance()).build())
 				.options(WriterOptions.builder().multiExec(true).build()).build();
 		run(redis, reader, writer);
 		RedisModulesCommands<String, String> sync = redis.sync();
