@@ -6,6 +6,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.core.convert.converter.Converter;
 
@@ -27,10 +28,17 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 
 	private final GenericObjectPool<StatefulConnection<K, V>> pool;
 	private final PipelinedOperation<K, V, T> operation;
+	private boolean open;
 
 	public RedisItemWriter(GenericObjectPool<StatefulConnection<K, V>> pool, PipelinedOperation<K, V, T> operation) {
 		this.pool = pool;
 		this.operation = operation;
+	}
+
+	@Override
+	public void open(ExecutionContext executionContext) {
+		super.open(executionContext);
+		this.open = true;
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -47,6 +55,16 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 				connection.setAutoFlushCommands(true);
 			}
 		}
+	}
+
+	public boolean isOpen() {
+		return open;
+	}
+
+	@Override
+	public void close() {
+		super.close();
+		this.open = false;
 	}
 
 	public static <K, V, T> WriterBuilder<K, V, T> operation(GenericObjectPool<StatefulConnection<K, V>> connectionPool,

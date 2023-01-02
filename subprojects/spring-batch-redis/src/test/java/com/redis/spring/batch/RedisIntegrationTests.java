@@ -42,7 +42,6 @@ import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
@@ -974,11 +973,11 @@ class RedisIntegrationTests extends AbstractTestBase {
 			filter.setName(name(redis) + "-filter");
 			LiveRedisItemReader<String, DataStructure<String>> reader = liveDataStructureReader(redis).keyFilter(filter)
 					.stepOptions(stepOptions).build();
-			ItemWriter<DataStructure<String>> writer = dataStructureWriter(target).build();
+			RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureWriter(target).build();
 			String name = name(redis);
 			JobExecution execution = runAsync(name, reader, writer, stepOptions);
 			awaitOpen(reader);
-			Awaitility.await().until(() -> filter.isOpen());
+			Awaitility.await().until(filter::isOpen);
 			ZaddRunnable hotUpdater = new ZaddRunnable(redis, hotkeys);
 			ZaddRunnable coldUpdater = new ZaddRunnable(redis, coldkeys);
 			ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
@@ -993,6 +992,7 @@ class RedisIntegrationTests extends AbstractTestBase {
 			awaitTermination(execution);
 			awaitClosed(reader);
 			Awaitility.await().until(() -> !filter.isOpen());
+			awaitClosed(writer);
 			coldkeys.forEach(k -> Assertions.assertEquals(redis.sync().zcard(k), target.sync().zcard(k)));
 			hotkeys.forEach(k -> Assertions.assertTrue(redis.sync().zcard(k) > target.sync().zcard(k)));
 			Map<String, KeyContext> metadata = filter.getMetadata();

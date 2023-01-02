@@ -101,6 +101,10 @@ public abstract class AbstractTestBase extends AbstractTestcontainersRedisTestBa
 		Awaitility.await().until(() -> !reader.isOpen());
 	}
 
+	protected void awaitClosed(RedisItemWriter<?, ?, ?> writer) {
+		Awaitility.await().until(() -> !writer.isOpen());
+	}
+
 	protected void awaitTermination(JobExecution jobExecution) {
 		Awaitility.await().timeout(terminationTimeout).until(() -> JobRunner.isTerminated(jobExecution));
 	}
