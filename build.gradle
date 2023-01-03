@@ -3,6 +3,7 @@ config {
         description = 'ItemReaders and ItemWriters for Redis'
         inceptionYear = '2020'
         tags = ['spring', 'batch', 'redis']
+        bytecodeVersion = 8
         links {
             website      = "https://github.com/redis-developer/${project.rootProject.name}"
             issueTracker = "https://github.com/redis-developer/${project.rootProject.name}/issues"
@@ -19,6 +20,17 @@ config {
         implementation {
             enabled = true
         }
+        people {
+            person {
+                id    = 'jruaux'
+                name  = 'Julien Ruaux'
+                url   = 'https://github.com/jruaux'
+                roles = ['developer']
+                properties = [
+                    github : 'j'
+                ]
+            }
+        }
     }
 
     licensing {
@@ -32,10 +44,8 @@ config {
 
     docs {
         javadoc {
-            options {
-                autoLinks {
-                    enabled = false
-                }
+            autoLinks {
+                enabled = false
             }
             aggregate {
                 enabled = false
@@ -48,17 +58,26 @@ config {
             toolVersion = '0.8.8'
         }
     }
+    
 }
 
 allprojects {
     repositories {
-        gradlePluginPortal()
-        mavenCentral()
         mavenLocal()
+        mavenCentral()
+        gradlePluginPortal()
     }
 
     tasks.withType(GenerateModuleMetadata) {
         enabled = false
+    }
+    
+    tasks.withType(JavaCompile) {
+        options.encoding = 'UTF-8'
+    }
+    
+    tasks.withType(JavaCompiler) {
+        options.compilerArgs += ['-Duser.language=en', '-Duser.country=US']
     }
 }
 

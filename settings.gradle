@@ -1,8 +1,8 @@
 buildscript {
     repositories {
-        gradlePluginPortal()
-        mavenCentral()
         mavenLocal()
+        mavenCentral()
+        gradlePluginPortal()
     }
     dependencies {
         classpath "org.kordamp.gradle:java-project-gradle-plugin:$kordampPluginVersion"
@@ -32,8 +32,4 @@ projects {
             id 'io.spring.dependency-management'
         }
     }
-}
-
-enforce {
-    enabled = false
 }
