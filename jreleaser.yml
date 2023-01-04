@@ -68,13 +68,15 @@ deploy:
 
 distributions:
   spring-batch-redis:
+    type: SINGLE_JAR
     artifacts:
-      - path: subprojects/{{distributionName}}/build/distributions/{{distributionName}}-{{projectVersion}}.zip
-        transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.zip'
+      - path: subprojects/{{distributionName}}/build/libs/{{distributionName}}-{{projectVersion}}.jar
+        transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.jar'
   spring-boot-starter-batch-redis:
+    type: SINGLE_JAR 
     artifacts:
-      - path: subprojects/{{distributionName}}/build/distributions/{{distributionName}}-{{projectVersion}}.zip
-        transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.zip'
+      - path: subprojects/{{distributionName}}/build/libs/{{distributionName}}-{{projectVersion}}.jar
+        transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.jar'
 
 files:
   artifacts:
