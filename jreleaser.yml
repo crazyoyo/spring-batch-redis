@@ -54,11 +54,7 @@ release:
 signing:
   active: ALWAYS
   armored: true
-  files: false
 
-checksum:
-  files: false
-        
 deploy:
   maven:
     nexus2:
@@ -83,3 +79,6 @@ distributions:
 files:
   artifacts:
     - path: VERSION
+      extraProperties:
+        skipChecksum: true
+        skipSigning: true
