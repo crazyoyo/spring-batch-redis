@@ -1060,6 +1060,8 @@ class RedisIntegrationTests extends AbstractTestBase {
 			awaitTermination(execution);
 			awaitClosed(reader);
 			awaitClosed(liveReader);
+			awaitClosed(writer);
+			awaitClosed(liveWriter);
 			compare(redis, target);
 		}
 
