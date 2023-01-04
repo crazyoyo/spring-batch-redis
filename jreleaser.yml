@@ -54,6 +54,7 @@ release:
 signing:
   active: ALWAYS
   armored: true
+  files: false
 
 checksum:
   files: false
