@@ -23,6 +23,8 @@ release:
   github:
     overwrite: true
     sign: true
+    issues:
+      enabled: true
     changelog:
       formatted: ALWAYS
       preset: conventional-commits
@@ -51,7 +53,10 @@ release:
         
 signing:
   active: ALWAYS
-  armored: true      
+  armored: true
+
+checksum:
+  files: false
         
 deploy:
   maven:
