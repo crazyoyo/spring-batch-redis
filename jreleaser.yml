@@ -54,6 +54,10 @@ release:
 signing:
   active: ALWAYS
   armored: true
+  files: false
+  
+checksum:
+  files: false
 
 deploy:
   maven:
@@ -65,22 +69,7 @@ deploy:
         releaseRepository: false
         stagingRepositories:
           - build/repos/local/release
-
-distributions:
-  spring-batch-redis:
-    type: SINGLE_JAR
-    artifacts:
-      - path: subprojects/{{distributionName}}/build/libs/{{distributionName}}-{{projectVersion}}.jar
-        transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.jar'
-  spring-boot-starter-batch-redis:
-    type: SINGLE_JAR 
-    artifacts:
-      - path: subprojects/{{distributionName}}/build/libs/{{distributionName}}-{{projectVersion}}.jar
-        transform: '{{distributionName}}/{{distributionName}}-{{projectEffectiveVersion}}.jar'
-
+          
 files:
   artifacts:
     - path: VERSION
-      extraProperties:
-        skipChecksum: true
-        skipSigning: true

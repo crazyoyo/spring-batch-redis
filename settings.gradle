@@ -32,3 +32,15 @@ projects {
         }
     }
 }
+
+enforce {
+    mergeStrategy = 'append'
+
+    rule(enforcer.rules.EnforceBytecodeVersion) { r ->
+        r.maxJdkVersion = "8"
+    }
+
+    rule(enforcer.rules.ForceDependencies) { r ->
+        // r.dependencies.addAll "org.apache.maven:maven-artifact:$mavenVersion",
+    }
+}
