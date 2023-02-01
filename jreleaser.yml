@@ -1,7 +1,7 @@
 project:
   name: spring-batch-redis
   description: Spring Batch Redis
-  longDescription: ItemReader and ItemWriter implementations for Redis.
+  longDescription: Spring Batch ItemReader and ItemWriter implementations for Redis.
   links:
     homepage: https://github.com/redis-developer/spring-batch-redis
   authors:
@@ -22,9 +22,6 @@ project:
 release:
   github:
     overwrite: true
-    sign: true
-    issues:
-      enabled: true
     changelog:
       formatted: ALWAYS
       preset: conventional-commits
@@ -50,28 +47,27 @@ release:
           - 'Merge'
       replacers:
         - search: 'deps: '
-        
+
 signing:
   active: ALWAYS
   armored: true
-  files: false
-  
-checksum:
-  files: false
 
 deploy:
   maven:
     pomchecker:
-      version: 1.4.0
+      version: early-access
     nexus2:
       maven-central:
         active: RELEASE
         url: https://s01.oss.sonatype.org/service/local
         closeRepository: true
-        releaseRepository: false
+        releaseRepository: true
         stagingRepositories:
           - build/repos/local/release
-          
+
 files:
   artifacts:
     - path: VERSION
+      extraProperties:
+        skipChecksum: true
+        skipSigning: true

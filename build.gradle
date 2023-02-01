@@ -1,38 +1,49 @@
 config {
     info {
-        description = 'ItemReaders and ItemWriters for Redis'
+        description = 'Spring Batch readers and writers for Redis'
         inceptionYear = '2020'
         tags = ['spring', 'batch', 'redis']
-        bytecodeVersion = 8
+        
         links {
             website      = "https://github.com/redis-developer/${project.rootProject.name}"
             issueTracker = "https://github.com/redis-developer/${project.rootProject.name}/issues"
             scm          = "https://github.com/redis-developer/${project.rootProject.name}.git"
         }
+        
         scm {
             url                 = "https://github.com/redis-developer/${project.rootProject.name}"
             connection          = "scm:git:https://github.com/redis-developer/${project.rootProject.name}.git"
             developerConnection = "scm:git:git@github.com:redis-developer/${project.rootProject.name}.git"
         }
+        
         specification {
             enabled = true
         }
+        
         implementation {
             enabled = true
         }
+        
         people {
             person {
                 id    = 'jruaux'
                 name  = 'Julien Ruaux'
-                url   = 'https://github.com/jruaux'
-                roles = ['developer']
-                properties = [
-                    github : 'j'
-                ]
+                roles = ['developer', 'author']
             }
         }
     }
-
+    
+    docs {
+        javadoc {
+            autoLinks {
+                enabled = false
+            }
+        }
+        sourceHtml {
+            enabled = false
+        }
+    }
+    
     licensing {
         enabled = false
         licenses {
@@ -41,34 +52,31 @@ config {
             }
         }
     }
-
-    docs {
-        javadoc {
-            autoLinks {
-                enabled = false
-            }
+    
+    coverage {
+        jacoco {
+            enabled = true
+            toolVersion = jacocoVersion
         }
     }
     
+    testing {
+        jar = true
+    }
 }
 
 allprojects {
     repositories {
         mavenLocal()
-        mavenCentral()
         gradlePluginPortal()
     }
-
+    
     tasks.withType(GenerateModuleMetadata) {
         enabled = false
     }
     
     tasks.withType(JavaCompile) {
         options.encoding = 'UTF-8'
-    }
-    
-    tasks.withType(JavaCompiler) {
-        options.compilerArgs += ['-Duser.language=en', '-Duser.country=US']
     }
 }
 
@@ -79,8 +87,14 @@ subprojects {
         }
     }
     
+    license {
+        exclude('build/**')
+    }
+    
     dependencies {
         compileOnly group: 'com.google.code.findbugs', name: 'jsr305', version: jsr305Version
+        testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+        testImplementation group: 'com.redis.testcontainers', name: 'testcontainers-redis-junit', version: testcontainersRedisVersion
     }
     
     test {
