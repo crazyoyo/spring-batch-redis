@@ -121,7 +121,7 @@ abstract class AbstractTestBase {
 		sourcePubSubConnection = RedisModulesUtils.pubSubConnection(sourceClient);
 		sourcePool = pool(sourceClient);
 		sourceByteArrayPool = pool(sourceClient, ByteArrayCodec.INSTANCE);
-		targetClient = ClientBuilder.create(RedisURI.create(target.getRedisURI())).cluster(source.isCluster()).build();
+		targetClient = ClientBuilder.create(RedisURI.create(target.getRedisURI())).cluster(target.isCluster()).build();
 		targetConnection = RedisModulesUtils.connection(targetClient);
 		targetPubSubConnection = RedisModulesUtils.pubSubConnection(targetClient);
 		targetPool = pool(targetClient);
