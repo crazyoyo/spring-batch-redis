@@ -141,7 +141,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 		}
 		List<String> ids = new ArrayList<>();
 		messages.forEach(m -> ids.add(m.getId()));
-		return ack(ids.toArray(String[]::new));
+		return ack(ids.toArray(new String[0]));
 	}
 
 	/**
@@ -171,7 +171,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 		for (StreamMessage<K, V> message : messages) {
 			ids.add(message.getId());
 		}
-		ack(commands, ids.toArray(String[]::new));
+		ack(commands, ids.toArray(new String[0]));
 	}
 
 	private Long ack(RedisStreamCommands<K, V> commands, String... ids) {

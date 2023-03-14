@@ -18,7 +18,7 @@ public class BatchTestApplication {
 	}
 
 	@Bean
-	public JobLauncher asyncJobLauncher(JobRepository jobRepository) throws Exception {
+	JobLauncher asyncJobLauncher(JobRepository jobRepository) throws Exception {
 		SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
 		jobLauncher.setJobRepository(jobRepository);
 		jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());

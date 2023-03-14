@@ -22,13 +22,13 @@ import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.common.DoubleRange;
 import com.redis.spring.batch.common.IntRange;
-import com.redis.spring.batch.reader.DataGeneratorOptions.CollectionOptions;
-import com.redis.spring.batch.reader.DataGeneratorOptions.MapOptions;
+import com.redis.spring.batch.reader.GeneratorReaderOptions.CollectionOptions;
+import com.redis.spring.batch.reader.GeneratorReaderOptions.MapOptions;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
-public class DataGeneratorItemReader extends AbstractItemCountingItemStreamItemReader<DataStructure<String>> {
+public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<DataStructure<String>> {
 
 	private final Log log = LogFactory.getLog(getClass());
 
@@ -37,13 +37,13 @@ public class DataGeneratorItemReader extends AbstractItemCountingItemStreamItemR
 
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final Random random = new Random();
-	private final DataGeneratorOptions options;
+	private final GeneratorReaderOptions options;
 	private final Type[] types;
 
-	public DataGeneratorItemReader(DataGeneratorOptions options) {
+	public GeneratorItemReader(GeneratorReaderOptions options) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.options = options;
-		this.types = options.getTypes().toArray(Type[]::new);
+		this.types = options.getTypes().toArray(new Type[0]);
 	}
 
 	private String key() {

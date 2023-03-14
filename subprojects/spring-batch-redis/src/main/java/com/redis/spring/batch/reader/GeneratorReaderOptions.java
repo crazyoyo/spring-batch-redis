@@ -9,7 +9,7 @@ import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.common.DoubleRange;
 import com.redis.spring.batch.common.IntRange;
 
-public class DataGeneratorOptions {
+public class GeneratorReaderOptions {
 
 	public static final String DEFAULT_KEYSPACE = "gen";
 	public static final HashOptions DEFAULT_HASH_OPTIONS = HashOptions.builder().build();
@@ -45,7 +45,7 @@ public class DataGeneratorOptions {
 		return new Builder();
 	}
 
-	public DataGeneratorOptions(Builder builder) {
+	public GeneratorReaderOptions(Builder builder) {
 		this.keyRange = builder.keyRange;
 		this.keyspace = builder.keyspace;
 		this.types = builder.types;
@@ -234,8 +234,8 @@ public class DataGeneratorOptions {
 			return range(IntRange.between(1, count));
 		}
 
-		public DataGeneratorOptions build() {
-			return new DataGeneratorOptions(this);
+		public GeneratorReaderOptions build() {
+			return new GeneratorReaderOptions(this);
 		}
 
 	}

@@ -65,7 +65,7 @@ public class ScanSizeEstimator {
 		if (dbsize == null) {
 			return null;
 		}
-		if (options.getMatch().isEmpty() && options.getType().isEmpty()) {
+		if (options.getMatch().isEmpty() && !options.getType().isPresent()) {
 			return dbsize;
 		}
 		double matchRate = matchRate(connection, commands);
@@ -92,8 +92,9 @@ public class ScanSizeEstimator {
 				if (key == null) {
 					continue;
 				}
-				keyTypeFutures.put(key, options.getType().isEmpty() ? null
-						: ((RedisKeyAsyncCommands<String, String>) commands).type(key));
+				keyTypeFutures.put(key,
+						options.getType().isPresent() ? ((RedisKeyAsyncCommands<String, String>) commands).type(key)
+								: null);
 			}
 			connection.flushCommands();
 			Predicate<String> matchFilter = matchFilter();
@@ -102,7 +103,7 @@ public class ScanSizeEstimator {
 					continue;
 				}
 				Optional<String> type = options.getType();
-				if (type.isEmpty() || type.get().equalsIgnoreCase(
+				if (!type.isPresent() || type.get().equalsIgnoreCase(
 						entry.getValue().get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS))) {
 					count++;
 				}

@@ -50,7 +50,7 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 				Collection<RedisFuture> futures = operation.execute(connection, items);
 				connection.flushCommands();
 				long timeout = connection.getTimeout().toMillis();
-				LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(Future[]::new));
+				LettuceFutures.awaitAll(timeout, TimeUnit.MILLISECONDS, futures.toArray(new Future[0]));
 			} finally {
 				connection.setAutoFlushCommands(true);
 			}

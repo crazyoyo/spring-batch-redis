@@ -12,21 +12,21 @@ import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
 import com.redis.spring.batch.common.DataStructure;
-import com.redis.spring.batch.reader.DataGeneratorItemReader;
-import com.redis.spring.batch.reader.DataGeneratorOptions;
+import com.redis.spring.batch.reader.GeneratorItemReader;
+import com.redis.spring.batch.reader.GeneratorReaderOptions;
 
-class DataGeneratorTests {
+class GeneratorTests {
 
 	@Test
 	void defaults() throws UnexpectedInputException, ParseException, Exception {
-		DataGeneratorOptions options = DataGeneratorOptions.builder().build();
-		DataGeneratorItemReader reader = new DataGeneratorItemReader(options);
+		GeneratorReaderOptions options = GeneratorReaderOptions.builder().build();
+		GeneratorItemReader reader = new GeneratorItemReader(options);
 		reader.setMaxItemCount(options.getKeyRange().getMax());
 		List<DataStructure<String>> list = readAll(reader);
-		Assertions.assertEquals(DataGeneratorOptions.DEFAULT_KEY_RANGE.getMax(), list.size());
+		Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_KEY_RANGE.getMax(), list.size());
 	}
 
-	private List<DataStructure<String>> readAll(DataGeneratorItemReader reader)
+	private List<DataStructure<String>> readAll(GeneratorItemReader reader)
 			throws UnexpectedInputException, ParseException, Exception {
 		List<DataStructure<String>> list = new ArrayList<>();
 		DataStructure<String> ds;
@@ -39,27 +39,27 @@ class DataGeneratorTests {
 	@Test
 	void options() throws Exception {
 		int count = 123;
-		DataGeneratorOptions options = DataGeneratorOptions.builder().count(count).build();
-		DataGeneratorItemReader reader = new DataGeneratorItemReader(options);
+		GeneratorReaderOptions options = GeneratorReaderOptions.builder().count(count).build();
+		GeneratorItemReader reader = new GeneratorItemReader(options);
 		reader.setMaxItemCount(options.getKeyRange().getMax());
 		List<DataStructure<String>> list = readAll(reader);
 		Assertions.assertEquals(count, list.size());
 		for (DataStructure<String> ds : list) {
 			switch (ds.getType()) {
 			case SET:
-				Assertions.assertEquals(DataGeneratorOptions.DEFAULT_SET_OPTIONS.getCardinality().getMax(),
+				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_SET_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
 			case LIST:
-				Assertions.assertEquals(DataGeneratorOptions.DEFAULT_LIST_OPTIONS.getCardinality().getMax(),
+				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_LIST_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
 			case ZSET:
-				Assertions.assertEquals(DataGeneratorOptions.DEFAULT_ZSET_OPTIONS.getCardinality().getMax(),
+				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_ZSET_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
 			case STREAM:
-				Assertions.assertEquals(DataGeneratorOptions.DEFAULT_STREAM_OPTIONS.getMessageCount().getMax(),
+				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_STREAM_OPTIONS.getMessageCount().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
 			default:
@@ -70,8 +70,8 @@ class DataGeneratorTests {
 
 	@Test
 	void read() throws Exception {
-		DataGeneratorOptions options = DataGeneratorOptions.builder().build();
-		DataGeneratorItemReader reader = new DataGeneratorItemReader(options);
+		GeneratorReaderOptions options = GeneratorReaderOptions.builder().build();
+		GeneratorItemReader reader = new GeneratorItemReader(options);
 		reader.setMaxItemCount(options.getKeyRange().getMax());
 		DataStructure<String> ds1 = reader.read();
 		assertEquals("gen:1", ds1.getKey());
@@ -79,7 +79,7 @@ class DataGeneratorTests {
 		while (reader.read() != null) {
 			count++;
 		}
-		assertEquals(DataGeneratorOptions.DEFAULT_KEY_RANGE.getMax(), count);
+		assertEquals(GeneratorReaderOptions.DEFAULT_KEY_RANGE.getMax(), count);
 	}
 
 }

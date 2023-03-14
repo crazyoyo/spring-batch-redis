@@ -35,10 +35,10 @@ import com.redis.spring.batch.reader.QueueOptions;
 import com.redis.spring.batch.reader.ScanReaderBuilder;
 import com.redis.spring.batch.reader.StreamReaderBuilder;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
 public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemReader<T> {
 
@@ -53,11 +53,6 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 	protected BlockingQueue<T> queue;
 	private String name;
 	private JobExecution jobExecution;
-
-	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, ItemProcessor<List<K>, List<T>> valueReader,
-			StepOptions stepOptions, QueueOptions queueOptions) {
-		this(jobRunner, keyReader, null, valueReader, stepOptions, queueOptions);
-	}
 
 	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, ItemProcessor<K, K> keyProcessor,
 			ItemProcessor<List<K>, List<T>> valueReader, StepOptions stepOptions, QueueOptions queueOptions) {
@@ -108,9 +103,6 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 		if (keyReader instanceof ItemStream) {
 			((ItemStream) keyReader).close();
 		}
-		if (keyProcessor instanceof ItemStream) {
-			((ItemStream) keyProcessor).close();
-		}
 		if (jobExecution != null) {
 			Awaitility.await().until(() -> !jobExecution.isRunning());
 			jobExecution = null;
@@ -152,15 +144,15 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 	}
 
 	public static <K, V> LiveReaderBuilder<K, V, DataStructure<K>> liveDataStructure(
-			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
-			StatefulRedisPubSubConnection<K, V> pubSubConnection, RedisCodec<K, V> codec) {
-		return new LiveReaderBuilder<>(jobRunner, new DataStructureValueReader<>(pool), pubSubConnection, codec);
+			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner, AbstractRedisClient client,
+			RedisCodec<K, V> codec) {
+		return new LiveReaderBuilder<>(jobRunner, new DataStructureValueReader<>(pool), client, codec);
 	}
 
 	public static <K, V> LiveReaderBuilder<K, V, KeyDump<K>> liveKeyDump(
-			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner,
-			StatefulRedisPubSubConnection<K, V> pubSubConnection, RedisCodec<K, V> codec) {
-		return new LiveReaderBuilder<>(jobRunner, new KeyDumpValueReader<>(pool), pubSubConnection, codec);
+			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner, AbstractRedisClient client,
+			RedisCodec<K, V> codec) {
+		return new LiveReaderBuilder<>(jobRunner, new KeyDumpValueReader<>(pool), client, codec);
 	}
 
 }

@@ -34,8 +34,8 @@ import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.StepOptions;
-import com.redis.spring.batch.reader.DataGeneratorItemReader;
-import com.redis.spring.batch.reader.DataGeneratorOptions;
+import com.redis.spring.batch.reader.GeneratorItemReader;
+import com.redis.spring.batch.reader.GeneratorReaderOptions;
 import com.redis.spring.batch.reader.QueueItemReader;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
@@ -66,8 +66,8 @@ class StepTests {
 	@Test
 	void readKeyValueFaultTolerance() throws Exception {
 		int count = 100;
-		DataGeneratorItemReader generator = new DataGeneratorItemReader(
-				DataGeneratorOptions.builder().types(Type.STRING).build());
+		GeneratorItemReader generator = new GeneratorItemReader(
+				GeneratorReaderOptions.builder().types(Type.STRING).build());
 		generator.setMaxItemCount(count);
 		ErrorItemReader<DataStructure<String>> reader = new ErrorItemReader<>(generator);
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();

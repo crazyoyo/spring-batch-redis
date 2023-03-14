@@ -44,7 +44,7 @@ public class ScanReaderBuilder<K, V, T extends KeyValue<K>> {
 	}
 
 	public RedisItemReader<K, T> build() {
-		return new RedisItemReader<>(jobRunner, keyReader(), valueReader, stepOptions, queueOptions);
+		return new RedisItemReader<>(jobRunner, keyReader(), null, valueReader, stepOptions, queueOptions);
 	}
 
 	public ScanKeyItemReader<K, V> keyReader() {
