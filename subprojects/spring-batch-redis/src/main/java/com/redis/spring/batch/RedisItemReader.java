@@ -24,14 +24,13 @@ import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.ProcessingItemWriter;
-import com.redis.spring.batch.common.StepOptions;
 import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparisonValueReader;
 import com.redis.spring.batch.reader.KeyDumpValueReader;
 import com.redis.spring.batch.reader.LiveReaderBuilder;
-import com.redis.spring.batch.reader.QueueOptions;
+import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanReaderBuilder;
 import com.redis.spring.batch.reader.StreamReaderBuilder;
 
@@ -48,21 +47,19 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 	protected final ItemReader<K> keyReader;
 	private final ItemProcessor<K, K> keyProcessor;
 	private final ItemProcessor<List<K>, List<T>> valueReader;
-	protected final StepOptions stepOptions;
-	private final QueueOptions queueOptions;
+	private final ReaderOptions options;
 	protected BlockingQueue<T> queue;
 	private String name;
 	private JobExecution jobExecution;
 
 	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, ItemProcessor<K, K> keyProcessor,
-			ItemProcessor<List<K>, List<T>> valueReader, StepOptions stepOptions, QueueOptions queueOptions) {
+			ItemProcessor<List<K>, List<T>> valueReader, ReaderOptions options) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.jobRunner = jobRunner;
 		this.keyReader = keyReader;
 		this.keyProcessor = keyProcessor;
 		this.valueReader = valueReader;
-		this.stepOptions = stepOptions;
-		this.queueOptions = queueOptions;
+		this.options = options;
 	}
 
 	@Override
@@ -74,10 +71,11 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		if (jobExecution == null) {
-			this.queue = new LinkedBlockingQueue<>(queueOptions.getCapacity());
+			this.queue = new LinkedBlockingQueue<>(options.getQueueOptions().getCapacity());
 			Utils.createGaugeCollectionSize("reader.queue.size", queue);
 			ItemWriter<K> writer = new ProcessingItemWriter<>(valueReader, new Enqueuer());
-			SimpleStepBuilder<K, K> step = jobRunner.step(name, keyReader, keyProcessor, writer, stepOptions);
+			SimpleStepBuilder<K, K> step = jobRunner.step(name, keyReader, keyProcessor, writer,
+					options.getStepOptions());
 			Job job = jobRunner.job(name).start(step.build()).build();
 			jobExecution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
 		}
@@ -113,7 +111,7 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 	protected T doRead() throws Exception {
 		T item;
 		do {
-			item = queue.poll(queueOptions.getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+			item = queue.poll(options.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
 		} while (item == null && isOpen());
 		return item;
 	}

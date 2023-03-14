@@ -26,8 +26,8 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 
-	private StepOptions stepOptions = StepOptions.builder().flushingInterval(DEFAULT_FLUSHING_INTERVAL).build();
-	private QueueOptions queueOptions = QueueOptions.builder().build();
+	private ReaderOptions readerOptions = ReaderOptions.builder()
+			.stepOptions(StepOptions.builder().flushingInterval(DEFAULT_FLUSHING_INTERVAL).build()).build();
 	private KeyspaceNotificationReaderOptions notificationReaderOptions = KeyspaceNotificationReaderOptions.builder()
 			.build();
 	private Optional<Predicate<K>> keyFilter = Optional.empty();
@@ -45,13 +45,8 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 		return this;
 	}
 
-	public LiveReaderBuilder<K, V, T> stepOptions(StepOptions options) {
-		this.stepOptions = options;
-		return this;
-	}
-
-	public LiveReaderBuilder<K, V, T> queueOptions(QueueOptions options) {
-		this.queueOptions = options;
+	public LiveReaderBuilder<K, V, T> readerOptions(ReaderOptions options) {
+		this.readerOptions = options;
 		return this;
 	}
 
@@ -68,8 +63,7 @@ public class LiveReaderBuilder<K, V, T extends KeyValue<K>> {
 	}
 
 	public LiveRedisItemReader<K, T> build() {
-		return new LiveRedisItemReader<>(jobRunner, keyReader(), keyProcessor(), valueReader, stepOptions,
-				queueOptions);
+		return new LiveRedisItemReader<>(jobRunner, keyReader(), keyProcessor(), valueReader, readerOptions);
 	}
 
 	@SuppressWarnings("unchecked")

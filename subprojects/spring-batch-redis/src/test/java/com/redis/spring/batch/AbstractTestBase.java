@@ -51,6 +51,7 @@ import com.redis.spring.batch.reader.KeyspaceNotificationReaderOptions;
 import com.redis.spring.batch.reader.LiveReaderBuilder;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
+import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanReaderBuilder;
 import com.redis.spring.batch.writer.WriterBuilder;
 import com.redis.testcontainers.RedisServer;
@@ -287,7 +288,7 @@ abstract class AbstractTestBase {
 		return builder
 				.notificationReaderOptions(KeyspaceNotificationReaderOptions.builder()
 						.queueOptions(QueueOptions.builder().capacity(notificationQueueCapacity).build()).build())
-				.stepOptions(DEFAULT_FLUSHING_STEP_OPTIONS).build();
+				.readerOptions(ReaderOptions.builder().stepOptions(DEFAULT_FLUSHING_STEP_OPTIONS).build()).build();
 	}
 
 	protected LiveReaderBuilder<String, String, DataStructure<String>> liveDataStructureReader() throws Exception {

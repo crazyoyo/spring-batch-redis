@@ -57,6 +57,7 @@ import com.redis.spring.batch.reader.KeyComparison.Status;
 import com.redis.spring.batch.reader.KeyEventType;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.ScanSizeEstimator.Builder;
 import com.redis.spring.batch.reader.ScanSizeEstimatorOptions;
@@ -282,7 +283,8 @@ abstract class AbstractIntegrationTests extends AbstractTestBase {
 			enableKeyspaceNotifications(sourceClient);
 			LiveRedisItemReader<String, DataStructure<String>> reader = RedisItemReader
 					.liveDataStructure(sourcePool, jobRunner, sourceClient, StringCodec.UTF8)
-					.stepOptions(DEFAULT_FLUSHING_STEP_OPTIONS).keyFilter(SlotRangeFilter.of(0, 8000)).build();
+					.readerOptions(ReaderOptions.builder().stepOptions(DEFAULT_FLUSHING_STEP_OPTIONS).build())
+					.keyFilter(SlotRangeFilter.of(0, 8000)).build();
 			ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
 			JobExecution execution = runAsync(reader, writer);
 			int count = 100;

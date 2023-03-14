@@ -9,14 +9,13 @@ import org.springframework.batch.item.ItemProcessor;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.StepOptions;
 
 public class LiveRedisItemReader<K, T extends KeyValue<K>> extends RedisItemReader<K, T>
 		implements PollableItemReader<T> {
 
 	public LiveRedisItemReader(JobRunner jobRunner, PollableItemReader<K> keyReader, ItemProcessor<K, K> keyProcessor,
-			ItemProcessor<List<K>, List<T>> valueReader, StepOptions stepOptions, QueueOptions queueOptions) {
-		super(jobRunner, keyReader, keyProcessor, valueReader, stepOptions, queueOptions);
+			ItemProcessor<List<K>, List<T>> valueReader, ReaderOptions options) {
+		super(jobRunner, keyReader, keyProcessor, valueReader, options);
 	}
 
 	@Override
