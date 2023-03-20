@@ -79,11 +79,15 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubAdapter;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.pubsub.RedisPubSubAdapter;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
-public class KeyspaceNotificationItemReader extends AbstractItemCountingItemStreamItemReader<String>
-		implements PollableItemReader<String>, AutoCloseable {
+public class KeyspaceNotificationItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<K>
+		implements PollableItemReader<K>, AutoCloseable {
+
+	private static final Log log = LogFactory.getLog(KeyspaceNotificationItemReader.class);
 
 	protected static final KeyEventType[] EVENT_TYPES_ORDERED = {
 			// Delete
@@ -95,7 +99,7 @@ public class KeyspaceNotificationItemReader extends AbstractItemCountingItemStre
 			// Hash
 			HSET, HINCRBY, HINCRBYFLOAT, HDEL,
 			// JSON
-			JSON_SET,			
+			JSON_SET,
 			// List
 			LPUSH, RPUSH, RPOP, LPOP, LINSERT, LSET, LREM, LTRIM, SORTSTORE,
 			// Set
@@ -110,32 +114,31 @@ public class KeyspaceNotificationItemReader extends AbstractItemCountingItemStre
 			// Other
 			UNKNOWN };
 
-	private static final Log log = LogFactory.getLog(KeyspaceNotificationItemReader.class);
-	private static final String SEPARATOR = ":";
 	public static final String QUEUE_SIZE_GAUGE_NAME = "reader.notification.queue.size";
 
-	private KeyspaceNotificationReaderOptions options = KeyspaceNotificationReaderOptions.builder().build();
+	private static final String SEPARATOR = ":";
+	private static final KeyspaceNotificationComparator NOTIFICATION_COMPARATOR = new KeyspaceNotificationComparator();
+
 	private final AbstractRedisClient client;
+	private final RedisCodec<K, V> codec;
 	private final Map<String, KeyEventType> eventTypes = Stream.of(KeyEventType.values())
 			.collect(Collectors.toMap(KeyEventType::getString, Function.identity()));
+	private final QueueOptions queueOptions;
+	private final String[] patterns;
 	private Publisher publisher;
 	private BlockingQueue<KeyspaceNotification> queue;
 
-	public KeyspaceNotificationItemReader(AbstractRedisClient client) {
+	public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, QueueOptions queueOptions,
+			String[] patterns) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
+		this.codec = codec;
+		this.queueOptions = queueOptions;
+		this.patterns = patterns;
 	}
 
 	public BlockingQueue<KeyspaceNotification> getQueue() {
 		return queue;
-	}
-
-	public KeyspaceNotificationReaderOptions getOptions() {
-		return options;
-	}
-
-	public void setOptions(KeyspaceNotificationReaderOptions options) {
-		this.options = options;
 	}
 
 	@Override
@@ -143,12 +146,12 @@ public class KeyspaceNotificationItemReader extends AbstractItemCountingItemStre
 		if (publisher != null) {
 			return;
 		}
-		queue = new SetBlockingQueue<>(new PriorityBlockingQueue<>(options.getQueueOptions().getCapacity(),
-				new KeyspaceNotificationComparator()));
+		queue = new SetBlockingQueue<>(
+				new PriorityBlockingQueue<>(queueOptions.getCapacity(), NOTIFICATION_COMPARATOR));
 		Utils.createGaugeCollectionSize(QUEUE_SIZE_GAUGE_NAME, queue);
 		publisher = publisher();
 		log.debug("Subscribing to keyspace notifications");
-		publisher.open(options.getPatterns().toArray(new String[0]));
+		publisher.open(patterns);
 	}
 
 	private static class KeyspaceNotificationComparator implements Comparator<KeyspaceNotification> {
@@ -183,8 +186,9 @@ public class KeyspaceNotificationItemReader extends AbstractItemCountingItemStre
 		if (publisher == null) {
 			return;
 		}
+		log.info("Closing");
 		log.debug("Unsubscribing from keyspace notifications");
-		publisher.close(options.getPatterns().toArray(new String[0]));
+		publisher.close(patterns);
 		publisher = null;
 	}
 
@@ -198,31 +202,29 @@ public class KeyspaceNotificationItemReader extends AbstractItemCountingItemStre
 			return;
 		}
 		String key = channel.substring(channel.indexOf(SEPARATOR) + 1);
-		KeyspaceNotification notification = new KeyspaceNotification(key, eventType(message));
+		KeyEventType eventType = eventType(message);
+		KeyspaceNotification notification = new KeyspaceNotification(key, eventType);
 		if (!queue.offer(notification)) {
 			log.warn("Could not add key because queue is full");
 		}
 	}
 
 	private KeyEventType eventType(String message) {
-		if (!eventTypes.containsKey(message)) {
-			System.out.println("Unknown event type: " + message);
-		}
 		return eventTypes.getOrDefault(message, KeyEventType.UNKNOWN);
 	}
 
 	@Override
-	protected String doRead() throws Exception {
-		return poll(options.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+	protected K doRead() throws Exception {
+		return poll(queueOptions.getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
 	}
 
 	@Override
-	public String poll(long timeout, TimeUnit unit) throws InterruptedException {
+	public K poll(long timeout, TimeUnit unit) throws InterruptedException {
 		KeyspaceNotification notification = queue.poll(timeout, unit);
 		if (notification == null) {
 			return null;
 		}
-		return notification.getKey();
+		return codec.decodeKey(StringCodec.UTF8.encodeKey(notification.getKey()));
 	}
 
 	private interface Publisher {

@@ -3,21 +3,18 @@ package com.redis.spring.batch;
 import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
 
-class RedisStackIntegrationTests extends AbstractIntegrationTests {
+class RedisStackIntegrationTests extends AbstractBatchIntegrationTests {
 
-	protected static final RedisStackContainer source = new RedisStackContainer(
-			RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
-
-	private static final RedisStackContainer target = new RedisStackContainer(
+	public static final RedisStackContainer TARGET_REDIS_STACK = new RedisStackContainer(
 			RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
 
 	@Override
 	protected RedisServer getSourceServer() {
-		return source;
+		return REDIS_STACK;
 	}
 
 	@Override
 	protected RedisServer getTargetServer() {
-		return target;
+		return TARGET_REDIS_STACK;
 	}
 }

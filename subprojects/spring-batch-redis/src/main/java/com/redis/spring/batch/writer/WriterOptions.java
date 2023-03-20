@@ -2,22 +2,30 @@ package com.redis.spring.batch.writer;
 
 import java.util.Optional;
 
+import com.redis.spring.batch.common.PoolOptions;
+
 public class WriterOptions {
 
+	private PoolOptions poolOptions = PoolOptions.builder().build();
 	private Optional<WaitForReplication> waitForReplication = Optional.empty();
 	private boolean multiExec;
 
-	private WriterOptions(Builder builder) {
+	public WriterOptions(Builder builder) {
+		this.poolOptions = builder.poolOptions;
 		this.waitForReplication = builder.waitForReplication;
 		this.multiExec = builder.multiExec;
 	}
 
-	public Optional<WaitForReplication> getWaitForReplication() {
-		return waitForReplication;
+	public PoolOptions getPoolOptions() {
+		return poolOptions;
 	}
 
-	public void setWaitForReplication(WaitForReplication waitForReplication) {
-		setWaitForReplication(Optional.of(waitForReplication));
+	public void setPoolOptions(PoolOptions poolOptions) {
+		this.poolOptions = poolOptions;
+	}
+
+	public Optional<WaitForReplication> getWaitForReplication() {
+		return waitForReplication;
 	}
 
 	public void setWaitForReplication(Optional<WaitForReplication> waitForReplication) {
@@ -36,12 +44,17 @@ public class WriterOptions {
 		return new Builder();
 	}
 
-	public static final class Builder {
-
+	public static class Builder {
+		private PoolOptions poolOptions = PoolOptions.builder().build();
 		private Optional<WaitForReplication> waitForReplication = Optional.empty();
 		private boolean multiExec;
 
 		private Builder() {
+		}
+
+		public Builder poolOptions(PoolOptions options) {
+			this.poolOptions = options;
+			return this;
 		}
 
 		public Builder waitForReplication(WaitForReplication waitForReplication) {

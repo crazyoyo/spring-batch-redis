@@ -1,14 +1,11 @@
 package com.redis.spring.batch.reader;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.util.Assert;
 
@@ -16,50 +13,47 @@ import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 
-import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.codec.StringCodec;
 
-public class KeyComparisonValueReader extends ItemStreamSupport
-		implements ItemProcessor<List<String>, List<KeyComparison<String>>> {
+public class KeyComparisonValueReader extends ItemStreamSupport implements ValueReader<String, KeyComparison> {
 
-	private final DataStructureValueReader<String, String> leftValueReader;
-	private final DataStructureValueReader<String, String> rightValueReader;
-	private final long ttlToleranceMillis;
+	private final DataStructureValueReader<String, String> leftReader;
+	private final DataStructureValueReader<String, String> rightReader;
+	private final KeyComparatorOptions options;
 
-	public KeyComparisonValueReader(GenericObjectPool<StatefulConnection<String, String>> left,
-			GenericObjectPool<StatefulConnection<String, String>> right, Duration ttlTolerance) {
-		Assert.notNull(left, "Right connection pool is required");
-		Assert.notNull(right, "Right connection pool is required");
-		this.leftValueReader = new DataStructureValueReader<>(left);
-		this.rightValueReader = new DataStructureValueReader<>(right);
-		this.ttlToleranceMillis = ttlTolerance.toMillis();
+	public KeyComparisonValueReader(AbstractRedisClient left, AbstractRedisClient right, KeyComparatorOptions options) {
+		this.leftReader = new DataStructureValueReader<>(left, StringCodec.UTF8, options.getLeftPoolOptions());
+		this.rightReader = new DataStructureValueReader<>(right, StringCodec.UTF8, options.getRightPoolOptions());
+		this.options = options;
 	}
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
-		rightValueReader.open(executionContext);
-		leftValueReader.open(executionContext);
+		rightReader.open(executionContext);
+		leftReader.open(executionContext);
 		super.open(executionContext);
 	}
 
 	@Override
 	public void close() {
 		super.close();
-		leftValueReader.close();
-		rightValueReader.close();
+		leftReader.close();
+		rightReader.close();
 	}
 
 	@Override
-	public List<KeyComparison<String>> process(List<String> keys) throws Exception {
-		List<KeyComparison<String>> comparisons = new ArrayList<>();
+	public List<KeyComparison> read(List<? extends String> keys) throws Exception {
+		List<KeyComparison> comparisons = new ArrayList<>();
 		List<DataStructure<String>> leftItems;
 		try {
-			leftItems = leftValueReader.process(keys);
+			leftItems = leftReader.read(keys);
 		} catch (Exception e) {
 			throw new ExecutionException("Could not read keys from left", e);
 		}
 		List<DataStructure<String>> rightItems;
 		try {
-			rightItems = rightValueReader.process(keys);
+			rightItems = rightReader.read(keys);
 		} catch (Exception e) {
 			throw new ExecutionException("Could not read keys from right", e);
 		}
@@ -68,7 +62,7 @@ public class KeyComparisonValueReader extends ItemStreamSupport
 		for (int index = 0; index < keys.size(); index++) {
 			DataStructure<String> leftItem = leftItems.get(index);
 			DataStructure<String> rightItem = rightItems.get(index);
-			comparisons.add(new KeyComparison<>(leftItem, rightItem, compare(leftItem, rightItem)));
+			comparisons.add(new KeyComparison(leftItem, rightItem, compare(leftItem, rightItem)));
 		}
 		return comparisons;
 	}
@@ -97,37 +91,7 @@ public class KeyComparisonValueReader extends ItemStreamSupport
 		if (target == null) {
 			return false;
 		}
-		return Math.abs(source - target) <= ttlToleranceMillis;
-	}
-
-	public static Builder comparator(GenericObjectPool<StatefulConnection<String, String>> left,
-			GenericObjectPool<StatefulConnection<String, String>> right) {
-		return new Builder(left, right);
-	}
-
-	public static class Builder {
-
-		private static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
-
-		private final GenericObjectPool<StatefulConnection<String, String>> leftConnectionPool;
-		private final GenericObjectPool<StatefulConnection<String, String>> rightConnectionPool;
-		private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
-
-		public Builder(GenericObjectPool<StatefulConnection<String, String>> left,
-				GenericObjectPool<StatefulConnection<String, String>> right) {
-			this.leftConnectionPool = left;
-			this.rightConnectionPool = right;
-		}
-
-		public Builder ttlTolerance(Duration ttlTolerance) {
-			this.ttlTolerance = ttlTolerance;
-			return this;
-		}
-
-		public KeyComparisonValueReader build() {
-			return new KeyComparisonValueReader(leftConnectionPool, rightConnectionPool, ttlTolerance);
-		}
-
+		return Math.abs(source - target) <= options.getTtlTolerance().toMillis();
 	}
 
 }

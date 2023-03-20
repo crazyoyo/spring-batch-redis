@@ -34,7 +34,7 @@ public class KeyComparisonLogger {
 		this.log = logger;
 	}
 
-	public void log(KeyComparison<String> comparison) {
+	public void log(KeyComparison comparison) {
 		switch (comparison.getStatus()) {
 		case MISSING:
 			log.log(Level.WARNING, "Missing key {0}", comparison.getSource().getKey());
@@ -83,7 +83,7 @@ public class KeyComparisonLogger {
 		}
 	}
 
-	private void showHashDiff(KeyComparison<String> comparison) {
+	private void showHashDiff(KeyComparison comparison) {
 		Map<String, String> sourceHash = (Map<String, String>) comparison.getSource().getValue();
 		Map<String, String> targetHash = (Map<String, String>) comparison.getTarget().getValue();
 		Map<String, String> diff = new HashMap<>();
@@ -95,7 +95,7 @@ public class KeyComparisonLogger {
 				new Object[] { comparison.getSource().getKey(), diff.keySet() });
 	}
 
-	private void showStringDiff(KeyComparison<String> comparison) {
+	private void showStringDiff(KeyComparison comparison) {
 		String sourceString = (String) comparison.getSource().getValue();
 		String targetString = (String) comparison.getTarget().getValue();
 		int diffIndex = indexOfDifference(sourceString, targetString);
@@ -150,7 +150,7 @@ public class KeyComparisonLogger {
 		return INDEX_NOT_FOUND;
 	}
 
-	private void showListDiff(KeyComparison<String> comparison) {
+	private void showListDiff(KeyComparison comparison) {
 		List<?> sourceList = (List<?>) comparison.getSource().getValue();
 		List<?> targetList = (List<?>) comparison.getTarget().getValue();
 		if (sourceList.size() != targetList.size()) {
@@ -169,7 +169,7 @@ public class KeyComparisonLogger {
 				new Object[] { comparison.getSource().getType(), comparison.getSource().getKey(), diff });
 	}
 
-	private void showSetDiff(KeyComparison<String> comparison) {
+	private void showSetDiff(KeyComparison comparison) {
 		Set<String> sourceSet = (Set<String>) comparison.getSource().getValue();
 		Set<String> targetSet = (Set<String>) comparison.getTarget().getValue();
 		Set<String> missing = new HashSet<>(sourceSet);
@@ -180,7 +180,7 @@ public class KeyComparisonLogger {
 				new Object[] { comparison.getSource().getKey(), missing, extra });
 	}
 
-	private void showSortedSetDiff(KeyComparison<String> comparison) {
+	private void showSortedSetDiff(KeyComparison comparison) {
 		List<ScoredValue<String>> sourceList = (List<ScoredValue<String>>) comparison.getSource().getValue();
 		List<ScoredValue<String>> targetList = (List<ScoredValue<String>>) comparison.getTarget().getValue();
 		List<ScoredValue<String>> missing = new ArrayList<>(sourceList);
@@ -195,7 +195,7 @@ public class KeyComparisonLogger {
 		return list.stream().map(v -> v.getValue() + "@" + v.getScore()).collect(Collectors.toList());
 	}
 
-	private void showStreamDiff(KeyComparison<String> comparison) {
+	private void showStreamDiff(KeyComparison comparison) {
 		List<StreamMessage<String, String>> sourceMessages = (List<StreamMessage<String, String>>) comparison
 				.getSource().getValue();
 		List<StreamMessage<String, String>> targetMessages = (List<StreamMessage<String, String>>) comparison

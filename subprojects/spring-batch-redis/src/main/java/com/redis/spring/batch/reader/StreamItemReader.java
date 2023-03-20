@@ -7,16 +7,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
-import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.StreamReaderOptions.AckPolicy;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
 import io.lettuce.core.RedisBusyException;
 import io.lettuce.core.StreamMessage;
@@ -25,6 +28,8 @@ import io.lettuce.core.XReadArgs;
 import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.RedisStreamCommands;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 
 public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<StreamMessage<K, V>>
 		implements PollableItemReader<StreamMessage<K, V>> {
@@ -32,19 +37,21 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	public static final Duration DEFAULT_POLL_DURATION = Duration.ofSeconds(1);
 	public static final String START_OFFSET = "0-0";
 
-	private final GenericObjectPool<StatefulConnection<K, V>> pool;
+	private final AbstractRedisClient client;
+	private final RedisCodec<K, V> codec;
 	private final K stream;
 	private final Consumer<K> consumer;
 	private final StreamReaderOptions options;
+	private StatefulRedisModulesConnection<K, V> connection;
 	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
 	private MessageReader<K, V> reader;
 	private String lastId;
 
-	public StreamItemReader(GenericObjectPool<StatefulConnection<K, V>> pool, K stream, Consumer<K> consumer,
+	public StreamItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, K stream, Consumer<K> consumer,
 			StreamReaderOptions options) {
 		setName(ClassUtils.getShortName(getClass()));
-		Assert.notNull(pool, "A connection pool is required");
-		this.pool = pool;
+		this.client = client;
+		this.codec = codec;
 		this.stream = stream;
 		this.consumer = consumer;
 		this.options = options;
@@ -63,15 +70,10 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 		if (isOpen()) {
 			return;
 		}
-		synchronized (pool) {
-			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-				createConsumerGroup(connection);
-				lastId = options.getOffset();
-				reader = reader();
-			} catch (Exception e) {
-				throw new ItemStreamException("Failed to initialize the reader", e);
-			}
-		}
+		connection = RedisModulesUtils.connection(client, codec);
+		createConsumerGroup();
+		lastId = options.getOffset();
+		reader = reader();
 	}
 
 	private MessageReader<K, V> reader() {
@@ -81,7 +83,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 		return new AutoAckPendingMessageReader();
 	}
 
-	private void createConsumerGroup(StatefulConnection<K, V> connection) {
+	private void createConsumerGroup() {
 		RedisStreamCommands<K, V> commands = Utils.sync(connection);
 		StreamOffset<K> offset = StreamOffset.from(stream, options.getOffset());
 		XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
@@ -110,12 +112,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	@Override
 	public StreamMessage<K, V> poll(long timeout, TimeUnit unit) throws PollingException {
 		if (!iterator.hasNext()) {
-			List<StreamMessage<K, V>> messages;
-			try {
-				messages = reader.read(unit.toMillis(timeout));
-			} catch (MessageReadException e) {
-				throw new PollingException(e);
-			}
+			List<StreamMessage<K, V>> messages = reader.read(unit.toMillis(timeout));
 			if (messages == null || messages.isEmpty()) {
 				return null;
 			}
@@ -124,7 +121,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 		return iterator.next();
 	}
 
-	public List<StreamMessage<K, V>> readMessages() throws MessageReadException {
+	public List<StreamMessage<K, V>> readMessages() {
 		return reader.read(options.getBlock().toMillis());
 	}
 
@@ -135,7 +132,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	 * @throws MessageAckException
 	 * @throws MessageAckException if any error occurs while trying to ack messages
 	 */
-	public long ack(Iterable<? extends StreamMessage<K, V>> messages) throws MessageAckException {
+	public long ack(Iterable<? extends StreamMessage<K, V>> messages) {
 		if (messages == null) {
 			return 0;
 		}
@@ -151,19 +148,13 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	 * @return
 	 * @throws MessageAckException if any error occurs while trying to ack IDs
 	 */
-	public long ack(String... ids) throws MessageAckException {
+	public long ack(String... ids) {
 		if (ids.length == 0) {
 			return 0;
 		}
-		synchronized (pool) {
-			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-				long count = ack(Utils.sync(connection), ids);
-				lastId = ids[ids.length - 1];
-				return count;
-			} catch (Exception e) {
-				throw new MessageAckException(e);
-			}
-		}
+		long count = ack(Utils.sync(connection), ids);
+		lastId = ids[ids.length - 1];
+		return count;
 	}
 
 	private void ack(RedisStreamCommands<K, V> commands, Iterable<StreamMessage<K, V>> messages) {
@@ -273,27 +264,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 		 *         messages available
 		 * @throws MessageReadException
 		 */
-		List<StreamMessage<K, V>> read(long blockMillis) throws MessageReadException;
-
-	}
-
-	private static final class MessageReadException extends Exception {
-
-		public MessageReadException(Exception e) {
-			super(e);
-		}
-
-		private static final long serialVersionUID = 1L;
-
-	}
-
-	private static final class MessageAckException extends Exception {
-
-		public MessageAckException(Exception e) {
-			super(e);
-		}
-
-		private static final long serialVersionUID = 1L;
+		List<StreamMessage<K, V>> read(long blockMillis);
 
 	}
 
@@ -330,13 +301,9 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 		}
 
 		@Override
-		public List<StreamMessage<K, V>> read(long blockMillis) throws MessageReadException {
+		public List<StreamMessage<K, V>> read(long blockMillis) {
 			List<StreamMessage<K, V>> messages;
-			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-				messages = readMessages(commands(connection), args(blockMillis));
-			} catch (Exception e) {
-				throw new MessageReadException(e);
-			}
+			messages = readMessages(commands(connection), args(blockMillis));
 			if (messages.isEmpty()) {
 				reader = messageReader();
 				return reader.read(blockMillis);
@@ -350,12 +317,8 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 
 		@SuppressWarnings("unchecked")
 		@Override
-		public List<StreamMessage<K, V>> read(long blockMillis) throws MessageReadException {
-			try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-				return commands(connection).xreadgroup(consumer, args(blockMillis), StreamOffset.lastConsumed(stream));
-			} catch (Exception e) {
-				throw new MessageReadException(e);
-			}
+		public List<StreamMessage<K, V>> read(long blockMillis) {
+			return commands(connection).xreadgroup(consumer, args(blockMillis), StreamOffset.lastConsumed(stream));
 		}
 	}
 
@@ -378,14 +341,78 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	private class AutoAckMessageReader extends ExplicitAckMessageReader {
 
 		@Override
-		public List<StreamMessage<K, V>> read(long blockMillis) throws MessageReadException {
+		public List<StreamMessage<K, V>> read(long blockMillis) {
 			List<StreamMessage<K, V>> messages = super.read(blockMillis);
-			try {
-				ack(messages);
-			} catch (MessageAckException e) {
-				throw new MessageReadException(e);
-			}
+			ack(messages);
 			return messages;
+		}
+
+	}
+
+	public static StreamBuilder<String, String> client(RedisModulesClient client) {
+		return new StreamBuilder<>(client, StringCodec.UTF8);
+	}
+
+	public static StreamBuilder<String, String> client(RedisModulesClusterClient client) {
+		return new StreamBuilder<>(client, StringCodec.UTF8);
+	}
+
+	public static <K, V> StreamBuilder<K, V> client(RedisModulesClient client, RedisCodec<K, V> codec) {
+		return new StreamBuilder<>(client, codec);
+	}
+
+	public static <K, V> StreamBuilder<K, V> client(RedisModulesClusterClient client, RedisCodec<K, V> codec) {
+		return new StreamBuilder<>(client, codec);
+	}
+
+	public static class StreamBuilder<K, V> {
+		private final AbstractRedisClient client;
+		private final RedisCodec<K, V> codec;
+
+		protected StreamBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+			this.client = client;
+			this.codec = codec;
+		}
+
+		public Builder<K, V> stream(K stream) {
+			return new Builder<>(client, codec, stream);
+		}
+	}
+
+	public static class Builder<K, V> {
+
+		public static final String DEFAULT_CONSUMER_GROUP = ClassUtils.getShortName(StreamItemReader.class);
+		public static final String DEFAULT_CONSUMER = "consumer1";
+
+		private final AbstractRedisClient client;
+		private final RedisCodec<K, V> codec;
+		private final K stream;
+		private Consumer<K> consumer;
+		private StreamReaderOptions options = StreamReaderOptions.builder().build();
+
+		protected Builder(AbstractRedisClient client, RedisCodec<K, V> codec, K stream) {
+			this.client = client;
+			this.codec = codec;
+			this.consumer = Consumer.from(key(DEFAULT_CONSUMER_GROUP, codec), key(DEFAULT_CONSUMER, codec));
+			this.stream = stream;
+		}
+
+		private static <K, V> K key(String string, RedisCodec<K, V> codec) {
+			return codec.decodeKey(StringCodec.UTF8.encodeKey(string));
+		}
+
+		public Builder<K, V> consumer(Consumer<K> consumer) {
+			this.consumer = consumer;
+			return this;
+		}
+
+		public Builder<K, V> options(StreamReaderOptions options) {
+			this.options = options;
+			return this;
+		}
+
+		public StreamItemReader<K, V> build() {
+			return new StreamItemReader<>(client, codec, stream, consumer, options);
 		}
 
 	}

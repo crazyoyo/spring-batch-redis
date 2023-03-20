@@ -1,6 +1,7 @@
 package com.redis.spring.batch.step;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.core.StepContribution;
@@ -52,8 +53,8 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	private Classifier<Throwable, Boolean> rollbackClassifier = new BinaryExceptionClassifier(true);
 	private int maxSkipsOnRead = DEFAULT_MAX_SKIPS_ON_READ;
 
-	private long interval = DEFAULT_FLUSHING_INTERVAL.toMillis();
-	private long idleTimeout = NO_IDLE_TIMEOUT;
+	private Duration interval = DEFAULT_FLUSHING_INTERVAL;
+	private Optional<Duration> idleTimeout = Optional.empty();
 	private long lastActivity = 0;
 
 	public FlushingChunkProvider(ItemReader<? extends I> itemReader, RepeatOperations repeatOperations) {
@@ -62,12 +63,16 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 		this.repeatOperations = repeatOperations;
 	}
 
-	public void setInterval(long interval) {
+	public void setInterval(Duration interval) {
 		this.interval = interval;
 	}
 
-	public void setIdleTimeout(long millis) {
-		this.idleTimeout = millis;
+	public void setIdleTimeout(Optional<Duration> timeout) {
+		this.idleTimeout = timeout;
+	}
+
+	public void setIdleTimeout(Duration timeout) {
+		setIdleTimeout(Optional.of(timeout));
 	}
 
 	/**
@@ -116,7 +121,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 		}
 		final Chunk<I> inputs = new Chunk<>();
 		repeatOperations.iterate(context -> {
-			long pollingTimeout = interval - (System.currentTimeMillis() - start);
+			long pollingTimeout = interval.toMillis() - (System.currentTimeMillis() - start);
 			if (pollingTimeout < 0) {
 				return RepeatStatus.FINISHED;
 			}
@@ -130,8 +135,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 				return RepeatStatus.FINISHED;
 			}
 			if (item == null) {
-				if (!((PollableItemReader) itemReader).isOpen() || (idleTimeout != NO_IDLE_TIMEOUT
-						&& System.currentTimeMillis() - lastActivity > idleTimeout)) {
+				if (!((PollableItemReader) itemReader).isOpen() || isTimeout(lastActivity)) {
 					inputs.setEnd();
 				}
 				return RepeatStatus.CONTINUABLE;
@@ -143,6 +147,10 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 			return RepeatStatus.CONTINUABLE;
 		});
 		return inputs;
+	}
+
+	private boolean isTimeout(long lastActivity) {
+		return idleTimeout.isPresent() && System.currentTimeMillis() - lastActivity > idleTimeout.get().toMillis();
 	}
 
 	protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) {

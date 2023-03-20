@@ -12,13 +12,15 @@ import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.util.Assert;
 
 import com.hrakaroo.glob.GlobPattern;
 import com.hrakaroo.glob.MatchingEngine;
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.common.Utils;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -29,12 +31,11 @@ public class ScanSizeEstimator {
 
 	private static final Logger log = Logger.getLogger(ScanSizeEstimator.class.getName());
 
-	private final GenericObjectPool<StatefulConnection<String, String>> connectionPool;
+	private final AbstractRedisClient client;
 	private final ScanSizeEstimatorOptions options;
 
-	public ScanSizeEstimator(GenericObjectPool<StatefulConnection<String, String>> connectionPool,
-			ScanSizeEstimatorOptions options) {
-		this.connectionPool = connectionPool;
+	public ScanSizeEstimator(AbstractRedisClient client, ScanSizeEstimatorOptions options) {
+		this.client = client;
 		this.options = options;
 	}
 
@@ -45,7 +46,8 @@ public class ScanSizeEstimator {
 	 *         null if database is empty or any error occurs
 	 */
 	public Long execute() {
-		try (StatefulConnection<String, String> connection = connectionPool.borrowObject()) {
+		try {
+			StatefulRedisModulesConnection<String, String> connection = RedisModulesUtils.connection(client);
 			return execute(connection);
 		} catch (InterruptedException e) {
 			log.log(Level.WARNING, "Interrupted!", e);
@@ -119,17 +121,17 @@ public class ScanSizeEstimator {
 		return engine::matches;
 	}
 
-	public static Builder builder(GenericObjectPool<StatefulConnection<String, String>> connectionPool) {
-		return new Builder(connectionPool);
+	public static Builder client(AbstractRedisClient client) {
+		return new Builder(client);
 	}
 
 	public static class Builder {
 
-		private final GenericObjectPool<StatefulConnection<String, String>> connectionPool;
+		private final AbstractRedisClient client;
 		private ScanSizeEstimatorOptions options = ScanSizeEstimatorOptions.builder().build();
 
-		public Builder(GenericObjectPool<StatefulConnection<String, String>> connectionPool) {
-			this.connectionPool = connectionPool;
+		public Builder(AbstractRedisClient client) {
+			this.client = client;
 		}
 
 		public Builder options(ScanSizeEstimatorOptions options) {
@@ -139,7 +141,7 @@ public class ScanSizeEstimator {
 		}
 
 		public ScanSizeEstimator build() {
-			return new ScanSizeEstimator(connectionPool, options);
+			return new ScanSizeEstimator(client, options);
 		}
 
 	}

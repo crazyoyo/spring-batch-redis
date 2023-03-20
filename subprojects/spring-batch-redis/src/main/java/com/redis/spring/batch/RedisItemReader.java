@@ -1,156 +1,125 @@
 package com.redis.spring.batch;
 
 import java.time.Duration;
-import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.awaitility.Awaitility;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStream;
-import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
-import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
-import org.springframework.util.ClassUtils;
 
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
-import com.redis.spring.batch.common.ProcessingItemWriter;
-import com.redis.spring.batch.common.Utils;
-import com.redis.spring.batch.reader.DataStructureValueReader;
+import com.redis.spring.batch.reader.AbstractRedisItemReader;
+import com.redis.spring.batch.reader.KeyComparatorOptions;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparisonValueReader;
-import com.redis.spring.batch.reader.KeyDumpValueReader;
-import com.redis.spring.batch.reader.LiveReaderBuilder;
+import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.ReaderOptions;
-import com.redis.spring.batch.reader.ScanReaderBuilder;
-import com.redis.spring.batch.reader.StreamReaderBuilder;
+import com.redis.spring.batch.reader.ScanKeyItemReader;
+import com.redis.spring.batch.reader.ScanOptions;
+import com.redis.spring.batch.reader.ValueReader;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.Consumer;
-import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemReader<T> {
+public class RedisItemReader<K, T> extends AbstractRedisItemReader<K, T> {
 
 	public static final Duration DEFAULT_RUNNING_TIMEOUT = Duration.ofSeconds(5);
+	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 
-	private final JobRunner jobRunner;
-	protected final ItemReader<K> keyReader;
-	private final ItemProcessor<K, K> keyProcessor;
-	private final ItemProcessor<List<K>, List<T>> valueReader;
-	private final ReaderOptions options;
-	protected BlockingQueue<T> queue;
-	private String name;
-	private JobExecution jobExecution;
-
-	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, ItemProcessor<K, K> keyProcessor,
-			ItemProcessor<List<K>, List<T>> valueReader, ReaderOptions options) {
-		setName(ClassUtils.getShortName(getClass()));
-		this.jobRunner = jobRunner;
-		this.keyReader = keyReader;
-		this.keyProcessor = keyProcessor;
-		this.valueReader = valueReader;
-		this.options = options;
+	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, ValueReader<K, T> valueReader,
+			ReaderOptions options) {
+		super(jobRunner, keyReader, null, valueReader, options);
 	}
 
-	@Override
-	public void setName(String name) {
-		super.setName(name);
-		this.name = name;
+	public static Builder<String, String> client(RedisModulesClusterClient client) {
+		return new Builder<>(client, StringCodec.UTF8);
 	}
 
-	@Override
-	protected synchronized void doOpen() throws Exception {
-		if (jobExecution == null) {
-			this.queue = new LinkedBlockingQueue<>(options.getQueueOptions().getCapacity());
-			Utils.createGaugeCollectionSize("reader.queue.size", queue);
-			ItemWriter<K> writer = new ProcessingItemWriter<>(valueReader, new Enqueuer());
-			SimpleStepBuilder<K, K> step = jobRunner.step(name, keyReader, keyProcessor, writer,
-					options.getStepOptions());
-			Job job = jobRunner.job(name).start(step.build()).build();
-			jobExecution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
+	public static Builder<String, String> client(RedisModulesClient client) {
+		return new Builder<>(client, StringCodec.UTF8);
+	}
+
+	public static <K, V> Builder<K, V> client(RedisModulesClient client, RedisCodec<K, V> codec) {
+		return new Builder<>(client, codec);
+	}
+
+	public static <K, V> Builder<K, V> client(RedisModulesClusterClient client, RedisCodec<K, V> codec) {
+		return new Builder<>(client, codec);
+	}
+
+	public static class Builder<K, V> extends AbstractReaderBuilder<K, V, Builder<K, V>> {
+
+		private ScanOptions scanOptions = ScanOptions.builder().build();
+
+		protected Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+			super(client, codec);
 		}
-	}
 
-	private class Enqueuer extends AbstractItemStreamItemWriter<T> {
+		public Builder<K, V> scanOptions(ScanOptions options) {
+			this.scanOptions = options;
+			return this;
+		}
 
 		@Override
-		public void write(List<? extends T> items) throws InterruptedException {
-			for (T item : items) {
-				try {
-					queue.put(item);
-				} catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-					throw e;
-				}
-			}
+		protected ItemReader<K> keyReader() {
+			return new ScanKeyItemReader<>(client, codec, scanOptions);
 		}
-	}
 
-	@Override
-	protected synchronized void doClose() {
-		if (keyReader instanceof ItemStream) {
-			((ItemStream) keyReader).close();
+		public LiveRedisItemReader.Builder<K, V> live() {
+			return toBuilder(new LiveRedisItemReader.Builder<>(client, codec)).keyPatterns(scanOptions.getMatch());
 		}
-		if (jobExecution != null) {
-			Awaitility.await().until(() -> !jobExecution.isRunning());
-			jobExecution = null;
+
+		public KeyComparatorBuilder comparator(AbstractRedisClient right) {
+			KeyComparatorOptions comparatorOptions = KeyComparatorOptions.builder()
+					.leftPoolOptions(readerOptions.getPoolOptions()).rightPoolOptions(readerOptions.getPoolOptions())
+					.scanOptions(scanOptions).build();
+			return toBuilder(new KeyComparatorBuilder(client, right)).comparatorOptions(comparatorOptions);
 		}
+
+		public RedisItemReader<K, DataStructure<K>> dataStructure() {
+			return reader(dataStructureValueReader());
+		}
+
+		public RedisItemReader<K, KeyDump<K>> keyDump() {
+			return reader(keyDumpValueReader());
+		}
+
+		private <T> RedisItemReader<K, T> reader(ValueReader<K, T> valueReader) {
+			return new RedisItemReader<>(jobRunner(), keyReader(), valueReader, readerOptions);
+		}
+
 	}
 
-	@Override
-	protected T doRead() throws Exception {
-		T item;
-		do {
-			item = queue.poll(options.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
-		} while (item == null && isOpen());
-		return item;
-	}
+	public static class KeyComparatorBuilder extends AbstractReaderBuilder<String, String, KeyComparatorBuilder> {
 
-	public boolean isOpen() {
-		return jobExecution != null && jobExecution.isRunning() && !jobExecution.getStatus().isUnsuccessful();
-	}
+		private KeyComparatorOptions comparatorOptions = KeyComparatorOptions.builder().build();
+		private final AbstractRedisClient right;
 
-	public static ScanReaderBuilder<String, String, KeyComparison<String>> comparator(JobRunner jobRunner,
-			GenericObjectPool<StatefulConnection<String, String>> left,
-			GenericObjectPool<StatefulConnection<String, String>> right, Duration ttlTolerance) {
-		return new ScanReaderBuilder<>(left, jobRunner, new KeyComparisonValueReader(left, right, ttlTolerance));
-	}
+		protected KeyComparatorBuilder(AbstractRedisClient left, AbstractRedisClient right) {
+			super(left, StringCodec.UTF8);
+			this.right = right;
+		}
 
-	public static <K, V> ScanReaderBuilder<K, V, DataStructure<K>> dataStructure(
-			GenericObjectPool<StatefulConnection<K, V>> connectionPool, JobRunner jobRunner) {
-		return new ScanReaderBuilder<>(connectionPool, jobRunner, new DataStructureValueReader<>(connectionPool));
-	}
+		public KeyComparatorBuilder comparatorOptions(KeyComparatorOptions options) {
+			this.comparatorOptions = options;
+			return this;
+		}
 
-	public static <K, V> ScanReaderBuilder<K, V, KeyDump<K>> keyDump(
-			GenericObjectPool<StatefulConnection<K, V>> connectionPool, JobRunner jobRunner) {
-		return new ScanReaderBuilder<>(connectionPool, jobRunner, new KeyDumpValueReader<>(connectionPool));
-	}
+		public RedisItemReader<String, KeyComparison> build() {
+			return new RedisItemReader<>(jobRunner(), keyReader(), valueReader(), readerOptions);
+		}
 
-	public static <K, V> StreamReaderBuilder<K, V> stream(GenericObjectPool<StatefulConnection<K, V>> connectionPool,
-			K name, Consumer<K> consumer) {
-		return new StreamReaderBuilder<>(connectionPool, name, consumer);
-	}
+		private KeyComparisonValueReader valueReader() {
+			return new KeyComparisonValueReader(client, right, comparatorOptions);
+		}
 
-	public static <K, V> LiveReaderBuilder<K, V, DataStructure<K>> liveDataStructure(
-			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner, AbstractRedisClient client,
-			RedisCodec<K, V> codec) {
-		return new LiveReaderBuilder<>(jobRunner, new DataStructureValueReader<>(pool), client, codec);
-	}
+		@Override
+		protected ItemReader<String> keyReader() {
+			return new ScanKeyItemReader<>(client, StringCodec.UTF8, comparatorOptions.getScanOptions());
+		}
 
-	public static <K, V> LiveReaderBuilder<K, V, KeyDump<K>> liveKeyDump(
-			GenericObjectPool<StatefulConnection<K, V>> pool, JobRunner jobRunner, AbstractRedisClient client,
-			RedisCodec<K, V> codec) {
-		return new LiveReaderBuilder<>(jobRunner, new KeyDumpValueReader<>(pool), client, codec);
 	}
 
 }

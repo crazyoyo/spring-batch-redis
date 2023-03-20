@@ -6,8 +6,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
-
 import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
 import com.redis.lettucemod.timeseries.RangeOptions;
@@ -15,8 +13,10 @@ import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.common.NoOpRedisFuture;
+import com.redis.spring.batch.common.PoolOptions;
 import com.redis.spring.batch.common.Utils;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
@@ -28,15 +28,16 @@ import io.lettuce.core.api.async.RedisSetAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
+import io.lettuce.core.codec.RedisCodec;
 
-public class DataStructureValueReader<K, V> extends AbstractRedisValueReader<K, V, DataStructure<K>> {
+public class DataStructureValueReader<K, V> extends AbstractValueReader<K, V, DataStructure<K>> {
 
 	private static final TimeRange TIME_RANGE = TimeRange.unbounded();
 	private static final RangeOptions RANGE_OPTIONS = RangeOptions.builder().build();
 	private static final Range<String> XRANGE = Range.create("-", "+");
 
-	public DataStructureValueReader(GenericObjectPool<StatefulConnection<K, V>> pool) {
-		super(pool);
+	public DataStructureValueReader(AbstractRedisClient client, RedisCodec<K, V> codec, PoolOptions poolOptions) {
+		super(client, codec, poolOptions);
 	}
 
 	@SuppressWarnings("unchecked")

@@ -5,7 +5,7 @@ import java.util.Objects;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.KeyValue;
 
-public class KeyComparison<K> extends KeyValue<K> {
+public class KeyComparison extends KeyValue<String> {
 
 	public enum Status {
 		OK, // No difference
@@ -15,11 +15,11 @@ public class KeyComparison<K> extends KeyValue<K> {
 		VALUE // Value mismatch
 	}
 
-	private DataStructure<K> source;
-	private DataStructure<K> target;
+	private DataStructure<String> source;
+	private DataStructure<String> target;
 	private Status status;
 
-	public KeyComparison(DataStructure<K> source, DataStructure<K> target, Status status) {
+	public KeyComparison(DataStructure<String> source, DataStructure<String> target, Status status) {
 		super();
 		this.source = source;
 		this.target = target;
@@ -27,23 +27,23 @@ public class KeyComparison<K> extends KeyValue<K> {
 	}
 
 	@Override
-	public K getKey() {
+	public String getKey() {
 		return source.getKey();
 	}
 
-	public DataStructure<K> getSource() {
+	public DataStructure<String> getSource() {
 		return source;
 	}
 
-	public void setSource(DataStructure<K> source) {
+	public void setSource(DataStructure<String> source) {
 		this.source = source;
 	}
 
-	public DataStructure<K> getTarget() {
+	public DataStructure<String> getTarget() {
 		return target;
 	}
 
-	public void setTarget(DataStructure<K> target) {
+	public void setTarget(DataStructure<String> target) {
 		this.target = target;
 	}
 
@@ -71,7 +71,7 @@ public class KeyComparison<K> extends KeyValue<K> {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		KeyComparison<?> other = (KeyComparison<?>) obj;
+		KeyComparison other = (KeyComparison) obj;
 		return Objects.equals(source, other.source) && status == other.status && Objects.equals(target, other.target);
 	}
 

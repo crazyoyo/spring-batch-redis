@@ -2,6 +2,7 @@ package com.redis.spring.batch.step;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Optional;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -22,8 +23,8 @@ public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I,
 
 	private final Log log = LogFactory.getLog(getClass());
 
-	private long interval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL.toMillis();
-	private long idleTimeout = FlushingChunkProvider.NO_IDLE_TIMEOUT;
+	private Duration interval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
+	private Optional<Duration> idleTimeout = Optional.empty();
 
 	public FlushingSimpleStepBuilder(StepBuilderHelper<?> parent) {
 		super(parent);
@@ -43,18 +44,18 @@ public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I,
 		return (FlushingSimpleStepBuilder<I, O>) super.chunk(completionPolicy);
 	}
 
-	public FlushingSimpleStepBuilder<I, O> flushingInterval(long millis) {
-		this.interval = millis;
+	public FlushingSimpleStepBuilder<I, O> flushingInterval(Duration interval) {
+		this.interval = interval;
+		return this;
+	}
+
+	public FlushingSimpleStepBuilder<I, O> idleTimeout(Optional<Duration> timeout) {
+		this.idleTimeout = timeout;
 		return this;
 	}
 
 	public FlushingSimpleStepBuilder<I, O> idleTimeout(Duration timeout) {
-		return idleTimeout(timeout.toMillis());
-	}
-
-	public FlushingSimpleStepBuilder<I, O> idleTimeout(long millis) {
-		this.idleTimeout = millis;
-		return this;
+		return idleTimeout(Optional.of(timeout));
 	}
 
 	@Override
@@ -64,6 +65,7 @@ public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I,
 
 	@Override
 	protected ChunkProvider<I> createChunkProvider() {
+		log.info("Creating chunk provider with interval=" + interval + " and idleTimeout=" + idleTimeout);
 		SkipPolicy readSkipPolicy = createSkipPolicy();
 		readSkipPolicy = getFatalExceptionAwareProxy(readSkipPolicy);
 		int maxSkipsOnRead = maxSkipsOnRead();

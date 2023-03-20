@@ -11,13 +11,13 @@ import org.springframework.batch.item.ItemWriter;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 
-public class KeyComparisonCountItemWriter<K> implements ItemWriter<KeyComparison<K>> {
+public class KeyComparisonCountItemWriter implements ItemWriter<KeyComparison> {
 
 	private final Results results = new Results();
 
 	@Override
-	public void write(List<? extends KeyComparison<K>> items) throws Exception {
-		for (KeyComparison<K> comparison : items) {
+	public void write(List<? extends KeyComparison> items) throws Exception {
+		for (KeyComparison comparison : items) {
 			results.incrementAndGet(comparison.getStatus());
 		}
 	}

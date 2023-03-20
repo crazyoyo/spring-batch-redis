@@ -6,20 +6,21 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
-
 import com.redis.spring.batch.common.KeyDump;
+import com.redis.spring.batch.common.PoolOptions;
 import com.redis.spring.batch.common.Utils;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import io.lettuce.core.codec.RedisCodec;
 
-public class KeyDumpValueReader<K, V> extends AbstractRedisValueReader<K, V, KeyDump<K>> {
+public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyDump<K>> {
 
-	public KeyDumpValueReader(GenericObjectPool<StatefulConnection<K, V>> pool) {
-		super(pool);
+	public KeyDumpValueReader(AbstractRedisClient client, RedisCodec<K, V> codec, PoolOptions poolOptions) {
+		super(client, codec, poolOptions);
 	}
 
 	@SuppressWarnings("unchecked")

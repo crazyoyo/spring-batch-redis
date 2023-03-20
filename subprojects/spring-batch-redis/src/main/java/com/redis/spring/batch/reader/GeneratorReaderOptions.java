@@ -25,10 +25,10 @@ public class GeneratorReaderOptions {
 	public static final IntRange DEFAULT_KEY_RANGE = IntRange.between(1, DEFAULT_KEY_RANGE_MAX);
 
 	private Optional<IntRange> expiration = Optional.empty();
-	private MapOptions hashOptions = DEFAULT_HASH_OPTIONS;
+	private HashOptions hashOptions = DEFAULT_HASH_OPTIONS;
 	private StreamOptions streamOptions = DEFAULT_STREAM_OPTIONS;
 	private TimeSeriesOptions timeSeriesOptions = DEFAULT_TIMESERIES_OPTIONS;
-	private MapOptions jsonOptions = DEFAULT_JSON_OPTIONS;
+	private JsonOptions jsonOptions = DEFAULT_JSON_OPTIONS;
 	private ListOptions listOptions = DEFAULT_LIST_OPTIONS;
 	private SetOptions setOptions = DEFAULT_SET_OPTIONS;
 	private StringOptions stringOptions = DEFAULT_STRING_OPTIONS;
@@ -80,7 +80,7 @@ public class GeneratorReaderOptions {
 		return hashOptions;
 	}
 
-	public void setHashOptions(MapOptions hashOptions) {
+	public void setHashOptions(HashOptions hashOptions) {
 		this.hashOptions = hashOptions;
 	}
 
@@ -96,7 +96,7 @@ public class GeneratorReaderOptions {
 		return jsonOptions;
 	}
 
-	public void setJsonOptions(MapOptions jsonOptions) {
+	public void setJsonOptions(JsonOptions jsonOptions) {
 		this.jsonOptions = jsonOptions;
 	}
 
@@ -157,13 +157,14 @@ public class GeneratorReaderOptions {
 	}
 
 	public static class Builder {
+
 		private IntRange keyRange = DEFAULT_KEY_RANGE;
 		private String keyspace = DEFAULT_KEYSPACE;
 		private Set<Type> types = defaultTypes();
 		private Optional<IntRange> expiration = Optional.empty();
-		private MapOptions hashOptions = DEFAULT_HASH_OPTIONS;
+		private HashOptions hashOptions = DEFAULT_HASH_OPTIONS;
 		private StreamOptions streamOptions = DEFAULT_STREAM_OPTIONS;
-		private MapOptions jsonOptions = DEFAULT_JSON_OPTIONS;
+		private JsonOptions jsonOptions = DEFAULT_JSON_OPTIONS;
 		private TimeSeriesOptions timeSeriesOptions = DEFAULT_TIMESERIES_OPTIONS;
 		private SetOptions setOptions = DEFAULT_SET_OPTIONS;
 		private ZsetOptions zsetOptions = DEFAULT_ZSET_OPTIONS;
@@ -175,7 +176,7 @@ public class GeneratorReaderOptions {
 			return this;
 		}
 
-		public Builder range(IntRange range) {
+		public Builder keyRange(IntRange range) {
 			this.keyRange = range;
 			return this;
 		}
@@ -185,7 +186,7 @@ public class GeneratorReaderOptions {
 			return this;
 		}
 
-		public Builder hashOptions(MapOptions options) {
+		public Builder hashOptions(HashOptions options) {
 			this.hashOptions = options;
 			return this;
 		}
@@ -195,7 +196,7 @@ public class GeneratorReaderOptions {
 			return this;
 		}
 
-		public Builder jsonOptions(MapOptions options) {
+		public Builder jsonOptions(JsonOptions options) {
 			this.jsonOptions = options;
 			return this;
 		}
@@ -231,7 +232,7 @@ public class GeneratorReaderOptions {
 		}
 
 		public Builder count(int count) {
-			return range(IntRange.between(1, count));
+			return keyRange(IntRange.between(1, count));
 		}
 
 		public GeneratorReaderOptions build() {
@@ -418,7 +419,7 @@ public class GeneratorReaderOptions {
 
 	}
 
-	protected static class CollectionOptions {
+	public static class CollectionOptions {
 
 		public static final IntRange DEFAULT_MEMBER_RANGE = IntRange.between(1, 100);
 		public static final IntRange DEFAULT_CARDINALITY = IntRange.is(100);
@@ -450,7 +451,6 @@ public class GeneratorReaderOptions {
 		public static class Builder<B extends Builder<B>> {
 
 			private IntRange memberRange = DEFAULT_MEMBER_RANGE;
-
 			private IntRange cardinality = DEFAULT_CARDINALITY;
 
 			@SuppressWarnings("unchecked")
@@ -511,7 +511,9 @@ public class GeneratorReaderOptions {
 
 	public static class StringOptions {
 
-		private IntRange length = IntRange.is(100);
+		public static final IntRange DEFAULT_LENGTH = IntRange.is(100);
+
+		private IntRange length = DEFAULT_LENGTH;
 
 		private StringOptions(Builder builder) {
 			this.length = builder.length;
@@ -531,7 +533,7 @@ public class GeneratorReaderOptions {
 
 		public static final class Builder {
 
-			private IntRange length = IntRange.is(100);
+			private IntRange length = DEFAULT_LENGTH;
 
 			private Builder() {
 			}
