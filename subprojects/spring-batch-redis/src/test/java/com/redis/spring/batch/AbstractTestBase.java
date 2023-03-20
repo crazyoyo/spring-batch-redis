@@ -81,7 +81,7 @@ import io.lettuce.core.codec.StringCodec;
 @TestInstance(Lifecycle.PER_CLASS)
 abstract class AbstractTestBase {
 
-	private static final Logger log = Logger.getLogger(AbstractTestBase.class.getName());
+	private final Logger log = Logger.getLogger(getClass().getName());
 
 	public static final RedisStackContainer REDIS_STACK = new RedisStackContainer(
 			RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
