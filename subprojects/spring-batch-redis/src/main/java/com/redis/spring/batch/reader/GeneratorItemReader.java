@@ -42,8 +42,14 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
 	public GeneratorItemReader(GeneratorReaderOptions options) {
 		setName(ClassUtils.getShortName(getClass()));
+		setCurrentItemCount(currentItemCount(options));
+		setMaxItemCount(options.getKeyRange().getMax() - currentItemCount(options));
 		this.options = options;
 		this.types = options.getTypes().toArray(new Type[0]);
+	}
+
+	private static int currentItemCount(GeneratorReaderOptions options) {
+		return options.getKeyRange().getMin() - 1;
 	}
 
 	private String key() {

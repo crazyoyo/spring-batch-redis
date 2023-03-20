@@ -18,6 +18,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,9 @@ import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.NonTransientResourceException;
+import org.springframework.batch.item.ParseException;
+import org.springframework.batch.item.UnexpectedInputException;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
@@ -56,6 +60,7 @@ import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.common.IntRange;
 import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.convert.GeoValueConverter;
 import com.redis.spring.batch.convert.IdentityConverter;
 import com.redis.spring.batch.convert.ScoredValueConverter;
@@ -67,6 +72,8 @@ import com.redis.spring.batch.reader.KeyEventType;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
+import com.redis.spring.batch.reader.ScanKeyItemReader;
+import com.redis.spring.batch.reader.ScanOptions;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.ScanSizeEstimator.Builder;
 import com.redis.spring.batch.reader.ScanSizeEstimatorOptions;
@@ -97,6 +104,7 @@ import io.lettuce.core.ScanIterator;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
+import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.cluster.SlotHash;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.StringCodec;
@@ -165,56 +173,7 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 		}
 
 		@Test
-		void metrics(TestInfo testInfo) throws Exception {
-			Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
-			SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
-				@Override
-				public String get(String key) {
-					return null;
-				}
-
-				@Override
-				public Duration step() {
-					return Duration.ofMillis(1);
-				}
-			}, Clock.SYSTEM);
-			Metrics.addRegistry(registry);
-			generate(testInfo);
-			RedisItemReader<String, DataStructure<String>> reader = sourceReader().dataStructure();
-			reader.open(new ExecutionContext());
-			Search search = registry.find("spring.batch.redis.reader.queue.size");
-			Assertions.assertNotNull(search.gauge());
-			reader.close();
-			registry.close();
-			Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
-		}
-
-		@Test
-		void writeStreamTx(TestInfo testInfo) throws Exception {
-			String stream = "stream:1";
-			List<Map<String, String>> messages = new ArrayList<>();
-			for (int index = 0; index < 100; index++) {
-				Map<String, String> body = new HashMap<>();
-				body.put("field1", "value1");
-				body.put("field2", "value2");
-				messages.add(body);
-			}
-			ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-			RedisItemWriter<String, String, Map<String, String>> writer = sourceWriter()
-					.options(WriterOptions.builder().multiExec(true).build()).operation(
-							Xadd.<String, Map<String, String>>key(stream).body(IdentityConverter.instance()).build());
-			run(testInfo, reader, writer);
-			RedisModulesCommands<String, String> sync = sourceConnection.sync();
-			Assertions.assertEquals(messages.size(), sync.xlen(stream));
-			List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
-			for (int index = 0; index < xrange.size(); index++) {
-				StreamMessage<String, String> message = xrange.get(index);
-				Assertions.assertEquals(messages.get(index), message.getBody());
-			}
-		}
-
-		@Test
-		void comparator(TestInfo testInfo) throws Exception {
+		void tsComparator(TestInfo testInfo) throws Exception {
 			sourceConnection.sync().tsAdd("ts:1", Sample.of(123));
 			RedisItemReader<String, KeyComparison> reader = comparisonReader();
 			KeyComparisonCountItemWriter writer = new KeyComparisonCountItemWriter();
@@ -421,6 +380,31 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 	class Reader {
 
 		@Test
+		void metrics(TestInfo testInfo) throws Exception {
+			Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
+			SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
+				@Override
+				public String get(String key) {
+					return null;
+				}
+
+				@Override
+				public Duration step() {
+					return Duration.ofMillis(1);
+				}
+			}, Clock.SYSTEM);
+			Metrics.addRegistry(registry);
+			generate(testInfo);
+			RedisItemReader<String, DataStructure<String>> reader = sourceReader().dataStructure();
+			reader.open(new ExecutionContext());
+			Search search = registry.find("spring.batch.redis.reader.queue.size");
+			Assertions.assertNotNull(search.gauge());
+			reader.close();
+			registry.close();
+			Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
+		}
+
+		@Test
 		void filterKeySlot(TestInfo testInfo) throws Exception {
 			enableKeyspaceNotifications(sourceClient);
 			LiveRedisItemReader<String, DataStructure<String>> reader = sourceReader().live()
@@ -435,7 +419,7 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 		}
 
 		@Test
-		void readKeyspaceNotifications(TestInfo testInfo) throws Exception {
+		void keyspaceNotificationsReader(TestInfo testInfo) throws Exception {
 			enableKeyspaceNotifications(sourceClient);
 			try (KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(
 					sourceClient, StringCodec.UTF8, NOTIFICATION_QUEUE_OPTIONS, NOTIFICATION_PATTERNS)) {
@@ -446,6 +430,18 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 				Assertions.assertEquals(KeyEventType.SET, reader.getQueue().remove().getEventType());
 				assertEventTypes(reader, KeyEventType.SET, KeyEventType.HSET, KeyEventType.JSON_SET, KeyEventType.RPUSH,
 						KeyEventType.SADD, KeyEventType.ZADD, KeyEventType.XADD, KeyEventType.TS_ADD);
+			}
+		}
+
+		@Test
+		void scanKeyItemReader(TestInfo testInfo)
+				throws UnexpectedInputException, ParseException, NonTransientResourceException, Exception {
+			int count = 100;
+			generate(testInfo, GeneratorReaderOptions.builder().count(count).build());
+			try (ScanKeyItemReader<String, String> reader = new ScanKeyItemReader<>(sourceClient, StringCodec.UTF8,
+					ScanOptions.builder().build())) {
+				reader.open(new ExecutionContext());
+				Assertions.assertEquals(count, Utils.readAll(reader).size());
 			}
 		}
 
@@ -566,6 +562,30 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 				body.put(args[index * 2], args[index * 2 + 1]);
 			}
 			return body;
+		}
+
+		@Test
+		void writeStreamTx(TestInfo testInfo) throws Exception {
+			String stream = "stream:1";
+			List<Map<String, String>> messages = new ArrayList<>();
+			for (int index = 0; index < 100; index++) {
+				Map<String, String> body = new HashMap<>();
+				body.put("field1", "value1");
+				body.put("field2", "value2");
+				messages.add(body);
+			}
+			ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
+			RedisItemWriter<String, String, Map<String, String>> writer = sourceWriter()
+					.options(WriterOptions.builder().multiExec(true).build()).operation(
+							Xadd.<String, Map<String, String>>key(stream).body(IdentityConverter.instance()).build());
+			run(testInfo, reader, writer);
+			RedisStreamCommands<String, String> sync = sourceConnection.sync();
+			Assertions.assertEquals(messages.size(), sync.xlen(stream));
+			List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
+			for (int index = 0; index < xrange.size(); index++) {
+				StreamMessage<String, String> message = xrange.get(index);
+				Assertions.assertEquals(messages.get(index), message.getBody());
+			}
 		}
 
 		@Test
@@ -926,7 +946,7 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 				connection.setAutoFlushCommands(true);
 			}
 			run(testInfo, sourceReader().keyDump(), targetKeyDumpWriter());
-			Assertions.assertTrue(compare(testInfo));
+			Awaitility.await().until(() -> sourceConnection.sync().dbsize() == targetConnection.sync().dbsize());
 		}
 
 		@Test

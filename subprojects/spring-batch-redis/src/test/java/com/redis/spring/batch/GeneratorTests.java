@@ -21,7 +21,6 @@ class GeneratorTests {
 	void defaults() throws UnexpectedInputException, ParseException, Exception {
 		GeneratorReaderOptions options = GeneratorReaderOptions.builder().build();
 		GeneratorItemReader reader = new GeneratorItemReader(options);
-		reader.setMaxItemCount(options.getKeyRange().getMax());
 		List<DataStructure<String>> list = readAll(reader);
 		Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_KEY_RANGE.getMax(), list.size());
 	}
@@ -41,7 +40,6 @@ class GeneratorTests {
 		int count = 123;
 		GeneratorReaderOptions options = GeneratorReaderOptions.builder().count(count).build();
 		GeneratorItemReader reader = new GeneratorItemReader(options);
-		reader.setMaxItemCount(options.getKeyRange().getMax());
 		List<DataStructure<String>> list = readAll(reader);
 		Assertions.assertEquals(count, list.size());
 		for (DataStructure<String> ds : list) {
@@ -72,7 +70,6 @@ class GeneratorTests {
 	void read() throws Exception {
 		GeneratorReaderOptions options = GeneratorReaderOptions.builder().build();
 		GeneratorItemReader reader = new GeneratorItemReader(options);
-		reader.setMaxItemCount(options.getKeyRange().getMax());
 		DataStructure<String> ds1 = reader.read();
 		assertEquals("gen:1", ds1.getKey());
 		int count = 1;

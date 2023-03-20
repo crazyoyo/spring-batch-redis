@@ -373,7 +373,6 @@ abstract class AbstractTestBase {
 	protected void generate(TestInfo testInfo, GeneratorReaderOptions options) throws JobExecutionException {
 		TestInfo finalTestInfo = testInfo(testInfo, "generate");
 		GeneratorItemReader reader = new GeneratorItemReader(options);
-		reader.setMaxItemCount(options.getKeyRange().getMax() - options.getKeyRange().getMin() + 1);
 		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = step(finalTestInfo, reader, null,
 				sourceWriter().dataStructure());
 		run(job(finalTestInfo, step));

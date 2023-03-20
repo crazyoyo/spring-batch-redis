@@ -69,11 +69,9 @@ class StepTests {
 	@Test
 	void readKeyValueFaultTolerance() throws Exception {
 		int count = 100;
-		GeneratorItemReader generator = new GeneratorItemReader(
-				GeneratorReaderOptions.builder().types(Type.STRING).build());
-		generator.setMaxItemCount(count);
+		GeneratorReaderOptions options = GeneratorReaderOptions.builder().count(count).types(Type.STRING).build();
+		GeneratorItemReader generator = new GeneratorItemReader(options);
 		ErrorItemReader<DataStructure<String>> reader = new ErrorItemReader<>(generator);
-
 		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
 		String name = "readKeyValueFaultTolerance";
 		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = jobRunner.step(name).chunk(1);

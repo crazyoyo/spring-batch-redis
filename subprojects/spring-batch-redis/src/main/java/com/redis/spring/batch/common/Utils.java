@@ -1,9 +1,15 @@
 package com.redis.spring.batch.common;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.NonTransientResourceException;
+import org.springframework.batch.item.ParseException;
+import org.springframework.batch.item.UnexpectedInputException;
 import org.springframework.util.Assert;
 
 import io.lettuce.core.api.StatefulConnection;
@@ -50,6 +56,16 @@ public interface Utils {
 			return (T) ((StatefulRedisClusterConnection<K, V>) connection).async();
 		}
 		return (T) ((StatefulRedisConnection<K, V>) connection).async();
+	}
+
+	static <T> List<T> readAll(ItemReader<T> reader)
+			throws UnexpectedInputException, ParseException, NonTransientResourceException, Exception {
+		List<T> list = new ArrayList<>();
+		T element;
+		while ((element = reader.read()) != null) {
+			list.add(element);
+		}
+		return list;
 	}
 
 }
