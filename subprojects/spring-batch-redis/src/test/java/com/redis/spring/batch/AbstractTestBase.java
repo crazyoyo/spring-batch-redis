@@ -30,7 +30,6 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
-import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemProcessor;
@@ -42,7 +41,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.enterprise.Database;
@@ -103,10 +101,6 @@ abstract class AbstractTestBase {
 
 	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(1);
 
-	@Autowired
-	private JobRepository jobRepository;
-	@Autowired
-	private PlatformTransactionManager transactionManager;
 	@SuppressWarnings("unused")
 	@Autowired
 	private JobLauncher jobLauncher;
@@ -135,7 +129,7 @@ abstract class AbstractTestBase {
 		sourceConnection = RedisModulesUtils.connection(sourceClient);
 		targetClient = client(getTargetServer());
 		targetConnection = RedisModulesUtils.connection(targetClient);
-		jobRunner = new JobRunner(jobRepository, transactionManager);
+		jobRunner = JobRunner.inMemory();
 	}
 
 	@AfterAll
