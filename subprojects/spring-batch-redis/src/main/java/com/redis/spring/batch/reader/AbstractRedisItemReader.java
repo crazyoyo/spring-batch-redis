@@ -5,8 +5,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import javax.batch.runtime.BatchStatus;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.awaitility.Awaitility;
@@ -24,12 +22,14 @@ import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.common.JobRunner;
+import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.Utils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public abstract class AbstractRedisItemReader<K, T> extends AbstractItemCountingItemStreamItemReader<T> {
+public abstract class AbstractRedisItemReader<K, T> extends AbstractItemCountingItemStreamItemReader<T>
+		implements Openable {
 
 	private static final Log log = LogFactory.getLog(AbstractRedisItemReader.class);
 
@@ -64,8 +64,7 @@ public abstract class AbstractRedisItemReader<K, T> extends AbstractItemCounting
 		if (jobExecution == null) {
 			Utils.createGaugeCollectionSize("reader.queue.size", queue);
 			jobExecution = jobRunner.getAsyncJobLauncher().run(job().build(), new JobParameters());
-			Awaitility.await().until(() -> jobExecution.isRunning()
-					|| jobExecution.getStatus().getBatchStatus() != BatchStatus.STARTING);
+			jobRunner.awaitRunning(jobExecution);
 			if (jobExecution.getStatus().isUnsuccessful()) {
 				throw new ItemStreamException("Job execution unsuccessful");
 			}
@@ -85,10 +84,11 @@ public abstract class AbstractRedisItemReader<K, T> extends AbstractItemCounting
 		return step;
 	}
 
-	private static class Writer<K, T> extends AbstractItemStreamItemWriter<K> {
+	private static class Writer<K, T> extends AbstractItemStreamItemWriter<K> implements Openable {
 
 		private final ValueReader<K, T> valueReader;
 		private final BlockingQueue<T> queue;
+		private boolean open;
 
 		public Writer(ValueReader<K, T> valueReader, BlockingQueue<T> queue) {
 			this.valueReader = valueReader;
@@ -101,6 +101,7 @@ public abstract class AbstractRedisItemReader<K, T> extends AbstractItemCounting
 			if (valueReader instanceof ItemStream) {
 				((ItemStream) valueReader).open(executionContext);
 			}
+			this.open = true;
 		}
 
 		@Override
@@ -117,6 +118,12 @@ public abstract class AbstractRedisItemReader<K, T> extends AbstractItemCounting
 				((ItemStream) valueReader).close();
 			}
 			super.close();
+			this.open = false;
+		}
+
+		@Override
+		public boolean isOpen() {
+			return open;
 		}
 
 		@Override
@@ -159,6 +166,7 @@ public abstract class AbstractRedisItemReader<K, T> extends AbstractItemCounting
 		return item;
 	}
 
+	@Override
 	public boolean isOpen() {
 		return jobExecution != null && jobExecution.isRunning() && !jobExecution.getStatus().isUnsuccessful();
 	}

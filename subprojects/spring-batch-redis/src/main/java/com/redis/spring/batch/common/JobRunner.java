@@ -2,6 +2,7 @@ package com.redis.spring.batch.common;
 
 import java.time.Duration;
 
+import org.awaitility.Awaitility;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -31,6 +32,8 @@ public class JobRunner {
 	private final PlatformTransactionManager transactionManager;
 	private final SimpleJobLauncher jobLauncher;
 	private final SimpleJobLauncher asyncJobLauncher;
+	private Duration runningTimeout = DEFAULT_RUNNING_TIMEOUT;
+	private Duration terminationTimeout = DEFAULT_TERMINATION_TIMEOUT;
 
 	public JobRunner(JobRepository jobRepository, PlatformTransactionManager transactionManager) {
 		this.jobRepository = jobRepository;
@@ -63,6 +66,16 @@ public class JobRunner {
 		launcher.setJobRepository(jobRepository);
 		launcher.setTaskExecutor(taskExecutor);
 		return launcher;
+	}
+
+	public JobRunner runningTimeout(Duration timeout) {
+		this.runningTimeout = timeout;
+		return this;
+	}
+
+	public JobRunner terminationTimeout(Duration timeout) {
+		this.terminationTimeout = timeout;
+		return this;
 	}
 
 	public JobBuilder job(String name) {
@@ -123,8 +136,14 @@ public class JobRunner {
 		return executor;
 	}
 
+	public static boolean isRunning(JobExecution jobExecution) {
+		return jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful()
+				|| jobExecution.getStatus() != BatchStatus.STARTING;
+	}
+
 	public static boolean isTerminated(JobExecution jobExecution) {
-		return jobExecution.getStatus() == BatchStatus.COMPLETED
+		return !jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful()
+				|| jobExecution.getStatus() == BatchStatus.COMPLETED || jobExecution.getStatus() == BatchStatus.STOPPED
 				|| jobExecution.getStatus().isGreaterThan(BatchStatus.STOPPED);
 	}
 
@@ -134,6 +153,14 @@ public class JobRunner {
 
 	public SimpleJobLauncher getAsyncJobLauncher() {
 		return asyncJobLauncher;
+	}
+
+	public void awaitRunning(JobExecution jobExecution) {
+		Awaitility.await().timeout(runningTimeout).until(() -> isRunning(jobExecution));
+	}
+
+	public void awaitTermination(JobExecution jobExecution) {
+		Awaitility.await().timeout(terminationTimeout).until(() -> isTerminated(jobExecution));
 	}
 
 }

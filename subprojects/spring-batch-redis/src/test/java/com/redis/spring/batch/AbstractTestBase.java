@@ -27,7 +27,6 @@ import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.job.builder.JobBuilder;
-import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.repository.JobRestartException;
@@ -37,7 +36,6 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.ListItemWriter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -55,8 +53,8 @@ import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.FlushingOptions;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
+import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.PoolOptions;
-import com.redis.spring.batch.reader.AbstractRedisItemReader;
 import com.redis.spring.batch.reader.DataStructureValueReader;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorReaderOptions;
@@ -67,7 +65,6 @@ import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
 import com.redis.spring.batch.reader.ReaderOptions;
-import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisServer;
@@ -101,10 +98,6 @@ abstract class AbstractTestBase {
 
 	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(1);
 
-	@SuppressWarnings("unused")
-	@Autowired
-	private JobLauncher jobLauncher;
-
 	@Value("${running-timeout:PT5S}")
 	private Duration runningTimeout;
 	@Value("${termination-timeout:PT500S}")
@@ -129,7 +122,7 @@ abstract class AbstractTestBase {
 		sourceConnection = RedisModulesUtils.connection(sourceClient);
 		targetClient = client(getTargetServer());
 		targetConnection = RedisModulesUtils.connection(targetClient);
-		jobRunner = JobRunner.inMemory();
+		jobRunner = JobRunner.inMemory().runningTimeout(runningTimeout).terminationTimeout(terminationTimeout);
 	}
 
 	@AfterAll
@@ -229,24 +222,20 @@ abstract class AbstractTestBase {
 		return ClientBuilder.create(uri).cluster(server.isCluster()).build();
 	}
 
-	protected void awaitOpen(AbstractRedisItemReader<?, ?> reader) {
-		awaitUntil(reader::isOpen);
+	protected void awaitOpen(Object object) {
+		if (object instanceof Openable) {
+			awaitUntil(((Openable) object)::isOpen);
+		}
 	}
 
-	protected void awaitClosed(StreamItemReader<?, ?> reader) {
-		awaitUntilFalse(reader::isOpen);
-	}
-
-	protected void awaitClosed(AbstractRedisItemReader<?, ?> reader) {
-		awaitUntilFalse(reader::isOpen);
-	}
-
-	protected void awaitClosed(RedisItemWriter<?, ?, ?> writer) {
-		awaitUntilFalse(writer::isOpen);
+	protected void awaitClosed(Object object) {
+		if (object instanceof Openable) {
+			awaitUntilFalse(((Openable) object)::isOpen);
+		}
 	}
 
 	protected void awaitTermination(JobExecution jobExecution) {
-		Awaitility.await().timeout(terminationTimeout).until(() -> JobRunner.isTerminated(jobExecution));
+		jobRunner.awaitTermination(jobExecution);
 		log.log(Level.INFO, "Job {0} terminated", jobExecution.getJobInstance().getJobName());
 	}
 
@@ -254,13 +243,16 @@ abstract class AbstractTestBase {
 		awaitUntil(() -> !conditionEvaluator.call());
 	}
 
-	protected void awaitUntil(Callable<Boolean> condiitionEvaluator) {
-		Awaitility.await().timeout(DEFAULT_AWAIT_TIMEOUT).until(condiitionEvaluator);
+	protected void awaitUntil(Callable<Boolean> conditionEvaluator) {
+		Awaitility.await().timeout(DEFAULT_AWAIT_TIMEOUT).until(conditionEvaluator);
 	}
 
 	protected <I, O> JobExecution runAsync(TestInfo testInfo, PollableItemReader<I> reader,
 			ItemProcessor<I, O> processor, ItemWriter<O> writer) throws JobExecutionException {
-		return runAsync(testInfo, flushingStep(testInfo, reader, processor, writer));
+		JobExecution execution = runAsync(testInfo, flushingStep(testInfo, reader, processor, writer));
+		awaitOpen(reader);
+		awaitOpen(writer);
+		return execution;
 	}
 
 	private <I, O> JobExecution runAsync(TestInfo testInfo, SimpleStepBuilder<I, O> step)
@@ -279,12 +271,16 @@ abstract class AbstractTestBase {
 
 	protected JobExecution run(Job job) throws JobExecutionAlreadyRunningException, JobRestartException,
 			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
-		return jobRunner.getJobLauncher().run(job, new JobParameters());
+		JobExecution execution = jobRunner.getJobLauncher().run(job, new JobParameters());
+		jobRunner.awaitTermination(execution);
+		return execution;
 	}
 
 	protected JobExecution runAsync(Job job) throws JobExecutionAlreadyRunningException, JobRestartException,
 			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
-		return jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
+		JobExecution execution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
+		jobRunner.awaitRunning(execution);
+		return execution;
 	}
 
 	protected <I, O> FlushingSimpleStepBuilder<I, O> flushingStep(TestInfo testInfo, PollableItemReader<I> reader,
@@ -322,7 +318,10 @@ abstract class AbstractTestBase {
 
 	protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemProcessor<I, O> processor,
 			ItemWriter<O> writer) throws JobExecutionException {
-		return run(job(testInfo, step(testInfo, reader, processor, writer)));
+		JobExecution execution = run(job(testInfo, step(testInfo, reader, processor, writer)));
+		awaitClosed(reader);
+		awaitClosed(writer);
+		return execution;
 	}
 
 	protected static void setName(ItemWriter<?> writer, TestInfo testInfo) {

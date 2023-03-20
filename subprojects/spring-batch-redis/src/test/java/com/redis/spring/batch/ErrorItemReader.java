@@ -98,6 +98,7 @@ public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implemen
 		this.open = false;
 	}
 
+	@Override
 	public boolean isOpen() {
 		return open;
 	}

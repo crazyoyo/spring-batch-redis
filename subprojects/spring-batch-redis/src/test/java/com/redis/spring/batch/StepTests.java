@@ -115,6 +115,7 @@ class StepTests {
 						.idleTimeout(Duration.ofMillis(500)).build());
 		Job job = jobRunner.job(name).start(flushingStep.build()).build();
 		JobExecution execution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
+		jobRunner.awaitRunning(execution);
 		Awaitility.await().until(() -> reader.isOpen());
 		for (int index = 1; index <= count; index++) {
 			queue.offer("key" + index);

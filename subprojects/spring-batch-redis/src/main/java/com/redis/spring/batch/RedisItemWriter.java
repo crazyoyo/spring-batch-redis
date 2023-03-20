@@ -17,6 +17,7 @@ import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.common.ConnectionPoolBuilder;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.KeyDump;
+import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.PoolOptions;
 import com.redis.spring.batch.writer.DataStructureOperation;
 import com.redis.spring.batch.writer.MultiExecOperation;
@@ -36,7 +37,7 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
+public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> implements Openable {
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
@@ -77,6 +78,7 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 		}
 	}
 
+	@Override
 	public boolean isOpen() {
 		return pool != null;
 	}

@@ -492,6 +492,7 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 					.throttleLimit(threads).build();
 			Job job = job(testInfo).start(step).build();
 			run(job);
+			awaitClosed(reader);
 			awaitUntilFalse(writer::isOpen);
 			assertEquals(sourceConnection.sync().dbsize(), writer.getWrittenItems().size());
 		}
@@ -908,10 +909,9 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 
 		@Test
 		void byteArrayCodec(TestInfo testInfo) throws Exception {
-			StatefulRedisConnection<byte[], byte[]> connection = RedisModulesUtils.connection(sourceClient,
-					ByteArrayCodec.INSTANCE);
-			connection.setAutoFlushCommands(false);
-			try {
+			try (StatefulRedisConnection<byte[], byte[]> connection = RedisModulesUtils.connection(sourceClient,
+					ByteArrayCodec.INSTANCE)) {
+				connection.setAutoFlushCommands(false);
 				RedisAsyncCommands<byte[], byte[]> async = connection.async();
 				List<RedisFuture<?>> futures = new ArrayList<>();
 				Random random = new Random();
@@ -923,7 +923,6 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 				}
 				connection.flushCommands();
 				LettuceFutures.awaitAll(connection.getTimeout(), futures.toArray(new RedisFuture[0]));
-			} finally {
 				connection.setAutoFlushCommands(true);
 			}
 			run(testInfo, sourceReader().keyDump(), targetKeyDumpWriter());

@@ -9,10 +9,11 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.ClassUtils;
 
-public class ProcessingItemWriter<I, O> extends AbstractItemStreamItemWriter<I> {
+public class ProcessingItemWriter<I, O> extends AbstractItemStreamItemWriter<I> implements Openable {
 
 	private final ItemProcessor<List<I>, List<O>> processor;
 	private final ItemWriter<O> writer;
+	private boolean open;
 
 	public ProcessingItemWriter(ItemProcessor<List<I>, List<O>> processor, ItemWriter<O> writer) {
 		setName(ClassUtils.getShortName(getClass()));
@@ -29,6 +30,7 @@ public class ProcessingItemWriter<I, O> extends AbstractItemStreamItemWriter<I> 
 		if (writer instanceof ItemStream) {
 			((ItemStream) writer).open(executionContext);
 		}
+		this.open = true;
 	}
 
 	@Override
@@ -51,6 +53,12 @@ public class ProcessingItemWriter<I, O> extends AbstractItemStreamItemWriter<I> 
 			((ItemStream) processor).close();
 		}
 		super.close();
+		this.open = false;
+	}
+
+	@Override
+	public boolean isOpen() {
+		return open;
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
