@@ -25,7 +25,6 @@ import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.support.ListItemReader;
-import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -72,7 +71,7 @@ class StepTests {
 		GeneratorReaderOptions options = GeneratorReaderOptions.builder().count(count).types(Type.STRING).build();
 		GeneratorItemReader generator = new GeneratorItemReader(options);
 		ErrorItemReader<DataStructure<String>> reader = new ErrorItemReader<>(generator);
-		ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
+		SynchronizedListItemWriter<DataStructure<String>> writer = new SynchronizedListItemWriter<>();
 		String name = "readKeyValueFaultTolerance";
 		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = jobRunner.step(name).chunk(1);
 		step.reader(reader).writer(writer);
@@ -89,7 +88,7 @@ class StepTests {
 		String name = "skip-policy";
 		List<Integer> items = IntStream.range(0, 100).boxed().collect(Collectors.toList());
 		ErrorItemReader<Integer> reader = new ErrorItemReader<>(new ListItemReader<>(items));
-		ListItemWriter<Integer> writer = new ListItemWriter<>();
+		SynchronizedListItemWriter<Integer> writer = new SynchronizedListItemWriter<>();
 		FlushingSimpleStepBuilder<Integer, Integer> stepBuilder = new FlushingSimpleStepBuilder<>(
 				stepBuilderFactory.get(name).<Integer, Integer>chunk(1).reader(reader).writer(writer));
 		stepBuilder.idleTimeout(Duration.ofMillis(100)).skip(TimeoutException.class)
@@ -105,7 +104,7 @@ class StepTests {
 		int count = 100;
 		BlockingQueue<String> queue = new LinkedBlockingDeque<>(count);
 		QueueItemReader<String> reader = new QueueItemReader<>(queue, Duration.ofMillis(10));
-		ListItemWriter<String> writer = new ListItemWriter<>();
+		SynchronizedListItemWriter<String> writer = new SynchronizedListItemWriter<>();
 		SimpleStepBuilder<String, String> step = jobRunner.step(name).chunk(ReaderOptions.DEFAULT_CHUNK_SIZE);
 		step.reader(reader).writer(writer);
 		FlushingSimpleStepBuilder<String, String> flushingStep = JobRunner.flushing(step,

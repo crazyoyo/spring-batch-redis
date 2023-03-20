@@ -35,7 +35,6 @@ import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
-import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -115,7 +114,7 @@ import io.micrometer.core.instrument.search.Search;
 import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
+abstract class AbstractBatchTests extends AbstractTestBase {
 
 	private static final QueueOptions NOTIFICATION_QUEUE_OPTIONS = QueueOptions.builder().capacity(100000).build();
 	private static final String[] NOTIFICATION_PATTERNS = LiveRedisItemReader.patterns(0,
@@ -409,7 +408,7 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 			enableKeyspaceNotifications(sourceClient);
 			LiveRedisItemReader<String, DataStructure<String>> reader = sourceReader().live()
 					.flushingOptions(DEFAULT_FLUSHING_OPTIONS).keyFilter(SlotRangeFilter.of(0, 8000)).dataStructure();
-			ListItemWriter<DataStructure<String>> writer = new ListItemWriter<>();
+			SynchronizedListItemWriter<DataStructure<String>> writer = new SynchronizedListItemWriter<>();
 			JobExecution execution = runAsync(testInfo, reader, writer);
 			int count = 100;
 			generate(testInfo, GeneratorReaderOptions.builder().count(count).build());
@@ -497,7 +496,7 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 		void readLive(TestInfo testInfo) throws Exception {
 			enableKeyspaceNotifications(sourceClient);
 			LiveRedisItemReader<String, KeyDump<String>> reader = sourceLiveReader(10000).keyDump();
-			ListItemWriter<KeyDump<String>> writer = new ListItemWriter<>();
+			SynchronizedListItemWriter<KeyDump<String>> writer = new SynchronizedListItemWriter<>();
 			JobExecution execution = runAsync(testInfo, reader, writer);
 			awaitOpen(reader);
 			generate(testInfo, GeneratorReaderOptions.builder().count(123).types(Type.HASH, Type.STRING).build());
@@ -828,18 +827,17 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 		}
 
 		@Test
-		void readStreamJob(TestInfo testInfo) throws Exception {
+		void streamReaderJob(TestInfo testInfo) throws Exception {
 			generateStreams(testInfo);
 			List<String> keys = ScanIterator
 					.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(Type.STREAM.getString())).stream()
 					.collect(Collectors.toList());
 			for (String key : keys) {
-				StreamItemReader<String, String> reader = streamReader().stream(key)
-						.consumer(Consumer.from("batchtests-readstreamjob", "consumer1")).build();
-				ListItemWriter<StreamMessage<String, String>> writer = new ListItemWriter<>();
+				Consumer<String> consumer = Consumer.from("batchtests-readstreamjob", "consumer1");
+				StreamItemReader<String, String> reader = streamReader().stream(key).consumer(consumer).build();
+				SynchronizedListItemWriter<StreamMessage<String, String>> writer = new SynchronizedListItemWriter<>();
 				run(testInfo(testInfo, key), reader, writer);
-				awaitClosed(reader);
-				awaitUntil(() -> STREAM_MESSAGE_COUNT == writer.getWrittenItems().size());
+				Assertions.assertEquals(STREAM_MESSAGE_COUNT, writer.getWrittenItems().size());
 				assertMessageBody(writer.getWrittenItems());
 			}
 		}
@@ -857,9 +855,9 @@ abstract class AbstractBatchIntegrationTests extends AbstractTestBase {
 				StreamItemReader<String, String> reader2 = streamReader().stream(key)
 						.consumer(Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"))
 						.options(StreamReaderOptions.builder().ackPolicy(AckPolicy.MANUAL).build()).build();
-				ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
+				SynchronizedListItemWriter<StreamMessage<String, String>> writer1 = new SynchronizedListItemWriter<>();
 				JobExecution execution1 = runAsync(testInfo(testInfo, key, "1"), reader1, writer1);
-				ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
+				SynchronizedListItemWriter<StreamMessage<String, String>> writer2 = new SynchronizedListItemWriter<>();
 				JobExecution execution2 = runAsync(testInfo(testInfo, key, "2"), reader2, writer2);
 				awaitTermination(execution1);
 				awaitTermination(execution2);

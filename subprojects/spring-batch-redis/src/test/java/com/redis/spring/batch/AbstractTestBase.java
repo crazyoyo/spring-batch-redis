@@ -35,7 +35,6 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -336,7 +335,7 @@ abstract class AbstractTestBase {
 		Assertions.assertEquals(sourceConnection.sync().dbsize(), targetConnection.sync().dbsize(),
 				"Source and target have different db sizes");
 		RedisItemReader<String, KeyComparison> reader = comparisonReader();
-		ListItemWriter<KeyComparison> writer = new ListItemWriter<>();
+		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
 		run(testInfo(testInfo, "compare"), reader, writer);
 		awaitClosed(reader);
 		Assertions.assertFalse(writer.getWrittenItems().isEmpty());

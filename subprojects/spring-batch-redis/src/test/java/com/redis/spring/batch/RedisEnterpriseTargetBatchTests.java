@@ -6,15 +6,15 @@ import org.junit.jupiter.api.condition.OS;
 import com.redis.testcontainers.RedisServer;
 
 @EnabledOnOs(OS.LINUX)
-class RedisEnterpriseTargetIntegrationTests extends AbstractBatchIntegrationTests {
+class RedisEnterpriseTargetBatchTests extends AbstractBatchTests {
 
 	@Override
 	protected RedisServer getSourceServer() {
-		return RedisStackIntegrationTests.REDIS_STACK;
+		return RedisStackBatchTests.REDIS_STACK;
 	}
 
 	@Override
 	protected RedisServer getTargetServer() {
-		return RedisEnterpriseSourceIntegrationTests.REDIS_ENTERPRISE;
+		return RedisEnterpriseSourceBatchTests.REDIS_ENTERPRISE;
 	}
 }
