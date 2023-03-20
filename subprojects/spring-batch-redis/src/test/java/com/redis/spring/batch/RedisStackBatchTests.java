@@ -5,19 +5,16 @@ import com.redis.testcontainers.RedisStackContainer;
 
 class RedisStackBatchTests extends AbstractBatchTests {
 
-	public static final RedisStackContainer REDIS_STACK = new RedisStackContainer(
-			RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
-
-	public static final RedisStackContainer TARGET_REDIS_STACK = new RedisStackContainer(
-			RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
+	private static final RedisStackContainer SOURCE = RedisContainerFactory.stack();
+	private static final RedisStackContainer TARGET = RedisContainerFactory.stack();
 
 	@Override
 	protected RedisServer getSourceServer() {
-		return REDIS_STACK;
+		return SOURCE;
 	}
 
 	@Override
 	protected RedisServer getTargetServer() {
-		return TARGET_REDIS_STACK;
+		return TARGET;
 	}
 }

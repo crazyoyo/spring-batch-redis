@@ -3,18 +3,23 @@ package com.redis.spring.batch;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
+import com.redis.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisServer;
+import com.redis.testcontainers.RedisStackContainer;
 
 @EnabledOnOs(OS.LINUX)
 class RedisEnterpriseTargetBatchTests extends AbstractBatchTests {
 
+	private static final RedisStackContainer SOURCE = RedisContainerFactory.stack();
+	private static final RedisEnterpriseContainer TARGET = RedisContainerFactory.enterprise();
+
 	@Override
 	protected RedisServer getSourceServer() {
-		return RedisStackBatchTests.REDIS_STACK;
+		return SOURCE;
 	}
 
 	@Override
 	protected RedisServer getTargetServer() {
-		return RedisEnterpriseSourceBatchTests.REDIS_ENTERPRISE;
+		return TARGET;
 	}
 }
