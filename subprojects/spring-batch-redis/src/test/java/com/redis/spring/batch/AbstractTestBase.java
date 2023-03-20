@@ -94,7 +94,7 @@ abstract class AbstractTestBase {
 	public static final RedisEnterpriseContainer REDIS_ENTERPRISE = new RedisEnterpriseContainer(
 			RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
 			.withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(50)).ossCluster(true)
-					.modules(RedisModule.JSON, RedisModule.TIMESERIES).build());
+					.modules(RedisModule.JSON, RedisModule.TIMESERIES, RedisModule.SEARCH).build());
 
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
 
