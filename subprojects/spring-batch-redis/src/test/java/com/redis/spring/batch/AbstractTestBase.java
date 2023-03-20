@@ -39,10 +39,7 @@ import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
-import org.springframework.util.unit.DataSize;
 
-import com.redis.enterprise.Database;
-import com.redis.enterprise.RedisModule;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
@@ -66,9 +63,7 @@ import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
-import com.redis.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisServer;
-import com.redis.testcontainers.RedisStackContainer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisURI;
@@ -83,14 +78,6 @@ abstract class AbstractTestBase {
 
 	private final Logger log = Logger.getLogger(getClass().getName());
 
-	public static final RedisStackContainer REDIS_STACK = new RedisStackContainer(
-			RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
-
-	public static final RedisEnterpriseContainer REDIS_ENTERPRISE = new RedisEnterpriseContainer(
-			RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
-			.withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(50)).ossCluster(true)
-					.modules(RedisModule.JSON, RedisModule.TIMESERIES, RedisModule.SEARCH).build());
-
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
 
 	protected static final FlushingOptions DEFAULT_FLUSHING_OPTIONS = FlushingOptions.builder()
@@ -100,7 +87,7 @@ abstract class AbstractTestBase {
 
 	@Value("${running-timeout:PT5S}")
 	private Duration runningTimeout;
-	@Value("${termination-timeout:PT500S}")
+	@Value("${termination-timeout:PT5S}")
 	private Duration terminationTimeout;
 
 	private JobRunner jobRunner;
@@ -127,7 +114,6 @@ abstract class AbstractTestBase {
 
 	@AfterAll
 	void teardown() {
-		log.info("Teardown");
 		sourceConnection.close();
 		sourceClient.shutdown();
 		sourceClient.getResources().shutdown();

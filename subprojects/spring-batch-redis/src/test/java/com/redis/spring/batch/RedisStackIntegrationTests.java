@@ -5,6 +5,9 @@ import com.redis.testcontainers.RedisStackContainer;
 
 class RedisStackIntegrationTests extends AbstractBatchIntegrationTests {
 
+	public static final RedisStackContainer REDIS_STACK = new RedisStackContainer(
+			RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
+
 	public static final RedisStackContainer TARGET_REDIS_STACK = new RedisStackContainer(
 			RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
 

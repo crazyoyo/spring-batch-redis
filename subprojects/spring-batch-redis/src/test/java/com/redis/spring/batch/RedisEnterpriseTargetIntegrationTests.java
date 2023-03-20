@@ -10,11 +10,11 @@ class RedisEnterpriseTargetIntegrationTests extends AbstractBatchIntegrationTest
 
 	@Override
 	protected RedisServer getSourceServer() {
-		return REDIS_STACK;
+		return RedisStackIntegrationTests.REDIS_STACK;
 	}
 
 	@Override
 	protected RedisServer getTargetServer() {
-		return REDIS_ENTERPRISE;
+		return RedisEnterpriseSourceIntegrationTests.REDIS_ENTERPRISE;
 	}
 }
