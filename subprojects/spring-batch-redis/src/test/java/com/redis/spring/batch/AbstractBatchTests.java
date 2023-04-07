@@ -978,10 +978,13 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			String key = "myset";
 			sourceConnection.sync().sadd(key, "1", "2", "3", "4", "5");
 			LiveRedisItemReader<String, DataStructure<String>> reader = sourceLiveReader(100).dataStructure();
-			JobExecution execution = runAsync(testInfo, reader, targetDataStructureWriter());
+			RedisItemWriter<String, String, DataStructure<String>> writer = targetDataStructureWriter();
+			JobExecution execution = runAsync(testInfo, reader, writer);
 			awaitOpen(reader);
 			sourceConnection.sync().srem(key, "5");
 			awaitTermination(execution);
+			awaitClosed(reader);
+			awaitClosed(writer);
 			assertEquals(sourceConnection.sync().smembers(key), targetConnection.sync().smembers(key));
 		}
 
