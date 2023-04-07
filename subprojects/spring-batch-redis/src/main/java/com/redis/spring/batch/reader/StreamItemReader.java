@@ -71,19 +71,6 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 			return;
 		}
 		connection = RedisModulesUtils.connection(client, codec);
-		createConsumerGroup();
-		lastId = options.getOffset();
-		reader = reader();
-	}
-
-	private MessageReader<K, V> reader() {
-		if (options.getAckPolicy() == AckPolicy.MANUAL) {
-			return new ExplicitAckPendingMessageReader();
-		}
-		return new AutoAckPendingMessageReader();
-	}
-
-	private void createConsumerGroup() {
 		RedisStreamCommands<K, V> commands = Utils.sync(connection);
 		StreamOffset<K> offset = StreamOffset.from(stream, options.getOffset());
 		XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
@@ -92,6 +79,25 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 		} catch (RedisBusyException e) {
 			// Consumer Group name already exists, ignore
 		}
+		lastId = options.getOffset();
+		reader = reader();
+	}
+
+	@Override
+	protected void doClose() throws Exception {
+		if (!isOpen()) {
+			return;
+		}
+		reader = null;
+		lastId = null;
+		connection.close();
+	}
+
+	private MessageReader<K, V> reader() {
+		if (options.getAckPolicy() == AckPolicy.MANUAL) {
+			return new ExplicitAckPendingMessageReader();
+		}
+		return new AutoAckPendingMessageReader();
 	}
 
 	@Override
@@ -170,14 +176,6 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 			return 0L;
 		}
 		return commands.xack(stream, consumer.getGroup(), ids);
-	}
-
-	@Override
-	protected void doClose() throws Exception {
-		if (isOpen()) {
-			reader = null;
-			lastId = null;
-		}
 	}
 
 	public static class StreamId implements Comparable<StreamId> {

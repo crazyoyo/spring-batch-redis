@@ -987,14 +987,15 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 
 		@Test
 		void invalidConnection(TestInfo testInfo) throws Exception {
-			RedisModulesClient badSourceClient = RedisModulesClient.create("redis://badhost:6379");
-			RedisModulesClient badTargetClient = RedisModulesClient.create("redis://badhost:6379");
-			RedisItemReader<byte[], DataStructure<byte[]>> reader = reader(badSourceClient, ByteArrayCodec.INSTANCE)
-					.dataStructure();
-			RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = writer(badTargetClient,
-					ByteArrayCodec.INSTANCE).dataStructure();
-			JobExecution execution = run(testInfo, reader, writer);
-			Assertions.assertTrue(execution.getStatus().isUnsuccessful());
+			try (RedisModulesClient badSourceClient = RedisModulesClient.create("redis://badhost:6379");
+					RedisModulesClient badTargetClient = RedisModulesClient.create("redis://badhost:6379")) {
+				RedisItemReader<byte[], DataStructure<byte[]>> reader = reader(badSourceClient, ByteArrayCodec.INSTANCE)
+						.dataStructure();
+				RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = writer(badTargetClient,
+						ByteArrayCodec.INSTANCE).dataStructure();
+				JobExecution execution = run(testInfo, reader, writer);
+				Assertions.assertTrue(execution.getStatus().isUnsuccessful());
+			}
 		}
 
 		@Test
