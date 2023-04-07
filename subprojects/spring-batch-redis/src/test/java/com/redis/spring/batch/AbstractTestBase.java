@@ -337,7 +337,6 @@ abstract class AbstractTestBase {
 		RedisItemReader<String, KeyComparison> reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
 		run(testInfo(testInfo, "compare"), reader, writer);
-		awaitClosed(reader);
 		Assertions.assertFalse(writer.getWrittenItems().isEmpty());
 		for (KeyComparison comparison : writer.getWrittenItems()) {
 			Assertions.assertEquals(Status.OK, comparison.getStatus(),
