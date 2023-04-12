@@ -1,5 +1,6 @@
 package com.redis.spring.batch.reader;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -164,6 +165,12 @@ public abstract class AbstractRedisItemReader<K, T> extends AbstractItemCounting
 			item = queue.poll(options.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
 		} while (item == null && isOpen());
 		return item;
+	}
+	
+	public List<T> read(int maxElements) {
+		List<T> items = new ArrayList<>(maxElements);
+		queue.drainTo(items, maxElements);
+		return items;
 	}
 
 	@Override
