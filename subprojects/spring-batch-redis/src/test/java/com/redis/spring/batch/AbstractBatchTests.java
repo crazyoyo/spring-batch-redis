@@ -419,7 +419,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		generate(testInfo, GeneratorReaderOptions.builder().count(123).types(Type.HASH, Type.STRING).build());
 		awaitTermination(execution);
 		awaitClosed(reader);
-		Assertions.assertEquals(sourceConnection.sync().dbsize(), writer.getWrittenItems().size());
+		awaitUntil(() -> Math.toIntExact(sourceConnection.sync().dbsize()) == writer.getWrittenItems().size());
 	}
 
 	@Test
@@ -770,6 +770,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			awaitTermination(execution2);
 			awaitClosed(reader1);
 			awaitClosed(reader2);
+			awaitClosed(writer1);
+			awaitClosed(writer2);
 			awaitUntil(
 					() -> STREAM_MESSAGE_COUNT == writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
 			assertMessageBody(writer1.getWrittenItems());
