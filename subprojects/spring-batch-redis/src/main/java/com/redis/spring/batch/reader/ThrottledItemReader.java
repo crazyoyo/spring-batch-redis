@@ -1,6 +1,7 @@
 package com.redis.spring.batch.reader;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
@@ -10,7 +11,7 @@ import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-public class ThrottledItemReader<T> extends AbstractItemStreamItemReader<T> {
+public class ThrottledItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
 	private final ItemReader<T> delegate;
 	private final long sleep;
@@ -51,7 +52,22 @@ public class ThrottledItemReader<T> extends AbstractItemStreamItemReader<T> {
 
 	@Override
 	public T read() throws Exception {
-		Thread.sleep(sleep);
+		sleep();
 		return delegate.read();
+	}
+
+	@Override
+	public T poll(long timeout, TimeUnit unit) throws InterruptedException, PollingException {
+		sleep();
+		return ((PollableItemReader<T>) delegate).poll(timeout, unit);
+	}
+
+	private void sleep() throws InterruptedException {
+		Thread.sleep(sleep);
+	}
+
+	@Override
+	public boolean isOpen() {
+		return ((PollableItemReader<T>) delegate).isOpen();
 	}
 }
