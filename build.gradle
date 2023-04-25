@@ -39,9 +39,6 @@ config {
                 enabled = false
             }
         }
-        sourceHtml {
-            enabled = false
-        }
     }
     
     licensing {
@@ -84,6 +81,11 @@ subprojects {
     config {
         info {
             description = project.project_description
+        }
+        coverage {
+            jacoco {
+		        toolVersion = jacocoVersion
+            }
         }
     }
     
