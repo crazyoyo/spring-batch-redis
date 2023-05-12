@@ -75,7 +75,7 @@ class StepTests {
 						.skipPolicy(new AlwaysSkipItemSkipPolicy()).build());
 		Job job = jobRunner.job(name).start(ftStep.build()).build();
 		jobRunner.getJobLauncher().run(job, new JobParameters());
-		assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getWrittenItems().size());
+		assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getItems().size());
 	}
 
 	@Test
@@ -90,7 +90,7 @@ class StepTests {
 				.skipPolicy(new AlwaysSkipItemSkipPolicy());
 		Job job = jobBuilderFactory.get(name).start(stepBuilder.build()).build();
 		jobRunner.getJobLauncher().run(job, new JobParameters());
-		assertEquals(items.size(), writer.getWrittenItems().size() * 2);
+		assertEquals(items.size(), writer.getItems().size() * 2);
 	}
 
 	@Test
@@ -111,6 +111,6 @@ class StepTests {
 			queue.offer("key" + index);
 		}
 		Awaitility.await().until(() -> JobRunner.isTerminated(execution));
-		assertEquals(count, writer.getWrittenItems().size());
+		assertEquals(count, writer.getItems().size());
 	}
 }

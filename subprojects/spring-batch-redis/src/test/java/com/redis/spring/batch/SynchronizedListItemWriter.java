@@ -10,16 +10,16 @@ import com.redis.spring.batch.common.Openable;
 
 public class SynchronizedListItemWriter<T> extends AbstractItemStreamItemWriter<T> implements Openable {
 
-	private List<T> writtenItems = new ArrayList<>();
+	private List<T> items = new ArrayList<>();
 	private boolean open;
 
 	@Override
 	public synchronized void write(List<? extends T> items) throws Exception {
-		writtenItems.addAll(items);
+		this.items.addAll(items);
 	}
 
-	public List<? extends T> getWrittenItems() {
-		return this.writtenItems;
+	public List<? extends T> getItems() {
+		return this.items;
 	}
 
 	@Override

@@ -402,7 +402,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		int count = 100;
 		generate(testInfo, GeneratorReaderOptions.builder().count(count).build());
 		awaitTermination(execution);
-		Assertions.assertFalse(writer.getWrittenItems().stream().map(DataStructure::getKey).map(SlotHash::getSlot)
+		Assertions.assertFalse(writer.getItems().stream().map(DataStructure::getKey).map(SlotHash::getSlot)
 				.anyMatch(s -> s < 0 || s > 8000));
 	}
 
@@ -471,7 +471,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		run(job);
 		awaitClosed(reader);
 		awaitUntilFalse(writer::isOpen);
-		assertEquals(sourceConnection.sync().dbsize(), writer.getWrittenItems().size());
+		assertEquals(sourceConnection.sync().dbsize(), writer.getItems().size());
 	}
 
 	@Test
@@ -480,15 +480,13 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		LiveRedisItemReader<String, KeyDump<String>> reader = sourceLiveReader(10000).keyDump();
 		SynchronizedListItemWriter<KeyDump<String>> writer = new SynchronizedListItemWriter<>();
 		JobExecution execution = runAsync(testInfo, reader, null, writer, DEFAULT_FLUSHING_STEP_OPTIONS);
-		awaitOpen(reader);
-		awaitOpen(writer);
 		generate(testInfo, GeneratorReaderOptions.builder().count(123).types(Type.HASH, Type.STRING).build());
 		awaitTermination(execution);
 		awaitClosed(reader);
 		awaitClosed(writer);
 		Supplier<List<String>> keys = () -> sourceConnection.sync().keys("gen:*");
 		IntSupplier expectedSize = () -> keys.get().size();
-		IntSupplier actualSize = () -> writer.getWrittenItems().size();
+		IntSupplier actualSize = () -> writer.getItems().size();
 		System.out.println(keys.get());
 		System.out.println(expectedSize.getAsInt() + " - " + actualSize.getAsInt());
 		awaitUntil(() -> expectedSize.getAsInt() == actualSize.getAsInt());
@@ -834,8 +832,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			StreamItemReader<String, String> reader = streamReader().stream(key).consumer(consumer).build();
 			SynchronizedListItemWriter<StreamMessage<String, String>> writer = new SynchronizedListItemWriter<>();
 			run(testInfo(testInfo, key), reader, writer);
-			Assertions.assertEquals(STREAM_MESSAGE_COUNT, writer.getWrittenItems().size());
-			assertMessageBody(writer.getWrittenItems());
+			Assertions.assertEquals(STREAM_MESSAGE_COUNT, writer.getItems().size());
+			assertMessageBody(writer.getItems());
 		}
 	}
 
@@ -862,17 +860,16 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			awaitClosed(reader2);
 			awaitClosed(writer1);
 			awaitClosed(writer2);
-			awaitUntil(
-					() -> STREAM_MESSAGE_COUNT == writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
-			assertMessageBody(writer1.getWrittenItems());
-			assertMessageBody(writer2.getWrittenItems());
+			awaitUntil(() -> STREAM_MESSAGE_COUNT == writer1.getItems().size() + writer2.getItems().size());
+			assertMessageBody(writer1.getItems());
+			assertMessageBody(writer2.getItems());
 			RedisModulesCommands<String, String> sync = sourceConnection.sync();
 			Assertions.assertEquals(STREAM_MESSAGE_COUNT, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
 			reader1.open(new ExecutionContext());
-			reader1.ack(writer1.getWrittenItems());
+			reader1.ack(writer1.getItems());
 			reader1.close();
 			reader2.open(new ExecutionContext());
-			reader2.ack(writer2.getWrittenItems());
+			reader2.ack(writer2.getItems());
 			reader2.close();
 			Assertions.assertEquals(0, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
 		}
@@ -1035,6 +1032,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = writer(badTargetClient,
 					ByteArrayCodec.INSTANCE).dataStructure().build();
 			JobExecution execution = run(testInfo, reader, writer);
+			System.out.println(execution.getStatus());
 			Assertions.assertTrue(execution.getStatus().isUnsuccessful());
 		}
 	}

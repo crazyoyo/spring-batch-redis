@@ -73,10 +73,11 @@ abstract class AbstractTestBase {
 
 	private final Logger log = Logger.getLogger(getClass().getName());
 
+	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(10);
 	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(1);
 	protected static final StepOptions DEFAULT_STEP_OPTIONS = StepOptions.builder().build();
 	protected static final StepOptions DEFAULT_FLUSHING_STEP_OPTIONS = StepOptions.builder()
-			.flushingInterval(Duration.ofMillis(50)).idleTimeout(Duration.ofMillis(500)).build();
+			.flushingInterval(Duration.ofMillis(50)).idleTimeout(Duration.ofMillis(300)).build();
 
 	@Value("${running-timeout:PT5S}")
 	private Duration runningTimeout;
@@ -224,7 +225,7 @@ abstract class AbstractTestBase {
 	}
 
 	protected void awaitUntil(Callable<Boolean> conditionEvaluator) {
-		Awaitility.await().timeout(DEFAULT_AWAIT_TIMEOUT).until(conditionEvaluator);
+		Awaitility.await().pollInterval(DEFAULT_POLL_INTERVAL).timeout(DEFAULT_AWAIT_TIMEOUT).until(conditionEvaluator);
 	}
 
 	protected Job job(TestInfo testInfo, SimpleStepBuilder<?, ?> step) {
@@ -307,8 +308,8 @@ abstract class AbstractTestBase {
 		RedisItemReader<String, KeyComparison> reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
 		run(testInfo(testInfo, "compare"), reader, null, writer);
-		Assertions.assertFalse(writer.getWrittenItems().isEmpty());
-		for (KeyComparison comparison : writer.getWrittenItems()) {
+		Assertions.assertFalse(writer.getItems().isEmpty());
+		for (KeyComparison comparison : writer.getItems()) {
 			Assertions.assertEquals(Status.OK, comparison.getStatus(),
 					MessageFormat.format("Key={0}, Type={1}", comparison.getKey(), comparison.getSource().getType()));
 		}
@@ -358,7 +359,7 @@ abstract class AbstractTestBase {
 	protected void flushAll(AbstractRedisClient client) {
 		try (StatefulRedisModulesConnection<String, String> connection = RedisModulesUtils.connection(client)) {
 			connection.sync().flushall();
-			Awaitility.await().until(() -> connection.sync().dbsize() == 0);
+			awaitUntil(() -> connection.sync().dbsize() == 0);
 		}
 	}
 }
