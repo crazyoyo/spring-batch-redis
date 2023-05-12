@@ -69,11 +69,11 @@ import io.lettuce.core.codec.StringCodec;
 @TestInstance(Lifecycle.PER_CLASS)
 abstract class AbstractTestBase {
 
-	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(10);
+	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(100);
 	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(1);
 	protected static final StepOptions DEFAULT_STEP_OPTIONS = StepOptions.builder().build();
 	protected static final StepOptions DEFAULT_FLUSHING_STEP_OPTIONS = StepOptions.builder()
-			.flushingInterval(Duration.ofMillis(50)).idleTimeout(Duration.ofMillis(300)).build();
+			.flushingInterval(Duration.ofMillis(50)).idleTimeout(Duration.ofMillis(500)).build();
 
 	@Value("${running-timeout:PT5S}")
 	private Duration runningTimeout;
