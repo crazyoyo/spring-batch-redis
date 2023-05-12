@@ -44,19 +44,19 @@ class GeneratorTests {
 		Assertions.assertEquals(count, list.size());
 		for (DataStructure<String> ds : list) {
 			switch (ds.getType()) {
-			case SET:
+			case DataStructure.SET:
 				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_SET_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
-			case LIST:
+			case DataStructure.LIST:
 				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_LIST_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
-			case ZSET:
+			case DataStructure.ZSET:
 				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_ZSET_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
-			case STREAM:
+			case DataStructure.STREAM:
 				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_STREAM_OPTIONS.getMessageCount().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;

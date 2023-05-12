@@ -1,28 +1,28 @@
 package com.redis.spring.batch.convert;
 
-import org.springframework.batch.item.ItemProcessor;
-import org.springframework.core.convert.converter.Converter;
-import org.springframework.lang.Nullable;
-import org.springframework.util.StringUtils;
-
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Function;
+
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.lang.Nullable;
+import org.springframework.util.StringUtils;
 
 /**
  * Flattens a nested map using . and [] notation for key names
  */
-public class FlatteningMapConverter implements Converter<Map<String, Object>, Map<String, String>>,
+public class Flatten implements Function<Map<String, Object>, Map<String, String>>,
 		ItemProcessor<Map<String, Object>, Map<String, String>> {
 
 	@Override
 	public Map<String, String> process(Map<String, Object> item) {
-		return convert(item);
+		return apply(item);
 	}
 
 	@Override
-	public Map<String, String> convert(Map<String, Object> source) {
+	public Map<String, String> apply(Map<String, Object> source) {
 		Map<String, String> resultMap = new LinkedHashMap<>();
 		flatten("", source.entrySet().iterator(), resultMap);
 		return resultMap;

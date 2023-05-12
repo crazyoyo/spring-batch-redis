@@ -21,7 +21,7 @@ import com.redis.spring.batch.reader.PollableItemReader;
 
 public class FlushingSimpleStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 
-	private final Log log = LogFactory.getLog(getClass());
+	private static final Log log = LogFactory.getLog(FlushingSimpleStepBuilder.class);
 
 	private Duration interval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
 	private Optional<Duration> idleTimeout = Optional.empty();

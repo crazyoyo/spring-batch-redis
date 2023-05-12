@@ -24,6 +24,7 @@ import org.springframework.classify.Classifier;
 import org.springframework.util.Assert;
 
 import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.PollableItemReader.PollingException;
 
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Tag;
@@ -153,10 +154,13 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 		return idleTimeout.isPresent() && System.currentTimeMillis() - lastActivity > idleTimeout.get().toMillis();
 	}
 
-	protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) {
+	protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) throws InterruptedException {
 		while (true) {
 			try {
 				return doRead(timeout);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw e;
 			} catch (Exception e) {
 
 				if (shouldPolicySkip(skipPolicy, e, contribution.getStepSkipCount())) {
@@ -182,7 +186,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 	}
 
 	@SuppressWarnings("unchecked")
-	protected final I doRead(long timeout) throws Exception {
+	protected final I doRead(long timeout) throws InterruptedException, PollingException {
 		try {
 			getListener().beforeRead();
 			I item = ((PollableItemReader<I>) itemReader).poll(timeout, TimeUnit.MILLISECONDS);
@@ -190,7 +194,10 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 				getListener().afterRead(item);
 			}
 			return item;
-		} catch (Exception e) {
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw e;
+		} catch (PollingException e) {
 			getListener().onReadError(e);
 			throw e;
 		}

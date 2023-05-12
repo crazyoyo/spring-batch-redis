@@ -9,21 +9,21 @@ import com.redis.spring.batch.writer.WriteOperation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Del<K, V, T> implements WriteOperation<K, V, T> {
+public abstract class AbstractOperation<K, V, T> implements WriteOperation<K, V, T> {
 
-	private final Function<T, K> key;
+	private final Function<T, K> keyFunction;
 
-	public Del(Function<T, K> key) {
+	protected AbstractOperation(Function<T, K> key) {
 		Assert.notNull(key, "A key function is required");
-		this.key = key;
+		this.keyFunction = key;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item) {
-		futures.add(((RedisKeyAsyncCommands<K, K>) commands).del(key.apply(item)));
+		execute(commands, futures, item, keyFunction.apply(item));
 	}
+
+	protected abstract void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key);
 
 }

@@ -1,12 +1,10 @@
 package com.redis.spring.batch.writer.operation;
 
+import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
+import java.util.function.Function;
 
-import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
-
-import com.redis.spring.batch.common.NoOpRedisFuture;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.StreamMessage;
@@ -14,75 +12,39 @@ import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 
-public class Xadd<K, V, T> extends AbstractKeyOperation<K, V, T> {
+public class Xadd<K, V, T> extends AbstractOperation<K, V, T> {
 
-	private final Converter<T, XAddArgs> args;
-	private final Converter<T, Map<K, V>> body;
+	private final Function<T, XAddArgs> args;
+	private final Function<T, Map<K, V>> body;
 
-	public Xadd(Converter<T, K> key, Predicate<T> delete, Converter<T, Map<K, V>> body, Converter<T, XAddArgs> args) {
-		super(key, delete);
-		Assert.notNull(body, "A body converter is required");
-		Assert.notNull(args, "A XAddArgs converter is required");
+	public Xadd(Function<T, K> key, Function<T, Map<K, V>> body) {
+		this(key, body, nullArgs());
+	}
+
+	public Xadd(Function<T, K> key, Function<T, Map<K, V>> body, Function<T, XAddArgs> args) {
+		super(key);
+		Assert.notNull(body, "A body function is required");
+		Assert.notNull(args, "Args function is required");
 		this.body = body;
 		this.args = args;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<String> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		Map<K, V> map = body.convert(item);
-		if (map == null || map.isEmpty()) {
-			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
+	@SuppressWarnings("unchecked")
+	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key) {
+		Map<K, V> map = body.apply(item);
+		if (map.isEmpty()) {
+			return;
 		}
-		return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.convert(item), map);
+		futures.add(((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.apply(item), map));
 	}
 
-	public static <K, V> Converter<StreamMessage<K, V>, XAddArgs> identity() {
+	public static <T> Function<T, XAddArgs> nullArgs() {
+		return m -> null;
+	}
+
+	public static <K, V> Function<StreamMessage<K, V>, XAddArgs> idArgs() {
 		return m -> new XAddArgs().id(m.getId());
-	}
-
-	public static <K, T> BodyBuilder<K, T> key(K key) {
-		return key(t -> key);
-	}
-
-	public static <K, T> BodyBuilder<K, T> key(Converter<T, K> key) {
-		return new BodyBuilder<>(key);
-	}
-
-	public static class BodyBuilder<K, T> {
-
-		private final Converter<T, K> key;
-
-		public BodyBuilder(Converter<T, K> key) {
-			this.key = key;
-		}
-
-		public <V> Builder<K, V, T> body(Converter<T, Map<K, V>> body) {
-			return new Builder<>(key, body);
-		}
-	}
-
-	public static class Builder<K, V, T> extends DelBuilder<K, V, T, Builder<K, V, T>> {
-
-		private final Converter<T, K> key;
-		private final Converter<T, Map<K, V>> body;
-		private Converter<T, XAddArgs> args = t -> null;
-
-		public Builder(Converter<T, K> key, Converter<T, Map<K, V>> body) {
-			this.key = key;
-			this.body = body;
-			onNull(body);
-		}
-
-		public Builder<K, V, T> args(XAddArgs args) {
-			this.args = t -> args;
-			return this;
-		}
-
-		public Xadd<K, V, T> build() {
-			return new Xadd<>(key, del, body, args);
-		}
-
 	}
 
 }

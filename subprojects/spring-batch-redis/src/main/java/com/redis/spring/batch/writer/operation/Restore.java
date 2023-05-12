@@ -1,69 +1,46 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.function.Predicate;
+import java.util.List;
+import java.util.function.Function;
 
-import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.Assert;
 
-import com.redis.spring.batch.common.NoOpRedisFuture;
+import com.redis.spring.batch.common.KeyTtlValue;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Restore<K, V, T> extends AbstractKeyOperation<K, V, T> {
+public class Restore<K, V, T> extends AbstractOperation<K, V, T> {
 
-	public static final long TTL_KEY_DOES_NOT_EXIST = -2;
+	private final Function<T, byte[]> bytes;
+	private final Function<T, Long> ttlFunction;
 
-	private final Converter<T, byte[]> valueConverter;
-	private final Converter<T, Long> absoluteTTL;
-
-	public Restore(Converter<T, K> key, Converter<T, byte[]> value, Converter<T, Long> absoluteTTL) {
-		super(key, new InexistentKeyPredicate<>(absoluteTTL));
-		Assert.notNull(value, "A value converter is required");
-		Assert.notNull(absoluteTTL, "A TTL converter is required");
-		this.valueConverter = value;
-		this.absoluteTTL = absoluteTTL;
+	public Restore(Function<T, K> key, Function<T, byte[]> value, Function<T, Long> absoluteTTL) {
+		super(key);
+		Assert.notNull(value, "A value function is required");
+		Assert.notNull(absoluteTTL, "A TTL function is required");
+		this.bytes = value;
+		this.ttlFunction = absoluteTTL;
 	}
 
-	private static class InexistentKeyPredicate<T> implements Predicate<T> {
-
-		private final Converter<T, Long> absoluteTTL;
-
-		private InexistentKeyPredicate(Converter<T, Long> absoluteTTL) {
-			this.absoluteTTL = absoluteTTL;
-		}
-
-		@Override
-		public boolean test(T t) {
-			Long ttl = absoluteTTL.convert(t);
-			if (ttl == null) {
-				return false;
-			}
-			return ttl == TTL_KEY_DOES_NOT_EXIST;
-		}
-
-	}
-
-	@SuppressWarnings("unchecked")
 	@Override
-	protected RedisFuture<String> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		byte[] value = valueConverter.convert(item);
-		if (value == null) {
-			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
+	@SuppressWarnings("unchecked")
+	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key) {
+		Long ttl = this.ttlFunction.apply(item);
+		if (KeyTtlValue.isInexistentKeyTtl(ttl)) {
+			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(key));
+		} else {
+			futures.add(((RedisKeyAsyncCommands<K, V>) commands).restore(key, bytes.apply(item), args(ttl)));
 		}
-		return ((RedisKeyAsyncCommands<K, V>) commands).restore(key, value, args(item));
 	}
 
-	protected RestoreArgs args(T item) {
-		Long ttl = this.absoluteTTL.convert(item);
-		RestoreArgs args = new RestoreArgs();
-		if (ttl != null && ttl > 0) {
-			args.absttl();
-			args.ttl(ttl);
+	protected RestoreArgs args(Long ttl) {
+		if (KeyTtlValue.isPositiveTtl(ttl)) {
+			return RestoreArgs.Builder.ttl(ttl).absttl();
 		}
-		return args;
+		return new RestoreArgs();
 	}
 
 }

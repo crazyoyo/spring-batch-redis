@@ -21,7 +21,6 @@ import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.support.ListItemReader;
@@ -31,14 +30,12 @@ import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.common.DataStructure;
-import com.redis.spring.batch.common.DataStructure.Type;
-import com.redis.spring.batch.common.FaultToleranceOptions;
-import com.redis.spring.batch.common.FlushingOptions;
 import com.redis.spring.batch.common.JobRunner;
+import com.redis.spring.batch.common.StepOptions;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorReaderOptions;
+import com.redis.spring.batch.reader.GeneratorReaderOptions.Type;
 import com.redis.spring.batch.reader.QueueItemReader;
-import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 
@@ -73,11 +70,9 @@ class StepTests {
 		ErrorItemReader<DataStructure<String>> reader = new ErrorItemReader<>(generator);
 		SynchronizedListItemWriter<DataStructure<String>> writer = new SynchronizedListItemWriter<>();
 		String name = "readKeyValueFaultTolerance";
-		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = jobRunner.step(name).chunk(1);
-		step.reader(reader).writer(writer);
-		FaultTolerantStepBuilder<DataStructure<String>, DataStructure<String>> ftStep = JobRunner.faultTolerant(step,
-				FaultToleranceOptions.builder().skip(TimeoutException.class).skipPolicy(new AlwaysSkipItemSkipPolicy())
-						.build());
+		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> ftStep = jobRunner.step(name, reader, null,
+				writer, StepOptions.builder().chunkSize(1).faultTolerant(true).skip(TimeoutException.class)
+						.skipPolicy(new AlwaysSkipItemSkipPolicy()).build());
 		Job job = jobRunner.job(name).start(ftStep.build()).build();
 		jobRunner.getJobLauncher().run(job, new JobParameters());
 		assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getWrittenItems().size());
@@ -105,10 +100,8 @@ class StepTests {
 		BlockingQueue<String> queue = new LinkedBlockingDeque<>(count);
 		QueueItemReader<String> reader = new QueueItemReader<>(queue, Duration.ofMillis(10));
 		SynchronizedListItemWriter<String> writer = new SynchronizedListItemWriter<>();
-		SimpleStepBuilder<String, String> step = jobRunner.step(name).chunk(ReaderOptions.DEFAULT_CHUNK_SIZE);
-		step.reader(reader).writer(writer);
-		FlushingSimpleStepBuilder<String, String> flushingStep = JobRunner.flushing(step,
-				FlushingOptions.builder().flushingInterval(FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL)
+		SimpleStepBuilder<String, String> flushingStep = jobRunner.step(name, reader, null, writer,
+				StepOptions.builder().flushingInterval(FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL)
 						.idleTimeout(Duration.ofMillis(500)).build());
 		Job job = jobRunner.job(name).start(flushingStep.build()).build();
 		JobExecution execution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());

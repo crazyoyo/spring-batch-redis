@@ -1,27 +1,27 @@
 package com.redis.spring.batch.convert;
 
-import org.springframework.core.convert.converter.Converter;
+import java.util.function.Function;
 
 import com.redis.lettucemod.search.Suggestion;
 
-public class SuggestionConverter<V, T> implements Converter<T, Suggestion<V>> {
+public class SuggestionConverter<V, T> implements Function<T, Suggestion<V>> {
 
-	private final Converter<T, V> stringConverter;
-	private final Converter<T, Double> scoreConverter;
-	private final Converter<T, V> payloadConverter;
+	private final Function<T, V> string;
+	private final Function<T, Double> score;
+	private final Function<T, V> payload;
 
-	public SuggestionConverter(Converter<T, V> string, Converter<T, Double> score, Converter<T, V> payload) {
-		this.stringConverter = string;
-		this.scoreConverter = score;
-		this.payloadConverter = payload;
+	public SuggestionConverter(Function<T, V> string, Function<T, Double> score, Function<T, V> payload) {
+		this.string = string;
+		this.score = score;
+		this.payload = payload;
 	}
 
 	@Override
-	public Suggestion<V> convert(T source) {
+	public Suggestion<V> apply(T source) {
 		Suggestion<V> suggestion = new Suggestion<>();
-		suggestion.setString(stringConverter.convert(source));
-		suggestion.setScore(scoreConverter.convert(source));
-		suggestion.setPayload(payloadConverter.convert(source));
+		suggestion.setString(string.apply(source));
+		suggestion.setScore(score.apply(source));
+		suggestion.setPayload(payload.apply(source));
 		return suggestion;
 	}
 

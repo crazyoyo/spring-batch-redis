@@ -47,9 +47,4 @@ public class NoOpRedisFuture<T> extends CompletableFuture<T> implements RedisFut
 		return false;
 	}
 
-	@SuppressWarnings("unchecked")
-	public static <T> NoOpRedisFuture<T> instance() {
-		return NO_OP_REDIS_FUTURE;
-	}
-
 }

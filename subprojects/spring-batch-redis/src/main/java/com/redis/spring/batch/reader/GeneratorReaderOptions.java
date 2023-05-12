@@ -5,11 +5,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.common.DoubleRange;
 import com.redis.spring.batch.common.IntRange;
 
 public class GeneratorReaderOptions {
+
+	public enum Type {
+		HASH, STRING, LIST, SET, ZSET, JSON, STREAM, TIMESERIES
+	}
 
 	public static final String DEFAULT_KEYSPACE = "gen";
 	public static final HashOptions DEFAULT_HASH_OPTIONS = HashOptions.builder().build();

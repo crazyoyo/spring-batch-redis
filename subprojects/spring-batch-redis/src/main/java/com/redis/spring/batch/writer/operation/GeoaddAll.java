@@ -1,71 +1,33 @@
 package com.redis.spring.batch.writer.operation;
 
 import java.util.Collection;
-import java.util.function.Predicate;
+import java.util.List;
+import java.util.function.Function;
 
-import org.springframework.core.convert.converter.Converter;
-
-import com.redis.spring.batch.common.NoOpRedisFuture;
-
+import io.lettuce.core.GeoAddArgs;
 import io.lettuce.core.GeoValue;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisGeoAsyncCommands;
 
-public class GeoaddAll<K, V, T> extends AbstractKeyOperation<K, V, T> {
+public class GeoaddAll<K, V, T> extends AbstractAddAllOperation<K, V, T, GeoValue<V>> {
 
-	private final Converter<T, Collection<GeoValue<V>>> members;
+	private final GeoAddArgs args;
 
-	public GeoaddAll(Converter<T, K> key, Predicate<T> delete, Converter<T, Collection<GeoValue<V>>> members) {
-		super(key, delete);
-		this.members = members;
+	public GeoaddAll(Function<T, K> key, Function<T, Collection<GeoValue<V>>> value) {
+		this(key, value, null);
 	}
 
-	@SuppressWarnings("unchecked")
+	public GeoaddAll(Function<T, K> key, Function<T, Collection<GeoValue<V>>> value, GeoAddArgs args) {
+		super(key, value);
+		this.args = args;
+	}
+
 	@Override
-	protected RedisFuture<?> doExecute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		Collection<GeoValue<V>> collection = members.convert(item);
-		if (collection == null || collection.isEmpty()) {
-			return NoOpRedisFuture.NO_OP_REDIS_FUTURE;
-		}
-		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, collection.toArray(new GeoValue[0]));
+	@SuppressWarnings("unchecked")
+	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key,
+			Collection<GeoValue<V>> values) {
+		futures.add(((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args, values.toArray(new GeoValue[0])));
 	}
 
-	public static <K, T> MembersBuilder<K, T> key(K key) {
-		return key(t -> key);
-	}
-
-	public static <K, T> MembersBuilder<K, T> key(Converter<T, K> key) {
-		return new MembersBuilder<>(key);
-	}
-
-	public static class MembersBuilder<K, T> {
-
-		private final Converter<T, K> key;
-
-		public MembersBuilder(Converter<T, K> key) {
-			this.key = key;
-		}
-
-		public <V> Builder<K, V, T> members(Converter<T, Collection<GeoValue<V>>> members) {
-			return new Builder<>(key, members);
-		}
-	}
-
-	public static class Builder<K, V, T> extends DelBuilder<K, V, T, Builder<K, V, T>> {
-
-		private final Converter<T, K> key;
-		private final Converter<T, Collection<GeoValue<V>>> members;
-
-		public Builder(Converter<T, K> key, Converter<T, Collection<GeoValue<V>>> members) {
-			this.key = key;
-			this.members = members;
-			onNull(members);
-		}
-
-		public GeoaddAll<K, V, T> build() {
-			return new GeoaddAll<>(key, del, members);
-		}
-
-	}
 }

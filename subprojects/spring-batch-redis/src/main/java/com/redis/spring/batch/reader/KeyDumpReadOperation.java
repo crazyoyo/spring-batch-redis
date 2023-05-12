@@ -3,7 +3,6 @@ package com.redis.spring.batch.reader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.redis.spring.batch.common.KeyDump;
@@ -17,9 +16,9 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyDump<K>> {
+public class KeyDumpReadOperation<K, V> extends AbstractReadOperation<K, V, KeyDump<K>> {
 
-	public KeyDumpValueReader(AbstractRedisClient client, RedisCodec<K, V> codec, PoolOptions poolOptions) {
+	public KeyDumpReadOperation(AbstractRedisClient client, RedisCodec<K, V> codec, PoolOptions poolOptions) {
 		super(client, codec, poolOptions);
 	}
 
@@ -28,23 +27,23 @@ public class KeyDumpValueReader<K, V> extends AbstractValueReader<K, V, KeyDump<
 	protected List<KeyDump<K>> read(StatefulConnection<K, V> connection, List<? extends K> keys)
 			throws InterruptedException, ExecutionException, TimeoutException {
 		BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
-		List<RedisFuture<Long>> ttlFutures = new ArrayList<>(keys.size());
-		List<RedisFuture<byte[]>> dumpFutures = new ArrayList<>(keys.size());
+		List<RedisFuture<Long>> ttls = new ArrayList<>(keys.size());
+		List<RedisFuture<byte[]>> dumps = new ArrayList<>(keys.size());
+		List<KeyDump<K>> items = new ArrayList<>();
 		for (K key : keys) {
-			ttlFutures.add(absoluteTTL(commands, key));
-			dumpFutures.add(((RedisKeyAsyncCommands<K, V>) commands).dump(key));
+			items.add(KeyDump.of(key));
+			ttls.add(absoluteTTL(commands, key));
+			dumps.add(((RedisKeyAsyncCommands<K, V>) commands).dump(key));
 		}
 		connection.flushCommands();
-		List<KeyDump<K>> keyValueList = new ArrayList<>(keys.size());
-		long timeout = connection.getTimeout().toMillis();
-		for (int index = 0; index < keys.size(); index++) {
-			KeyDump<K> keyValue = new KeyDump<>();
-			keyValue.setKey(keys.get(index));
-			keyValue.setDump(dumpFutures.get(index).get(timeout, TimeUnit.MILLISECONDS));
-			keyValue.setTtl(ttlFutures.get(index).get(timeout, TimeUnit.MILLISECONDS));
-			keyValueList.add(keyValue);
+		for (int index = 0; index < items.size(); index++) {
+			KeyDump<? extends K> item = items.get(index);
+			byte[] dump = get(dumps.get(index), connection);
+			item.setDump(dump);
+			Long ttl = get(ttls.get(index), connection);
+			item.setTtl(ttl);
 		}
-		return keyValueList;
+		return items;
 	}
 
 }

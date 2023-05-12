@@ -19,18 +19,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.common.DataStructure;
-import com.redis.spring.batch.common.DataStructure.Type;
 import com.redis.spring.batch.common.DoubleRange;
 import com.redis.spring.batch.common.IntRange;
 import com.redis.spring.batch.reader.GeneratorReaderOptions.CollectionOptions;
 import com.redis.spring.batch.reader.GeneratorReaderOptions.MapOptions;
+import com.redis.spring.batch.reader.GeneratorReaderOptions.Type;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
 public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<DataStructure<String>> {
 
-	private final Log log = LogFactory.getLog(getClass());
+	private static final Log log = LogFactory.getLog(GeneratorItemReader.class);
 
 	private static final int LEFT_LIMIT = 48; // numeral '0'
 	private static final int RIGHT_LIMIT = 122; // letter 'z'
@@ -61,34 +61,32 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		return range.getMin() + index() % (range.getMax() - range.getMin() + 1);
 	}
 
-	private Object value(Type type) {
-		switch (type) {
-		case HASH:
+	private Object value(DataStructure<String> ds) {
+		switch (ds.getType()) {
+		case DataStructure.HASH:
 			return map(options.getHashOptions());
-		case LIST:
+		case DataStructure.LIST:
 			return members(options.getListOptions());
-		case SET:
+		case DataStructure.SET:
 			return new HashSet<>(members(options.getSetOptions()));
-		case STREAM:
+		case DataStructure.STREAM:
 			return streamMessages();
-		case STRING:
+		case DataStructure.STRING:
 			return string(options.getStringOptions().getLength());
-		case ZSET:
+		case DataStructure.ZSET:
 			return zset();
-		case JSON:
+		case DataStructure.JSON:
 			try {
 				return mapper.writeValueAsString(map(options.getJsonOptions()));
 			} catch (JsonProcessingException e) {
 				log.error("Could not serialize object to JSON", e);
 				return null;
 			}
-		case TIMESERIES:
+		case DataStructure.TIMESERIES:
 			return samples();
-		case NONE:
-		case UNKNOWN:
+		default:
 			return null;
 		}
-		throw new IllegalArgumentException("Unsupported type " + type);
 	}
 
 	private List<Sample> samples() {
@@ -158,14 +156,37 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	@Override
-	protected DataStructure<String> doRead() throws Exception {
+	protected DataStructure<String> doRead() {
 		DataStructure<String> ds = new DataStructure<>();
 		Type type = types[index() % options.getTypes().size()];
-		ds.setType(type);
+		ds.setType(typeString(type));
 		ds.setKey(key());
-		ds.setValue(value(type));
+		ds.setValue(value(ds));
 		options.getExpiration().ifPresent(e -> ds.setTtl(System.currentTimeMillis() + randomInt(e)));
 		return ds;
+	}
+
+	private String typeString(Type type) {
+		switch (type) {
+		case HASH:
+			return DataStructure.HASH;
+		case JSON:
+			return DataStructure.JSON;
+		case LIST:
+			return DataStructure.LIST;
+		case SET:
+			return DataStructure.SET;
+		case STREAM:
+			return DataStructure.STREAM;
+		case STRING:
+			return DataStructure.STRING;
+		case TIMESERIES:
+			return DataStructure.TIMESERIES;
+		case ZSET:
+			return DataStructure.ZSET;
+		default:
+			return DataStructure.NONE;
+		}
 	}
 
 	private int index() {
@@ -173,12 +194,12 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	@Override
-	protected void doOpen() throws Exception {
+	protected void doOpen() {
 		// do nothing
 	}
 
 	@Override
-	protected void doClose() throws Exception {
+	protected void doClose() {
 		// do nothing
 	}
 

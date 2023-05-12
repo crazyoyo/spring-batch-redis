@@ -214,7 +214,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemCountingIt
 	}
 
 	@Override
-	protected K doRead() throws Exception {
+	protected K doRead() throws InterruptedException {
 		return poll(queueOptions.getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
 	}
 

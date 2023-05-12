@@ -1,33 +1,25 @@
 package com.redis.spring.batch.writer;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-
-import com.redis.spring.batch.common.Utils;
 
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.PipelinedRedisFuture;
 
-public class WaitForReplicationOperation<K, V, T> implements PipelinedOperation<K, V, T> {
+public class ReplicatedWriteOperation<K, V, T> implements BatchWriteOperation<K, V, T> {
 
-	private final PipelinedOperation<K, V, T> delegate;
+	private final BatchWriteOperation<K, V, T> delegate;
 	private final WaitForReplication options;
 
-	public WaitForReplicationOperation(PipelinedOperation<K, V, T> delegate, WaitForReplication options) {
+	public ReplicatedWriteOperation(BatchWriteOperation<K, V, T> delegate, WaitForReplication options) {
 		this.delegate = delegate;
 		this.options = options;
 	}
 
-	@SuppressWarnings("rawtypes")
 	@Override
-	public Collection<RedisFuture> execute(StatefulConnection<K, V> connection, List<? extends T> items) {
-		Collection<RedisFuture> futures = new ArrayList<>();
-		futures.addAll(delegate.execute(connection, items));
-		BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
+	public void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, List<? extends T> items) {
+		delegate.execute(commands, futures, items);
 		PipelinedRedisFuture<Void> replicationFuture = new PipelinedRedisFuture<>(
 				commands.waitForReplication(options.getReplicas(), options.getTimeout().toMillis()).thenAccept(r -> {
 					if (r < options.getReplicas()) {
@@ -36,7 +28,6 @@ public class WaitForReplicationOperation<K, V, T> implements PipelinedOperation<
 					}
 				}));
 		futures.add(replicationFuture);
-		return futures;
 	}
 
 }

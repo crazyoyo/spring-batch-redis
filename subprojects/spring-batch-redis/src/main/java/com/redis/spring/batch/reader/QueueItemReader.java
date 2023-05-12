@@ -26,7 +26,7 @@ public class QueueItemReader<T> extends AbstractItemCountingItemStreamItemReader
 	}
 
 	@Override
-	protected T doRead() throws Exception {
+	protected T doRead() throws InterruptedException {
 		return poll(defaultPollTimeout, TimeUnit.MILLISECONDS);
 	}
 
@@ -39,12 +39,12 @@ public class QueueItemReader<T> extends AbstractItemCountingItemStreamItemReader
 	}
 
 	@Override
-	protected void doOpen() throws Exception {
+	protected void doOpen() {
 		this.open = true;
 	}
 
 	@Override
-	protected void doClose() throws Exception {
+	protected void doClose() {
 		this.open = false;
 	}
 

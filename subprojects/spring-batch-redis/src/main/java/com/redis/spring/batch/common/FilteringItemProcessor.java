@@ -40,7 +40,7 @@ public class FilteringItemProcessor<T> extends ItemStreamSupport implements Item
 	}
 
 	@Override
-	public T process(T item) throws Exception {
+	public T process(T item) {
 		if (filter.test(item)) {
 			return item;
 		}

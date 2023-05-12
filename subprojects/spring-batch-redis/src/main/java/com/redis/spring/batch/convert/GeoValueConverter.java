@@ -1,32 +1,32 @@
 package com.redis.spring.batch.convert;
 
-import org.springframework.core.convert.converter.Converter;
+import java.util.function.Function;
 
 import io.lettuce.core.GeoValue;
 
-public class GeoValueConverter<V, T> implements Converter<T, GeoValue<V>> {
+public class GeoValueConverter<V, T> implements Function<T, GeoValue<V>> {
 
-	private final Converter<T, V> memberConverter;
-	private final Converter<T, Double> longitudeConverter;
-	private final Converter<T, Double> latitudeConverter;
+	private final Function<T, V> memberConverter;
+	private final Function<T, Double> longitudeConverter;
+	private final Function<T, Double> latitudeConverter;
 
-	public GeoValueConverter(Converter<T, V> member, Converter<T, Double> longitude, Converter<T, Double> latitude) {
+	public GeoValueConverter(Function<T, V> member, Function<T, Double> longitude, Function<T, Double> latitude) {
 		this.memberConverter = member;
 		this.longitudeConverter = longitude;
 		this.latitudeConverter = latitude;
 	}
 
 	@Override
-	public GeoValue<V> convert(T source) {
-		Double longitude = this.longitudeConverter.convert(source);
+	public GeoValue<V> apply(T t) {
+		Double longitude = this.longitudeConverter.apply(t);
 		if (longitude == null) {
 			return null;
 		}
-		Double latitude = this.latitudeConverter.convert(source);
+		Double latitude = this.latitudeConverter.apply(t);
 		if (latitude == null) {
 			return null;
 		}
-		return GeoValue.just(longitude, latitude, memberConverter.convert(source));
+		return GeoValue.just(longitude, latitude, memberConverter.apply(t));
 	}
 
 }

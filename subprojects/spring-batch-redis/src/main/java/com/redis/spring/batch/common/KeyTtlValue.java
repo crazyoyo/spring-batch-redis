@@ -4,6 +4,16 @@ import java.util.Objects;
 
 public class KeyTtlValue<K> extends KeyValue<K> {
 
+	public static final long TTL_KEY_DOES_NOT_EXIST = -2;
+
+	public static boolean isPositiveTtl(Long ttl) {
+		return ttl != null && ttl > 0;
+	}
+
+	public static boolean isInexistentKeyTtl(Long ttl) {
+		return ttl == TTL_KEY_DOES_NOT_EXIST;
+	}
+
 	/**
 	 * Expiration POSIX time in milliseconds for this key.
 	 *
@@ -16,10 +26,6 @@ public class KeyTtlValue<K> extends KeyValue<K> {
 
 	public void setTtl(Long ttl) {
 		this.ttl = ttl;
-	}
-
-	public boolean hasTtl() {
-		return ttl != null && ttl > 0;
 	}
 
 	@Override
@@ -40,6 +46,10 @@ public class KeyTtlValue<K> extends KeyValue<K> {
 			return false;
 		KeyTtlValue<?> other = (KeyTtlValue<?>) obj;
 		return Objects.equals(ttl, other.ttl);
+	}
+
+	public boolean hasTtl() {
+		return isPositiveTtl(ttl);
 	}
 
 }

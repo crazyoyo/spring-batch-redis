@@ -45,28 +45,24 @@ import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader.Builder;
+import com.redis.spring.batch.RedisItemWriter.DataStructureBuilder.StreamIdPolicy;
 import com.redis.spring.batch.common.DataStructure;
-import com.redis.spring.batch.common.FlushingOptions;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.PoolOptions;
-import com.redis.spring.batch.reader.DataStructureValueReader;
+import com.redis.spring.batch.common.StepOptions;
+import com.redis.spring.batch.reader.DataStructureReadOperation;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorReaderOptions;
-import com.redis.spring.batch.reader.KeyComparatorOptions;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
-import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
-import com.redis.spring.batch.reader.ReaderOptions;
-import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisURI;
-import io.lettuce.core.XAddArgs;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
@@ -77,12 +73,10 @@ abstract class AbstractTestBase {
 
 	private final Logger log = Logger.getLogger(getClass().getName());
 
-	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
-
-	protected static final FlushingOptions DEFAULT_FLUSHING_OPTIONS = FlushingOptions.builder()
-			.idleTimeout(DEFAULT_IDLE_TIMEOUT).build();
-
 	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(1);
+	protected static final StepOptions DEFAULT_STEP_OPTIONS = StepOptions.builder().build();
+	protected static final StepOptions DEFAULT_FLUSHING_STEP_OPTIONS = StepOptions.builder()
+			.flushingInterval(Duration.ofMillis(50)).idleTimeout(Duration.ofMillis(500)).build();
 
 	@Value("${running-timeout:PT5S}")
 	private Duration runningTimeout;
@@ -101,7 +95,7 @@ abstract class AbstractTestBase {
 	protected abstract RedisServer getTargetServer();
 
 	@BeforeAll
-	void setup() {
+	void setup() throws Exception {
 		getSourceServer().start();
 		getTargetServer().start();
 		sourceClient = client(getSourceServer());
@@ -187,15 +181,16 @@ abstract class AbstractTestBase {
 		return RedisItemReader.client((RedisModulesClient) client, codec).jobRunner(jobRunner);
 	}
 
-	protected RedisItemWriter.Builder<String, String> targetWriter() {
+	protected RedisItemWriter.WriterBuilder<String, String> targetWriter() {
 		return writer(targetClient, StringCodec.UTF8);
 	}
 
-	protected <K, V> RedisItemWriter.Builder<K, V> targetWriter(RedisCodec<K, V> codec) {
+	protected <K, V> RedisItemWriter.WriterBuilder<K, V> targetWriter(RedisCodec<K, V> codec) {
 		return writer(targetClient, codec);
 	}
 
-	protected static <K, V> RedisItemWriter.Builder<K, V> writer(AbstractRedisClient client, RedisCodec<K, V> codec) {
+	protected static <K, V> RedisItemWriter.WriterBuilder<K, V> writer(AbstractRedisClient client,
+			RedisCodec<K, V> codec) {
 		if (client instanceof RedisModulesClusterClient) {
 			return RedisItemWriter.client((RedisModulesClusterClient) client, codec);
 		}
@@ -232,20 +227,6 @@ abstract class AbstractTestBase {
 		Awaitility.await().timeout(DEFAULT_AWAIT_TIMEOUT).until(conditionEvaluator);
 	}
 
-	protected <I, O> JobExecution runAsync(TestInfo testInfo, PollableItemReader<I> reader,
-			ItemProcessor<I, O> processor, ItemWriter<O> writer) throws JobExecutionException {
-		JobExecution execution = runAsync(testInfo, flushingStep(testInfo, reader, processor, writer));
-		awaitOpen(reader);
-		awaitOpen(writer);
-		return execution;
-	}
-
-	private <I, O> JobExecution runAsync(TestInfo testInfo, SimpleStepBuilder<I, O> step)
-			throws JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException,
-			JobParametersInvalidException {
-		return runAsync(job(testInfo, step));
-	}
-
 	protected Job job(TestInfo testInfo, SimpleStepBuilder<?, ?> step) {
 		return job(testInfo).start(step.build()).build();
 	}
@@ -268,44 +249,34 @@ abstract class AbstractTestBase {
 		return execution;
 	}
 
-	protected <I, O> FlushingSimpleStepBuilder<I, O> flushingStep(TestInfo testInfo, PollableItemReader<I> reader,
-			ItemWriter<O> writer) {
-		return flushingStep(testInfo, reader, null, writer);
-	}
-
-	protected <I, O> FlushingSimpleStepBuilder<I, O> flushingStep(TestInfo testInfo, PollableItemReader<I> reader,
-			ItemProcessor<I, O> processor, ItemWriter<O> writer) {
-		return JobRunner.flushing(step(testInfo, reader, processor, writer), DEFAULT_FLUSHING_OPTIONS);
-	}
-
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
-		return step(testInfo, reader, null, writer);
+		return step(testInfo, reader, null, writer, DEFAULT_STEP_OPTIONS);
 	}
 
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader,
-			ItemProcessor<I, O> processor, ItemWriter<O> writer) {
+			ItemProcessor<I, O> processor, ItemWriter<O> writer, StepOptions options) {
 		setName(reader, testInfo);
 		setName(writer, testInfo);
-		SimpleStepBuilder<I, O> step = jobRunner.step(name(testInfo)).chunk(ReaderOptions.DEFAULT_CHUNK_SIZE);
-		step.reader(reader).processor(processor).writer(writer);
-		return step;
+		return jobRunner.step(name(testInfo), reader, processor, writer, options);
 	}
 
-	protected <I, O> JobExecution runAsync(TestInfo testInfo, PollableItemReader<I> reader, ItemWriter<O> writer)
-			throws JobExecutionException {
-		return runAsync(testInfo, reader, null, writer);
+	protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer) throws Exception {
+		return run(info, reader, null, writer);
 	}
 
-	protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer)
-			throws JobExecutionException {
-		return run(testInfo, reader, null, writer);
-	}
-
-	protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemProcessor<I, O> processor,
-			ItemWriter<O> writer) throws JobExecutionException {
-		JobExecution execution = run(job(testInfo, step(testInfo, reader, processor, writer)));
+	protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
+			ItemWriter<O> writer) throws Exception {
+		JobExecution execution = run(job(info, step(info, reader, processor, writer, DEFAULT_STEP_OPTIONS)));
 		awaitClosed(reader);
 		awaitClosed(writer);
+		return execution;
+	}
+
+	protected <I, O> JobExecution runAsync(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
+			ItemWriter<O> writer, StepOptions stepOptions) throws Exception {
+		JobExecution execution = runAsync(job(info, step(info, reader, processor, writer, stepOptions)));
+		awaitOpen(reader);
+		awaitOpen(writer);
 		return execution;
 	}
 
@@ -328,15 +299,14 @@ abstract class AbstractTestBase {
 	 * @param left
 	 * @param right
 	 * @return true if left and right have same keys
-	 * @throws JobExecutionException
 	 * @throws Exception
 	 */
-	protected boolean compare(TestInfo testInfo) throws JobExecutionException {
+	protected boolean compare(TestInfo testInfo) throws Exception {
 		Assertions.assertEquals(sourceConnection.sync().dbsize(), targetConnection.sync().dbsize(),
 				"Source and target have different db sizes");
 		RedisItemReader<String, KeyComparison> reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
-		run(testInfo(testInfo, "compare"), reader, writer);
+		run(testInfo(testInfo, "compare"), reader, null, writer);
 		Assertions.assertFalse(writer.getWrittenItems().isEmpty());
 		for (KeyComparison comparison : writer.getWrittenItems()) {
 			Assertions.assertEquals(Status.OK, comparison.getStatus(),
@@ -345,9 +315,8 @@ abstract class AbstractTestBase {
 		return true;
 	}
 
-	protected RedisItemReader<String, KeyComparison> comparisonReader() {
-		return sourceReader().comparator(targetClient)
-				.comparatorOptions(KeyComparatorOptions.builder().ttlTolerance(Duration.ofMillis(100)).build()).build();
+	protected RedisItemReader<String, KeyComparison> comparisonReader() throws Exception {
+		return sourceReader().comparator(targetClient).ttlTolerance(Duration.ofMillis(100)).build();
 	}
 
 	protected void generate(TestInfo testInfo) throws JobExecutionException {
@@ -357,29 +326,29 @@ abstract class AbstractTestBase {
 	protected void generate(TestInfo testInfo, GeneratorReaderOptions options) throws JobExecutionException {
 		TestInfo finalTestInfo = testInfo(testInfo, "generate");
 		GeneratorItemReader reader = new GeneratorItemReader(options);
-		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = step(finalTestInfo, reader, null,
-				sourceWriter().dataStructure());
+		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = step(finalTestInfo, reader,
+				sourceWriter().dataStructure().build());
 		run(job(finalTestInfo, step));
 	}
 
-	protected RedisItemWriter.Builder<String, String> sourceWriter() {
+	protected RedisItemWriter.WriterBuilder<String, String> sourceWriter() {
 		return writer(sourceClient, StringCodec.UTF8);
 	}
 
 	protected RedisItemWriter<String, String, KeyDump<String>> targetKeyDumpWriter() {
-		return targetWriter().keyDump();
+		return targetWriter().keyDump().build();
 	}
 
 	protected RedisItemWriter<String, String, DataStructure<String>> targetDataStructureWriter() {
-		return targetWriter().dataStructure(m -> new XAddArgs().id(m.getId()));
+		return targetWriter().dataStructure().streamIdPolicy(StreamIdPolicy.PROPAGATE).build();
 	}
 
-	protected DataStructureValueReader<String, String> sourceDataStructureValueReader() {
-		return new DataStructureValueReader<>(sourceClient, StringCodec.UTF8, PoolOptions.builder().build());
+	protected DataStructureReadOperation<String, String> sourceDataStructureValueReader() {
+		return new DataStructureReadOperation<>(sourceClient, StringCodec.UTF8, PoolOptions.builder().build());
 	}
 
 	protected LiveRedisItemReader.Builder<String, String> sourceLiveReader() {
-		return sourceReader().live().flushingOptions(DEFAULT_FLUSHING_OPTIONS);
+		return sourceReader().live().stepOptions(DEFAULT_FLUSHING_STEP_OPTIONS);
 	}
 
 	protected LiveRedisItemReader.Builder<String, String> sourceLiveReader(int notificationQueueCapacity) {

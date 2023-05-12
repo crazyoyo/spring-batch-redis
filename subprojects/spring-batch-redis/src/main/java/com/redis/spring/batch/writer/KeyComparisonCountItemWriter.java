@@ -36,7 +36,7 @@ public class KeyComparisonCountItemWriter extends AbstractItemStreamItemWriter<K
 	}
 
 	@Override
-	public void write(List<? extends KeyComparison> items) throws Exception {
+	public void write(List<? extends KeyComparison> items) {
 		for (KeyComparison comparison : items) {
 			results.incrementAndGet(comparison.getStatus());
 		}

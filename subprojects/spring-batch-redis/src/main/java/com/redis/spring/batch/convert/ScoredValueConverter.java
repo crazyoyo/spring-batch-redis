@@ -1,26 +1,26 @@
 package com.redis.spring.batch.convert;
 
-import org.springframework.core.convert.converter.Converter;
+import java.util.function.Function;
 
 import io.lettuce.core.ScoredValue;
 
-public class ScoredValueConverter<V, T> implements Converter<T, ScoredValue<V>> {
+public class ScoredValueConverter<V, T> implements Function<T, ScoredValue<V>> {
 
-	private final Converter<T, V> memberConverter;
-	private final Converter<T, Double> scoreConverter;
+	private final Function<T, V> member;
+	private final Function<T, Double> score;
 
-	public ScoredValueConverter(Converter<T, V> member, Converter<T, Double> score) {
-		this.memberConverter = member;
-		this.scoreConverter = score;
+	public ScoredValueConverter(Function<T, V> member, Function<T, Double> score) {
+		this.member = member;
+		this.score = score;
 	}
 
 	@Override
-	public ScoredValue<V> convert(T source) {
-		Double score = this.scoreConverter.convert(source);
-		if (score == null) {
+	public ScoredValue<V> apply(T source) {
+		Double scoreValue = this.score.apply(source);
+		if (scoreValue == null) {
 			return null;
 		}
-		return ScoredValue.just(score, memberConverter.convert(source));
+		return ScoredValue.just(scoreValue, member.apply(source));
 	}
 
 }

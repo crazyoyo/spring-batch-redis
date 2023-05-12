@@ -1,38 +1,34 @@
 package com.redis.spring.batch.reader;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.awaitility.Awaitility;
-import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.item.ItemProcessor;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.FilteringItemProcessor;
-import com.redis.spring.batch.common.FlushingOptions;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
+import com.redis.spring.batch.common.StepOptions;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 
-public class LiveRedisItemReader<K, T> extends AbstractRedisItemReader<K, T> implements PollableItemReader<T> {
+public class LiveRedisItemReader<K, T> extends RedisItemReader<K, T> {
 
+	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 	public static final int DEFAULT_DATABASE = 0;
 	protected static final String[] DEFAULT_KEY_PATTERNS = { ScanOptions.DEFAULT_MATCH };
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 
-	private final FlushingOptions flushingOptions;
-
 	public LiveRedisItemReader(JobRunner jobRunner, PollableItemReader<K> keyReader, ItemProcessor<K, K> keyProcessor,
-			ValueReader<K, T> valueReader, ReaderOptions options, FlushingOptions flushingOptions) {
-		super(jobRunner, keyReader, keyProcessor, valueReader, options);
-		this.flushingOptions = flushingOptions;
+			QueueItemWriter<K, T> queueWriter, StepOptions stepOptions) {
+		super(jobRunner, keyReader, keyProcessor, queueWriter, stepOptions);
 	}
 
 	public static String[] defaultKeyPatterns() {
@@ -40,7 +36,7 @@ public class LiveRedisItemReader<K, T> extends AbstractRedisItemReader<K, T> imp
 	}
 
 	@Override
-	protected synchronized void doOpen() throws Exception {
+	protected synchronized void doOpen() throws JobExecutionException {
 		super.doOpen();
 		Awaitility.await().timeout(JobRunner.DEFAULT_RUNNING_TIMEOUT).until(this::isOpen);
 	}
@@ -50,32 +46,6 @@ public class LiveRedisItemReader<K, T> extends AbstractRedisItemReader<K, T> imp
 		return super.isOpen() && ((PollableItemReader<K>) keyReader).isOpen();
 	}
 
-	@Override
-	public T poll(long timeout, TimeUnit unit) throws InterruptedException {
-		return queue.poll(timeout, unit);
-	}
-
-	@Override
-	protected SimpleStepBuilder<K, K> step() {
-		return JobRunner.flushing(super.step(), flushingOptions);
-	}
-
-	public static Builder<String, String> client(RedisModulesClusterClient client) {
-		return new Builder<>(client, StringCodec.UTF8);
-	}
-
-	public static Builder<String, String> client(RedisModulesClient client) {
-		return new Builder<>(client, StringCodec.UTF8);
-	}
-
-	public static <K, V> Builder<K, V> client(RedisModulesClient client, RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec);
-	}
-
-	public static <K, V> Builder<K, V> client(RedisModulesClusterClient client, RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec);
-	}
-
 	public static String[] patterns(int database, String... keyPatterns) {
 		return Stream.of(keyPatterns).map(p -> String.format(PUBSUB_PATTERN_FORMAT, database, p))
 				.collect(Collectors.toList()).toArray(new String[0]);
@@ -83,11 +53,15 @@ public class LiveRedisItemReader<K, T> extends AbstractRedisItemReader<K, T> imp
 
 	public static class Builder<K, V> extends AbstractReaderBuilder<K, V, Builder<K, V>> {
 
-		private FlushingOptions flushingOptions = FlushingOptions.builder().build();
 		private int database = DEFAULT_DATABASE;
 		private String[] keyPatterns = DEFAULT_KEY_PATTERNS;
-		private QueueOptions queueOptions = QueueOptions.builder().build();
+		private QueueOptions notificationQueueOptions = QueueOptions.builder().build();
 		private Predicate<K> keyFilter;
+
+		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+			super(client, codec);
+			stepOptions.setFlushingInterval(DEFAULT_FLUSHING_INTERVAL);
+		}
 
 		public Builder<K, V> keyFilter(Predicate<K> filter) {
 			this.keyFilter = filter;
@@ -101,31 +75,24 @@ public class LiveRedisItemReader<K, T> extends AbstractRedisItemReader<K, T> imp
 			return new FilteringItemProcessor<>(keyFilter);
 		}
 
-		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec);
-		}
-
-		public Builder<K, V> flushingOptions(FlushingOptions options) {
-			this.flushingOptions = options;
-			return this;
+		@Override
+		public LiveRedisItemReader<K, DataStructure<K>> dataStructure() {
+			return (LiveRedisItemReader<K, DataStructure<K>>) super.dataStructure();
 		}
 
 		@Override
-		protected KeyspaceNotificationItemReader<K, V> keyReader() {
-			return new KeyspaceNotificationItemReader<>(client, codec, queueOptions, patterns(database, keyPatterns));
-		}
-
-		public LiveRedisItemReader<K, DataStructure<K>> dataStructure() {
-			return reader(dataStructureValueReader());
-		}
-
 		public LiveRedisItemReader<K, KeyDump<K>> keyDump() {
-			return reader(keyDumpValueReader());
+			return (LiveRedisItemReader<K, KeyDump<K>>) super.keyDump();
 		}
 
-		protected <T> LiveRedisItemReader<K, T> reader(ValueReader<K, T> valueReader) {
-			return new LiveRedisItemReader<>(jobRunner(), keyReader(), keyProcessor(), valueReader, readerOptions,
-					flushingOptions);
+		@Override
+		protected <T> RedisItemReader<K, T> reader(QueueItemWriter<K, T> queueWriter) {
+			return new LiveRedisItemReader<>(jobRunner(), keyReader(), keyProcessor(), queueWriter, stepOptions);
+		}
+
+		private KeyspaceNotificationItemReader<K, V> keyReader() {
+			return new KeyspaceNotificationItemReader<>(client, codec, notificationQueueOptions,
+					patterns(database, keyPatterns));
 		}
 
 		public Builder<K, V> database(int database) {
@@ -138,8 +105,8 @@ public class LiveRedisItemReader<K, T> extends AbstractRedisItemReader<K, T> imp
 			return this;
 		}
 
-		public Builder<K, V> queueOptions(QueueOptions options) {
-			this.queueOptions = options;
+		public Builder<K, V> notificationQueueOptions(QueueOptions options) {
+			this.notificationQueueOptions = options;
 			return this;
 		}
 

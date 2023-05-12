@@ -1,27 +1,32 @@
 package com.redis.spring.batch.writer.operation;
 
-import org.springframework.core.convert.converter.Converter;
+import java.util.List;
+import java.util.function.Function;
 
 import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
-import com.redis.spring.batch.writer.Operation;
+import com.redis.spring.batch.writer.WriteOperation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class JsonDel<K, V, T> implements Operation<K, V, T> {
+public class JsonDel<K, V, T> implements WriteOperation<K, V, T> {
 
-	private final Converter<T, K> key;
-	private final Converter<T, String> path;
+	private final Function<T, K> key;
+	private final Function<T, String> path;
 
-	public JsonDel(Converter<T, K> key, Converter<T, String> path) {
+	public JsonDel(Function<T, K> key) {
+		this(key, JsonSet.rootPath());
+	}
+
+	public JsonDel(Function<T, K> key, Function<T, String> path) {
 		this.key = key;
 		this.path = path;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
-		return ((RedisJSONAsyncCommands<K, V>) commands).jsonDel(key.convert(item), path.convert(item));
+	public void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item) {
+		futures.add(((RedisJSONAsyncCommands<K, V>) commands).jsonDel(key.apply(item), path.apply(item)));
 	}
 
 }

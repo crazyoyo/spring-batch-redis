@@ -28,9 +28,9 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public abstract class AbstractValueReader<K, V, T> extends ItemStreamSupport implements ValueReader<K, T> {
+public abstract class AbstractReadOperation<K, V, T> extends ItemStreamSupport implements ReadOperation<K, T> {
 
-	private final Log log = LogFactory.getLog(getClass());
+	private static final Log log = LogFactory.getLog(AbstractReadOperation.class);
 
 	private static final String ABSTTL_LUA = "absttl.lua";
 
@@ -40,7 +40,7 @@ public abstract class AbstractValueReader<K, V, T> extends ItemStreamSupport imp
 	private GenericObjectPool<StatefulConnection<K, V>> pool;
 	private String digest;
 
-	protected AbstractValueReader(AbstractRedisClient client, RedisCodec<K, V> codec, PoolOptions poolOptions) {
+	protected AbstractReadOperation(AbstractRedisClient client, RedisCodec<K, V> codec, PoolOptions poolOptions) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.codec = codec;
@@ -64,7 +64,6 @@ public abstract class AbstractValueReader<K, V, T> extends ItemStreamSupport imp
 				this.digest = future.get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
 			} catch (InterruptedException e) {
 				log.warn("Interrupted!", e);
-				// Restore interrupted state...
 				Thread.currentThread().interrupt();
 			} catch (Exception e) {
 				throw new ItemStreamException("Could not open reader", e);
@@ -82,9 +81,14 @@ public abstract class AbstractValueReader<K, V, T> extends ItemStreamSupport imp
 		super.close();
 	}
 
+	protected <U> U get(RedisFuture<U> future, StatefulConnection<K, V> connection)
+			throws InterruptedException, ExecutionException, TimeoutException {
+		return future.get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
+	}
+
 	@SuppressWarnings("unchecked")
-	protected RedisFuture<Long> absoluteTTL(BaseRedisAsyncCommands<K, V> commands, K... keys) {
-		return ((RedisScriptingAsyncCommands<K, V>) commands).evalsha(digest, ScriptOutputType.INTEGER, keys);
+	protected RedisFuture<Long> absoluteTTL(BaseRedisAsyncCommands<K, V> commands, K key) {
+		return ((RedisScriptingAsyncCommands<K, V>) commands).evalsha(digest, ScriptOutputType.INTEGER, key);
 	}
 
 	@Override
@@ -96,6 +100,9 @@ public abstract class AbstractValueReader<K, V, T> extends ItemStreamSupport imp
 			} finally {
 				connection.setAutoFlushCommands(true);
 			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw e;
 		}
 	}
 

@@ -10,6 +10,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.reader.KeyComparison;
 
 import io.lettuce.core.ScoredValue;
@@ -51,26 +52,26 @@ public class KeyComparisonLogger {
 			break;
 		case VALUE:
 			switch (comparison.getSource().getType()) {
-			case SET:
+			case DataStructure.SET:
 				showSetDiff(comparison);
 				break;
-			case LIST:
+			case DataStructure.LIST:
 				showListDiff(comparison);
 				break;
-			case ZSET:
+			case DataStructure.ZSET:
 				showSortedSetDiff(comparison);
 				break;
-			case STREAM:
+			case DataStructure.STREAM:
 				showStreamDiff(comparison);
 				break;
-			case STRING:
-			case JSON:
+			case DataStructure.STRING:
+			case DataStructure.JSON:
 				showStringDiff(comparison);
 				break;
-			case HASH:
+			case DataStructure.HASH:
 				showHashDiff(comparison);
 				break;
-			case TIMESERIES:
+			case DataStructure.TIMESERIES:
 				showListDiff(comparison);
 				break;
 			default:

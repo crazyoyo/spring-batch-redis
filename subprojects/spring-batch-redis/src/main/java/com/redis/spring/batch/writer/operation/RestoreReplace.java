@@ -1,6 +1,6 @@
 package com.redis.spring.batch.writer.operation;
 
-import org.springframework.core.convert.converter.Converter;
+import java.util.function.Function;
 
 import com.redis.spring.batch.common.KeyDump;
 
@@ -8,18 +8,13 @@ import io.lettuce.core.RestoreArgs;
 
 public class RestoreReplace<K, V, T> extends Restore<K, V, T> {
 
-	public RestoreReplace(Converter<T, K> key, Converter<T, byte[]> value, Converter<T, Long> absoluteTTL) {
-		super(key, value, absoluteTTL);
+	public RestoreReplace(Function<T, K> key, Function<T, byte[]> value, Function<T, Long> ttl) {
+		super(key, value, ttl);
 	}
 
 	@Override
-	protected RestoreArgs args(T item) {
-		return super.args(item).replace();
-	}
-
-	public static <K, V, T> RestoreReplace<K, V, T> of(Converter<T, K> key, Converter<T, byte[]> value,
-			Converter<T, Long> absoluteTTL) {
-		return new RestoreReplace<>(key, value, absoluteTTL);
+	protected RestoreArgs args(Long ttl) {
+		return super.args(ttl).replace();
 	}
 
 	public static <K, V> RestoreReplace<K, V, KeyDump<K>> keyDump() {
