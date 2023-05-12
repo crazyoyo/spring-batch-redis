@@ -35,9 +35,7 @@ import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
-import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.Assert;
 
 import com.fasterxml.jackson.databind.JsonNode;
