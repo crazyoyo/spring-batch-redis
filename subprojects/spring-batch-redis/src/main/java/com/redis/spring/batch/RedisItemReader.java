@@ -7,7 +7,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.awaitility.Awaitility;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -16,6 +15,7 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStream;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
@@ -68,7 +68,7 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 			Job job = jobRunner.job(name).start(step.build()).build();
 			jobExecution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
 			jobRunner.awaitRunning(jobExecution);
-			if (jobExecution.getStatus().isUnsuccessful()) {
+			if (isJobFailed()) {
 				throw new JobExecutionException("Job execution unsuccessful");
 			}
 		}
@@ -81,7 +81,7 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 			((ItemStream) keyReader).close();
 		}
 		if (jobExecution != null) {
-			Awaitility.await().until(() -> !jobExecution.isRunning());
+			jobRunner.awaitNotRunning(jobExecution);
 			jobExecution = null;
 		}
 	}
@@ -97,6 +97,9 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 		do {
 			item = writer.poll();
 		} while (item == null && isOpen());
+		if (isJobFailed()) {
+			throw new ItemStreamException("Reader job failed");
+		}
 		return item;
 	}
 
@@ -108,7 +111,11 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 
 	@Override
 	public boolean isOpen() {
-		return jobExecution != null && jobExecution.isRunning() && !jobExecution.getStatus().isUnsuccessful();
+		return jobExecution != null && jobExecution.isRunning() && !isJobFailed();
+	}
+
+	private boolean isJobFailed() {
+		return jobExecution.getStatus().isUnsuccessful();
 	}
 
 	public abstract static class AbstractBuilder<K, V, B extends AbstractBuilder<K, V, B>> {

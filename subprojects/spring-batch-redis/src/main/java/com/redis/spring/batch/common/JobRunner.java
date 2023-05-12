@@ -1,8 +1,10 @@
 package com.redis.spring.batch.common;
 
 import java.time.Duration;
+import java.util.concurrent.Callable;
 
 import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionFactory;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -30,6 +32,7 @@ public class JobRunner {
 
 	private static JobRunner memoryInstance;
 
+	public static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(10);
 	public static final Duration DEFAULT_RUNNING_TIMEOUT = Duration.ofSeconds(5);
 	public static final Duration DEFAULT_TERMINATION_TIMEOUT = Duration.ofSeconds(5);
 
@@ -37,6 +40,7 @@ public class JobRunner {
 	private final PlatformTransactionManager transactionManager;
 	private final SimpleJobLauncher jobLauncher;
 	private final SimpleJobLauncher asyncJobLauncher;
+	private Duration pollInterval = DEFAULT_POLL_INTERVAL;
 	private Duration runningTimeout = DEFAULT_RUNNING_TIMEOUT;
 	private Duration terminationTimeout = DEFAULT_TERMINATION_TIMEOUT;
 
@@ -78,6 +82,11 @@ public class JobRunner {
 		launcher.setJobRepository(jobRepository);
 		launcher.setTaskExecutor(taskExecutor);
 		return launcher;
+	}
+
+	public JobRunner pollInterval(Duration interval) {
+		this.pollInterval = interval;
+		return this;
 	}
 
 	public JobRunner runningTimeout(Duration timeout) {
@@ -129,12 +138,24 @@ public class JobRunner {
 		return asyncJobLauncher;
 	}
 
+	public void awaitRunning(Callable<Boolean> conditionEvaluator) {
+		await().timeout(runningTimeout).until(conditionEvaluator);
+	}
+
 	public void awaitRunning(JobExecution jobExecution) {
-		Awaitility.await().timeout(runningTimeout).until(() -> isRunning(jobExecution));
+		awaitRunning(() -> isRunning(jobExecution));
+	}
+
+	private ConditionFactory await() {
+		return Awaitility.await().pollInterval(pollInterval);
+	}
+
+	public void awaitTermination(Callable<Boolean> conditionEvaluator) {
+		await().timeout(terminationTimeout).until(conditionEvaluator);
 	}
 
 	public void awaitTermination(JobExecution jobExecution) {
-		Awaitility.await().timeout(terminationTimeout).until(() -> isTerminated(jobExecution));
+		await().timeout(terminationTimeout).until(() -> isTerminated(jobExecution));
 	}
 
 	public StepBuilder step(String name) {
@@ -179,6 +200,10 @@ public class JobRunner {
 		options.getBackOffPolicy().ifPresent(ftStep::backOffPolicy);
 		options.getRetryPolicy().ifPresent(ftStep::retryPolicy);
 		return ftStep;
+	}
+
+	public void awaitNotRunning(JobExecution jobExecution) {
+		awaitTermination(() -> !jobExecution.isRunning());
 	}
 
 }

@@ -5,7 +5,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.awaitility.Awaitility;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.item.ItemProcessor;
 
@@ -38,7 +37,7 @@ public class LiveRedisItemReader<K, T> extends RedisItemReader<K, T> {
 	@Override
 	protected synchronized void doOpen() throws JobExecutionException {
 		super.doOpen();
-		Awaitility.await().timeout(JobRunner.DEFAULT_RUNNING_TIMEOUT).until(this::isOpen);
+		jobRunner.awaitRunning(this::isOpen);
 	}
 
 	@Override
