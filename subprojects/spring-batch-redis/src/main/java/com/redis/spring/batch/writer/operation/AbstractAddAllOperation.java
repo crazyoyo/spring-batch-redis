@@ -18,7 +18,11 @@ public abstract class AbstractAddAllOperation<K, V, T, U> extends AbstractOperat
 
 	@Override
 	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key) {
-		execute(commands, futures, item, key, values.apply(item));
+		Collection<U> collection = values.apply(item);
+		if (collection.isEmpty()) {
+			return;
+		}
+		execute(commands, futures, item, key, collection);
 	}
 
 	protected abstract void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key,

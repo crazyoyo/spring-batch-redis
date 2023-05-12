@@ -487,8 +487,6 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		Supplier<List<String>> keys = () -> sourceConnection.sync().keys("gen:*");
 		IntSupplier expectedSize = () -> keys.get().size();
 		IntSupplier actualSize = () -> writer.getItems().size();
-		System.out.println(keys.get());
-		System.out.println(expectedSize.getAsInt() + " - " + actualSize.getAsInt());
 		awaitUntil(() -> expectedSize.getAsInt() == actualSize.getAsInt());
 		Assertions.assertEquals(expectedSize.getAsInt(), actualSize.getAsInt());
 	}
@@ -1032,7 +1030,6 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = writer(badTargetClient,
 					ByteArrayCodec.INSTANCE).dataStructure().build();
 			JobExecution execution = run(testInfo, reader, writer);
-			System.out.println(execution.getStatus());
 			Assertions.assertTrue(execution.getStatus().isUnsuccessful());
 		}
 	}

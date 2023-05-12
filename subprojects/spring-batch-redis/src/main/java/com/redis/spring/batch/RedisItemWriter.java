@@ -72,7 +72,7 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> im
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		if (pool == null) {
+		if (!isOpen()) {
 			pool = ConnectionPoolBuilder.client(client).options(poolOptions).codec(codec);
 		}
 	}
@@ -102,7 +102,7 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> im
 	@Override
 	public synchronized void close() {
 		super.close();
-		if (pool != null) {
+		if (isOpen()) {
 			pool.close();
 			pool = null;
 		}
