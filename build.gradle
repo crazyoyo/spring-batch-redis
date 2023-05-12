@@ -3,23 +3,23 @@ config {
         description = 'Spring Batch readers and writers for Redis'
         inceptionYear = '2020'
         tags = ['spring', 'batch', 'redis']
-        
+
         links {
             website      = "https://github.com/redis-developer/${project.rootProject.name}"
             issueTracker = "https://github.com/redis-developer/${project.rootProject.name}/issues"
             scm          = "https://github.com/redis-developer/${project.rootProject.name}.git"
         }
-        
+
         scm {
             url                 = "https://github.com/redis-developer/${project.rootProject.name}"
             connection          = "scm:git:https://github.com/redis-developer/${project.rootProject.name}.git"
             developerConnection = "scm:git:git@github.com:redis-developer/${project.rootProject.name}.git"
         }
-        
+
         specification {
             enabled = true
         }
-        
+
         implementation {
             enabled = true
         }
@@ -32,7 +32,7 @@ config {
             }
         }
     }
-    
+
     docs {
         javadoc {
             autoLinks {
@@ -49,7 +49,7 @@ config {
             }
         }
     }
-    
+
     coverage {
         jacoco {
             enabled = true
@@ -67,11 +67,11 @@ allprojects {
         mavenLocal()
         gradlePluginPortal()
     }
-    
+
     tasks.withType(GenerateModuleMetadata) {
         enabled = false
     }
-    
+
     tasks.withType(JavaCompile) {
         options.encoding = 'UTF-8'
     }
@@ -92,13 +92,16 @@ subprojects {
     license {
         exclude('build/**')
     }
-    
+
     dependencies {
         compileOnly group: 'com.google.code.findbugs', name: 'jsr305', version: jsr305Version
         testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
-        testImplementation group: 'com.redis.testcontainers', name: 'testcontainers-redis-junit', version: testcontainersRedisVersion
+        testImplementation group: 'org.testcontainers', name: 'junit-jupiter', version: testcontainersVersion
+        testImplementation(group: 'com.redis.testcontainers', name: 'testcontainers-redis', version: testcontainersRedisVersion) {
+            exclude group: 'com.redis', module: 'lettucemod'
+        }
     }
-    
+
     test {
         useJUnitPlatform()
     }
@@ -106,25 +109,21 @@ subprojects {
     bootJar {
         enabled = false
     }
-    
+
     jar {
         enabled = true
         archiveClassifier = ''
     }
-    
+
     compileJava {
         options.release = 8
     }
-    
+
     configurations.all {
-		resolutionStrategy.eachDependency { DependencyResolveDetails details ->
-			if (details.requested.name == 'lettuce-core' ) {
-				details.useVersion lettuceVersion
-			}
-		}
-	}
-
-    sourceCompatibility = 8
-    targetCompatibility = 8
-
+        resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+            if (details.requested.name == 'lettuce-core' ) {
+                details.useVersion lettuceVersion
+            }
+        }
+    }
 }
