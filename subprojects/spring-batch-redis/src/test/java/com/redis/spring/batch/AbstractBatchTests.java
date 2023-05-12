@@ -145,9 +145,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		Hset<String, String, Map<String, String>> hset = new Hset<>(m -> "hash:" + m.remove("id"), Function.identity());
 		RedisItemWriter<String, String, Map<String, String>> writer = sourceWriter().operation(hset)
 				.waitForReplication(WaitForReplication.of(1, Duration.ofMillis(300))).build();
-		Job job = job(testInfo, step(testInfo, reader, writer));
-		JobExecution execution = run(job);
-		awaitTermination(execution);
+		JobExecution execution = jobRunner.run(job(testInfo, step(testInfo, reader, writer)));
 		List<Throwable> exceptions = execution.getAllFailureExceptions();
 		assertEquals("Insufficient replication level - expected: 1, actual: 0", exceptions.get(0).getMessage());
 	}
@@ -468,9 +466,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		int threads = 4;
 		StepOptions options = StepOptions.builder().threads(threads).build();
 		TaskletStep step = step(testInfo, reader, null, writer, options).build();
-		Job job = job(testInfo).start(step).build();
-		JobExecution execution = run(job);
-		awaitTermination(execution);
+		jobRunner.run(job(testInfo).start(step).build());
 		awaitClosed(reader);
 		awaitUntilFalse(writer::isOpen);
 		assertEquals(sourceConnection.sync().dbsize(), writer.getItems().size());
@@ -1073,10 +1069,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "liveFlow"))).start(liveStep).build();
 		Job job = job(testInfo).start(new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "flow")))
 				.split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
-		JobExecution execution = runAsync(job);
-		awaitRunning(execution);
-		awaitOpen(reader);
-		awaitOpen(writer);
+		JobExecution execution = jobRunner.runAsync(job);
 		awaitOpen(liveReader);
 		awaitOpen(liveWriter);
 		generate(testInfo(testInfo, "generateLive"),
@@ -1084,8 +1077,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 						.expiration(IntRange.is(100)).keyRange(IntRange.between(300, 1000)).build());
 		awaitTermination(execution);
 		awaitClosed(reader);
-		awaitClosed(liveReader);
 		awaitClosed(writer);
+		awaitClosed(liveReader);
 		awaitClosed(liveWriter);
 		return compare(testInfo);
 	}

@@ -22,12 +22,7 @@ import org.junit.runner.RunWith;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
-import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.job.builder.JobBuilder;
-import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
-import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
-import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
@@ -69,18 +64,18 @@ import io.lettuce.core.codec.StringCodec;
 @TestInstance(Lifecycle.PER_CLASS)
 abstract class AbstractTestBase {
 
-	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(100);
-	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(1);
+	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(1000);
 	protected static final StepOptions DEFAULT_STEP_OPTIONS = StepOptions.builder().build();
 	protected static final StepOptions DEFAULT_FLUSHING_STEP_OPTIONS = StepOptions.builder()
-			.flushingInterval(Duration.ofMillis(50)).idleTimeout(Duration.ofMillis(500)).build();
+			.flushingInterval(Duration.ofMillis(50)).idleTimeout(Duration.ofMillis(300)).build();
+	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(30);
 
 	@Value("${running-timeout:PT5S}")
 	private Duration runningTimeout;
 	@Value("${termination-timeout:PT5S}")
 	private Duration terminationTimeout;
 
-	private JobRunner jobRunner;
+	protected JobRunner jobRunner;
 
 	protected AbstractRedisClient sourceClient;
 	protected StatefulRedisModulesConnection<String, String> sourceConnection;
@@ -199,24 +194,26 @@ abstract class AbstractTestBase {
 		return ClientBuilder.create(uri).cluster(server.isCluster()).build();
 	}
 
-	protected void awaitOpen(Object object) {
+	protected <T> T awaitOpen(T object) {
 		if (object instanceof Openable) {
 			awaitUntil(((Openable) object)::isOpen);
 		}
+		return object;
 	}
 
-	protected void awaitClosed(Object object) {
+	protected <T> T awaitClosed(T object) {
 		if (object instanceof Openable) {
 			awaitUntilFalse(((Openable) object)::isOpen);
 		}
+		return object;
 	}
 
-	protected void awaitRunning(JobExecution jobExecution) {
-		jobRunner.awaitRunning(jobExecution);
+	protected JobExecution awaitRunning(JobExecution jobExecution) {
+		return jobRunner.awaitRunning(jobExecution);
 	}
 
-	protected void awaitTermination(JobExecution jobExecution) {
-		jobRunner.awaitTermination(jobExecution);
+	protected JobExecution awaitTermination(JobExecution jobExecution) {
+		return jobRunner.awaitTermination(jobExecution);
 	}
 
 	protected void awaitUntilFalse(Callable<Boolean> conditionEvaluator) {
@@ -233,16 +230,6 @@ abstract class AbstractTestBase {
 
 	protected JobBuilder job(TestInfo testInfo) {
 		return jobRunner.job(name(testInfo));
-	}
-
-	protected JobExecution run(Job job) throws JobExecutionAlreadyRunningException, JobRestartException,
-			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
-		return jobRunner.getJobLauncher().run(job, new JobParameters());
-	}
-
-	protected JobExecution runAsync(Job job) throws JobExecutionAlreadyRunningException, JobRestartException,
-			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
-		return jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
 	}
 
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
@@ -262,8 +249,7 @@ abstract class AbstractTestBase {
 
 	protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
 			ItemWriter<O> writer) throws Exception {
-		JobExecution execution = run(job(info, step(info, reader, processor, writer, DEFAULT_STEP_OPTIONS)));
-		awaitTermination(execution);
+		JobExecution execution = jobRunner.run(job(info, step(info, reader, processor, writer, DEFAULT_STEP_OPTIONS)));
 		awaitClosed(reader);
 		awaitClosed(writer);
 		return execution;
@@ -271,8 +257,7 @@ abstract class AbstractTestBase {
 
 	protected <I, O> JobExecution runAsync(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
 			ItemWriter<O> writer, StepOptions stepOptions) throws Exception {
-		JobExecution execution = runAsync(job(info, step(info, reader, processor, writer, stepOptions)));
-		awaitRunning(execution);
+		JobExecution execution = jobRunner.runAsync(job(info, step(info, reader, processor, writer, stepOptions)));
 		awaitOpen(reader);
 		awaitOpen(writer);
 		return execution;
@@ -326,8 +311,7 @@ abstract class AbstractTestBase {
 		GeneratorItemReader reader = new GeneratorItemReader(options);
 		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = step(finalTestInfo, reader,
 				sourceWriter().dataStructure().build());
-		JobExecution execution = run(job(finalTestInfo, step));
-		awaitTermination(execution);
+		jobRunner.run(job(finalTestInfo, step));
 	}
 
 	protected RedisItemWriter.WriterBuilder<String, String> sourceWriter() {

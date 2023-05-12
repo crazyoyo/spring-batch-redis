@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.JobLauncher;
@@ -74,7 +73,7 @@ class StepTests {
 				writer, StepOptions.builder().chunkSize(1).faultTolerant(true).skip(TimeoutException.class)
 						.skipPolicy(new AlwaysSkipItemSkipPolicy()).build());
 		Job job = jobRunner.job(name).start(ftStep.build()).build();
-		jobRunner.getJobLauncher().run(job, new JobParameters());
+		jobRunner.run(job);
 		assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getItems().size());
 	}
 
@@ -89,7 +88,7 @@ class StepTests {
 		stepBuilder.idleTimeout(Duration.ofMillis(100)).skip(TimeoutException.class)
 				.skipPolicy(new AlwaysSkipItemSkipPolicy());
 		Job job = jobBuilderFactory.get(name).start(stepBuilder.build()).build();
-		jobRunner.getJobLauncher().run(job, new JobParameters());
+		jobRunner.run(job);
 		assertEquals(items.size(), writer.getItems().size() * 2);
 	}
 
@@ -104,8 +103,7 @@ class StepTests {
 				StepOptions.builder().flushingInterval(FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL)
 						.idleTimeout(Duration.ofMillis(500)).build());
 		Job job = jobRunner.job(name).start(flushingStep.build()).build();
-		JobExecution execution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
-		jobRunner.awaitRunning(execution);
+		JobExecution execution = jobRunner.runAsync(job);
 		Awaitility.await().until(() -> reader.isOpen());
 		for (int index = 1; index <= count; index++) {
 			queue.offer("key" + index);
