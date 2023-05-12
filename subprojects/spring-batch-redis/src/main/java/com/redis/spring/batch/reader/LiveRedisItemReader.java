@@ -5,7 +5,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.item.ItemProcessor;
 
 import com.redis.spring.batch.RedisItemReader;
@@ -32,17 +31,6 @@ public class LiveRedisItemReader<K, T> extends RedisItemReader<K, T> {
 
 	public static String[] defaultKeyPatterns() {
 		return DEFAULT_KEY_PATTERNS;
-	}
-
-	@Override
-	protected synchronized void doOpen() throws JobExecutionException {
-		super.doOpen();
-		jobRunner.awaitRunning(this::isOpen);
-	}
-
-	@Override
-	public boolean isOpen() {
-		return super.isOpen() && ((PollableItemReader<K>) keyReader).isOpen();
 	}
 
 	public static String[] patterns(int database, String... keyPatterns) {

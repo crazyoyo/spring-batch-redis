@@ -10,7 +10,6 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
-import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
@@ -24,6 +23,7 @@ import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
+import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.PoolOptions;
 import com.redis.spring.batch.common.StepOptions;
 import com.redis.spring.batch.reader.DataStructureReadOperation;
@@ -47,8 +47,8 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 
 	private static final Log log = LogFactory.getLog(RedisItemReader.class);
 
-	protected final JobRunner jobRunner;
-	protected final ItemReader<K> keyReader;
+	private final JobRunner jobRunner;
+	private final ItemReader<K> keyReader;
 	private final ItemProcessor<K, K> keyProcessor;
 	private final QueueItemWriter<K, T> writer;
 	private final StepOptions stepOptions;
@@ -66,8 +66,7 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 		if (jobExecution == null) {
 			SimpleStepBuilder<K, K> step = jobRunner.step(name, keyReader, keyProcessor, writer, stepOptions);
 			Job job = jobRunner.job(name).start(step.build()).build();
-			jobExecution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
-			jobRunner.awaitRunning(jobExecution);
+			jobExecution = jobRunner.runAsync(job);
 			if (isJobFailed()) {
 				throw new JobExecutionException("Job execution unsuccessful");
 			}
@@ -111,7 +110,15 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 
 	@Override
 	public boolean isOpen() {
-		return jobExecution != null && jobExecution.isRunning() && !isJobFailed();
+		return jobExecution != null && jobExecution.isRunning() && !isJobFailed() && isKeyReaderOpen()
+				&& writer.isOpen();
+	}
+
+	private boolean isKeyReaderOpen() {
+		if (keyReader instanceof Openable) {
+			return ((Openable) keyReader).isOpen();
+		}
+		return true;
 	}
 
 	private boolean isJobFailed() {

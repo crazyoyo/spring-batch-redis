@@ -6,7 +6,10 @@ import java.util.concurrent.Callable;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
 import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobExecutionException;
+import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.job.builder.JobBuilderException;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
@@ -32,9 +35,11 @@ public class JobRunner {
 
 	private static JobRunner memoryInstance;
 
-	public static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(100);
+	public static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(30);
 	public static final Duration DEFAULT_RUNNING_TIMEOUT = Duration.ofSeconds(5);
 	public static final Duration DEFAULT_TERMINATION_TIMEOUT = Duration.ofSeconds(5);
+
+	private static final JobParameters DEFAULT_JOB_PARAMETERS = new JobParameters();
 
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager transactionManager;
@@ -130,20 +135,13 @@ public class JobRunner {
 				|| jobExecution.getStatus().isGreaterThan(BatchStatus.STOPPED);
 	}
 
-	public SimpleJobLauncher getJobLauncher() {
-		return jobLauncher;
-	}
-
-	public SimpleJobLauncher getAsyncJobLauncher() {
-		return asyncJobLauncher;
-	}
-
 	public void awaitRunning(Callable<Boolean> conditionEvaluator) {
 		await().timeout(runningTimeout).until(conditionEvaluator);
 	}
 
-	public void awaitRunning(JobExecution jobExecution) {
+	public JobExecution awaitRunning(JobExecution jobExecution) {
 		awaitRunning(() -> isRunning(jobExecution));
+		return jobExecution;
 	}
 
 	private ConditionFactory await() {
@@ -154,8 +152,9 @@ public class JobRunner {
 		await().timeout(terminationTimeout).until(conditionEvaluator);
 	}
 
-	public void awaitTermination(JobExecution jobExecution) {
+	public JobExecution awaitTermination(JobExecution jobExecution) {
 		await().timeout(terminationTimeout).until(() -> isTerminated(jobExecution));
+		return jobExecution;
 	}
 
 	public StepBuilder step(String name) {
@@ -202,8 +201,17 @@ public class JobRunner {
 		return ftStep;
 	}
 
-	public void awaitNotRunning(JobExecution jobExecution) {
+	public JobExecution awaitNotRunning(JobExecution jobExecution) {
 		awaitTermination(() -> !jobExecution.isRunning());
+		return jobExecution;
+	}
+
+	public JobExecution runAsync(Job job) throws JobExecutionException {
+		return awaitRunning(asyncJobLauncher.run(job, DEFAULT_JOB_PARAMETERS));
+	}
+
+	public JobExecution run(Job job) throws JobExecutionException {
+		return awaitTermination(jobLauncher.run(job, DEFAULT_JOB_PARAMETERS));
 	}
 
 }
