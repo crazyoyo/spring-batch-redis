@@ -47,6 +47,7 @@ import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.search.IndexInfo;
+import com.redis.lettucemod.search.Suggestion;
 import com.redis.lettucemod.timeseries.AddOptions;
 import com.redis.lettucemod.timeseries.CreateOptions;
 import com.redis.lettucemod.timeseries.DuplicatePolicy;
@@ -60,7 +61,9 @@ import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.convert.GeoValueConverter;
+import com.redis.spring.batch.convert.SampleConverter;
 import com.redis.spring.batch.convert.ScoredValueConverter;
+import com.redis.spring.batch.convert.SuggestionConverter;
 import com.redis.spring.batch.reader.GeneratorReaderOptions;
 import com.redis.spring.batch.reader.GeneratorReaderOptions.StreamOptions;
 import com.redis.spring.batch.reader.GeneratorReaderOptions.Type;
@@ -84,6 +87,7 @@ import com.redis.spring.batch.writer.WaitForReplication;
 import com.redis.spring.batch.writer.operation.Geoadd;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.JsonSet;
+import com.redis.spring.batch.writer.operation.Sugadd;
 import com.redis.spring.batch.writer.operation.TsAdd;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.spring.batch.writer.operation.Zadd;
@@ -266,6 +270,41 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		assertEquals(values.size(), sync.zcard("zset"));
 		assertEquals(60, sync
 				.zrangebyscore("zset", Range.from(Range.Boundary.including(0), Range.Boundary.including(5))).size());
+	}
+
+	@Test
+	void writeSuggest(TestInfo testInfo) throws Exception {
+		String key = "sugidx";
+		List<Suggestion<String>> values = new ArrayList<>();
+		for (int index = 0; index < 100; index++) {
+			values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
+		}
+		ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
+		SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
+				Suggestion::getScore, Suggestion::getPayload);
+		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(t -> key, converter);
+		RedisItemWriter<String, String, Suggestion<String>> writer = sourceWriter().operation(sugadd).build();
+		run(testInfo, reader, writer);
+		RedisModulesCommands<String, String> sync = sourceConnection.sync();
+		assertEquals(1, sync.dbsize());
+		assertEquals(values.size(), sync.ftSuglen(key));
+	}
+
+	@Test
+	void writeSamples(TestInfo testInfo) throws Exception {
+		String key = "ts:1";
+		List<Sample> values = new ArrayList<>();
+		for (int index = 0; index < 100; index++) {
+			values.add(Sample.of(System.currentTimeMillis() - 1000 + index, index));
+		}
+		ListItemReader<Sample> reader = new ListItemReader<>(values);
+		SampleConverter<Sample> converter = new SampleConverter<>(Sample::getTimestamp, Sample::getValue);
+		TsAdd<String, String, Sample> tsAdd = new TsAdd<>(t -> key, converter);
+		RedisItemWriter<String, String, Sample> writer = sourceWriter().operation(tsAdd).build();
+		run(testInfo, reader, writer);
+		RedisModulesCommands<String, String> sync = sourceConnection.sync();
+		assertEquals(1, sync.dbsize());
+		assertEquals(values.size(), sync.tsRange(key, TimeRange.unbounded()).size());
 	}
 
 	@Test
