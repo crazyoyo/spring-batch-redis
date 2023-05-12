@@ -59,6 +59,7 @@ import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.IntRange;
 import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.StepOptions;
 import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.convert.GeoValueConverter;
 import com.redis.spring.batch.convert.SampleConverter;
@@ -425,17 +426,10 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		generate(testInfo);
 		RedisItemReader<String, DataStructure<String>> reader = sourceReader().dataStructure();
 		setName(reader, testInfo);
-		SynchronizedItemStreamReader<DataStructure<String>> synchronizedReader = new SynchronizedItemStreamReader<>();
-		synchronizedReader.setDelegate(reader);
-		synchronizedReader.afterPropertiesSet();
 		SynchronizedListItemWriter<DataStructure<String>> writer = new SynchronizedListItemWriter<>();
 		int threads = 4;
-		ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-		taskExecutor.setMaxPoolSize(threads);
-		taskExecutor.setCorePoolSize(threads);
-		taskExecutor.afterPropertiesSet();
-		TaskletStep step = step(testInfo, synchronizedReader, writer).taskExecutor(taskExecutor).throttleLimit(threads)
-				.build();
+		StepOptions options = StepOptions.builder().threads(threads).build();
+		TaskletStep step = step(testInfo, reader, null, writer, options).build();
 		Job job = job(testInfo).start(step).build();
 		run(job);
 		awaitClosed(reader);
