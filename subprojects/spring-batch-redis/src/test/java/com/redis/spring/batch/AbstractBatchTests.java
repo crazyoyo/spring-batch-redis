@@ -17,6 +17,8 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.awaitility.Awaitility;
@@ -484,8 +486,13 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		awaitTermination(execution);
 		awaitClosed(reader);
 		awaitClosed(writer);
-		awaitUntil(() -> Math.toIntExact(sourceConnection.sync().dbsize()) == writer.getWrittenItems().size());
-		Assertions.assertEquals(Math.toIntExact(sourceConnection.sync().dbsize()), writer.getWrittenItems().size());
+		Supplier<List<String>> keys = () -> sourceConnection.sync().keys("gen:*");
+		IntSupplier expectedSize = () -> keys.get().size();
+		IntSupplier actualSize = () -> writer.getWrittenItems().size();
+		System.out.println(keys.get());
+		System.out.println(expectedSize.getAsInt() + " - " + actualSize.getAsInt());
+		awaitUntil(() -> expectedSize.getAsInt() == actualSize.getAsInt());
+		Assertions.assertEquals(expectedSize.getAsInt(), actualSize.getAsInt());
 	}
 
 	@Test
