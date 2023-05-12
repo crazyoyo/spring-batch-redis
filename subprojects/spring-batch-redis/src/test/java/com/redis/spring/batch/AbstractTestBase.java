@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
@@ -70,8 +68,6 @@ import io.lettuce.core.codec.StringCodec;
 @RunWith(SpringRunner.class)
 @TestInstance(Lifecycle.PER_CLASS)
 abstract class AbstractTestBase {
-
-	private final Logger log = Logger.getLogger(getClass().getName());
 
 	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(10);
 	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(1);
@@ -215,9 +211,12 @@ abstract class AbstractTestBase {
 		}
 	}
 
+	protected void awaitRunning(JobExecution jobExecution) {
+		jobRunner.awaitRunning(jobExecution);
+	}
+
 	protected void awaitTermination(JobExecution jobExecution) {
 		jobRunner.awaitTermination(jobExecution);
-		log.log(Level.INFO, "Job {0} terminated", jobExecution.getJobInstance().getJobName());
 	}
 
 	protected void awaitUntilFalse(Callable<Boolean> conditionEvaluator) {
@@ -238,16 +237,12 @@ abstract class AbstractTestBase {
 
 	protected JobExecution run(Job job) throws JobExecutionAlreadyRunningException, JobRestartException,
 			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
-		JobExecution execution = jobRunner.getJobLauncher().run(job, new JobParameters());
-		jobRunner.awaitTermination(execution);
-		return execution;
+		return jobRunner.getJobLauncher().run(job, new JobParameters());
 	}
 
 	protected JobExecution runAsync(Job job) throws JobExecutionAlreadyRunningException, JobRestartException,
 			JobInstanceAlreadyCompleteException, JobParametersInvalidException {
-		JobExecution execution = jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
-		jobRunner.awaitRunning(execution);
-		return execution;
+		return jobRunner.getAsyncJobLauncher().run(job, new JobParameters());
 	}
 
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
@@ -268,6 +263,7 @@ abstract class AbstractTestBase {
 	protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
 			ItemWriter<O> writer) throws Exception {
 		JobExecution execution = run(job(info, step(info, reader, processor, writer, DEFAULT_STEP_OPTIONS)));
+		awaitTermination(execution);
 		awaitClosed(reader);
 		awaitClosed(writer);
 		return execution;
@@ -276,6 +272,7 @@ abstract class AbstractTestBase {
 	protected <I, O> JobExecution runAsync(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
 			ItemWriter<O> writer, StepOptions stepOptions) throws Exception {
 		JobExecution execution = runAsync(job(info, step(info, reader, processor, writer, stepOptions)));
+		awaitRunning(execution);
 		awaitOpen(reader);
 		awaitOpen(writer);
 		return execution;
@@ -329,7 +326,8 @@ abstract class AbstractTestBase {
 		GeneratorItemReader reader = new GeneratorItemReader(options);
 		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = step(finalTestInfo, reader,
 				sourceWriter().dataStructure().build());
-		run(job(finalTestInfo, step));
+		JobExecution execution = run(job(finalTestInfo, step));
+		awaitTermination(execution);
 	}
 
 	protected RedisItemWriter.WriterBuilder<String, String> sourceWriter() {

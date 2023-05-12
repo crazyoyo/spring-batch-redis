@@ -147,6 +147,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 				.waitForReplication(WaitForReplication.of(1, Duration.ofMillis(300))).build();
 		Job job = job(testInfo, step(testInfo, reader, writer));
 		JobExecution execution = run(job);
+		awaitTermination(execution);
 		List<Throwable> exceptions = execution.getAllFailureExceptions();
 		assertEquals("Insufficient replication level - expected: 1, actual: 0", exceptions.get(0).getMessage());
 	}
@@ -468,7 +469,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		StepOptions options = StepOptions.builder().threads(threads).build();
 		TaskletStep step = step(testInfo, reader, null, writer, options).build();
 		Job job = job(testInfo).start(step).build();
-		run(job);
+		JobExecution execution = run(job);
+		awaitTermination(execution);
 		awaitClosed(reader);
 		awaitUntilFalse(writer::isOpen);
 		assertEquals(sourceConnection.sync().dbsize(), writer.getItems().size());
@@ -1072,6 +1074,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		Job job = job(testInfo).start(new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "flow")))
 				.split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
 		JobExecution execution = runAsync(job);
+		awaitRunning(execution);
 		awaitOpen(reader);
 		awaitOpen(writer);
 		awaitOpen(liveReader);
