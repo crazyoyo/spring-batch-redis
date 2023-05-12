@@ -32,7 +32,7 @@ public class JobRunner {
 
 	private static JobRunner memoryInstance;
 
-	public static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(10);
+	public static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(100);
 	public static final Duration DEFAULT_RUNNING_TIMEOUT = Duration.ofSeconds(5);
 	public static final Duration DEFAULT_TERMINATION_TIMEOUT = Duration.ofSeconds(5);
 
