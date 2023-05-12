@@ -1075,7 +1075,10 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		Job job = job(testInfo).start(new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "flow")))
 				.split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
 		JobExecution execution = runAsync(job);
+		awaitOpen(reader);
+		awaitOpen(writer);
 		awaitOpen(liveReader);
+		awaitOpen(liveWriter);
 		generate(testInfo(testInfo, "generateLive"),
 				GeneratorReaderOptions.builder().types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET)
 						.expiration(IntRange.is(100)).keyRange(IntRange.between(300, 1000)).build());
