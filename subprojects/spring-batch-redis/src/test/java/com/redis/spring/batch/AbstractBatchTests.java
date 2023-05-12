@@ -86,7 +86,9 @@ import com.redis.spring.batch.writer.WaitForReplication;
 import com.redis.spring.batch.writer.operation.Geoadd;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.JsonSet;
+import com.redis.spring.batch.writer.operation.Sadd;
 import com.redis.spring.batch.writer.operation.Sugadd;
+import com.redis.spring.batch.writer.operation.SugaddIncr;
 import com.redis.spring.batch.writer.operation.TsAdd;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.spring.batch.writer.operation.Zadd;
@@ -253,7 +255,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	}
 
 	@Test
-	void writeSortedSet(TestInfo testInfo) throws Exception {
+	void writeZset(TestInfo testInfo) throws Exception {
+		String key = "zadd";
 		List<ZValue> values = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
 			values.add(new ZValue(String.valueOf(index), index % 10));
@@ -261,19 +264,35 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		ListItemReader<ZValue> reader = new ListItemReader<>(values);
 		ScoredValueConverter<String, ZValue> converter = new ScoredValueConverter<>(ZValue::getMember,
 				ZValue::getScore);
-		Zadd<String, String, ZValue> zadd = new Zadd<>(t -> "zset", converter);
+		Zadd<String, String, ZValue> zadd = new Zadd<>(t -> key, converter);
 		RedisItemWriter<String, String, ZValue> writer = sourceWriter().operation(zadd).build();
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		assertEquals(1, sync.dbsize());
-		assertEquals(values.size(), sync.zcard("zset"));
-		assertEquals(60, sync
-				.zrangebyscore("zset", Range.from(Range.Boundary.including(0), Range.Boundary.including(5))).size());
+		assertEquals(values.size(), sync.zcard(key));
+		assertEquals(60,
+				sync.zrangebyscore(key, Range.from(Range.Boundary.including(0), Range.Boundary.including(5))).size());
 	}
 
 	@Test
-	void writeSuggest(TestInfo testInfo) throws Exception {
-		String key = "sugidx";
+	void writeSet(TestInfo testInfo) throws Exception {
+		String key = "sadd";
+		List<String> values = new ArrayList<>();
+		for (int index = 0; index < 100; index++) {
+			values.add(String.valueOf(index));
+		}
+		ListItemReader<String> reader = new ListItemReader<>(values);
+		Sadd<String, String, String> sadd = new Sadd<>(t -> key, Function.identity());
+		RedisItemWriter<String, String, String> writer = sourceWriter().operation(sadd).build();
+		run(testInfo, reader, writer);
+		RedisModulesCommands<String, String> sync = sourceConnection.sync();
+		assertEquals(1, sync.dbsize());
+		assertEquals(values.size(), sync.scard(key));
+	}
+
+	@Test
+	void writeSug(TestInfo testInfo) throws Exception {
+		String key = "sugadd";
 		List<Suggestion<String>> values = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
 			values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
@@ -282,6 +301,24 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
 				Suggestion::getScore, Suggestion::getPayload);
 		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(t -> key, converter);
+		RedisItemWriter<String, String, Suggestion<String>> writer = sourceWriter().operation(sugadd).build();
+		run(testInfo, reader, writer);
+		RedisModulesCommands<String, String> sync = sourceConnection.sync();
+		assertEquals(1, sync.dbsize());
+		assertEquals(values.size(), sync.ftSuglen(key));
+	}
+
+	@Test
+	void writeSugIncr(TestInfo testInfo) throws Exception {
+		String key = "sugaddIncr";
+		List<Suggestion<String>> values = new ArrayList<>();
+		for (int index = 0; index < 100; index++) {
+			values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
+		}
+		ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
+		SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
+				Suggestion::getScore, Suggestion::getPayload);
+		SugaddIncr<String, String, Suggestion<String>> sugadd = new SugaddIncr<>(t -> key, converter);
 		RedisItemWriter<String, String, Suggestion<String>> writer = sourceWriter().operation(sugadd).build();
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
@@ -442,9 +479,11 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		SynchronizedListItemWriter<KeyDump<String>> writer = new SynchronizedListItemWriter<>();
 		JobExecution execution = runAsync(testInfo, reader, null, writer, DEFAULT_FLUSHING_STEP_OPTIONS);
 		awaitOpen(reader);
+		awaitOpen(writer);
 		generate(testInfo, GeneratorReaderOptions.builder().count(123).types(Type.HASH, Type.STRING).build());
 		awaitTermination(execution);
 		awaitClosed(reader);
+		awaitClosed(writer);
 		awaitUntil(() -> Math.toIntExact(sourceConnection.sync().dbsize()) == writer.getWrittenItems().size());
 		Assertions.assertEquals(Math.toIntExact(sourceConnection.sync().dbsize()), writer.getWrittenItems().size());
 	}
@@ -498,7 +537,30 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	}
 
 	@Test
-	void writeStreamTx(TestInfo testInfo) throws Exception {
+	void writeStream(TestInfo testInfo) throws Exception {
+		String stream = "stream:0";
+		List<Map<String, String>> messages = new ArrayList<>();
+		for (int index = 0; index < 100; index++) {
+			Map<String, String> body = new HashMap<>();
+			body.put("field1", "value1");
+			body.put("field2", "value2");
+			messages.add(body);
+		}
+		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
+		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(t -> stream, Function.identity());
+		RedisItemWriter<String, String, Map<String, String>> writer = sourceWriter().operation(xadd).build();
+		run(testInfo, reader, writer);
+		RedisModulesCommands<String, String> sync = sourceConnection.sync();
+		Assertions.assertEquals(messages.size(), sync.xlen(stream));
+		List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
+		for (int index = 0; index < xrange.size(); index++) {
+			StreamMessage<String, String> message = xrange.get(index);
+			Assertions.assertEquals(messages.get(index), message.getBody());
+		}
+	}
+
+	@Test
+	void writeStreamMultiExec(TestInfo testInfo) throws Exception {
 		String stream = "stream:1";
 		List<Map<String, String>> messages = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
@@ -810,30 +872,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	}
 
 	@Test
-	void writeStream(TestInfo testInfo) throws Exception {
-		String stream = "stream:0";
-		List<Map<String, String>> messages = new ArrayList<>();
-		for (int index = 0; index < 100; index++) {
-			Map<String, String> body = new HashMap<>();
-			body.put("field1", "value1");
-			body.put("field2", "value2");
-			messages.add(body);
-		}
-		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(t -> stream, Function.identity());
-		RedisItemWriter<String, String, Map<String, String>> writer = sourceWriter().operation(xadd).build();
-		run(testInfo, reader, writer);
-		RedisModulesCommands<String, String> sync = sourceConnection.sync();
-		Assertions.assertEquals(messages.size(), sync.xlen(stream));
-		List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
-		for (int index = 0; index < xrange.size(); index++) {
-			StreamMessage<String, String> message = xrange.get(index);
-			Assertions.assertEquals(messages.get(index), message.getBody());
-		}
-	}
-
-	@Test
-	void jsonSet(TestInfo testInfo) throws Exception {
+	void writeJSON(TestInfo testInfo) throws Exception {
 		JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>(n -> "beer:" + n.get("id").asText(),
 				JsonNode::toString, t -> ".");
 		RedisItemWriter<String, String, JsonNode> writer = sourceWriter().operation(jsonSet).build();
@@ -845,7 +884,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	}
 
 	@Test
-	void tsAdd(TestInfo testInfo) throws Exception {
+	void writeTS(TestInfo testInfo) throws Exception {
 		String key = "ts:1";
 		Random random = new Random();
 		int count = 100;
