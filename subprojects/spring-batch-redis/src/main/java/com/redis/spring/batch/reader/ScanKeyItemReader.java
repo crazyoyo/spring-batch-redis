@@ -60,7 +60,7 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> imp
 
 	@Override
 	public synchronized K read() {
-		if (iterator.hasNext()) {
+		if (isOpen() && iterator.hasNext()) {
 			return iterator.next();
 		}
 		return null;
