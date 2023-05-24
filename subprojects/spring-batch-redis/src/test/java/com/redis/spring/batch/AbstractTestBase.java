@@ -43,6 +43,7 @@ import com.redis.spring.batch.RedisItemWriter.KeyDumpBuilder;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
+import com.redis.spring.batch.common.ReaderOptions;
 import com.redis.spring.batch.common.StepOptions;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorReaderOptions;
@@ -78,6 +79,7 @@ abstract class AbstractTestBase {
 	protected StatefulRedisModulesConnection<String, String> sourceConnection;
 	protected AbstractRedisClient targetClient;
 	protected StatefulRedisModulesConnection<String, String> targetConnection;
+	private ReaderOptions readerOptions;
 
 	protected abstract RedisServer getSourceServer();
 
@@ -92,6 +94,7 @@ abstract class AbstractTestBase {
 		targetClient = client(getTargetServer());
 		targetConnection = RedisModulesUtils.connection(targetClient);
 		jobRunner = JobRunner.inMemory().runningTimeout(runningTimeout).terminationTimeout(terminationTimeout);
+		readerOptions = ReaderOptions.builder().jobRunner(jobRunner).build();
 	}
 
 	@AfterAll
@@ -243,7 +246,8 @@ abstract class AbstractTestBase {
 	}
 
 	protected RedisItemReader<String, String, KeyComparison> comparisonReader() throws Exception {
-		return RedisItemReader.compare(sourceClient, targetClient).ttlTolerance(Duration.ofMillis(100)).build();
+		return RedisItemReader.compare(sourceClient, targetClient).options(readerOptions)
+				.ttlTolerance(Duration.ofMillis(100)).build();
 	}
 
 	protected void generate(TestInfo testInfo) throws JobExecutionException {
@@ -271,24 +275,24 @@ abstract class AbstractTestBase {
 
 	protected ScanBuilder<String, String, DataStructure<String>> dataStructureReader(AbstractRedisClient client) {
 		if (client instanceof RedisModulesClusterClient) {
-			return RedisItemReader.dataStructure((RedisModulesClusterClient) client);
+			return RedisItemReader.dataStructure((RedisModulesClusterClient) client).options(readerOptions);
 		}
-		return RedisItemReader.dataStructure((RedisModulesClient) client);
+		return RedisItemReader.dataStructure((RedisModulesClient) client).options(readerOptions);
 	}
 
 	protected <K, V> ScanBuilder<K, V, DataStructure<K>> dataStructureReader(AbstractRedisClient client,
 			RedisCodec<K, V> codec) {
 		if (client instanceof RedisModulesClusterClient) {
-			return RedisItemReader.dataStructure((RedisModulesClusterClient) client, codec);
+			return RedisItemReader.dataStructure((RedisModulesClusterClient) client, codec).options(readerOptions);
 		}
-		return RedisItemReader.dataStructure((RedisModulesClient) client, codec);
+		return RedisItemReader.dataStructure((RedisModulesClient) client, codec).options(readerOptions);
 	}
 
 	protected ScanBuilder<byte[], byte[], KeyDump<byte[]>> keyDumpSourceReader() {
 		if (sourceClient instanceof RedisModulesClusterClient) {
-			return RedisItemReader.keyDump((RedisModulesClusterClient) sourceClient);
+			return RedisItemReader.keyDump((RedisModulesClusterClient) sourceClient).options(readerOptions);
 		}
-		return RedisItemReader.keyDump((RedisModulesClient) sourceClient);
+		return RedisItemReader.keyDump((RedisModulesClient) sourceClient).options(readerOptions);
 	}
 
 	protected KeyDumpBuilder<byte[], byte[]> keyDumpWriter(AbstractRedisClient client) {
