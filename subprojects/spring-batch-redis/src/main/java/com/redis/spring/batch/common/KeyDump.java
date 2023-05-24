@@ -38,10 +38,4 @@ public class KeyDump<K> extends KeyTtlValue<K> {
 		return Arrays.equals(dump, other.dump);
 	}
 
-	public static <K> KeyDump<K> of(K key) {
-		KeyDump<K> keyDump = new KeyDump<>();
-		keyDump.setKey(key);
-		return keyDump;
-	}
-
 }

@@ -192,11 +192,6 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemCountingIt
 		publisher = null;
 	}
 
-	@Override
-	public boolean isOpen() {
-		return publisher != null;
-	}
-
 	private void notification(String channel, String message) {
 		if (channel == null) {
 			return;

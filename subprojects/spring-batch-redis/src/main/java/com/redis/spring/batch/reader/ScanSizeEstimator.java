@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -25,9 +26,10 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 import io.lettuce.core.api.async.RedisServerAsyncCommands;
 
-public class ScanSizeEstimator {
+public class ScanSizeEstimator implements LongSupplier {
 
 	public static final long DEFAULT_SAMPLE_SIZE = 100;
+	public static final long UNKNOWN_SIZE = -1;
 
 	private static final Logger log = Logger.getLogger(ScanSizeEstimator.class.getName());
 
@@ -49,33 +51,34 @@ public class ScanSizeEstimator {
 	 * @return Estimated number of keys matching the given pattern and type. Returns
 	 *         null if database is empty or any error occurs
 	 */
-	public Long execute() {
+	@Override
+	@SuppressWarnings("unchecked")
+	public long getAsLong() {
+		StatefulRedisModulesConnection<String, String> connection = RedisModulesUtils.connection(client);
+		BaseRedisAsyncCommands<String, String> commands = Utils.async(connection);
 		try {
-			StatefulRedisModulesConnection<String, String> connection = RedisModulesUtils.connection(client);
-			return execute(connection);
+			Long dbsize = ((RedisServerAsyncCommands<String, String>) commands).dbsize().get();
+			if (dbsize == null) {
+				return UNKNOWN_SIZE;
+			}
+			if (match.isEmpty() && !type.isPresent()) {
+				return dbsize;
+			}
+			connection.setAutoFlushCommands(false);
+			try {
+				double matchRate = matchRate(connection, commands);
+				return Math.round(dbsize * matchRate);
+			} finally {
+				connection.setAutoFlushCommands(true);
+			}
 		} catch (InterruptedException e) {
 			log.log(Level.WARNING, "Interrupted!", e);
 			// Restore interrupted state...
 			Thread.currentThread().interrupt();
-			return null;
 		} catch (Exception e) {
-			return null;
+			// ignore
 		}
-	}
-
-	@SuppressWarnings("unchecked")
-	private Long execute(StatefulConnection<String, String> connection)
-			throws InterruptedException, ExecutionException, TimeoutException {
-		BaseRedisAsyncCommands<String, String> commands = Utils.async(connection);
-		Long dbsize = ((RedisServerAsyncCommands<String, String>) commands).dbsize().get();
-		if (dbsize == null) {
-			return null;
-		}
-		if (match.isEmpty() && !type.isPresent()) {
-			return dbsize;
-		}
-		double matchRate = matchRate(connection, commands);
-		return Math.round(dbsize * matchRate);
+		return UNKNOWN_SIZE;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -83,39 +86,34 @@ public class ScanSizeEstimator {
 			BaseRedisAsyncCommands<String, String> commands)
 			throws InterruptedException, ExecutionException, TimeoutException {
 		long total = sampleSize;
-		connection.setAutoFlushCommands(false);
-		try {
-			List<RedisFuture<String>> keyFutures = new ArrayList<>();
-			// rough estimate of keys matching pattern
-			for (int index = 0; index < total; index++) {
-				keyFutures.add(((RedisKeyAsyncCommands<String, String>) commands).randomkey());
-			}
-			connection.flushCommands();
-			int count = 0;
-			Map<String, RedisFuture<String>> keyTypeFutures = new HashMap<>();
-			for (RedisFuture<String> future : keyFutures) {
-				String key = future.get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
-				if (key == null) {
-					continue;
-				}
-				keyTypeFutures.put(key,
-						type.isPresent() ? ((RedisKeyAsyncCommands<String, String>) commands).type(key) : null);
-			}
-			connection.flushCommands();
-			Predicate<String> matchFilter = matchFilter();
-			for (Map.Entry<String, RedisFuture<String>> entry : keyTypeFutures.entrySet()) {
-				if (!matchFilter.test(entry.getKey())) {
-					continue;
-				}
-				if (!type.isPresent() || type.get().equalsIgnoreCase(
-						entry.getValue().get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS))) {
-					count++;
-				}
-			}
-			return (double) count / total;
-		} finally {
-			connection.setAutoFlushCommands(true);
+		List<RedisFuture<String>> keyFutures = new ArrayList<>();
+		// rough estimate of keys matching pattern
+		for (int index = 0; index < total; index++) {
+			keyFutures.add(((RedisKeyAsyncCommands<String, String>) commands).randomkey());
 		}
+		connection.flushCommands();
+		int count = 0;
+		Map<String, RedisFuture<String>> keyTypeFutures = new HashMap<>();
+		for (RedisFuture<String> future : keyFutures) {
+			String key = future.get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
+			if (key == null) {
+				continue;
+			}
+			keyTypeFutures.put(key,
+					type.isPresent() ? ((RedisKeyAsyncCommands<String, String>) commands).type(key) : null);
+		}
+		connection.flushCommands();
+		Predicate<String> matchFilter = matchFilter();
+		for (Map.Entry<String, RedisFuture<String>> entry : keyTypeFutures.entrySet()) {
+			if (!matchFilter.test(entry.getKey())) {
+				continue;
+			}
+			if (!type.isPresent() || type.get().equalsIgnoreCase(
+					entry.getValue().get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS))) {
+				count++;
+			}
+		}
+		return (double) count / total;
 	}
 
 	private Predicate<String> matchFilter() {

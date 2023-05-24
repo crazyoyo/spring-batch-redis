@@ -7,7 +7,6 @@ import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.common.Openable;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.KeyScanArgs;
@@ -15,7 +14,7 @@ import io.lettuce.core.ScanArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.codec.RedisCodec;
 
-public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> implements AutoCloseable, Openable {
+public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> implements AutoCloseable {
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
@@ -32,24 +31,20 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> imp
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		if (!isOpen()) {
+		if (connection == null) {
 			connection = RedisModulesUtils.connection(client, codec);
+		}
+		if (iterator == null) {
 			iterator = ScanIterator.scan(connection.sync(), args());
 		}
 	}
 
 	@Override
-	public void close() {
+	public synchronized void close() {
 		super.close();
-		if (isOpen()) {
-			iterator = null;
+		if (connection != null) {
 			connection.close();
 		}
-	}
-
-	@Override
-	public boolean isOpen() {
-		return iterator != null;
 	}
 
 	private ScanArgs args() {
@@ -60,7 +55,7 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> imp
 
 	@Override
 	public synchronized K read() {
-		if (isOpen() && iterator.hasNext()) {
+		if (iterator != null && iterator.hasNext()) {
 			return iterator.next();
 		}
 		return null;

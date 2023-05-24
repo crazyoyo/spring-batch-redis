@@ -113,7 +113,6 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 				Tag.of("step.name", stepExecution.getStepName()), Tag.of("status", status)));
 	}
 
-	@SuppressWarnings("rawtypes")
 	@Override
 	public Chunk<I> provide(StepContribution contribution) {
 		long start = System.currentTimeMillis();
@@ -136,7 +135,7 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 				return RepeatStatus.FINISHED;
 			}
 			if (item == null) {
-				if (!((PollableItemReader) itemReader).isOpen() || isTimeout(lastActivity)) {
+				if (isTimeout(lastActivity)) {
 					inputs.setEnd();
 				}
 				return RepeatStatus.CONTINUABLE;
@@ -162,27 +161,30 @@ public class FlushingChunkProvider<I> extends FaultTolerantChunkProvider<I> {
 				Thread.currentThread().interrupt();
 				throw e;
 			} catch (Exception e) {
-
-				if (shouldPolicySkip(skipPolicy, e, contribution.getStepSkipCount())) {
-
-					// increment skip count and try again
-					contribution.incrementReadSkipCount();
-					chunk.skip(e);
-
-					if (chunk.getErrors().size() >= maxSkipsOnRead) {
-						throw new SkipOverflowException("Too many skips on read");
-					}
-
-					logger.debug("Skipping failed input", e);
-				} else {
-					if (Boolean.TRUE.equals(rollbackClassifier.classify(e))) {
-						throw new NonSkippableReadException("Non-skippable exception during read", e);
-					}
-					logger.debug("No-rollback for non-skippable exception (ignored)", e);
-				}
-
+				handleException(e, contribution, chunk);
 			}
 		}
+	}
+
+	private void handleException(Exception e, StepContribution contribution, Chunk<I> chunk) {
+		if (shouldPolicySkip(skipPolicy, e, contribution.getStepSkipCount())) {
+
+			// increment skip count and try again
+			contribution.incrementReadSkipCount();
+			chunk.skip(e);
+
+			if (chunk.getErrors().size() >= maxSkipsOnRead) {
+				throw new SkipOverflowException("Too many skips on read");
+			}
+
+			logger.debug("Skipping failed input", e);
+		} else {
+			if (Boolean.TRUE.equals(rollbackClassifier.classify(e))) {
+				throw new NonSkippableReadException("Non-skippable exception during read", e);
+			}
+			logger.debug("No-rollback for non-skippable exception (ignored)", e);
+		}
+
 	}
 
 	@SuppressWarnings("unchecked")

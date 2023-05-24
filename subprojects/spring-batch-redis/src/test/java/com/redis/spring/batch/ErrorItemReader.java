@@ -26,7 +26,6 @@ public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implemen
 	private final ItemReader<T> delegate;
 	private final Supplier<Exception> exceptionSupplier;
 	private float errorRate = DEFAULT_ERROR_RATE;
-	private boolean open;
 	private final AtomicLong currentItemCount = new AtomicLong();
 
 	public ErrorItemReader(ItemReader<T> delegate) {
@@ -78,7 +77,6 @@ public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implemen
 		if (delegate instanceof ItemStream) {
 			((ItemStream) delegate).open(executionContext);
 		}
-		this.open = true;
 	}
 
 	@Override
@@ -95,11 +93,5 @@ public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implemen
 			((ItemStream) delegate).close();
 		}
 		super.close();
-		this.open = false;
-	}
-
-	@Override
-	public boolean isOpen() {
-		return open;
 	}
 }

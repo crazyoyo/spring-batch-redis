@@ -1,0 +1,56 @@
+package com.redis.spring.batch.common;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemStream;
+import org.springframework.batch.item.ItemStreamSupport;
+import org.springframework.util.ClassUtils;
+
+public class DelegatingItemStreamSupport extends ItemStreamSupport {
+
+	private final List<Object> delegates = new ArrayList<>();
+
+	public DelegatingItemStreamSupport(Object... delegates) {
+		setName(ClassUtils.getShortName(getClass()));
+		this.delegates.addAll(Arrays.asList(delegates));
+	}
+
+	protected <T> T addDelegate(T delegate) {
+		this.delegates.add(delegate);
+		return delegate;
+	}
+
+	@Override
+	public void open(ExecutionContext executionContext) {
+		super.open(executionContext);
+		for (Object delegate : delegates) {
+			if (delegate instanceof ItemStream) {
+				((ItemStream) delegate).open(executionContext);
+			}
+		}
+	}
+
+	@Override
+	public void update(ExecutionContext executionContext) {
+		super.update(executionContext);
+		for (Object delegate : delegates) {
+			if (delegate instanceof ItemStream) {
+				((ItemStream) delegate).update(executionContext);
+			}
+		}
+	}
+
+	@Override
+	public void close() {
+		for (Object delegate : delegates) {
+			if (delegate instanceof ItemStream) {
+				((ItemStream) delegate).close();
+			}
+		}
+		super.close();
+	}
+
+}

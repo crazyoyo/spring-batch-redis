@@ -2,8 +2,6 @@ package com.redis.spring.batch.common;
 
 import java.util.Objects;
 
-import org.springframework.util.Assert;
-
 public class DataStructure<K> extends KeyTtlValue<K> {
 
 	public static final String NONE = "none";
@@ -13,8 +11,8 @@ public class DataStructure<K> extends KeyTtlValue<K> {
 	public static final String STREAM = "stream";
 	public static final String STRING = "string";
 	public static final String HASH = "hash";
-	public static final String JSON = "rejson-rl";
-	public static final String TIMESERIES = "tsdb-type";
+	public static final String JSON = "ReJSON-RL";
+	public static final String TIMESERIES = "TSDB-TYPE";
 
 	private String type = NONE;
 
@@ -37,8 +35,7 @@ public class DataStructure<K> extends KeyTtlValue<K> {
 	}
 
 	public void setType(String type) {
-		Assert.notNull(type, "Type must not be null");
-		this.type = type.toLowerCase();
+		this.type = type;
 	}
 
 	@Override
@@ -64,18 +61,6 @@ public class DataStructure<K> extends KeyTtlValue<K> {
 			return false;
 		DataStructure<?> other = (DataStructure<?>) obj;
 		return type == other.type && Objects.equals(value, other.value);
-	}
-
-	public static <K> DataStructure<K> of(K key, String type) {
-		return of(key, type, null);
-	}
-
-	public static <K> DataStructure<K> of(K key, String type, Object value) {
-		DataStructure<K> dataStructure = new DataStructure<>();
-		dataStructure.setKey(key);
-		dataStructure.setType(type);
-		dataStructure.setValue(value);
-		return dataStructure;
 	}
 
 	public static boolean isNone(DataStructure<?> item) {

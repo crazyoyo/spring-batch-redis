@@ -1,6 +1,5 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.function.Function;
 
 import org.springframework.util.Assert;
@@ -12,7 +11,7 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Restore<K, V, T> extends AbstractOperation<K, V, T> {
+public class Restore<K, V, T> extends AbstractWriteOperation<K, V, T, Object> {
 
 	private final Function<T, byte[]> bytes;
 	private final Function<T, Long> ttlFunction;
@@ -25,18 +24,18 @@ public class Restore<K, V, T> extends AbstractOperation<K, V, T> {
 		this.ttlFunction = absoluteTTL;
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	@SuppressWarnings("unchecked")
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key) {
-		Long ttl = this.ttlFunction.apply(item);
-		if (KeyTtlValue.isInexistentKeyTtl(ttl)) {
-			futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(key));
-		} else {
-			futures.add(((RedisKeyAsyncCommands<K, V>) commands).restore(key, bytes.apply(item), args(ttl)));
+	protected RedisFuture<Object> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		byte[] dump = bytes.apply(item);
+		if (dump == null) {
+			return (RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).del(key);
 		}
+		return (RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).restore(key, dump, args(item));
 	}
 
-	protected RestoreArgs args(Long ttl) {
+	protected RestoreArgs args(T item) {
+		Long ttl = ttlFunction.apply(item);
 		if (KeyTtlValue.isPositiveTtl(ttl)) {
 			return RestoreArgs.Builder.ttl(ttl).absttl();
 		}

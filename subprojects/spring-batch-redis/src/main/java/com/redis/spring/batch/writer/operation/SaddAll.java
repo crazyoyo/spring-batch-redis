@@ -1,7 +1,6 @@
 package com.redis.spring.batch.writer.operation;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.function.Function;
 
 import io.lettuce.core.RedisFuture;
@@ -16,9 +15,8 @@ public class SaddAll<K, V, T> extends AbstractAddAllOperation<K, V, T, V> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key,
-			Collection<V> values) {
-		futures.add(((RedisSetAsyncCommands<K, V>) commands).sadd(key, (V[]) values.toArray()));
+	protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, Collection<V> values) {
+		return ((RedisSetAsyncCommands<K, V>) commands).sadd(key, (V[]) values.toArray());
 	}
 
 }

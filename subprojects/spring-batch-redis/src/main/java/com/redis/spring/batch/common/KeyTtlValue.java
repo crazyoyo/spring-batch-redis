@@ -10,10 +10,6 @@ public class KeyTtlValue<K> extends KeyValue<K> {
 		return ttl != null && ttl > 0;
 	}
 
-	public static boolean isInexistentKeyTtl(Long ttl) {
-		return ttl == TTL_KEY_DOES_NOT_EXIST;
-	}
-
 	/**
 	 * Expiration POSIX time in milliseconds for this key.
 	 *
@@ -26,6 +22,10 @@ public class KeyTtlValue<K> extends KeyValue<K> {
 
 	public void setTtl(Long ttl) {
 		this.ttl = ttl;
+	}
+
+	public boolean isInexistent() {
+		return ttl != null && ttl == TTL_KEY_DOES_NOT_EXIST;
 	}
 
 	@Override

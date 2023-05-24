@@ -1,25 +1,21 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.common.NoOpFuture;
+
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 
-public class Xadd<K, V, T> extends AbstractOperation<K, V, T> {
+public class Xadd<K, V, T> extends AbstractWriteOperation<K, V, T, String> {
 
 	private final Function<T, XAddArgs> args;
 	private final Function<T, Map<K, V>> body;
-
-	public Xadd(Function<T, K> key, Function<T, Map<K, V>> body) {
-		this(key, body, nullArgs());
-	}
 
 	public Xadd(Function<T, K> key, Function<T, Map<K, V>> body, Function<T, XAddArgs> args) {
 		super(key);
@@ -29,22 +25,14 @@ public class Xadd<K, V, T> extends AbstractOperation<K, V, T> {
 		this.args = args;
 	}
 
-	@Override
 	@SuppressWarnings("unchecked")
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key) {
+	@Override
+	protected RedisFuture<String> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Map<K, V> map = body.apply(item);
 		if (map.isEmpty()) {
-			return;
+			return NoOpFuture.instance();
 		}
-		futures.add(((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.apply(item), map));
-	}
-
-	public static <T> Function<T, XAddArgs> nullArgs() {
-		return m -> null;
-	}
-
-	public static <K, V> Function<StreamMessage<K, V>, XAddArgs> idArgs() {
-		return m -> new XAddArgs().id(m.getId());
+		return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args.apply(item), map);
 	}
 
 }

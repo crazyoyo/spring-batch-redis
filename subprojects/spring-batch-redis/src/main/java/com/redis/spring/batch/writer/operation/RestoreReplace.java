@@ -13,8 +13,8 @@ public class RestoreReplace<K, V, T> extends Restore<K, V, T> {
 	}
 
 	@Override
-	protected RestoreArgs args(Long ttl) {
-		return super.args(ttl).replace();
+	protected RestoreArgs args(T item) {
+		return super.args(item).replace();
 	}
 
 	public static <K, V> RestoreReplace<K, V, KeyDump<K>> keyDump() {

@@ -79,7 +79,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 
 	@Override
 	protected void doOpen() {
-		if (isOpen()) {
+		if (connection != null) {
 			return;
 		}
 		connection = RedisModulesUtils.connection(client, codec);
@@ -97,7 +97,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 
 	@Override
 	protected void doClose() {
-		if (!isOpen()) {
+		if (connection == null) {
 			return;
 		}
 		reader = null;
@@ -110,11 +110,6 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 			return new ExplicitAckPendingMessageReader();
 		}
 		return new AutoAckPendingMessageReader();
-	}
-
-	@Override
-	public boolean isOpen() {
-		return reader != null;
 	}
 
 	@Override

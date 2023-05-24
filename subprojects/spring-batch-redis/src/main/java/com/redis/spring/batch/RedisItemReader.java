@@ -3,57 +3,81 @@ package com.redis.spring.batch;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobExecutionException;
-import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.batch.item.NonTransientResourceException;
+import org.springframework.batch.item.ParseException;
+import org.springframework.batch.item.UnexpectedInputException;
+import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import com.redis.spring.batch.common.AsyncOperation;
+import com.redis.spring.batch.common.BatchAsyncOperation;
 import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.FilteringItemProcessor;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
-import com.redis.spring.batch.common.Openable;
+import com.redis.spring.batch.common.OperationItemStreamSupport;
 import com.redis.spring.batch.common.PoolOptions;
-import com.redis.spring.batch.common.StepOptions;
-import com.redis.spring.batch.reader.DataStructureReadOperation;
+import com.redis.spring.batch.common.ProcessingItemWriter;
+import com.redis.spring.batch.common.QueueItemWriter;
+import com.redis.spring.batch.common.ReaderOptions;
+import com.redis.spring.batch.common.SimpleBatchAsyncOperation;
+import com.redis.spring.batch.common.SimpleStepRunner;
+import com.redis.spring.batch.common.Utils;
+import com.redis.spring.batch.reader.DataStructureCodecOperation;
+import com.redis.spring.batch.reader.DataStructureStringOperation;
 import com.redis.spring.batch.reader.KeyComparison;
-import com.redis.spring.batch.reader.KeyComparisonReadOperation;
-import com.redis.spring.batch.reader.KeyDumpReadOperation;
-import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.KeyComparisonBatchOperation;
+import com.redis.spring.batch.reader.KeyDumpOperation;
+import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
-import com.redis.spring.batch.reader.QueueItemWriter;
 import com.redis.spring.batch.reader.QueueOptions;
-import com.redis.spring.batch.reader.ReadOperation;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.ScanOptions;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemReader<T>
-		implements PollableItemReader<T> {
+public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
-	private static final Log log = LogFactory.getLog(RedisItemReader.class);
+	public static final Duration DEFAULT_RUNNING_TIMEOUT = Duration.ofSeconds(5);
+	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 
-	private final JobRunner jobRunner;
-	private final ItemReader<K> keyReader;
-	private final ItemProcessor<K, K> keyProcessor;
-	private final QueueItemWriter<K, T> writer;
-	private final StepOptions stepOptions;
+	private final AbstractRedisClient client;
+	private final RedisCodec<K, V> codec;
+	private final ItemReader<K> reader;
+	private final ItemProcessor<K, K> processor;
+	private final BatchAsyncOperation<K, V, K, T> operation;
+	private final ReaderOptions options;
+
 	private String name;
-	private JobExecution jobExecution;
+	private BlockingQueue<T> queue;
+	private SimpleStepRunner<K, K> stepRunner;
+
+	public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, ItemReader<K> reader,
+			ItemProcessor<K, K> processor, BatchAsyncOperation<K, V, K, T> operation, ReaderOptions options) {
+		setName(ClassUtils.getShortName(getClass()));
+		this.client = client;
+		this.codec = codec;
+		this.reader = reader;
+		this.processor = processor;
+		this.operation = operation;
+		this.options = options;
+	}
 
 	@Override
 	public void setName(String name) {
@@ -62,77 +86,78 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 	}
 
 	@Override
-	protected synchronized void doOpen() throws JobExecutionException {
-		if (jobExecution == null) {
-			SimpleStepBuilder<K, K> step = jobRunner.step(name, keyReader, keyProcessor, writer, stepOptions);
-			Job job = jobRunner.job(name).start(step.build()).build();
-			jobExecution = jobRunner.runAsync(job);
-			if (isJobFailed()) {
-				throw new JobExecutionException("Job execution unsuccessful");
-			}
+	public synchronized void open(ExecutionContext executionContext) {
+		super.open(executionContext);
+		if (stepRunner == null) {
+			queue = queue();
+			QueueItemWriter<T> queueWriter = new QueueItemWriter<>(queue);
+			ProcessingItemWriter<K, T> writer = new ProcessingItemWriter<>(operationProcessor(), queueWriter);
+			stepRunner = new SimpleStepRunner<>(jobRunner(), reader, processor, writer, options.getStepOptions());
+			stepRunner.setName(name);
+			stepRunner.open(executionContext);
+		}
+	}
+
+	private OperationItemStreamSupport<K, V, K, T> operationProcessor() {
+		return new OperationItemStreamSupport<>(client, codec, options.getPoolOptions(), operation);
+	}
+
+	private JobRunner jobRunner() {
+		return options.getJobRunner().orElseGet(JobRunner::getInMemoryInstance);
+	}
+
+	private BlockingQueue<T> queue() {
+		BlockingQueue<T> blockingQueue = new LinkedBlockingQueue<>(options.getQueueOptions().getCapacity());
+		Utils.createGaugeCollectionSize("reader.queue.size", blockingQueue);
+		return blockingQueue;
+	}
+
+	@Override
+	public void update(ExecutionContext executionContext) {
+		super.update(executionContext);
+		if (stepRunner != null) {
+			stepRunner.update(executionContext);
 		}
 	}
 
 	@Override
-	protected synchronized void doClose() {
-		log.info("Closing reader " + name);
-		if (keyReader instanceof ItemStream) {
-			((ItemStream) keyReader).close();
+	public synchronized void close() {
+		if (stepRunner != null) {
+			stepRunner.close();
+			stepRunner = null;
 		}
-		if (jobExecution != null) {
-			jobRunner.awaitNotRunning(jobExecution);
-			jobExecution = null;
-		}
+		queue = null;
+		super.close();
 	}
 
 	@Override
-	public T poll(long timeout, TimeUnit unit) throws InterruptedException {
-		return writer.poll(timeout, unit);
+	public synchronized T poll(long timeout, TimeUnit unit) throws InterruptedException {
+		return queue.poll(timeout, unit);
 	}
 
 	@Override
-	protected T doRead() throws InterruptedException {
+	public T read() throws Exception, UnexpectedInputException, ParseException, NonTransientResourceException {
 		T item;
 		do {
-			item = writer.poll();
-		} while (item == null && isOpen());
-		if (isJobFailed()) {
+			item = queue.poll(options.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+		} while (item == null && stepRunner.isRunning());
+		if (stepRunner.isJobFailed()) {
 			throw new ItemStreamException("Reader job failed");
 		}
 		return item;
 	}
 
-	public List<T> read(int maxElements) {
+	public synchronized List<T> read(int maxElements) {
 		List<T> items = new ArrayList<>(maxElements);
-		writer.drainTo(items, maxElements);
+		queue.drainTo(items, maxElements);
 		return items;
 	}
 
-	@Override
-	public boolean isOpen() {
-		return jobExecution != null && jobExecution.isRunning() && !isJobFailed() && isKeyReaderOpen()
-				&& writer.isOpen();
-	}
-
-	private boolean isKeyReaderOpen() {
-		if (keyReader instanceof Openable) {
-			return ((Openable) keyReader).isOpen();
-		}
-		return true;
-	}
-
-	private boolean isJobFailed() {
-		return jobExecution.getStatus().isUnsuccessful();
-	}
-
-	public abstract static class AbstractBuilder<K, V, B extends AbstractBuilder<K, V, B>> {
+	public abstract static class AbstractBuilder<K, V, T, B extends AbstractBuilder<K, V, T, B>> {
 
 		protected final AbstractRedisClient client;
 		protected final RedisCodec<K, V> codec;
-		private JobRunner jobRunner;
-		protected PoolOptions poolOptions = PoolOptions.builder().build();
-		private QueueOptions queueOptions = QueueOptions.builder().build();
-		protected StepOptions stepOptions = StepOptions.builder().build();
+		protected ReaderOptions options = ReaderOptions.builder().build();
 
 		protected AbstractBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			this.client = client;
@@ -140,188 +165,206 @@ public class RedisItemReader<K, T> extends AbstractItemCountingItemStreamItemRea
 		}
 
 		@SuppressWarnings("unchecked")
-		public B poolOptions(PoolOptions options) {
-			this.poolOptions = options;
+		public B options(ReaderOptions options) {
+			this.options = options;
 			return (B) this;
 		}
 
-		@SuppressWarnings("unchecked")
-		public B queueOptions(QueueOptions options) {
-			this.queueOptions = options;
-			return (B) this;
-		}
-
-		@SuppressWarnings("unchecked")
-		public B stepOptions(StepOptions options) {
-			this.stepOptions = options;
-			return (B) this;
-		}
-
-		@SuppressWarnings("unchecked")
-		public B jobRunner(JobRunner jobRunner) {
-			this.jobRunner = jobRunner;
-			return (B) this;
-		}
-
-		protected final JobRunner jobRunner() {
-			if (jobRunner == null) {
-				return JobRunner.getInMemoryInstance();
-			}
-			return jobRunner;
-		}
-
-		protected <K1, V1, B1 extends AbstractBuilder<K1, V1, B1>> B1 toBuilder(B1 builder) {
-			builder.jobRunner(jobRunner);
-			builder.stepOptions(stepOptions);
-			builder.poolOptions(poolOptions);
-			builder.queueOptions(queueOptions);
+		protected <K1, V1, T1, B1 extends AbstractBuilder<K1, V1, T1, B1>> B1 toBuilder(B1 builder) {
+			builder.options(options);
 			return builder;
 		}
 
-		protected DataStructureReadOperation<K, V> dataStructureValueReader() {
-			return new DataStructureReadOperation<>(client, codec, poolOptions);
+		protected ScanKeyItemReader<K, V> scanKeyReader(ScanOptions options) {
+			return new ScanKeyItemReader<>(client, codec, options);
 		}
 
-		protected KeyDumpReadOperation<K, V> keyDumpValueReader() {
-			return new KeyDumpReadOperation<>(client, codec, poolOptions);
+		public RedisItemReader<K, V, T> build() {
+			return new RedisItemReader<>(client, codec, keyReader(), keyProcessor(), operation(), options);
 		}
 
-		protected <T> QueueItemWriter<K, T> queueWriter(ReadOperation<K, T> readOperation) {
-			return new QueueItemWriter<>(readOperation, queueOptions);
+		protected abstract BatchAsyncOperation<K, V, K, T> operation();
+
+		protected ItemProcessor<K, K> keyProcessor() {
+			return null;
 		}
 
-	}
-
-	public static final Duration DEFAULT_RUNNING_TIMEOUT = Duration.ofSeconds(5);
-	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
-
-	protected RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, ItemProcessor<K, K> keyProcessor,
-			QueueItemWriter<K, T> queueWriter, StepOptions stepOptions) {
-		setName(ClassUtils.getShortName(getClass()));
-		this.jobRunner = jobRunner;
-		this.keyReader = keyReader;
-		this.keyProcessor = keyProcessor;
-		this.writer = queueWriter;
-		this.stepOptions = stepOptions;
-	}
-
-	public RedisItemReader(JobRunner jobRunner, ItemReader<K> keyReader, QueueItemWriter<K, T> queueWriter,
-			StepOptions stepOptions) {
-		this(jobRunner, keyReader, null, queueWriter, stepOptions);
-	}
-
-	public static Builder<String, String> client(RedisModulesClusterClient client) {
-		return new Builder<>(client, StringCodec.UTF8);
-	}
-
-	public static Builder<String, String> client(RedisModulesClient client) {
-		return new Builder<>(client, StringCodec.UTF8);
-	}
-
-	public static <K, V> Builder<K, V> client(RedisModulesClient client, RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec);
-	}
-
-	public static <K, V> Builder<K, V> client(RedisModulesClusterClient client, RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec);
-	}
-
-	public abstract static class AbstractReaderBuilder<K, V, B extends AbstractReaderBuilder<K, V, B>>
-			extends AbstractBuilder<K, V, B> {
-
-		protected AbstractReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec);
-		}
-
-		public RedisItemReader<K, DataStructure<K>> dataStructure() {
-			return reader(dataStructureValueReader());
-		}
-
-		public RedisItemReader<K, KeyDump<K>> keyDump() {
-			return reader(keyDumpValueReader());
-		}
-
-		private <T> RedisItemReader<K, T> reader(ReadOperation<K, T> readOperation) {
-			return reader(queueWriter(readOperation));
-		}
-
-		protected abstract <T> RedisItemReader<K, T> reader(QueueItemWriter<K, T> queueWriter);
+		protected abstract ItemReader<K> keyReader();
 
 	}
 
-	public static class Builder<K, V> extends AbstractReaderBuilder<K, V, Builder<K, V>> {
+	public static ComparatorBuilder compare(AbstractRedisClient left, AbstractRedisClient right) {
+		return new ComparatorBuilder(left, right);
+	}
+
+	public static ScanBuilder<String, String, DataStructure<String>> dataStructure(RedisModulesClusterClient client) {
+		return new ScanBuilder<>(client, StringCodec.UTF8, new DataStructureStringOperation(client));
+	}
+
+	public static ScanBuilder<String, String, DataStructure<String>> dataStructure(RedisModulesClient client) {
+		return new ScanBuilder<>(client, StringCodec.UTF8, new DataStructureStringOperation(client));
+	}
+
+	public static <K, V> ScanBuilder<K, V, DataStructure<K>> dataStructure(RedisModulesClient client,
+			RedisCodec<K, V> codec) {
+		return new ScanBuilder<>(client, codec, new DataStructureCodecOperation<>(client, codec));
+	}
+
+	public static <K, V> ScanBuilder<K, V, DataStructure<K>> dataStructure(RedisModulesClusterClient client,
+			RedisCodec<K, V> codec) {
+		return new ScanBuilder<>(client, codec, new DataStructureCodecOperation<>(client, codec));
+	}
+
+	public static ScanBuilder<byte[], byte[], KeyDump<byte[]>> keyDump(RedisModulesClient client) {
+		return new ScanBuilder<>(client, ByteArrayCodec.INSTANCE, new KeyDumpOperation(client));
+	}
+
+	public static ScanBuilder<byte[], byte[], KeyDump<byte[]>> keyDump(RedisModulesClusterClient client) {
+		return new ScanBuilder<>(client, ByteArrayCodec.INSTANCE, new KeyDumpOperation(client));
+	}
+
+	public static class ScanBuilder<K, V, T> extends AbstractBuilder<K, V, T, ScanBuilder<K, V, T>> {
 
 		private ScanOptions scanOptions = ScanOptions.builder().build();
+		private final AsyncOperation<K, V, K, T> operation;
 
-		protected Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		protected ScanBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
+				AsyncOperation<K, V, K, T> operation) {
 			super(client, codec);
+			this.operation = operation;
 		}
 
-		public Builder<K, V> scanOptions(ScanOptions options) {
+		@Override
+		protected BatchAsyncOperation<K, V, K, T> operation() {
+			return new SimpleBatchAsyncOperation<>(operation);
+		}
+
+		public ScanBuilder<K, V, T> scanOptions(ScanOptions options) {
 			this.scanOptions = options;
 			return this;
 		}
 
-		public LiveRedisItemReader.Builder<K, V> live() {
-			return toBuilder(new LiveRedisItemReader.Builder<>(client, codec)).keyPatterns(scanOptions.getMatch());
-		}
-
-		public KeyComparatorBuilder comparator(AbstractRedisClient right) {
-			return toBuilder(new KeyComparatorBuilder(client, right)).leftPoolOptions(poolOptions)
-					.rightPoolOptions(poolOptions).scanOptions(scanOptions);
+		public LiveBuilder<K, V, T> live() {
+			return toBuilder(new LiveBuilder<>(client, codec, operation)).keyPatterns(scanOptions.getMatch());
 		}
 
 		@Override
-		protected <T> RedisItemReader<K, T> reader(QueueItemWriter<K, T> queueWriter) {
-			ScanKeyItemReader<K, V> keyReader = new ScanKeyItemReader<>(client, codec, scanOptions);
-			return new RedisItemReader<>(super.jobRunner(), keyReader, queueWriter, stepOptions);
+		protected ItemReader<K> keyReader() {
+			return scanKeyReader(scanOptions);
 		}
 
 	}
 
-	public static class KeyComparatorBuilder extends AbstractBuilder<String, String, KeyComparatorBuilder> {
+	public static class LiveBuilder<K, V, T> extends AbstractBuilder<K, V, T, LiveBuilder<K, V, T>> {
+
+		public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
+		public static final int DEFAULT_DATABASE = 0;
+		protected static final String[] DEFAULT_KEY_PATTERNS = { ScanOptions.DEFAULT_MATCH };
+		public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
+
+		private final AsyncOperation<K, V, K, T> operation;
+		private int database = DEFAULT_DATABASE;
+		private String[] keyPatterns = DEFAULT_KEY_PATTERNS;
+		private QueueOptions eventQueueOptions = QueueOptions.builder().build();
+		private Predicate<K> keyFilter;
+
+		public LiveBuilder(AbstractRedisClient client, RedisCodec<K, V> codec, AsyncOperation<K, V, K, T> operation) {
+			super(client, codec);
+			this.operation = operation;
+			options.getStepOptions().setFlushingInterval(DEFAULT_FLUSHING_INTERVAL);
+		}
+
+		@Override
+		protected BatchAsyncOperation<K, V, K, T> operation() {
+			return new SimpleBatchAsyncOperation<>(operation);
+		}
+
+		public LiveBuilder<K, V, T> keyFilter(Predicate<K> filter) {
+			this.keyFilter = filter;
+			return this;
+		}
+
+		@Override
+		protected ItemProcessor<K, K> keyProcessor() {
+			if (keyFilter == null) {
+				return null;
+			}
+			return new FilteringItemProcessor<>(keyFilter);
+		}
+
+		public static String[] defaultKeyPatterns() {
+			return DEFAULT_KEY_PATTERNS;
+		}
+
+		public static String[] patterns(int database, String... keyPatterns) {
+			return Stream.of(keyPatterns).map(p -> String.format(PUBSUB_PATTERN_FORMAT, database, p))
+					.collect(Collectors.toList()).toArray(new String[0]);
+		}
+
+		@Override
+		protected KeyspaceNotificationItemReader<K, V> keyReader() {
+			return new KeyspaceNotificationItemReader<>(client, codec, eventQueueOptions,
+					patterns(database, keyPatterns));
+		}
+
+		public LiveBuilder<K, V, T> database(int database) {
+			this.database = database;
+			return this;
+		}
+
+		public LiveBuilder<K, V, T> keyPatterns(String... patterns) {
+			this.keyPatterns = patterns;
+			return this;
+		}
+
+		public LiveBuilder<K, V, T> eventQueueOptions(QueueOptions options) {
+			this.eventQueueOptions = options;
+			return this;
+		}
+
+		public static String[] defaultNotificationPatterns() {
+			return patterns(0, defaultKeyPatterns());
+		}
+
+	}
+
+	public static class ComparatorBuilder extends AbstractBuilder<String, String, KeyComparison, ComparatorBuilder> {
 
 		public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
 		private final AbstractRedisClient right;
-		private PoolOptions leftPoolOptions = PoolOptions.builder().build();
-		private PoolOptions rightPoolOptions = PoolOptions.builder().build();
 		private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 		private ScanOptions scanOptions = ScanOptions.builder().build();
+		private PoolOptions rightPoolOptions = PoolOptions.builder().build();
 
-		protected KeyComparatorBuilder(AbstractRedisClient left, AbstractRedisClient right) {
+		protected ComparatorBuilder(AbstractRedisClient left, AbstractRedisClient right) {
 			super(left, StringCodec.UTF8);
 			this.right = right;
 		}
 
-		public KeyComparatorBuilder ttlTolerance(Duration ttlTolerance) {
+		public ComparatorBuilder ttlTolerance(Duration ttlTolerance) {
 			this.ttlTolerance = ttlTolerance;
 			return this;
 		}
 
-		public KeyComparatorBuilder leftPoolOptions(PoolOptions options) {
-			this.leftPoolOptions = options;
-			return this;
-		}
-
-		public KeyComparatorBuilder rightPoolOptions(PoolOptions options) {
-			this.rightPoolOptions = options;
-			return this;
-		}
-
-		public KeyComparatorBuilder scanOptions(ScanOptions options) {
+		public ComparatorBuilder scanOptions(ScanOptions options) {
 			this.scanOptions = options;
 			return this;
 		}
 
-		public RedisItemReader<String, KeyComparison> build() {
-			ScanKeyItemReader<String, String> keyReader = new ScanKeyItemReader<>(client, StringCodec.UTF8,
-					scanOptions);
-			return new RedisItemReader<>(super.jobRunner(), keyReader, queueWriter(readOperation()), stepOptions);
+		public ComparatorBuilder rightPoolOptions(PoolOptions options) {
+			this.rightPoolOptions = options;
+			return this;
 		}
 
-		private KeyComparisonReadOperation readOperation() {
-			return new KeyComparisonReadOperation(client, right, leftPoolOptions, rightPoolOptions, ttlTolerance);
+		@Override
+		protected ItemReader<String> keyReader() {
+			return scanKeyReader(scanOptions);
+		}
+
+		@Override
+		protected BatchAsyncOperation<String, String, String, KeyComparison> operation() {
+			return new KeyComparisonBatchOperation(client, right, rightPoolOptions, ttlTolerance);
 		}
 
 	}

@@ -1,17 +1,16 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
-
-import com.redis.spring.batch.writer.WriteOperation;
+import com.redis.spring.batch.common.AsyncOperation;
+import com.redis.spring.batch.common.NoOpFuture;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class Noop<K, V, T> implements WriteOperation<K, V, T> {
+public class Noop<K, V, I, O> implements AsyncOperation<K, V, I, O> {
 
 	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item) {
-		// do nothing
+	public RedisFuture<O> execute(BaseRedisAsyncCommands<K, V> commands, I item) {
+		return NoOpFuture.instance();
 	}
 
 }

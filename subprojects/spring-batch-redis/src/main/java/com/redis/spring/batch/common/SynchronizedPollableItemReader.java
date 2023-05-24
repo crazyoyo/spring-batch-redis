@@ -2,20 +2,19 @@ package com.redis.spring.batch.common;
 
 import java.util.concurrent.TimeUnit;
 
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStream;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 import com.redis.spring.batch.reader.PollableItemReader;
 
-public class SynchronizedPollableItemReader<T>
-		implements PollableItemReader<T>, InitializingBean, ItemStream, Openable {
+public class SynchronizedPollableItemReader<T> extends DelegatingItemStreamSupport
+		implements PollableItemReader<T>, InitializingBean {
 
 	private final PollableItemReader<T> delegate;
 
 	public SynchronizedPollableItemReader(PollableItemReader<T> delegate) {
+		super(delegate);
 		this.delegate = delegate;
 	}
 
@@ -28,25 +27,6 @@ public class SynchronizedPollableItemReader<T>
 	}
 
 	@Override
-	public void close() {
-		if (delegate instanceof ItemStream) {
-			((ItemStream) this.delegate).close();
-		}
-	}
-
-	public void open(ExecutionContext executionContext) {
-		if (delegate instanceof ItemStream) {
-			((ItemStream) this.delegate).open(executionContext);
-		}
-	}
-
-	public void update(ExecutionContext executionContext) {
-		if (delegate instanceof ItemStream) {
-			((ItemStream) this.delegate).update(executionContext);
-		}
-	}
-
-	@Override
 	public void afterPropertiesSet() throws Exception {
 		Assert.notNull(this.delegate, "A delegate item reader is required");
 	}
@@ -56,8 +36,4 @@ public class SynchronizedPollableItemReader<T>
 		return delegate.poll(timeout, unit);
 	}
 
-	@Override
-	public boolean isOpen() {
-		return delegate.isOpen();
-	}
 }

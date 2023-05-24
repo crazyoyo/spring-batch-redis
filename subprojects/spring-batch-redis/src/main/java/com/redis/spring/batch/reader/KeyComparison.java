@@ -3,9 +3,8 @@ package com.redis.spring.batch.reader;
 import java.util.Objects;
 
 import com.redis.spring.batch.common.DataStructure;
-import com.redis.spring.batch.common.KeyValue;
 
-public class KeyComparison extends KeyValue<String> {
+public class KeyComparison {
 
 	public enum Status {
 		OK, // No difference
@@ -20,15 +19,9 @@ public class KeyComparison extends KeyValue<String> {
 	private Status status;
 
 	public KeyComparison(DataStructure<String> source, DataStructure<String> target, Status status) {
-		super();
 		this.source = source;
 		this.target = target;
 		this.status = status;
-	}
-
-	@Override
-	public String getKey() {
-		return source.getKey();
 	}
 
 	public DataStructure<String> getSource() {

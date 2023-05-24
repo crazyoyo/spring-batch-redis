@@ -1,37 +1,41 @@
 package com.redis.spring.batch.writer.operation;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
+
+import com.redis.spring.batch.common.AsyncOperation;
+import com.redis.spring.batch.common.CompositeFuture;
+import com.redis.spring.batch.common.NoOpFuture;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 
-public class XAddAll<K, V, T> extends AbstractAddAllOperation<K, V, T, StreamMessage<K, V>> {
+public class XAddAll<K, V, T> implements AsyncOperation<K, V, T, List<String>> {
 
-	private final Function<StreamMessage<K, V>, XAddArgs> args;
+	private final Function<T, Collection<StreamMessage<K, V>>> messages;
+	private final Xadd<K, V, StreamMessage<K, V>> xadd;
 
-	public XAddAll(Function<T, K> key, Function<T, Collection<StreamMessage<K, V>>> messages) {
-		this(key, messages, t -> null);
-	}
-
-	public XAddAll(Function<T, K> key, Function<T, Collection<StreamMessage<K, V>>> messages,
+	public XAddAll(Function<T, Collection<StreamMessage<K, V>>> messages,
 			Function<StreamMessage<K, V>, XAddArgs> args) {
-		super(key, messages);
-		this.args = args;
+		this.messages = messages;
+		this.xadd = new Xadd<>(StreamMessage::getStream, StreamMessage::getBody, args);
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key,
-			Collection<StreamMessage<K, V>> messages) {
-		RedisStreamAsyncCommands<K, V> streamCommands = (RedisStreamAsyncCommands<K, V>) commands;
-		for (StreamMessage<K, V> message : messages) {
-			futures.add(streamCommands.xadd(key, args.apply(message), message.getBody()));
+	public RedisFuture<List<String>> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
+		Collection<StreamMessage<K, V>> collection = messages.apply(item);
+		if (collection.isEmpty()) {
+			return NoOpFuture.instance();
 		}
+		List<RedisFuture<String>> futures = new ArrayList<>();
+		for (StreamMessage<K, V> message : collection) {
+			futures.add(xadd.execute(commands, message));
+		}
+		return new CompositeFuture<>(futures);
 	}
 
 }

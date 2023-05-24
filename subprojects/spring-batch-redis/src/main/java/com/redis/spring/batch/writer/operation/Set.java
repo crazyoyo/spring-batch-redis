@@ -1,6 +1,5 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.function.Function;
 
 import org.springframework.util.Assert;
@@ -10,7 +9,7 @@ import io.lettuce.core.SetArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
-public class Set<K, V, T> extends AbstractOperation<K, V, T> {
+public class Set<K, V, T> extends AbstractWriteOperation<K, V, T, String> {
 
 	private static final SetArgs DEFAULT_ARGS = new SetArgs();
 
@@ -31,8 +30,8 @@ public class Set<K, V, T> extends AbstractOperation<K, V, T> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key) {
-		futures.add(((RedisStringAsyncCommands<K, V>) commands).set(key, value.apply(item), args.apply(item)));
+	protected RedisFuture<String> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		return ((RedisStringAsyncCommands<K, V>) commands).set(key, value.apply(item), args.apply(item));
 	}
 
 }

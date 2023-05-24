@@ -7,10 +7,9 @@ import java.util.concurrent.TimeoutException;
 
 import io.lettuce.core.RedisFuture;
 
-public class NoOpRedisFuture<T> extends CompletableFuture<T> implements RedisFuture<T> {
+public class NoOpFuture<T> extends CompletableFuture<T> implements RedisFuture<T> {
 
-	@SuppressWarnings("rawtypes")
-	public static final NoOpRedisFuture NO_OP_REDIS_FUTURE = new NoOpRedisFuture();
+	private static final NoOpFuture<?> INSTANCE = new NoOpFuture<>();
 
 	@Override
 	public boolean cancel(boolean mayInterruptIfRunning) {
@@ -44,7 +43,12 @@ public class NoOpRedisFuture<T> extends CompletableFuture<T> implements RedisFut
 
 	@Override
 	public boolean await(long timeout, TimeUnit unit) throws InterruptedException {
-		return false;
+		return true;
+	}
+
+	@SuppressWarnings("unchecked")
+	public static <T> NoOpFuture<T> instance() {
+		return (NoOpFuture<T>) INSTANCE;
 	}
 
 }

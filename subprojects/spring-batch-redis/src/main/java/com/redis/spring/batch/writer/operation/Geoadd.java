@@ -1,6 +1,5 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.function.Function;
 
 import io.lettuce.core.GeoAddArgs;
@@ -9,7 +8,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisGeoAsyncCommands;
 
-public class Geoadd<K, V, T> extends AbstractOperation<K, V, T> {
+public class Geoadd<K, V, T> extends AbstractWriteOperation<K, V, T, Long> {
 
 	private final Function<T, GeoValue<V>> value;
 	private final Function<T, GeoAddArgs> args;
@@ -26,8 +25,8 @@ public class Geoadd<K, V, T> extends AbstractOperation<K, V, T> {
 
 	@Override
 	@SuppressWarnings("unchecked")
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key) {
-		futures.add(((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args.apply(item), value.apply(item)));
+	protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args.apply(item), value.apply(item));
 	}
 
 }

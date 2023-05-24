@@ -1,15 +1,16 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.function.Function;
 
 import org.springframework.util.Assert;
+
+import com.redis.spring.batch.common.NoOpFuture;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Expire<K, V, T> extends AbstractOperation<K, V, T> {
+public class Expire<K, V, T> extends AbstractWriteOperation<K, V, T, Boolean> {
 
 	private final Function<T, Long> milliseconds;
 
@@ -19,17 +20,18 @@ public class Expire<K, V, T> extends AbstractOperation<K, V, T> {
 		this.milliseconds = millis;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key) {
+	protected RedisFuture<Boolean> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		Long millis = milliseconds.apply(item);
 		if (millis != null && millis > 0) {
-			execute(commands, key, millis);
+			return execute((RedisKeyAsyncCommands<K, V>) commands, key, millis);
 		}
+		return NoOpFuture.instance();
 	}
 
-	@SuppressWarnings("unchecked")
-	protected RedisFuture<Boolean> execute(BaseRedisAsyncCommands<K, V> commands, K key, long millis) {
-		return ((RedisKeyAsyncCommands<K, V>) commands).pexpire(key, millis);
+	protected RedisFuture<Boolean> execute(RedisKeyAsyncCommands<K, V> commands, K key, long millis) {
+		return commands.pexpire(key, millis);
 	}
 
 }

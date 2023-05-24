@@ -1,6 +1,5 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.function.Function;
 
 import org.springframework.util.Assert;
@@ -12,7 +11,7 @@ import com.redis.lettucemod.timeseries.Sample;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class TsAdd<K, V, T> extends AbstractOperation<K, V, T> {
+public class TsAdd<K, V, T> extends AbstractWriteOperation<K, V, T, Long> {
 
 	private final Function<T, Sample> sample;
 	private final Function<T, AddOptions<K, V>> options;
@@ -29,13 +28,9 @@ public class TsAdd<K, V, T> extends AbstractOperation<K, V, T> {
 		this.options = options;
 	}
 
-	@Override
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<RedisFuture<?>> futures, T item, K key) {
-		futures.add(execute(commands, item, key));
-	}
-
 	@SuppressWarnings("unchecked")
-	private RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	@Override
+	protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		return ((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(key, sample.apply(item), options.apply(item));
 	}
 

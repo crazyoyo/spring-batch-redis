@@ -4,9 +4,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.item.ItemReader;
 
-import com.redis.spring.batch.common.Openable;
-
-public interface PollableItemReader<T> extends ItemReader<T>, Openable {
+public interface PollableItemReader<T> extends ItemReader<T> {
 
 	/**
 	 * Tries to read a piece of input data. If such input is available within the
