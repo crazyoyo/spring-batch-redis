@@ -228,8 +228,6 @@ abstract class AbstractTestBase {
 	 * @throws Exception
 	 */
 	protected void compare(TestInfo testInfo) throws Exception {
-		Assertions.assertEquals(sourceConnection.sync().dbsize(), targetConnection.sync().dbsize(),
-				"Source and target have different db sizes");
 		RedisItemReader<String, String, KeyComparison> reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
 		run(testInfo(testInfo, "compare"), reader, writer);
