@@ -972,7 +972,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		sourceConnection.sync().jsonSet("json:2", "$", JSON_BEER_1);
 		sourceConnection.sync().jsonSet("json:3", "$", JSON_BEER_1);
 		run(testInfo, dataStructureSourceReader().build(), dataStructureTargetWriter().build());
-		Assertions.assertTrue(compare(testInfo).isEmpty());
+		compare(testInfo);
 	}
 
 	@Test
@@ -984,7 +984,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		sourceConnection.sync().tsAdd(key, Sample.of(1001, 2));
 		sourceConnection.sync().tsAdd(key, Sample.of(1003, 3));
 		run(testInfo, dataStructureSourceReader().build(), dataStructureTargetWriter().build());
-		Assertions.assertTrue(compare(testInfo).isEmpty());
+		compare(testInfo);
 	}
 
 	@Test
@@ -992,8 +992,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		generate(testInfo, GeneratorReaderOptions.builder().count(100).build());
 		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader().build();
 		run(testInfo, reader, dataStructureTargetWriter().build());
-		List<? extends KeyComparison> diffs = compare(testInfo);
-		Assertions.assertTrue(diffs.isEmpty());
+		compare(testInfo);
 	}
 
 	@Test
@@ -1001,7 +1000,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		generate(testInfo, GeneratorReaderOptions.builder().count(100).build());
 		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader().build();
 		run(testInfo, reader, keyDumpWriter(targetClient).build());
-		Assertions.assertTrue(compare(testInfo).isEmpty());
+		compare(testInfo);
 	}
 
 	@Test
@@ -1036,7 +1035,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		generate(testInfo,
 				GeneratorReaderOptions.builder().types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).build());
 		awaitTermination(execution);
-		Assertions.assertTrue(compare(testInfo).isEmpty());
+		compare(testInfo);
 	}
 
 	@Test
@@ -1046,7 +1045,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient).build();
 		RedisItemReader<byte[], byte[], KeyDump<byte[]>> liveReader = keyDumpSourceReader().live().build();
 		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> liveWriter = keyDumpWriter(targetClient).build();
-		Assertions.assertTrue(liveReplication(testInfo, reader, writer, liveReader, liveWriter).isEmpty());
+		liveReplication(testInfo, reader, writer, liveReader, liveWriter);
 	}
 
 	@Test
@@ -1099,12 +1098,12 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter().build();
 		RedisItemReader<String, String, DataStructure<String>> liveReader = dataStructureSourceReader().live().build();
 		RedisItemWriter<String, String, DataStructure<String>> liveWriter = dataStructureTargetWriter().build();
-		Assertions.assertTrue(liveReplication(testInfo, reader, writer, liveReader, liveWriter).isEmpty());
+		liveReplication(testInfo, reader, writer, liveReader, liveWriter);
 	}
 
-	private <K, V, T extends KeyValue<K>> List<? extends KeyComparison> liveReplication(TestInfo testInfo,
-			RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
-			RedisItemWriter<K, V, T> liveWriter) throws Exception {
+	private <K, V, T extends KeyValue<K>> void liveReplication(TestInfo testInfo, RedisItemReader<K, V, T> reader,
+			RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
+			throws Exception {
 		generate(testInfo(testInfo, "generate"), GeneratorReaderOptions.builder()
 				.types(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET).count(300).build());
 		TaskletStep step = step(testInfo(testInfo, "step"), reader, writer, DEFAULT_STEP_OPTIONS).build();
@@ -1119,7 +1118,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 				GeneratorReaderOptions.builder().types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET)
 						.expiration(IntRange.is(100)).keyRange(IntRange.between(300, 1000)).build());
 		awaitTermination(execution);
-		return compare(testInfo);
+		compare(testInfo);
 	}
 
 	@Test

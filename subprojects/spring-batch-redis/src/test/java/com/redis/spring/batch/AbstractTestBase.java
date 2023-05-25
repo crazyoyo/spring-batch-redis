@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
@@ -228,14 +227,14 @@ abstract class AbstractTestBase {
 	 * @return list of differences
 	 * @throws Exception
 	 */
-	protected List<? extends KeyComparison> compare(TestInfo testInfo) throws Exception {
+	protected void compare(TestInfo testInfo) throws Exception {
 		Assertions.assertEquals(sourceConnection.sync().dbsize(), targetConnection.sync().dbsize(),
 				"Source and target have different db sizes");
 		RedisItemReader<String, String, KeyComparison> reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
 		run(testInfo(testInfo, "compare"), reader, writer);
 		Assertions.assertFalse(writer.getItems().isEmpty());
-		return writer.getItems().stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
+		awaitUntil(() -> writer.getItems().stream().allMatch(c -> c.getStatus() == Status.OK));
 	}
 
 	protected RedisItemReader<String, String, KeyComparison> comparisonReader() throws Exception {
