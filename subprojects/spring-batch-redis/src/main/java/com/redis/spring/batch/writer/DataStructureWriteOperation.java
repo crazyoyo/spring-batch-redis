@@ -7,14 +7,15 @@ import java.util.Map;
 import java.util.function.Function;
 
 import com.redis.lettucemod.timeseries.AddOptions;
-import com.redis.spring.batch.common.AsyncOperation;
-import com.redis.spring.batch.common.BatchAsyncOperation;
+import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.writer.DataStructureWriteOptions.MergePolicy;
 import com.redis.spring.batch.writer.DataStructureWriteOptions.StreamIdPolicy;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Noop;
+import com.redis.spring.batch.writer.operation.Restore;
 import com.redis.spring.batch.writer.operation.RpushAll;
 import com.redis.spring.batch.writer.operation.SaddAll;
 import com.redis.spring.batch.writer.operation.Set;
@@ -28,13 +29,13 @@ import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class DataStructureWriteOperation<K, V> implements BatchAsyncOperation<K, V, DataStructure<K>, Object> {
+public class DataStructureWriteOperation<K, V> implements BatchOperation<K, V, DataStructure<K>, Object> {
 
 	private static final XAddArgs EMPTY_XADD_ARGS = new XAddArgs();
 
 	private final boolean deleteFirst;
-	private final AsyncOperation<K, V, DataStructure<K>, Object> noop = new Noop<>();
-	private Map<String, AsyncOperation<K, V, DataStructure<K>, ?>> operations;
+	private final Operation<K, V, DataStructure<K>, Object> noop = new Noop<>();
+	private Map<String, Operation<K, V, DataStructure<K>, ?>> operations;
 
 	public DataStructureWriteOperation(DataStructureWriteOptions options) {
 		this.deleteFirst = options.getMergePolicy() == MergePolicy.OVERWRITE;
@@ -65,7 +66,7 @@ public class DataStructureWriteOperation<K, V> implements BatchAsyncOperation<K,
 					futures.add(delete(commands, item));
 				}
 				futures.add((RedisFuture) operation(item).execute(commands, item));
-				if (item.hasTtl()) {
+				if (item.getTtl() != null && item.getTtl() > 0) {
 					futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).pexpireat(item.getKey(),
 							item.getTtl()));
 				}
@@ -74,16 +75,17 @@ public class DataStructureWriteOperation<K, V> implements BatchAsyncOperation<K,
 		return futures;
 	}
 
+	private boolean shouldDelete(DataStructure<K> item) {
+		return item.getValue() == null || Restore.TTL_KEY_DOES_NOT_EXIST.equals(item.getTtl())
+				|| DataStructure.isNone(item);
+	}
+
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected RedisFuture<Object> delete(BaseRedisAsyncCommands<K, V> commands, DataStructure<K> item) {
 		return (RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).del(item.getKey());
 	}
 
-	protected boolean shouldDelete(DataStructure<K> item) {
-		return item.isInexistent() || item.getValue() == null || DataStructure.isNone(item);
-	}
-
-	private AsyncOperation<K, V, DataStructure<K>, ?> operation(DataStructure<K> item) {
+	private Operation<K, V, DataStructure<K>, ?> operation(DataStructure<K> item) {
 		return operations.getOrDefault(item.getType(), noop);
 	}
 

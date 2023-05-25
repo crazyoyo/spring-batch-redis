@@ -5,7 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
-import com.redis.spring.batch.common.AsyncOperation;
+import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.CompositeFuture;
 import com.redis.spring.batch.common.NoOpFuture;
 
@@ -14,7 +14,7 @@ import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class XAddAll<K, V, T> implements AsyncOperation<K, V, T, List<String>> {
+public class XAddAll<K, V, T> implements Operation<K, V, T, List<String>> {
 
 	private final Function<T, Collection<StreamMessage<K, V>>> messages;
 	private final Xadd<K, V, StreamMessage<K, V>> xadd;

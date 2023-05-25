@@ -20,6 +20,7 @@ import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamReader;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -161,8 +162,16 @@ public class JobRunner {
 		return new StepBuilder(name).repository(jobRepository).transactionManager(transactionManager);
 	}
 
+	public <I, O> SimpleStepBuilder<I, O> step(String name, ItemReader<I> reader, ItemWriter<O> writer,
+			StepOptions options) {
+		return step(name, reader, null, writer, options);
+	}
+
 	public <I, O> SimpleStepBuilder<I, O> step(String name, ItemReader<I> reader, ItemProcessor<I, O> processor,
 			ItemWriter<O> writer, StepOptions options) {
+		setName(reader, name + "-reader");
+		setName(processor, name + "-processor");
+		setName(writer, name + "-writer");
 		SimpleStepBuilder<I, O> step = step(name).chunk(options.getChunkSize());
 		step.reader(reader);
 		step.processor(processor);
@@ -187,6 +196,12 @@ public class JobRunner {
 			return flushingStep;
 		}
 		return step;
+	}
+
+	private void setName(Object object, String name) {
+		if (object instanceof ItemStreamSupport) {
+			((ItemStreamSupport) object).setName(name);
+		}
 	}
 
 	private <I, O> SimpleStepBuilder<I, O> faultTolerant(SimpleStepBuilder<I, O> step, StepOptions options) {

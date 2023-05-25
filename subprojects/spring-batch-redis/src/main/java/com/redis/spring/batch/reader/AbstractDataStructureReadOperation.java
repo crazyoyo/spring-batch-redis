@@ -14,9 +14,9 @@ import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.internal.LettuceAssert;
 
-public abstract class AbstractDataStructureOperation<K, V> extends AbstractLuaOperation<K, V, DataStructure<K>> {
+public abstract class AbstractDataStructureReadOperation<K, V> extends AbstractLuaReadOperation<K, V, DataStructure<K>> {
 
-	protected AbstractDataStructureOperation(AbstractRedisClient client) {
+	protected AbstractDataStructureReadOperation(AbstractRedisClient client) {
 		super(client, "datastructure.lua");
 	}
 

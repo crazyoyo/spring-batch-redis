@@ -1,18 +1,3 @@
-/*
- * Copyright 2020-2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- *  http://aws.amazon.com/apache2.0
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
- */
-
 package com.redis.spring.batch.common;
 
 import java.util.ArrayList;
@@ -20,17 +5,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import io.lettuce.core.RedisFuture;
 
-/**
- * An implementation of {@link Future} that aggregates the results of multiple
- * futures into a single result.
- */
 public class CompositeFuture<T> extends CompletableFuture<List<T>> implements RedisFuture<List<T>> {
 
 	private final List<? extends RedisFuture<T>> futures;
@@ -80,11 +60,10 @@ public class CompositeFuture<T> extends CompletableFuture<List<T>> implements Re
 	@Override
 	public List<T> get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
 		long doneTime = System.nanoTime() + unit.toNanos(timeout);
-
 		List<T> results = new ArrayList<>();
 		for (RedisFuture<T> future : futures) {
-			long timeLeft = doneTime - System.nanoTime();
-			results.add(future.get(timeLeft, TimeUnit.NANOSECONDS));
+			long remaining = doneTime - System.nanoTime();
+			results.add(future.get(remaining, TimeUnit.NANOSECONDS));
 		}
 		return results;
 	}
@@ -98,8 +77,8 @@ public class CompositeFuture<T> extends CompletableFuture<List<T>> implements Re
 	public boolean await(long timeout, TimeUnit unit) throws InterruptedException {
 		long doneTime = System.nanoTime() + unit.toNanos(timeout);
 		for (RedisFuture<T> future : futures) {
-			long timeLeft = doneTime - System.nanoTime();
-			if (future.await(timeLeft, TimeUnit.NANOSECONDS)) {
+			long remaining = doneTime - System.nanoTime();
+			if (future.await(remaining, TimeUnit.NANOSECONDS)) {
 				return false;
 			}
 		}

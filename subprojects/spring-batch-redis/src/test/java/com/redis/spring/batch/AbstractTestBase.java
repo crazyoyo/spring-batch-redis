@@ -26,36 +26,38 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
-import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader.ScanBuilder;
-import com.redis.spring.batch.RedisItemWriter.DataStructureBuilder;
-import com.redis.spring.batch.RedisItemWriter.KeyDumpBuilder;
+import com.redis.spring.batch.RedisItemWriter.DataStructureWriterBuilder;
+import com.redis.spring.batch.RedisItemWriter.KeyDumpWriterBuilder;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
-import com.redis.spring.batch.common.ReaderOptions;
+import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.StepOptions;
+import com.redis.spring.batch.reader.DataStructureCodecReadOperation;
+import com.redis.spring.batch.reader.DataStructureStringReadOperation;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorReaderOptions;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
+import com.redis.spring.batch.reader.KeyDumpReadOperation;
 import com.redis.spring.batch.writer.DataStructureWriteOptions;
 import com.redis.spring.batch.writer.DataStructureWriteOptions.StreamIdPolicy;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisURI;
+import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
@@ -79,7 +81,6 @@ abstract class AbstractTestBase {
 	protected StatefulRedisModulesConnection<String, String> sourceConnection;
 	protected AbstractRedisClient targetClient;
 	protected StatefulRedisModulesConnection<String, String> targetConnection;
-	private ReaderOptions readerOptions;
 
 	protected abstract RedisServer getSourceServer();
 
@@ -94,7 +95,6 @@ abstract class AbstractTestBase {
 		targetClient = client(getTargetServer());
 		targetConnection = RedisModulesUtils.connection(targetClient);
 		jobRunner = JobRunner.inMemory().runningTimeout(runningTimeout).terminationTimeout(terminationTimeout);
-		readerOptions = ReaderOptions.builder().jobRunner(jobRunner).build();
 	}
 
 	@AfterAll
@@ -188,14 +188,7 @@ abstract class AbstractTestBase {
 	}
 
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
-		return step(testInfo, reader, null, writer, DEFAULT_STEP_OPTIONS);
-	}
-
-	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader,
-			ItemProcessor<I, O> processor, ItemWriter<O> writer, StepOptions options) {
-		setName(reader, testInfo);
-		setName(writer, testInfo);
-		return jobRunner.step(name(testInfo), reader, processor, writer, options);
+		return step(testInfo, reader, writer, DEFAULT_STEP_OPTIONS);
 	}
 
 	protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer) throws Exception {
@@ -204,28 +197,28 @@ abstract class AbstractTestBase {
 
 	protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
 			ItemWriter<O> writer) throws Exception {
-		JobExecution execution = jobRunner.run(job(info, step(info, reader, processor, writer, DEFAULT_STEP_OPTIONS)));
-		return execution;
+		return jobRunner.run(job(info, step(info, reader, processor, writer, DEFAULT_STEP_OPTIONS)));
+	}
+
+	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer,
+			StepOptions options) {
+		return step(testInfo, reader, null, writer, options);
+	}
+
+	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader,
+			ItemProcessor<I, O> processor, ItemWriter<O> writer, StepOptions options) {
+		return jobRunner.step(name(testInfo), reader, processor, writer, options);
+	}
+
+	protected <I, O> JobExecution runAsync(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer,
+			StepOptions stepOptions) throws Exception {
+		return runAsync(info, reader, null, writer, stepOptions);
 	}
 
 	protected <I, O> JobExecution runAsync(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
 			ItemWriter<O> writer, StepOptions stepOptions) throws Exception {
 		JobExecution execution = jobRunner.runAsync(job(info, step(info, reader, processor, writer, stepOptions)));
 		return execution;
-	}
-
-	protected static void setName(ItemWriter<?> writer, TestInfo testInfo) {
-		setName(writer, testInfo, "writer");
-	}
-
-	protected static void setName(ItemReader<?> reader, TestInfo testInfo) {
-		setName(reader, testInfo, "reader");
-	}
-
-	private static void setName(Object object, TestInfo testInfo, String suffix) {
-		if (object instanceof ItemStreamSupport) {
-			((ItemStreamSupport) object).setName(name(testInfo(testInfo, suffix)));
-		}
 	}
 
 	/**
@@ -240,13 +233,13 @@ abstract class AbstractTestBase {
 				"Source and target have different db sizes");
 		RedisItemReader<String, String, KeyComparison> reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
-		run(testInfo(testInfo, "compare"), reader, null, writer);
+		run(testInfo(testInfo, "compare"), reader, writer);
 		Assertions.assertFalse(writer.getItems().isEmpty());
 		return writer.getItems().stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
 	}
 
 	protected RedisItemReader<String, String, KeyComparison> comparisonReader() throws Exception {
-		return RedisItemReader.compare(sourceClient, targetClient).options(readerOptions)
+		return RedisItemReader.compare(sourceClient, targetClient).jobRunner(jobRunner)
 				.ttlTolerance(Duration.ofMillis(100)).build();
 	}
 
@@ -274,51 +267,39 @@ abstract class AbstractTestBase {
 	}
 
 	protected ScanBuilder<String, String, DataStructure<String>> dataStructureReader(AbstractRedisClient client) {
-		if (client instanceof RedisModulesClusterClient) {
-			return RedisItemReader.dataStructure((RedisModulesClusterClient) client).options(readerOptions);
-		}
-		return RedisItemReader.dataStructure((RedisModulesClient) client).options(readerOptions);
+		return scanBuilder(client, StringCodec.UTF8, new DataStructureStringReadOperation(client));
 	}
 
 	protected <K, V> ScanBuilder<K, V, DataStructure<K>> dataStructureReader(AbstractRedisClient client,
 			RedisCodec<K, V> codec) {
-		if (client instanceof RedisModulesClusterClient) {
-			return RedisItemReader.dataStructure((RedisModulesClusterClient) client, codec).options(readerOptions);
-		}
-		return RedisItemReader.dataStructure((RedisModulesClient) client, codec).options(readerOptions);
+		return scanBuilder(client, codec, new DataStructureCodecReadOperation<>(client, codec));
+	}
+
+	private <K, V, T> ScanBuilder<K, V, T> scanBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
+			Operation<K, V, K, T> operation) {
+		return new ScanBuilder<>(client, codec, operation).jobRunner(jobRunner);
 	}
 
 	protected ScanBuilder<byte[], byte[], KeyDump<byte[]>> keyDumpSourceReader() {
-		if (sourceClient instanceof RedisModulesClusterClient) {
-			return RedisItemReader.keyDump((RedisModulesClusterClient) sourceClient).options(readerOptions);
-		}
-		return RedisItemReader.keyDump((RedisModulesClient) sourceClient).options(readerOptions);
+		return new ScanBuilder<>(sourceClient, ByteArrayCodec.INSTANCE, new KeyDumpReadOperation(sourceClient))
+				.jobRunner(jobRunner);
 	}
 
-	protected KeyDumpBuilder<byte[], byte[]> keyDumpWriter(AbstractRedisClient client) {
-		if (client instanceof RedisModulesClusterClient) {
-			return RedisItemWriter.keyDump((RedisModulesClusterClient) client);
-		}
-		return RedisItemWriter.keyDump((RedisModulesClient) client);
+	protected KeyDumpWriterBuilder<byte[], byte[]> keyDumpWriter(AbstractRedisClient client) {
+		return new KeyDumpWriterBuilder<>(client, ByteArrayCodec.INSTANCE);
 	}
 
-	protected DataStructureBuilder<String, String> dataStructureTargetWriter() {
+	protected DataStructureWriterBuilder<String, String> dataStructureTargetWriter() {
 		return dataStructureWriter(targetClient);
 	}
 
-	protected DataStructureBuilder<String, String> dataStructureWriter(AbstractRedisClient client) {
-		if (client instanceof RedisModulesClusterClient) {
-			return RedisItemWriter.dataStructure((RedisModulesClusterClient) client);
-		}
-		return RedisItemWriter.dataStructure((RedisModulesClient) client);
+	protected DataStructureWriterBuilder<String, String> dataStructureWriter(AbstractRedisClient client) {
+		return new DataStructureWriterBuilder<>(client, StringCodec.UTF8);
 	}
 
-	protected <K, V> DataStructureBuilder<K, V> dataStructureWriter(AbstractRedisClient client,
+	protected <K, V> DataStructureWriterBuilder<K, V> dataStructureWriter(AbstractRedisClient client,
 			RedisCodec<K, V> codec) {
-		if (client instanceof RedisModulesClusterClient) {
-			return RedisItemWriter.dataStructure((RedisModulesClusterClient) client, codec);
-		}
-		return RedisItemWriter.dataStructure((RedisModulesClient) client, codec);
+		return new DataStructureWriterBuilder<>(client, codec);
 	}
 
 	protected void flushAll(AbstractRedisClient client) {

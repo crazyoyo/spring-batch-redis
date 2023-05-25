@@ -4,11 +4,11 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class DataStructureCodecOperation<K, V> extends AbstractDataStructureOperation<K, V> {
+public class DataStructureCodecReadOperation<K, V> extends AbstractDataStructureReadOperation<K, V> {
 
 	private final RedisCodec<K, V> codec;
 
-	public DataStructureCodecOperation(AbstractRedisClient client, RedisCodec<K, V> codec) {
+	public DataStructureCodecReadOperation(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		super(client);
 		this.codec = codec;
 	}

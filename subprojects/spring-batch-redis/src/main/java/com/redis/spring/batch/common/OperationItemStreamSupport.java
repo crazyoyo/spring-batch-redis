@@ -2,6 +2,7 @@ package com.redis.spring.batch.common;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -20,12 +21,12 @@ public class OperationItemStreamSupport<K, V, I, O> extends DelegatingItemStream
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 	private final PoolOptions poolOptions;
-	private final BatchAsyncOperation<K, V, I, O> operation;
+	private final BatchOperation<K, V, I, O> operation;
 
 	private GenericObjectPool<StatefulConnection<K, V>> pool;
 
 	public OperationItemStreamSupport(AbstractRedisClient client, RedisCodec<K, V> codec, PoolOptions poolOptions,
-			BatchAsyncOperation<K, V, I, O> operation) {
+			BatchOperation<K, V, I, O> operation) {
 		super(operation);
 		this.client = client;
 		this.codec = codec;
@@ -53,16 +54,23 @@ public class OperationItemStreamSupport<K, V, I, O> extends DelegatingItemStream
 	@Override
 	public List<O> process(List<? extends I> items) throws Exception {
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+			long timeout = connection.getTimeout().toMillis();
 			connection.setAutoFlushCommands(false);
 			try {
 				BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
 				List<RedisFuture<O>> futures = operation.execute(commands, items);
 				connection.flushCommands();
-				List<O> result = new ArrayList<>(futures.size());
+				List<O> results = new ArrayList<>(futures.size());
 				for (RedisFuture<O> future : futures) {
-					result.add(future.get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS));
+					O result;
+					try {
+						result = future.get(timeout, TimeUnit.MILLISECONDS);
+					} catch (ExecutionException e) {
+						throw e;
+					}
+					results.add(result);
 				}
-				return result;
+				return results;
 			} finally {
 				connection.setAutoFlushCommands(true);
 			}

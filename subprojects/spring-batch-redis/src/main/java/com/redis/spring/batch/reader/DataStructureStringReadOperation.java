@@ -2,9 +2,9 @@ package com.redis.spring.batch.reader;
 
 import io.lettuce.core.AbstractRedisClient;
 
-public class DataStructureStringOperation extends AbstractDataStructureOperation<String, String> {
+public class DataStructureStringReadOperation extends AbstractDataStructureReadOperation<String, String> {
 
-	public DataStructureStringOperation(AbstractRedisClient client) {
+	public DataStructureStringReadOperation(AbstractRedisClient client) {
 		super(client);
 	}
 

@@ -1,12 +1,10 @@
-package com.redis.spring.batch.common;
+package com.redis.spring.batch.reader;
 
-import java.util.Optional;
-
-import com.redis.spring.batch.reader.QueueOptions;
+import com.redis.spring.batch.common.PoolOptions;
+import com.redis.spring.batch.common.StepOptions;
 
 public class ReaderOptions {
 
-	private Optional<JobRunner> jobRunner = Optional.empty();
 	private PoolOptions poolOptions = PoolOptions.builder().build();
 	private StepOptions stepOptions = StepOptions.builder().build();
 	private QueueOptions queueOptions = QueueOptions.builder().build();
@@ -15,15 +13,6 @@ public class ReaderOptions {
 		this.poolOptions = builder.poolOptions;
 		this.stepOptions = builder.stepOptions;
 		this.queueOptions = builder.queueOptions;
-		this.jobRunner = builder.jobRunner;
-	}
-
-	public Optional<JobRunner> getJobRunner() {
-		return jobRunner;
-	}
-
-	public void setJobRunner(Optional<JobRunner> jobRunner) {
-		this.jobRunner = jobRunner;
 	}
 
 	public PoolOptions getPoolOptions() {
@@ -56,7 +45,6 @@ public class ReaderOptions {
 
 	public static final class Builder {
 
-		private Optional<JobRunner> jobRunner = Optional.empty();
 		private PoolOptions poolOptions = PoolOptions.builder().build();
 		private StepOptions stepOptions = StepOptions.builder().build();
 		private QueueOptions queueOptions = QueueOptions.builder().build();
@@ -76,11 +64,6 @@ public class ReaderOptions {
 
 		public Builder queueOptions(QueueOptions queueOptions) {
 			this.queueOptions = queueOptions;
-			return this;
-		}
-
-		public Builder jobRunner(JobRunner jobRunner) {
-			this.jobRunner = Optional.of(jobRunner);
 			return this;
 		}
 

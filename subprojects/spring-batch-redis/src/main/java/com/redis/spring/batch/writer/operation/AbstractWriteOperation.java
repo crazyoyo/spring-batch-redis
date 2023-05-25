@@ -4,12 +4,12 @@ import java.util.function.Function;
 
 import org.springframework.util.Assert;
 
-import com.redis.spring.batch.common.AsyncOperation;
+import com.redis.spring.batch.common.Operation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public abstract class AbstractWriteOperation<K, V, I, O> implements AsyncOperation<K, V, I, O> {
+public abstract class AbstractWriteOperation<K, V, I, O> implements Operation<K, V, I, O> {
 
 	private final Function<I, K> keyFunction;
 

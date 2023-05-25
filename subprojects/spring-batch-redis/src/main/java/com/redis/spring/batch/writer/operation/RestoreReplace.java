@@ -2,8 +2,6 @@ package com.redis.spring.batch.writer.operation;
 
 import java.util.function.Function;
 
-import com.redis.spring.batch.common.KeyDump;
-
 import io.lettuce.core.RestoreArgs;
 
 public class RestoreReplace<K, V, T> extends Restore<K, V, T> {
@@ -13,11 +11,8 @@ public class RestoreReplace<K, V, T> extends Restore<K, V, T> {
 	}
 
 	@Override
-	protected RestoreArgs args(T item) {
-		return super.args(item).replace();
+	protected RestoreArgs args(Long ttl) {
+		return super.args(ttl).replace();
 	}
 
-	public static <K, V> RestoreReplace<K, V, KeyDump<K>> keyDump() {
-		return new RestoreReplace<>(KeyDump::getKey, KeyDump::getDump, KeyDump::getTtl);
-	}
 }

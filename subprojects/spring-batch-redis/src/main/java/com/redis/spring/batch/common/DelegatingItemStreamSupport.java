@@ -24,6 +24,16 @@ public class DelegatingItemStreamSupport extends ItemStreamSupport {
 	}
 
 	@Override
+	public void setName(String name) {
+		super.setName(name);
+		for (Object delegate : delegates) {
+			if (delegate instanceof ItemStreamSupport) {
+				((ItemStreamSupport) delegate).setName(name);
+			}
+		}
+	}
+
+	@Override
 	public void open(ExecutionContext executionContext) {
 		super.open(executionContext);
 		for (Object delegate : delegates) {

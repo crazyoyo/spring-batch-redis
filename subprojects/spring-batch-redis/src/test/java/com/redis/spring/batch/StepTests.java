@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -34,7 +35,7 @@ import com.redis.spring.batch.common.StepOptions;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorReaderOptions;
 import com.redis.spring.batch.reader.GeneratorReaderOptions.Type;
-import com.redis.spring.batch.reader.QueueItemReader;
+import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingSimpleStepBuilder;
 
@@ -69,8 +70,8 @@ class StepTests {
 		ErrorItemReader<DataStructure<String>> reader = new ErrorItemReader<>(generator);
 		SynchronizedListItemWriter<DataStructure<String>> writer = new SynchronizedListItemWriter<>();
 		String name = "readKeyValueFaultTolerance";
-		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> ftStep = jobRunner.step(name, reader, null,
-				writer, StepOptions.builder().chunkSize(1).faultTolerant(true).skip(TimeoutException.class)
+		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> ftStep = jobRunner.step(name, reader, writer,
+				StepOptions.builder().chunkSize(1).faultTolerant(true).skip(TimeoutException.class)
 						.skipPolicy(new AlwaysSkipItemSkipPolicy()).build());
 		Job job = jobRunner.job(name).start(ftStep.build()).build();
 		jobRunner.run(job);
@@ -99,7 +100,7 @@ class StepTests {
 		BlockingQueue<String> queue = new LinkedBlockingDeque<>(count);
 		QueueItemReader<String> reader = new QueueItemReader<>(queue, Duration.ofMillis(10));
 		SynchronizedListItemWriter<String> writer = new SynchronizedListItemWriter<>();
-		SimpleStepBuilder<String, String> flushingStep = jobRunner.step(name, reader, null, writer,
+		SimpleStepBuilder<String, String> flushingStep = jobRunner.step(name, reader, writer,
 				StepOptions.builder().flushingInterval(FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL)
 						.idleTimeout(Duration.ofMillis(500)).build());
 		Job job = jobRunner.job(name).start(flushingStep.build()).build();
@@ -110,4 +111,27 @@ class StepTests {
 		Awaitility.await().until(() -> JobRunner.isTerminated(execution));
 		assertEquals(count, writer.getItems().size());
 	}
+
+	private static class QueueItemReader<T> implements PollableItemReader<T> {
+
+		private final BlockingQueue<T> queue;
+		private final long timeout;
+
+		public QueueItemReader(BlockingQueue<T> queue, Duration timeout) {
+			this.queue = queue;
+			this.timeout = timeout.toMillis();
+		}
+
+		@Override
+		public T read() throws InterruptedException {
+			return poll(timeout, TimeUnit.MILLISECONDS);
+		}
+
+		@Override
+		public T poll(long timeout, TimeUnit unit) throws InterruptedException {
+			return queue.poll(timeout, unit);
+		}
+
+	}
+
 }

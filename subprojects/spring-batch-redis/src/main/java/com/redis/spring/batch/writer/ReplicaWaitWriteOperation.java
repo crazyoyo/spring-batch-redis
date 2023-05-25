@@ -3,7 +3,7 @@ package com.redis.spring.batch.writer;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.redis.spring.batch.common.BatchAsyncOperation;
+import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.DelegatingItemStreamSupport;
 
 import io.lettuce.core.RedisCommandExecutionException;
@@ -11,13 +11,13 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.PipelinedRedisFuture;
 
-public class ReplicaWaitOperation<K, V, T, U> extends DelegatingItemStreamSupport
-		implements BatchAsyncOperation<K, V, T, U> {
+public class ReplicaWaitWriteOperation<K, V, T, U> extends DelegatingItemStreamSupport
+		implements BatchOperation<K, V, T, U> {
 
-	private final BatchAsyncOperation<K, V, T, Object> delegate;
-	private final ReplicaWaitOptions options;
+	private final BatchOperation<K, V, T, Object> delegate;
+	private final ReplicaOptions options;
 
-	public ReplicaWaitOperation(BatchAsyncOperation<K, V, T, Object> delegate, ReplicaWaitOptions options) {
+	public ReplicaWaitWriteOperation(BatchOperation<K, V, T, Object> delegate, ReplicaOptions options) {
 		super(delegate);
 		this.delegate = delegate;
 		this.options = options;

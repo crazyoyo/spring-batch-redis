@@ -6,9 +6,9 @@ import com.redis.spring.batch.common.KeyDump;
 
 import io.lettuce.core.AbstractRedisClient;
 
-public class KeyDumpOperation extends AbstractLuaOperation<byte[], byte[], KeyDump<byte[]>> {
+public class KeyDumpReadOperation extends AbstractLuaReadOperation<byte[], byte[], KeyDump<byte[]>> {
 
-	public KeyDumpOperation(AbstractRedisClient client) {
+	public KeyDumpReadOperation(AbstractRedisClient client) {
 		super(client, "keydump.lua");
 	}
 

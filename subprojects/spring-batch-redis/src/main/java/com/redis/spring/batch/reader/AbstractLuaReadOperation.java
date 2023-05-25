@@ -13,7 +13,7 @@ import org.springframework.util.FileCopyUtils;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.common.AsyncOperation;
+import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.ConvertingRedisFuture;
 import com.redis.spring.batch.common.Utils;
 
@@ -23,13 +23,13 @@ import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 
-public abstract class AbstractLuaOperation<K, V, T> extends ItemStreamSupport implements AsyncOperation<K, V, K, T> {
+public abstract class AbstractLuaReadOperation<K, V, T> extends ItemStreamSupport implements Operation<K, V, K, T> {
 
 	private final AbstractRedisClient client;
 	private final String filename;
 	private String digest;
 
-	protected AbstractLuaOperation(AbstractRedisClient client, String filename) {
+	protected AbstractLuaReadOperation(AbstractRedisClient client, String filename) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.filename = filename;

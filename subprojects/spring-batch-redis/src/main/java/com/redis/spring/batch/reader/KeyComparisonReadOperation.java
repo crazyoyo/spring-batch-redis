@@ -8,12 +8,12 @@ import java.util.Objects;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
 
-import com.redis.spring.batch.common.BatchAsyncOperation;
+import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.ConvertingRedisFuture;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.OperationItemStreamSupport;
 import com.redis.spring.batch.common.PoolOptions;
-import com.redis.spring.batch.common.SimpleBatchAsyncOperation;
+import com.redis.spring.batch.common.SimpleBatchOperation;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -21,18 +21,18 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.codec.StringCodec;
 
-public class KeyComparisonBatchOperation
+public class KeyComparisonReadOperation
 		extends OperationItemStreamSupport<String, String, String, DataStructure<String>>
-		implements BatchAsyncOperation<String, String, String, KeyComparison> {
+		implements BatchOperation<String, String, String, KeyComparison> {
 
-	private final BatchAsyncOperation<String, String, String, DataStructure<String>> left;
+	private final BatchOperation<String, String, String, DataStructure<String>> left;
 	private final Duration ttlTolerance;
 
-	public KeyComparisonBatchOperation(AbstractRedisClient left, AbstractRedisClient right,
-			PoolOptions rightPoolOptions, Duration ttlTolerance) {
+	public KeyComparisonReadOperation(AbstractRedisClient left, AbstractRedisClient right, PoolOptions rightPoolOptions,
+			Duration ttlTolerance) {
 		super(right, StringCodec.UTF8, rightPoolOptions,
-				new SimpleBatchAsyncOperation<>(new DataStructureStringOperation(right)));
-		this.left = addDelegate(new SimpleBatchAsyncOperation<>(new DataStructureStringOperation(left)));
+				new SimpleBatchOperation<>(new DataStructureStringReadOperation(right)));
+		this.left = addDelegate(new SimpleBatchOperation<>(new DataStructureStringReadOperation(left)));
 		this.ttlTolerance = ttlTolerance;
 	}
 
@@ -52,10 +52,14 @@ public class KeyComparisonBatchOperation
 		for (int index = 0; index < items.size(); index++) {
 			RedisFuture<DataStructure<String>> leftItem = leftItems.get(index);
 			DataStructure<String> rightItem = rightItems.get(index);
-			results.add(
-					new ConvertingRedisFuture<>(leftItem, t -> new KeyComparison(t, rightItem, compare(t, rightItem))));
+			results.add(convertingFuture(leftItem, rightItem));
 		}
 		return results;
+	}
+
+	private RedisFuture<KeyComparison> convertingFuture(RedisFuture<DataStructure<String>> left,
+			DataStructure<String> right) {
+		return new ConvertingRedisFuture<>(left, t -> new KeyComparison(t, right, compare(t, right)));
 	}
 
 	private Status compare(DataStructure<String> left, DataStructure<String> right) {

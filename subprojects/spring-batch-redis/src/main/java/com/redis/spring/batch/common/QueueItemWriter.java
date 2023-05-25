@@ -11,7 +11,7 @@ public class QueueItemWriter<T> extends AbstractItemStreamItemWriter<T> {
 	private final BlockingQueue<T> queue;
 
 	public QueueItemWriter(BlockingQueue<T> queue) {
-		super.setName(ClassUtils.getShortName(getClass()));
+		setName(ClassUtils.getShortName(getClass()));
 		this.queue = queue;
 	}
 
