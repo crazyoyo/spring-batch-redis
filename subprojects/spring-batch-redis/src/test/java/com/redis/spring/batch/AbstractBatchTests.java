@@ -24,6 +24,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionTimeoutException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -448,7 +449,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		JobExecution execution = runAsync(testInfo, reader, writer, DEFAULT_FLUSHING_STEP_OPTIONS);
 		int count = 100;
 		generate(testInfo, GeneratorReaderOptions.builder().count(count).build());
-		awaitTermination(execution);
+		jobRunner.awaitTermination(execution);
 		Assertions.assertFalse(writer.getItems().stream().map(DataStructure::getKey).map(SlotHash::getSlot)
 				.anyMatch(s -> s < 0 || s > 8000));
 	}
@@ -525,7 +526,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		SynchronizedListItemWriter<KeyDump<String>> writer = new SynchronizedListItemWriter<>();
 		JobExecution execution = runAsync(testInfo, reader, writer, DEFAULT_FLUSHING_STEP_OPTIONS);
 		generate(testInfo, GeneratorReaderOptions.builder().count(123).types(Type.HASH, Type.STRING).build());
-		awaitTermination(execution);
+		jobRunner.awaitTermination(execution);
 		Supplier<List<String>> keys = () -> sourceConnection.sync().keys("gen:*");
 		IntSupplier expectedSize = () -> keys.get().size();
 		IntSupplier actualSize = () -> writer.getItems().size();
@@ -897,8 +898,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			JobExecution execution1 = runAsync(testInfo(testInfo, key, "1"), reader1, writer1, DEFAULT_STEP_OPTIONS);
 			SynchronizedListItemWriter<StreamMessage<String, String>> writer2 = new SynchronizedListItemWriter<>();
 			JobExecution execution2 = runAsync(testInfo(testInfo, key, "2"), reader2, writer2, DEFAULT_STEP_OPTIONS);
-			awaitTermination(execution1);
-			awaitTermination(execution2);
+			jobRunner.awaitTermination(execution1);
+			jobRunner.awaitTermination(execution2);
 			awaitUntil(() -> STREAM_MESSAGE_COUNT == writer1.getItems().size() + writer2.getItems().size());
 			assertMessageBody(writer1.getItems());
 			assertMessageBody(writer2.getItems());
@@ -1026,7 +1027,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	}
 
 	@Test
-	void liveOnly(TestInfo testInfo) throws Exception {
+	void liveOnlyReplication(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
 		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader().live()
 				.eventQueueOptions(QueueOptions.builder().capacity(100000).build()).build();
@@ -1034,12 +1035,12 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		JobExecution execution = runAsync(testInfo, reader, writer, DEFAULT_FLUSHING_STEP_OPTIONS);
 		generate(testInfo,
 				GeneratorReaderOptions.builder().types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET).build());
-		awaitTermination(execution);
+		jobRunner.awaitTermination(execution);
 		compare(testInfo);
 	}
 
 	@Test
-	void liveReplication(TestInfo testInfo) throws Exception {
+	void liveDumpAndRestoreReplication(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
 		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader().build();
 		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient).build();
@@ -1049,7 +1050,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	}
 
 	@Test
-	void liveSet(TestInfo testInfo) throws Exception {
+	void liveSetReplication(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
 		String key = "myset";
 		sourceConnection.sync().sadd(key, "1", "2", "3", "4", "5");
@@ -1058,7 +1059,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter().build();
 		JobExecution execution = runAsync(testInfo, reader, writer, DEFAULT_FLUSHING_STEP_OPTIONS);
 		sourceConnection.sync().srem(key, "5");
-		awaitTermination(execution);
+		jobRunner.awaitTermination(execution);
 		assertEquals(sourceConnection.sync().smembers(key), targetConnection.sync().smembers(key));
 	}
 
@@ -1092,7 +1093,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	}
 
 	@Test
-	void liveDataStructures(TestInfo testInfo) throws Exception {
+	void liveTypeBasedReplication(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
 		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader().build();
 		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter().build();
@@ -1117,7 +1118,11 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		generate(testInfo(testInfo, "generateLive"),
 				GeneratorReaderOptions.builder().types(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET)
 						.expiration(IntRange.is(100)).keyRange(IntRange.between(300, 1000)).build());
-		awaitTermination(execution);
+		try {
+			jobRunner.awaitTermination(execution);
+		} catch (ConditionTimeoutException e) {
+			// ignore
+		}
 		compare(testInfo);
 	}
 

@@ -166,10 +166,6 @@ abstract class AbstractTestBase {
 		return jobRunner.awaitRunning(jobExecution);
 	}
 
-	protected JobExecution awaitTermination(JobExecution jobExecution) {
-		return jobRunner.awaitTermination(jobExecution);
-	}
-
 	protected void awaitUntilFalse(Callable<Boolean> conditionEvaluator) {
 		awaitUntil(() -> !conditionEvaluator.call());
 	}
