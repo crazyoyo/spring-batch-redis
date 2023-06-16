@@ -146,7 +146,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	}
 
 	@Override
-	public StreamMessage<K, V> read() throws Exception {
+	public synchronized StreamMessage<K, V> read() throws Exception {
 		return poll(DEFAULT_POLL_DURATION.toMillis(), TimeUnit.MILLISECONDS);
 	}
 

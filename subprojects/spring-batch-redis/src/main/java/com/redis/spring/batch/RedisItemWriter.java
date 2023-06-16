@@ -34,7 +34,7 @@ public class RedisItemWriter<K, V, T> extends OperationItemStreamSupport<K, V, T
 	}
 
 	@Override
-	public void write(List<? extends T> items) throws Exception {
+	public synchronized void write(List<? extends T> items) throws Exception {
 		process(items);
 	}
 

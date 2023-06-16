@@ -55,7 +55,7 @@ public class OperationItemStreamSupport<K, V, I, O> extends DelegatingItemStream
 	}
 
 	@Override
-	public List<O> process(List<? extends I> items) throws Exception {
+	public synchronized List<O> process(List<? extends I> items) throws Exception {
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
 			long timeout = connection.getTimeout().toMillis();
 			connection.setAutoFlushCommands(false);

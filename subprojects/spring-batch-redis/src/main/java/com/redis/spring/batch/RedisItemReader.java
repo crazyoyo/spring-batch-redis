@@ -28,9 +28,6 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.NonTransientResourceException;
-import org.springframework.batch.item.ParseException;
-import org.springframework.batch.item.UnexpectedInputException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
@@ -258,7 +255,7 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 	}
 
 	@Override
-	public T read() throws Exception, UnexpectedInputException, ParseException, NonTransientResourceException {
+	public synchronized T read() throws Exception {
 		T item;
 		do {
 			item = queue.poll(queueOptions.getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
