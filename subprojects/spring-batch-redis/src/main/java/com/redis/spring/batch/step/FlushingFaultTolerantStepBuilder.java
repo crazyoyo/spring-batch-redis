@@ -4,8 +4,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.function.Function;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.core.ItemProcessListener;
 import org.springframework.batch.core.ItemReadListener;
 import org.springframework.batch.core.ItemWriteListener;
@@ -27,8 +25,6 @@ import com.redis.spring.batch.reader.PollableItemReader;
 
 public class FlushingFaultTolerantStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 
-	private static final Log log = LogFactory.getLog(FlushingFaultTolerantStepBuilder.class);
-
 	private Duration flushingInterval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
 	private Duration idleTimeout;
 
@@ -48,12 +44,9 @@ public class FlushingFaultTolerantStepBuilder<I, O> extends FaultTolerantStepBui
 
 	@Override
 	protected ChunkProvider<I> createChunkProvider() {
-		log.info("Creating chunk provider with interval=" + flushingInterval + " and idleTimeout=" + idleTimeout);
 		SkipPolicy readSkipPolicy = createSkipPolicy();
 		readSkipPolicy = getFatalExceptionAwareProxy(readSkipPolicy);
 		int maxSkipsOnRead = Math.max(getChunkSize(), FaultTolerantChunkProvider.DEFAULT_MAX_SKIPS_ON_READ);
-		log.debug(String.format("Creating chunk provider: maxSkipsOnRead=%s skipPolicy=%s interval=%s idleTimeout=%s",
-				maxSkipsOnRead, readSkipPolicy, flushingInterval, idleTimeout));
 		FlushingFaultTolerantChunkProvider<I> chunkProvider = new FlushingFaultTolerantChunkProvider<>(getReader(),
 				createChunkOperations());
 		chunkProvider.setMaxSkipsOnRead(maxSkipsOnRead);

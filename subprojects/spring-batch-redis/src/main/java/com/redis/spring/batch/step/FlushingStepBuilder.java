@@ -4,8 +4,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.function.Function;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.core.ItemProcessListener;
 import org.springframework.batch.core.ItemReadListener;
 import org.springframework.batch.core.ItemWriteListener;
@@ -25,8 +23,6 @@ import org.springframework.util.Assert;
 import com.redis.spring.batch.reader.PollableItemReader;
 
 public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
-
-	private static final Log log = LogFactory.getLog(FlushingStepBuilder.class);
 
 	private Duration flushingInterval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
 	private Duration idleTimeout;
@@ -64,8 +60,6 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 	}
 
 	protected FlushingChunkProvider<I> createChunkProvider() {
-		log.info("Creating chunk provider with flushingInterval=" + flushingInterval + " and idleTimeout="
-				+ idleTimeout);
 		FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>(getReader(), createChunkOperations());
 		chunkProvider.setInterval(flushingInterval);
 		chunkProvider.setIdleTimeout(idleTimeout);
