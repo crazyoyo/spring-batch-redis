@@ -241,9 +241,12 @@ abstract class AbstractTestBase {
 		TestInfo finalTestInfo = testInfo(testInfo, "compare");
 		RedisItemReader<String, String, KeyComparison> reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
-		run(job(finalTestInfo).start(step(finalTestInfo, reader, writer).build()).build());
+		JobExecution execution = run(job(finalTestInfo).start(step(finalTestInfo, reader, writer).build()).build());
+		awaitTermination(execution);
+		awaitUntilFalse(reader::isOpen);
+		awaitUntilFalse(writer::isOpen);
 		Assertions.assertFalse(writer.getItems().isEmpty());
-		awaitUntil(() -> writer.getItems().stream().allMatch(c -> c.getStatus() == Status.OK));
+		Assertions.assertTrue(writer.getItems().stream().allMatch(c -> c.getStatus() == Status.OK));
 	}
 
 	protected RedisItemReader<String, String, KeyComparison> comparisonReader() throws Exception {
