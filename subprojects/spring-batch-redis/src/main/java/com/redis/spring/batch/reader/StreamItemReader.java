@@ -102,27 +102,33 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		if (connection == null) {
-			connection = RedisModulesUtils.connection(client, codec);
-			RedisStreamCommands<K, V> commands = Utils.sync(connection);
-			StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
-			XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
-			try {
-				commands.xgroupCreate(streamOffset, consumer.getGroup(), args);
-			} catch (RedisBusyException e) {
-				// Consumer Group name already exists, ignore
-			}
-			lastId = offset;
-			reader = reader();
+		if (isOpen()) {
+			return;
 		}
+		connection = RedisModulesUtils.connection(client, codec);
+		RedisStreamCommands<K, V> commands = Utils.sync(connection);
+		StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
+		XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
+		try {
+			commands.xgroupCreate(streamOffset, consumer.getGroup(), args);
+		} catch (RedisBusyException e) {
+			// Consumer Group name already exists, ignore
+		}
+		lastId = offset;
+		reader = reader();
+	}
+
+	public boolean isOpen() {
+		return connection != null;
 	}
 
 	@Override
 	public synchronized void close() {
-		if (connection != null) {
+		if (isOpen()) {
 			reader = null;
 			lastId = null;
 			connection.close();
+			connection = null;
 		}
 		super.close();
 	}

@@ -583,6 +583,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		estimator.withMatch(pattern);
 		assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
 		estimator = new ScanSizeEstimator(sourceClient);
+		estimator.withSampleSize(200);
 		estimator.withType(DataStructure.HASH);
 		assertEquals(expectedCount / GeneratorItemReader.defaultTypes().size(), estimator.getAsLong(),
 				expectedCount / 10);
@@ -939,8 +940,12 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			SynchronizedListItemWriter<StreamMessage<String, String>> writer2 = new SynchronizedListItemWriter<>();
 			JobExecution execution2 = runAsync(job(testInfo(testInfo, key, "2"), reader2, writer2));
 			awaitTermination(execution1);
+			awaitUntilFalse(reader1::isOpen);
+			awaitUntilFalse(writer1::isOpen);
 			awaitTermination(execution2);
-			awaitUntil(() -> STREAM_MESSAGE_COUNT == writer1.getItems().size() + writer2.getItems().size());
+			awaitUntilFalse(reader2::isOpen);
+			awaitUntilFalse(writer2::isOpen);
+			Assertions.assertEquals(STREAM_MESSAGE_COUNT, writer1.getItems().size() + writer2.getItems().size());
 			assertMessageBody(writer1.getItems());
 			assertMessageBody(writer2.getItems());
 			RedisModulesCommands<String, String> sync = sourceConnection.sync();
