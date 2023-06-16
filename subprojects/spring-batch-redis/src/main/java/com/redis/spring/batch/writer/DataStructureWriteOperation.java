@@ -1,17 +1,12 @@
 package com.redis.spring.batch.writer;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
 import com.redis.lettucemod.timeseries.AddOptions;
 import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.Operation;
-import com.redis.spring.batch.writer.DataStructureWriteOptions.MergePolicy;
-import com.redis.spring.batch.writer.DataStructureWriteOptions.StreamIdPolicy;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Noop;
@@ -31,23 +26,40 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
 public class DataStructureWriteOperation<K, V> implements BatchOperation<K, V, DataStructure<K>, Object> {
 
+	public static final MergePolicy DEFAULT_MERGE_POLICY = MergePolicy.OVERWRITE;
+	public static final StreamIdPolicy DEFAULT_STREAM_ID_POLICY = StreamIdPolicy.PROPAGATE;
 	private static final XAddArgs EMPTY_XADD_ARGS = new XAddArgs();
 
-	private final boolean deleteFirst;
-	private final Operation<K, V, DataStructure<K>, Object> noop = new Noop<>();
-	private Map<String, Operation<K, V, DataStructure<K>, ?>> operations;
+	private MergePolicy mergePolicy = DEFAULT_MERGE_POLICY;
+	private StreamIdPolicy streamIdPolicy = DEFAULT_STREAM_ID_POLICY;
 
-	public DataStructureWriteOperation(DataStructureWriteOptions options) {
-		this.deleteFirst = options.getMergePolicy() == MergePolicy.OVERWRITE;
-		this.operations = new HashMap<>();
-		operations.put(DataStructure.HASH, hset());
-		operations.put(DataStructure.STRING, set());
-		operations.put(DataStructure.JSON, jsonSet());
-		operations.put(DataStructure.LIST, rpush());
-		operations.put(DataStructure.SET, sadd());
-		operations.put(DataStructure.ZSET, zadd());
-		operations.put(DataStructure.TIMESERIES, tsAdd());
-		operations.put(DataStructure.STREAM, xadd(xaddArgs(options.getStreamIdPolicy())));
+	private final Operation<K, V, DataStructure<K>, Object> noop = new Noop<>();
+	private final Hset<K, V, DataStructure<K>> hset = new Hset<>(DataStructure::getKey, DataStructure::getValue);
+
+	private final Set<K, V, DataStructure<K>> set = new Set<>(DataStructure::getKey, DataStructure::getValue);
+
+	private final JsonSet<K, V, DataStructure<K>> jsonSet = new JsonSet<>(DataStructure::getKey,
+			DataStructure::getValue);
+
+	private final RpushAll<K, V, DataStructure<K>> rpush = new RpushAll<>(DataStructure::getKey,
+			DataStructure::getValue);
+
+	private final SaddAll<K, V, DataStructure<K>> sadd = new SaddAll<>(DataStructure::getKey, DataStructure::getValue);
+
+	private final ZaddAll<K, V, DataStructure<K>> zadd = new ZaddAll<>(DataStructure::getKey, DataStructure::getValue);
+
+	private final TsAddAll<K, V, DataStructure<K>> tsAdd = new TsAddAll<>(DataStructure::getKey,
+			DataStructure::getValue, AddOptions.<K, V>builder().build());
+
+	private XAddAll<K, V, DataStructure<K>> xadd = xadd();
+
+	public void setMergePolicy(MergePolicy mergePolicy) {
+		this.mergePolicy = mergePolicy;
+	}
+
+	public void setStreamIdPolicy(StreamIdPolicy streamIdPolicy) {
+		this.streamIdPolicy = streamIdPolicy;
+		this.xadd = xadd();
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -62,7 +74,7 @@ public class DataStructureWriteOperation<K, V> implements BatchOperation<K, V, D
 			if (shouldDelete(item)) {
 				futures.add(delete(commands, item));
 			} else {
-				if (deleteFirst && !DataStructure.STRING.equals(item.getType())) {
+				if (mergePolicy == MergePolicy.OVERWRITE && !DataStructure.STRING.equals(item.getType())) {
 					futures.add(delete(commands, item));
 				}
 				futures.add((RedisFuture) operation(item).execute(commands, item));
@@ -86,14 +98,26 @@ public class DataStructureWriteOperation<K, V> implements BatchOperation<K, V, D
 	}
 
 	private Operation<K, V, DataStructure<K>, ?> operation(DataStructure<K> item) {
-		return operations.getOrDefault(item.getType(), noop);
-	}
-
-	private Function<StreamMessage<K, V>, XAddArgs> xaddArgs(StreamIdPolicy streamIdPolicy) {
-		if (streamIdPolicy == StreamIdPolicy.PROPAGATE) {
-			return this::xaddArgs;
+		switch (item.getType()) {
+		case DataStructure.HASH:
+			return hset;
+		case DataStructure.JSON:
+			return jsonSet;
+		case DataStructure.LIST:
+			return rpush;
+		case DataStructure.SET:
+			return sadd;
+		case DataStructure.STREAM:
+			return xadd;
+		case DataStructure.STRING:
+			return set;
+		case DataStructure.TIMESERIES:
+			return tsAdd;
+		case DataStructure.ZSET:
+			return zadd;
+		default:
+			return noop;
 		}
-		return t -> EMPTY_XADD_ARGS;
 	}
 
 	private XAddArgs xaddArgs(StreamMessage<K, V> message) {
@@ -105,36 +129,9 @@ public class DataStructureWriteOperation<K, V> implements BatchOperation<K, V, D
 		return args;
 	}
 
-	private Hset<K, V, DataStructure<K>> hset() {
-		return new Hset<>(DataStructure::getKey, DataStructure::getValue);
-	}
-
-	private Set<K, V, DataStructure<K>> set() {
-		return new Set<>(DataStructure::getKey, DataStructure::getValue);
-	}
-
-	private JsonSet<K, V, DataStructure<K>> jsonSet() {
-		return new JsonSet<>(DataStructure::getKey, DataStructure::getValue);
-	}
-
-	private RpushAll<K, V, DataStructure<K>> rpush() {
-		return new RpushAll<>(DataStructure::getKey, DataStructure::getValue);
-	}
-
-	private SaddAll<K, V, DataStructure<K>> sadd() {
-		return new SaddAll<>(DataStructure::getKey, DataStructure::getValue);
-	}
-
-	private ZaddAll<K, V, DataStructure<K>> zadd() {
-		return new ZaddAll<>(DataStructure::getKey, DataStructure::getValue);
-	}
-
-	private TsAddAll<K, V, DataStructure<K>> tsAdd() {
-		return new TsAddAll<>(DataStructure::getKey, DataStructure::getValue, AddOptions.<K, V>builder().build());
-	}
-
-	private XAddAll<K, V, DataStructure<K>> xadd(Function<StreamMessage<K, V>, XAddArgs> args) {
-		return new XAddAll<>(DataStructure::getValue, args);
+	private XAddAll<K, V, DataStructure<K>> xadd() {
+		return new XAddAll<>(DataStructure::getValue,
+				streamIdPolicy == StreamIdPolicy.PROPAGATE ? this::xaddArgs : t -> EMPTY_XADD_ARGS);
 	}
 
 }

@@ -2,7 +2,6 @@ package com.redis.spring.batch.common;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -20,18 +19,22 @@ public class OperationItemStreamSupport<K, V, I, O> extends DelegatingItemStream
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
-	private final PoolOptions poolOptions;
+	private PoolOptions poolOptions = PoolOptions.builder().build();
 	private final BatchOperation<K, V, I, O> operation;
 
 	private GenericObjectPool<StatefulConnection<K, V>> pool;
 
-	public OperationItemStreamSupport(AbstractRedisClient client, RedisCodec<K, V> codec, PoolOptions poolOptions,
+	public OperationItemStreamSupport(AbstractRedisClient client, RedisCodec<K, V> codec,
 			BatchOperation<K, V, I, O> operation) {
 		super(operation);
 		this.client = client;
 		this.codec = codec;
-		this.poolOptions = poolOptions;
 		this.operation = operation;
+	}
+
+	public OperationItemStreamSupport<K, V, I, O> withPoolOptions(PoolOptions poolOptions) {
+		this.poolOptions = poolOptions;
+		return this;
 	}
 
 	@Override
@@ -62,12 +65,7 @@ public class OperationItemStreamSupport<K, V, I, O> extends DelegatingItemStream
 				connection.flushCommands();
 				List<O> results = new ArrayList<>(futures.size());
 				for (RedisFuture<O> future : futures) {
-					O result;
-					try {
-						result = future.get(timeout, TimeUnit.MILLISECONDS);
-					} catch (ExecutionException e) {
-						throw e;
-					}
+					O result = future.get(timeout, TimeUnit.MILLISECONDS);
 					results.add(result);
 				}
 				return results;

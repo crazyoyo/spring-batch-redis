@@ -4,13 +4,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import com.hrakaroo.glob.GlobPattern;
 import com.hrakaroo.glob.MatchingEngine;
@@ -28,15 +27,36 @@ import io.lettuce.core.api.async.RedisServerAsyncCommands;
 public class ScanSizeEstimator implements LongSupplier {
 
 	public static final long UNKNOWN_SIZE = -1;
-
-	private static final Logger log = Logger.getLogger(ScanSizeEstimator.class.getName());
+	public static final long DEFAULT_SAMPLE_SIZE = 100;
+	public static final String DEFAULT_MATCH = ScanKeyItemReader.DEFAULT_MATCH;
 
 	private final AbstractRedisClient client;
-	private final ScanSizeEstimatorOptions options;
 
-	public ScanSizeEstimator(AbstractRedisClient client, ScanSizeEstimatorOptions options) {
+	private String match = DEFAULT_MATCH;
+	private long sampleSize = DEFAULT_SAMPLE_SIZE;
+	private Optional<String> type = Optional.empty();
+
+	public ScanSizeEstimator(AbstractRedisClient client) {
 		this.client = client;
-		this.options = options;
+	}
+
+	public ScanSizeEstimator withMatch(String match) {
+		this.match = match;
+		return this;
+	}
+
+	public ScanSizeEstimator withSampleSize(long sampleSize) {
+		this.sampleSize = sampleSize;
+		return this;
+	}
+
+	public ScanSizeEstimator withType(String type) {
+		return withType(Optional.of(type));
+	}
+
+	public ScanSizeEstimator withType(Optional<String> type) {
+		this.type = type;
+		return this;
 	}
 
 	/**
@@ -55,7 +75,7 @@ public class ScanSizeEstimator implements LongSupplier {
 			if (dbsize == null) {
 				return UNKNOWN_SIZE;
 			}
-			if (options.getMatch().isEmpty() && !options.getType().isPresent()) {
+			if (match.isEmpty() && !type.isPresent()) {
 				return dbsize;
 			}
 			connection.setAutoFlushCommands(false);
@@ -66,8 +86,6 @@ public class ScanSizeEstimator implements LongSupplier {
 				connection.setAutoFlushCommands(true);
 			}
 		} catch (InterruptedException e) {
-			log.log(Level.WARNING, "Interrupted!", e);
-			// Restore interrupted state...
 			Thread.currentThread().interrupt();
 		} catch (Exception e) {
 			// ignore
@@ -79,7 +97,7 @@ public class ScanSizeEstimator implements LongSupplier {
 	private double matchRate(StatefulConnection<String, String> connection,
 			BaseRedisAsyncCommands<String, String> commands)
 			throws InterruptedException, ExecutionException, TimeoutException {
-		long total = options.getSampleSize();
+		long total = sampleSize;
 		List<RedisFuture<String>> keyFutures = new ArrayList<>();
 		// rough estimate of keys matching pattern
 		for (int index = 0; index < total; index++) {
@@ -94,8 +112,7 @@ public class ScanSizeEstimator implements LongSupplier {
 				continue;
 			}
 			keyTypeFutures.put(key,
-					options.getType().isPresent() ? ((RedisKeyAsyncCommands<String, String>) commands).type(key)
-							: null);
+					type.isPresent() ? ((RedisKeyAsyncCommands<String, String>) commands).type(key) : null);
 		}
 		connection.flushCommands();
 		Predicate<String> matchFilter = matchFilter();
@@ -103,7 +120,7 @@ public class ScanSizeEstimator implements LongSupplier {
 			if (!matchFilter.test(entry.getKey())) {
 				continue;
 			}
-			if (!options.getType().isPresent() || options.getType().get().equalsIgnoreCase(
+			if (!type.isPresent() || type.get().equalsIgnoreCase(
 					entry.getValue().get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS))) {
 				count++;
 			}
@@ -112,7 +129,7 @@ public class ScanSizeEstimator implements LongSupplier {
 	}
 
 	private Predicate<String> matchFilter() {
-		MatchingEngine engine = GlobPattern.compile(options.getMatch());
+		MatchingEngine engine = GlobPattern.compile(match);
 		return engine::matches;
 	}
 

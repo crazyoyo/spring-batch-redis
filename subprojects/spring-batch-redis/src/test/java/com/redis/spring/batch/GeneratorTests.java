@@ -8,21 +8,22 @@ import java.util.List;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.reader.GeneratorItemReader;
-import com.redis.spring.batch.reader.GeneratorReaderOptions;
 
 class GeneratorTests {
 
 	@Test
 	void defaults() throws UnexpectedInputException, ParseException, Exception {
-		GeneratorReaderOptions options = GeneratorReaderOptions.builder().build();
-		GeneratorItemReader reader = new GeneratorItemReader(options);
+		int count = 123;
+		GeneratorItemReader reader = new GeneratorItemReader();
+		reader.setMaxItemCount(count);
 		List<DataStructure<String>> list = readAll(reader);
-		Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_KEY_RANGE.getMax(), list.size());
+		Assertions.assertEquals(count, list.size());
 	}
 
 	private List<DataStructure<String>> readAll(GeneratorItemReader reader)
@@ -38,26 +39,26 @@ class GeneratorTests {
 	@Test
 	void options() throws Exception {
 		int count = 123;
-		GeneratorReaderOptions options = GeneratorReaderOptions.builder().count(count).build();
-		GeneratorItemReader reader = new GeneratorItemReader(options);
+		GeneratorItemReader reader = new GeneratorItemReader();
+		reader.setMaxItemCount(count);
 		List<DataStructure<String>> list = readAll(reader);
 		Assertions.assertEquals(count, list.size());
 		for (DataStructure<String> ds : list) {
 			switch (ds.getType()) {
 			case DataStructure.SET:
-				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_SET_OPTIONS.getCardinality().getMax(),
+				Assertions.assertEquals(GeneratorItemReader.DEFAULT_SET_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
 			case DataStructure.LIST:
-				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_LIST_OPTIONS.getCardinality().getMax(),
+				Assertions.assertEquals(GeneratorItemReader.DEFAULT_LIST_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
 			case DataStructure.ZSET:
-				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_ZSET_OPTIONS.getCardinality().getMax(),
+				Assertions.assertEquals(GeneratorItemReader.DEFAULT_ZSET_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
 			case DataStructure.STREAM:
-				Assertions.assertEquals(GeneratorReaderOptions.DEFAULT_STREAM_OPTIONS.getMessageCount().getMax(),
+				Assertions.assertEquals(GeneratorItemReader.DEFAULT_STREAM_OPTIONS.getMessageCount().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
 			default:
@@ -68,15 +69,18 @@ class GeneratorTests {
 
 	@Test
 	void read() throws Exception {
-		GeneratorReaderOptions options = GeneratorReaderOptions.builder().build();
-		GeneratorItemReader reader = new GeneratorItemReader(options);
+		int count = 456;
+		GeneratorItemReader reader = new GeneratorItemReader();
+		reader.open(new ExecutionContext());
+		reader.setMaxItemCount(456);
 		DataStructure<String> ds1 = reader.read();
 		assertEquals("gen:1", ds1.getKey());
-		int count = 1;
+		int actualCount = 1;
 		while (reader.read() != null) {
-			count++;
+			actualCount++;
 		}
-		assertEquals(GeneratorReaderOptions.DEFAULT_KEY_RANGE.getMax(), count);
+		assertEquals(count, actualCount);
+		reader.close();
 	}
 
 }

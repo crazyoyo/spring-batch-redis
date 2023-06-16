@@ -1,65 +1,12 @@
 package com.redis.spring.batch.reader;
 
-import static com.redis.spring.batch.reader.KeyEventType.APPEND;
-import static com.redis.spring.batch.reader.KeyEventType.COPY_TO;
-import static com.redis.spring.batch.reader.KeyEventType.DEL;
-import static com.redis.spring.batch.reader.KeyEventType.EVICTED;
-import static com.redis.spring.batch.reader.KeyEventType.EXPIRE;
-import static com.redis.spring.batch.reader.KeyEventType.EXPIRED;
-import static com.redis.spring.batch.reader.KeyEventType.HDEL;
-import static com.redis.spring.batch.reader.KeyEventType.HINCRBY;
-import static com.redis.spring.batch.reader.KeyEventType.HINCRBYFLOAT;
-import static com.redis.spring.batch.reader.KeyEventType.HSET;
-import static com.redis.spring.batch.reader.KeyEventType.INCRBY;
-import static com.redis.spring.batch.reader.KeyEventType.INCRBYFLOAT;
-import static com.redis.spring.batch.reader.KeyEventType.JSON_SET;
-import static com.redis.spring.batch.reader.KeyEventType.LINSERT;
-import static com.redis.spring.batch.reader.KeyEventType.LPOP;
-import static com.redis.spring.batch.reader.KeyEventType.LPUSH;
-import static com.redis.spring.batch.reader.KeyEventType.LREM;
-import static com.redis.spring.batch.reader.KeyEventType.LSET;
-import static com.redis.spring.batch.reader.KeyEventType.LTRIM;
-import static com.redis.spring.batch.reader.KeyEventType.MOVE_FROM;
-import static com.redis.spring.batch.reader.KeyEventType.MOVE_TO;
-import static com.redis.spring.batch.reader.KeyEventType.NEW_KEY;
-import static com.redis.spring.batch.reader.KeyEventType.PERSIST;
-import static com.redis.spring.batch.reader.KeyEventType.RENAME_FROM;
-import static com.redis.spring.batch.reader.KeyEventType.RENAME_TO;
-import static com.redis.spring.batch.reader.KeyEventType.RESTORE;
-import static com.redis.spring.batch.reader.KeyEventType.RPOP;
-import static com.redis.spring.batch.reader.KeyEventType.RPUSH;
-import static com.redis.spring.batch.reader.KeyEventType.SADD;
-import static com.redis.spring.batch.reader.KeyEventType.SDIFFSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.SET;
-import static com.redis.spring.batch.reader.KeyEventType.SETRANGE;
-import static com.redis.spring.batch.reader.KeyEventType.SINTERSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.SORTSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.SPOP;
-import static com.redis.spring.batch.reader.KeyEventType.SUNIONSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.TS_ADD;
-import static com.redis.spring.batch.reader.KeyEventType.UNKNOWN;
-import static com.redis.spring.batch.reader.KeyEventType.XADD;
-import static com.redis.spring.batch.reader.KeyEventType.XDEL;
-import static com.redis.spring.batch.reader.KeyEventType.XGROUP_CREATE;
-import static com.redis.spring.batch.reader.KeyEventType.XGROUP_CREATECONSUMER;
-import static com.redis.spring.batch.reader.KeyEventType.XGROUP_DELCONSUMER;
-import static com.redis.spring.batch.reader.KeyEventType.XGROUP_DESTROY;
-import static com.redis.spring.batch.reader.KeyEventType.XGROUP_SETID;
-import static com.redis.spring.batch.reader.KeyEventType.XSETID;
-import static com.redis.spring.batch.reader.KeyEventType.XTRIM;
-import static com.redis.spring.batch.reader.KeyEventType.ZADD;
-import static com.redis.spring.batch.reader.KeyEventType.ZDIFFSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.ZINCR;
-import static com.redis.spring.batch.reader.KeyEventType.ZINTERSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.ZREM;
-import static com.redis.spring.batch.reader.KeyEventType.ZREMBYRANK;
-import static com.redis.spring.batch.reader.KeyEventType.ZREMBYSCORE;
-import static com.redis.spring.batch.reader.KeyEventType.ZUNIONSTORE;
-
-import java.util.Comparator;
-import java.util.EnumMap;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -68,10 +15,12 @@ import java.util.stream.Stream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
 import com.redis.lettucemod.util.RedisModulesUtils;
+import com.redis.spring.batch.RedisItemReader.LiveReaderBuilder;
 import com.redis.spring.batch.common.SetBlockingQueue;
 import com.redis.spring.batch.common.Utils;
 
@@ -84,57 +33,63 @@ import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.pubsub.RedisPubSubAdapter;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
-public class KeyspaceNotificationItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<K>
-		implements PollableItemReader<K>, AutoCloseable {
+public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItemReader<K>
+		implements PollableItemReader<K> {
 
 	private static final Log log = LogFactory.getLog(KeyspaceNotificationItemReader.class);
 
-	protected static final KeyEventType[] EVENT_TYPES_ORDERED = {
-			// Delete
-			DEL, EXPIRED, EVICTED, EXPIRE,
-			// Create
-			PERSIST, NEW_KEY, RESTORE, RENAME_FROM, RENAME_TO, MOVE_FROM, MOVE_TO, COPY_TO,
-			// String
-			SET, SETRANGE, INCRBY, INCRBYFLOAT, APPEND,
-			// Hash
-			HSET, HINCRBY, HINCRBYFLOAT, HDEL,
-			// JSON
-			JSON_SET,
-			// List
-			LPUSH, RPUSH, RPOP, LPOP, LINSERT, LSET, LREM, LTRIM, SORTSTORE,
-			// Set
-			SADD, SPOP, SINTERSTORE, SUNIONSTORE, SDIFFSTORE,
-			// Sorted Set
-			ZINCR, ZADD, ZREM, ZREMBYSCORE, ZREMBYRANK, ZDIFFSTORE, ZINTERSTORE, ZUNIONSTORE,
-			// Stream
-			XADD, XTRIM, XDEL, XGROUP_CREATE, XGROUP_CREATECONSUMER, XGROUP_DELCONSUMER, XGROUP_DESTROY, XGROUP_SETID,
-			XSETID,
-			// TimeSeries
-			TS_ADD,
-			// Other
-			UNKNOWN };
-
 	public static final String QUEUE_SIZE_GAUGE_NAME = "reader.notification.queue.size";
+	public static final KeyspaceNotificationOrderingStrategy DEFAULT_ORDERING = KeyspaceNotificationOrderingStrategy.PRIORITY;
 
 	private static final String SEPARATOR = ":";
 	private static final KeyspaceNotificationComparator NOTIFICATION_COMPARATOR = new KeyspaceNotificationComparator();
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
-	private final Map<String, KeyEventType> eventTypes = Stream.of(KeyEventType.values())
+	private static final Map<String, KeyEventType> eventTypes = Stream.of(KeyEventType.values())
 			.collect(Collectors.toMap(KeyEventType::getString, Function.identity()));
-	private final QueueOptions queueOptions;
-	private final String[] patterns;
+
+	private QueueOptions queueOptions = QueueOptions.builder().build();
+	private List<String> patterns = LiveReaderBuilder.defaultPatterns();
+	private Set<String> types = new HashSet<>();
+	private KeyspaceNotificationOrderingStrategy prioritization = DEFAULT_ORDERING;
+
 	private Publisher publisher;
 	private BlockingQueue<KeyspaceNotification> queue;
 
-	public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, QueueOptions queueOptions,
-			String[] patterns) {
+	public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.codec = codec;
-		this.queueOptions = queueOptions;
+	}
+
+	public KeyspaceNotificationItemReader<K, V> withQueueOptions(QueueOptions options) {
+		this.queueOptions = options;
+		return this;
+	}
+
+	public KeyspaceNotificationItemReader<K, V> withPatterns(List<String> patterns) {
 		this.patterns = patterns;
+		return this;
+	}
+
+	/**
+	 * Set key types to include. Empty means include all types.
+	 * 
+	 * @param types
+	 */
+	public KeyspaceNotificationItemReader<K, V> withTypes(List<String> types) {
+		this.types = new HashSet<>(types);
+		return this;
+	}
+
+	public KeyspaceNotificationItemReader<K, V> withTypes(String... types) {
+		return withTypes(Arrays.asList(types));
+	}
+
+	public KeyspaceNotificationItemReader<K, V> withOrderingStrategy(KeyspaceNotificationOrderingStrategy strategy) {
+		this.prioritization = strategy;
+		return this;
 	}
 
 	public BlockingQueue<KeyspaceNotification> getQueue() {
@@ -142,35 +97,22 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemCountingIt
 	}
 
 	@Override
-	protected synchronized void doOpen() {
-		if (publisher != null) {
-			return;
+	public synchronized void open(ExecutionContext executionContext) {
+		super.open(executionContext);
+		if (publisher == null) {
+			queue = new SetBlockingQueue<>(notificationQueue());
+			Utils.createGaugeCollectionSize(QUEUE_SIZE_GAUGE_NAME, queue);
+			publisher = publisher();
+			log.debug("Subscribing to keyspace notifications");
+			publisher.open(patterns);
 		}
-		queue = new SetBlockingQueue<>(
-				new PriorityBlockingQueue<>(queueOptions.getCapacity(), NOTIFICATION_COMPARATOR));
-		Utils.createGaugeCollectionSize(QUEUE_SIZE_GAUGE_NAME, queue);
-		publisher = publisher();
-		log.debug("Subscribing to keyspace notifications");
-		publisher.open(patterns);
 	}
 
-	private static class KeyspaceNotificationComparator implements Comparator<KeyspaceNotification> {
-
-		private final Map<KeyEventType, Integer> ranking;
-
-		public KeyspaceNotificationComparator() {
-			this.ranking = new EnumMap<>(KeyEventType.class);
-			for (int index = 0; index < EVENT_TYPES_ORDERED.length; index++) {
-				ranking.put(EVENT_TYPES_ORDERED[index], index);
-			}
+	private BlockingQueue<KeyspaceNotification> notificationQueue() {
+		if (prioritization == KeyspaceNotificationOrderingStrategy.PRIORITY) {
+			return new PriorityBlockingQueue<>(queueOptions.getCapacity(), NOTIFICATION_COMPARATOR);
 		}
-
-		@Override
-		public int compare(KeyspaceNotification o1, KeyspaceNotification o2) {
-			return ranking.getOrDefault(o1.getEventType(), Integer.MAX_VALUE)
-					- ranking.getOrDefault(o2.getEventType(), Integer.MAX_VALUE);
-		}
-
+		return new LinkedBlockingQueue<>(queueOptions.getCapacity());
 	}
 
 	private Publisher publisher() {
@@ -182,25 +124,25 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemCountingIt
 	}
 
 	@Override
-	protected synchronized void doClose() {
-		if (publisher == null) {
-			return;
+	public void close() {
+		if (publisher != null) {
+			log.debug("Unsubscribing from keyspace notifications");
+			publisher.close(patterns);
+			publisher = null;
 		}
-		log.info("Closing");
-		log.debug("Unsubscribing from keyspace notifications");
-		publisher.close(patterns);
-		publisher = null;
+		super.close();
 	}
 
 	private void notification(String channel, String message) {
-		if (channel == null) {
-			return;
-		}
-		String key = channel.substring(channel.indexOf(SEPARATOR) + 1);
-		KeyEventType eventType = eventType(message);
-		KeyspaceNotification notification = new KeyspaceNotification(key, eventType);
-		if (!queue.offer(notification)) {
-			log.warn("Could not add key because queue is full");
+		if (channel != null) {
+			String key = channel.substring(channel.indexOf(SEPARATOR) + 1);
+			KeyEventType eventType = eventType(message);
+			if (types.isEmpty() || types.contains(eventType.getType())) {
+				KeyspaceNotification notification = new KeyspaceNotification(key, eventType);
+				if (!queue.offer(notification)) {
+					log.warn("Could not add key because queue is full");
+				}
+			}
 		}
 	}
 
@@ -209,7 +151,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemCountingIt
 	}
 
 	@Override
-	protected K doRead() throws InterruptedException {
+	public K read() throws Exception {
 		return poll(queueOptions.getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
 	}
 
@@ -224,9 +166,9 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemCountingIt
 
 	private interface Publisher {
 
-		void open(String... patterns);
+		void open(List<String> patterns);
 
-		void close(String... patterns);
+		void close(List<String> patterns);
 	}
 
 	private class RedisPublisher extends RedisPubSubAdapter<String, String> implements Publisher {
@@ -238,14 +180,14 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemCountingIt
 		}
 
 		@Override
-		public void open(String... patterns) {
+		public void open(List<String> patterns) {
 			connection.addListener(this);
-			connection.sync().psubscribe(patterns);
+			connection.sync().psubscribe(patterns.toArray(new String[0]));
 		}
 
 		@Override
-		public void close(String... patterns) {
-			connection.sync().punsubscribe(patterns);
+		public void close(List<String> patterns) {
+			connection.sync().punsubscribe(patterns.toArray(new String[0]));
 			connection.removeListener(this);
 			connection.close();
 		}
@@ -271,15 +213,15 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemCountingIt
 		}
 
 		@Override
-		public void open(String... patterns) {
+		public void open(List<String> patterns) {
 			connection.addListener(this);
 			connection.setNodeMessagePropagation(true);
-			connection.sync().upstream().commands().psubscribe(patterns);
+			connection.sync().upstream().commands().psubscribe(patterns.toArray(new String[0]));
 		}
 
 		@Override
-		public void close(String... patterns) {
-			connection.sync().upstream().commands().punsubscribe(patterns);
+		public void close(List<String> patterns) {
+			connection.sync().upstream().commands().punsubscribe(patterns.toArray(new String[0]));
 			connection.removeListener(this);
 			connection.close();
 		}

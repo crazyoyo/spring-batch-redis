@@ -1,6 +1,7 @@
 package com.redis.spring.batch.reader;
 
 import java.util.Iterator;
+import java.util.Optional;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
@@ -14,18 +15,42 @@ import io.lettuce.core.ScanArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.codec.RedisCodec;
 
-public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> implements AutoCloseable {
+public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
+
+	public static final String DEFAULT_MATCH = "*";
+	public static final long DEFAULT_COUNT = 1000;
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
-	private final ScanOptions options;
+
+	private String match = DEFAULT_MATCH;
+	private long count = DEFAULT_COUNT;
+	private Optional<String> type = Optional.empty();
 	private StatefulRedisModulesConnection<K, V> connection;
 	private Iterator<K> iterator;
 
-	public ScanKeyItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, ScanOptions options) {
+	public ScanKeyItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		this.client = client;
 		this.codec = codec;
-		this.options = options;
+	}
+
+	public ScanKeyItemReader<K, V> withMatch(String match) {
+		this.match = match;
+		return this;
+	}
+
+	public ScanKeyItemReader<K, V> withCount(long count) {
+		this.count = count;
+		return this;
+	}
+
+	public ScanKeyItemReader<K, V> withType(String type) {
+		return withType(Optional.of(type));
+	}
+
+	public ScanKeyItemReader<K, V> withType(Optional<String> type) {
+		this.type = type;
+		return this;
 	}
 
 	@Override
@@ -48,8 +73,8 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> imp
 	}
 
 	private ScanArgs args() {
-		KeyScanArgs args = KeyScanArgs.Builder.limit(options.getCount()).match(options.getMatch());
-		options.getType().ifPresent(args::type);
+		KeyScanArgs args = KeyScanArgs.Builder.limit(count).match(match);
+		type.ifPresent(args::type);
 		return args;
 	}
 

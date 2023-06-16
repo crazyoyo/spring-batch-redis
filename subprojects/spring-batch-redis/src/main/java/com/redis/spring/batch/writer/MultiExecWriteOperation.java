@@ -14,9 +14,9 @@ import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 public class MultiExecWriteOperation<K, V, T> extends DelegatingItemStreamSupport
 		implements BatchOperation<K, V, T, Object> {
 
-	private final BatchOperation<K, V, T, Object> delegate;
+	private final BatchOperation<K, V, T, ?> delegate;
 
-	public MultiExecWriteOperation(BatchOperation<K, V, T, Object> delegate) {
+	public MultiExecWriteOperation(BatchOperation<K, V, T, ?> delegate) {
 		super(delegate);
 		this.delegate = delegate;
 	}

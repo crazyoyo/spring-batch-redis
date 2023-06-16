@@ -9,12 +9,10 @@ import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
-import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.common.Utils;
 
@@ -30,43 +28,67 @@ import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<StreamMessage<K, V>>
+public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamMessage<K, V>>
 		implements PollableItemReader<StreamMessage<K, V>> {
 
-	public enum AckPolicy {
-		AUTO, MANUAL
-	}
-
+	public static final String DEFAULT_CONSUMER_GROUP = ClassUtils.getShortName(StreamItemReader.class);
+	public static final String DEFAULT_CONSUMER = "consumer1";
 	public static final Duration DEFAULT_POLL_DURATION = Duration.ofSeconds(1);
-	public static final String START_OFFSET = "0-0";
-	public static final String DEFAULT_OFFSET = StreamItemReader.START_OFFSET;
+	public static final String DEFAULT_OFFSET = "0-0";
 	public static final Duration DEFAULT_BLOCK = Duration.ofMillis(100);
 	public static final long DEFAULT_COUNT = 50;
-	public static final AckPolicy DEFAULT_ACK_POLICY = AckPolicy.AUTO;
+	public static final StreamAckPolicy DEFAULT_ACK_POLICY = StreamAckPolicy.AUTO;
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 	private final K stream;
-	private final Consumer<K> consumer;
-	private final String offset;
-	private final Duration block;
-	private final long count;
-	private final AckPolicy ackPolicy;
+
+	private Consumer<K> consumer;
+	private String offset = DEFAULT_OFFSET;
+	private Duration block = DEFAULT_BLOCK;
+	private long count = DEFAULT_COUNT;
+	private StreamAckPolicy ackPolicy = DEFAULT_ACK_POLICY;
+
 	private StatefulRedisModulesConnection<K, V> connection;
 	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
 	private MessageReader<K, V> reader;
 	private String lastId;
 
-	public StreamItemReader(Builder<K, V> builder) {
+	public StreamItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, K stream) {
 		setName(ClassUtils.getShortName(getClass()));
-		this.client = builder.client;
-		this.codec = builder.codec;
-		this.stream = builder.stream;
-		this.consumer = builder.consumer;
-		this.offset = builder.offset;
-		this.block = builder.block;
-		this.count = builder.count;
-		this.ackPolicy = builder.ackPolicy;
+		this.client = client;
+		this.codec = codec;
+		this.stream = stream;
+		this.consumer = Consumer.from(toKey(codec, DEFAULT_CONSUMER_GROUP), toKey(codec, DEFAULT_CONSUMER));
+	}
+
+	private static <K, V> K toKey(RedisCodec<K, V> codec, String key) {
+		return codec.decodeKey(StringCodec.UTF8.encodeKey(key));
+	}
+
+	public StreamItemReader<K, V> withConsumer(Consumer<K> consumer) {
+		this.consumer = consumer;
+		return this;
+	}
+
+	public StreamItemReader<K, V> withOffset(String offset) {
+		this.offset = offset;
+		return this;
+	}
+
+	public StreamItemReader<K, V> withBlock(Duration block) {
+		this.block = block;
+		return this;
+	}
+
+	public StreamItemReader<K, V> withCount(long count) {
+		this.count = count;
+		return this;
+	}
+
+	public StreamItemReader<K, V> withAckPolicy(StreamAckPolicy policy) {
+		this.ackPolicy = policy;
+		return this;
 	}
 
 	private XReadArgs args(long blockMillis) {
@@ -78,35 +100,35 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	}
 
 	@Override
-	protected void doOpen() {
-		if (connection != null) {
-			return;
+	public synchronized void open(ExecutionContext executionContext) {
+		super.open(executionContext);
+		if (connection == null) {
+			connection = RedisModulesUtils.connection(client, codec);
+			RedisStreamCommands<K, V> commands = Utils.sync(connection);
+			StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
+			XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
+			try {
+				commands.xgroupCreate(streamOffset, consumer.getGroup(), args);
+			} catch (RedisBusyException e) {
+				// Consumer Group name already exists, ignore
+			}
+			lastId = offset;
+			reader = reader();
 		}
-		connection = RedisModulesUtils.connection(client, codec);
-		RedisStreamCommands<K, V> commands = Utils.sync(connection);
-		StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
-		XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
-		try {
-			commands.xgroupCreate(streamOffset, consumer.getGroup(), args);
-		} catch (RedisBusyException e) {
-			// Consumer Group name already exists, ignore
-		}
-		lastId = offset;
-		reader = reader();
 	}
 
 	@Override
-	protected void doClose() {
-		if (connection == null) {
-			return;
+	public synchronized void close() {
+		if (connection != null) {
+			reader = null;
+			lastId = null;
+			connection.close();
 		}
-		reader = null;
-		lastId = null;
-		connection.close();
+		super.close();
 	}
 
 	private MessageReader<K, V> reader() {
-		if (ackPolicy == AckPolicy.MANUAL) {
+		if (ackPolicy == StreamAckPolicy.MANUAL) {
 			return new ExplicitAckPendingMessageReader();
 		}
 		return new AutoAckPendingMessageReader();
@@ -118,7 +140,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	}
 
 	@Override
-	protected StreamMessage<K, V> doRead() throws PollingException {
+	public StreamMessage<K, V> read() throws Exception {
 		return poll(DEFAULT_POLL_DURATION.toMillis(), TimeUnit.MILLISECONDS);
 	}
 
@@ -142,8 +164,6 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	 * Acks given messages
 	 * 
 	 * @param messages to be acked
-	 * @throws MessageAckException
-	 * @throws MessageAckException if any error occurs while trying to ack messages
 	 */
 	public long ack(Iterable<? extends StreamMessage<K, V>> messages) {
 		if (messages == null) {
@@ -159,7 +179,6 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	 * 
 	 * @param ids message ids to be acked
 	 * @return
-	 * @throws MessageAckException if any error occurs while trying to ack IDs
 	 */
 	public long ack(String... ids) {
 		if (ids.length == 0) {
@@ -276,7 +295,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 
 		@SuppressWarnings("unchecked")
 		protected List<StreamMessage<K, V>> readMessages(RedisStreamCommands<K, V> commands, XReadArgs args) {
-			return recover(commands, commands.xreadgroup(consumer, args, StreamOffset.from(stream, START_OFFSET)));
+			return recover(commands, commands.xreadgroup(consumer, args, StreamOffset.from(stream, DEFAULT_OFFSET)));
 		}
 
 		protected List<StreamMessage<K, V>> recover(RedisStreamCommands<K, V> commands,
@@ -349,92 +368,6 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 			List<StreamMessage<K, V>> messages = super.read(blockMillis);
 			ack(messages);
 			return messages;
-		}
-
-	}
-
-	public static StreamBuilder<String, String> client(RedisModulesClient client) {
-		return new StreamBuilder<>(client, StringCodec.UTF8);
-	}
-
-	public static StreamBuilder<String, String> client(RedisModulesClusterClient client) {
-		return new StreamBuilder<>(client, StringCodec.UTF8);
-	}
-
-	public static <K, V> StreamBuilder<K, V> client(RedisModulesClient client, RedisCodec<K, V> codec) {
-		return new StreamBuilder<>(client, codec);
-	}
-
-	public static <K, V> StreamBuilder<K, V> client(RedisModulesClusterClient client, RedisCodec<K, V> codec) {
-		return new StreamBuilder<>(client, codec);
-	}
-
-	public static class StreamBuilder<K, V> {
-		private final AbstractRedisClient client;
-		private final RedisCodec<K, V> codec;
-
-		protected StreamBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			this.client = client;
-			this.codec = codec;
-		}
-
-		public Builder<K, V> stream(K stream) {
-			return new Builder<>(client, codec, stream);
-		}
-	}
-
-	public static class Builder<K, V> {
-
-		public static final String DEFAULT_CONSUMER_GROUP = ClassUtils.getShortName(StreamItemReader.class);
-		public static final String DEFAULT_CONSUMER = "consumer1";
-
-		private final AbstractRedisClient client;
-		private final RedisCodec<K, V> codec;
-		private final K stream;
-		private Consumer<K> consumer;
-		private String offset = START_OFFSET;
-		private Duration block = DEFAULT_BLOCK;
-		private long count = DEFAULT_COUNT;
-		private AckPolicy ackPolicy = DEFAULT_ACK_POLICY;
-
-		protected Builder(AbstractRedisClient client, RedisCodec<K, V> codec, K stream) {
-			this.client = client;
-			this.codec = codec;
-			this.consumer = Consumer.from(key(DEFAULT_CONSUMER_GROUP, codec), key(DEFAULT_CONSUMER, codec));
-			this.stream = stream;
-		}
-
-		private static <K, V> K key(String string, RedisCodec<K, V> codec) {
-			return codec.decodeKey(StringCodec.UTF8.encodeKey(string));
-		}
-
-		public Builder<K, V> consumer(Consumer<K> consumer) {
-			this.consumer = consumer;
-			return this;
-		}
-
-		public Builder<K, V> offset(String offset) {
-			this.offset = offset;
-			return this;
-		}
-
-		public Builder<K, V> block(Duration block) {
-			this.block = block;
-			return this;
-		}
-
-		public Builder<K, V> count(long count) {
-			this.count = count;
-			return this;
-		}
-
-		public Builder<K, V> ackPolicy(AckPolicy ackPolicy) {
-			this.ackPolicy = ackPolicy;
-			return this;
-		}
-
-		public StreamItemReader<K, V> build() {
-			return new StreamItemReader<>(this);
 		}
 
 	}

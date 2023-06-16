@@ -18,6 +18,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.PollingException;
 
 public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
@@ -94,4 +95,5 @@ public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implemen
 		}
 		super.close();
 	}
+
 }

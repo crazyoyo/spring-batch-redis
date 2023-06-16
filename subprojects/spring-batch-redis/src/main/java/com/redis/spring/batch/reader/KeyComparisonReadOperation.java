@@ -12,7 +12,6 @@ import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.ConvertingRedisFuture;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.OperationItemStreamSupport;
-import com.redis.spring.batch.common.PoolOptions;
 import com.redis.spring.batch.common.SimpleBatchOperation;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 
@@ -25,15 +24,20 @@ public class KeyComparisonReadOperation
 		extends OperationItemStreamSupport<String, String, String, DataStructure<String>>
 		implements BatchOperation<String, String, String, KeyComparison> {
 
-	private final BatchOperation<String, String, String, DataStructure<String>> left;
-	private final Duration ttlTolerance;
+	public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
-	public KeyComparisonReadOperation(AbstractRedisClient left, AbstractRedisClient right, PoolOptions rightPoolOptions,
-			Duration ttlTolerance) {
-		super(right, StringCodec.UTF8, rightPoolOptions,
-				new SimpleBatchOperation<>(new DataStructureStringReadOperation(right)));
-		this.left = addDelegate(new SimpleBatchOperation<>(new DataStructureStringReadOperation(left)));
+	private final BatchOperation<String, String, String, DataStructure<String>> left;
+	private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
+
+	public KeyComparisonReadOperation(AbstractRedisClient left, AbstractRedisClient right) {
+		super(right, StringCodec.UTF8, new SimpleBatchOperation<>(new StringDataStructureReadOperation(right)));
+		this.left = addDelegate(new SimpleBatchOperation<>(new StringDataStructureReadOperation(left)));
+	}
+
+	public KeyComparisonReadOperation withTtlTolerance(Duration ttlTolerance) {
+		Assert.notNull(ttlTolerance, "Tolerance must not be null");
 		this.ttlTolerance = ttlTolerance;
+		return this;
 	}
 
 	@Override

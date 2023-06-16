@@ -18,38 +18,42 @@ import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.junit.runner.RunWith;
+import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.support.SimpleJobLauncher;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemReader.ScanBuilder;
-import com.redis.spring.batch.RedisItemWriter.DataStructureWriterBuilder;
-import com.redis.spring.batch.RedisItemWriter.KeyDumpWriterBuilder;
+import com.redis.spring.batch.RedisItemReader.ComparatorBuilder;
+import com.redis.spring.batch.RedisItemReader.LiveReaderBuilder;
+import com.redis.spring.batch.RedisItemReader.ScanReaderBuilder;
+import com.redis.spring.batch.RedisItemWriter.WriterBuilder;
 import com.redis.spring.batch.common.DataStructure;
-import com.redis.spring.batch.common.JobRunner;
 import com.redis.spring.batch.common.KeyDump;
-import com.redis.spring.batch.common.Operation;
-import com.redis.spring.batch.common.StepOptions;
-import com.redis.spring.batch.reader.DataStructureCodecReadOperation;
-import com.redis.spring.batch.reader.DataStructureStringReadOperation;
+import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.GeneratorItemReader;
-import com.redis.spring.batch.reader.GeneratorReaderOptions;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
-import com.redis.spring.batch.reader.KeyDumpReadOperation;
-import com.redis.spring.batch.writer.DataStructureWriteOptions;
-import com.redis.spring.batch.writer.DataStructureWriteOptions.StreamIdPolicy;
+import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.step.FlushingStepBuilder;
+import com.redis.spring.batch.writer.StreamIdPolicy;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -64,9 +68,7 @@ import io.lettuce.core.codec.StringCodec;
 abstract class AbstractTestBase {
 
 	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(1000);
-	protected static final StepOptions DEFAULT_STEP_OPTIONS = StepOptions.builder().build();
-	protected static final StepOptions DEFAULT_FLUSHING_STEP_OPTIONS = StepOptions.builder()
-			.flushingInterval(Duration.ofMillis(50)).idleTimeout(Duration.ofMillis(300)).build();
+	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(300);
 	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(30);
 
 	@Value("${running-timeout:PT5S}")
@@ -74,12 +76,16 @@ abstract class AbstractTestBase {
 	@Value("${termination-timeout:PT5S}")
 	private Duration terminationTimeout;
 
-	protected JobRunner jobRunner;
+	protected JobRepository jobRepository;
 
 	protected AbstractRedisClient sourceClient;
 	protected StatefulRedisModulesConnection<String, String> sourceConnection;
 	protected AbstractRedisClient targetClient;
 	protected StatefulRedisModulesConnection<String, String> targetConnection;
+	private SimpleJobLauncher jobLauncher;
+	private SimpleJobLauncher asyncJobLauncher;
+	private JobBuilderFactory jobBuilderFactory;
+	private StepBuilderFactory stepBuilderFactory;
 
 	protected abstract RedisServer getSourceServer();
 
@@ -93,7 +99,16 @@ abstract class AbstractTestBase {
 		sourceConnection = RedisModulesUtils.connection(sourceClient);
 		targetClient = client(getTargetServer());
 		targetConnection = RedisModulesUtils.connection(targetClient);
-		jobRunner = JobRunner.inMemory().runningTimeout(runningTimeout).terminationTimeout(terminationTimeout);
+		jobRepository = Utils.inMemoryJobRepository();
+		jobLauncher = new SimpleJobLauncher();
+		jobLauncher.setJobRepository(jobRepository);
+		jobLauncher.afterPropertiesSet();
+		asyncJobLauncher = new SimpleJobLauncher();
+		asyncJobLauncher.setJobRepository(jobRepository);
+		asyncJobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+		asyncJobLauncher.afterPropertiesSet();
+		jobBuilderFactory = new JobBuilderFactory(jobRepository);
+		stepBuilderFactory = new StepBuilderFactory(jobRepository, new ResourcelessTransactionManager());
 	}
 
 	@AfterAll
@@ -149,6 +164,26 @@ abstract class AbstractTestBase {
 
 	}
 
+	protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer)
+			throws JobExecutionException {
+		return jobLauncher.run(job(testInfo).start(step(testInfo, reader, writer).build()).build(),
+				new JobParameters());
+	}
+
+	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
+		String name = name(testInfo);
+		if (reader instanceof ItemStreamSupport) {
+			((ItemStreamSupport) reader).setName(name + "-reader");
+		}
+		SimpleStepBuilder<I, O> step = stepBuilderFactory.get(name).chunk(RedisItemReader.DEFAULT_CHUNK_SIZE);
+		step.reader(reader);
+		step.writer(writer);
+		if (reader instanceof PollableItemReader) {
+			return new FlushingStepBuilder<>(step).idleTimeout(DEFAULT_IDLE_TIMEOUT);
+		}
+		return step;
+	}
+
 	public static String name(TestInfo testInfo) {
 		return testInfo.getDisplayName().replace("(TestInfo)", "");
 	}
@@ -162,8 +197,25 @@ abstract class AbstractTestBase {
 		return ClientBuilder.create(uri).cluster(server.isCluster()).build();
 	}
 
-	protected JobExecution awaitRunning(JobExecution jobExecution) {
-		return jobRunner.awaitRunning(jobExecution);
+	public static JobExecution awaitRunning(JobExecution jobExecution) {
+		Awaitility.await().until(() -> isRunning(jobExecution));
+		return jobExecution;
+	}
+
+	public static JobExecution awaitTermination(JobExecution jobExecution) {
+		Awaitility.await().until(() -> isTerminated(jobExecution));
+		return jobExecution;
+	}
+
+	public static boolean isRunning(JobExecution jobExecution) {
+		return jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful()
+				|| jobExecution.getStatus() != BatchStatus.STARTING;
+	}
+
+	public static boolean isTerminated(JobExecution jobExecution) {
+		return !jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful()
+				|| jobExecution.getStatus() == BatchStatus.COMPLETED || jobExecution.getStatus() == BatchStatus.STOPPED
+				|| jobExecution.getStatus().isGreaterThan(BatchStatus.STOPPED);
 	}
 
 	protected void awaitUntilFalse(Callable<Boolean> conditionEvaluator) {
@@ -174,46 +226,8 @@ abstract class AbstractTestBase {
 		Awaitility.await().pollInterval(DEFAULT_POLL_INTERVAL).timeout(DEFAULT_AWAIT_TIMEOUT).until(conditionEvaluator);
 	}
 
-	protected Job job(TestInfo testInfo, SimpleStepBuilder<?, ?> step) {
-		return job(testInfo).start(step.build()).build();
-	}
-
 	protected JobBuilder job(TestInfo testInfo) {
-		return jobRunner.job(name(testInfo));
-	}
-
-	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
-		return step(testInfo, reader, writer, DEFAULT_STEP_OPTIONS);
-	}
-
-	protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer) throws Exception {
-		return run(info, reader, null, writer);
-	}
-
-	protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
-			ItemWriter<O> writer) throws Exception {
-		return jobRunner.run(job(info, step(info, reader, processor, writer, DEFAULT_STEP_OPTIONS)));
-	}
-
-	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer,
-			StepOptions options) {
-		return step(testInfo, reader, null, writer, options);
-	}
-
-	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader,
-			ItemProcessor<I, O> processor, ItemWriter<O> writer, StepOptions options) {
-		return jobRunner.step(name(testInfo), reader, processor, writer, options);
-	}
-
-	protected <I, O> JobExecution runAsync(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer,
-			StepOptions stepOptions) throws Exception {
-		return runAsync(info, reader, null, writer, stepOptions);
-	}
-
-	protected <I, O> JobExecution runAsync(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
-			ItemWriter<O> writer, StepOptions stepOptions) throws Exception {
-		JobExecution execution = jobRunner.runAsync(job(info, step(info, reader, processor, writer, stepOptions)));
-		return execution;
+		return jobBuilderFactory.get(name(testInfo));
 	}
 
 	/**
@@ -224,75 +238,64 @@ abstract class AbstractTestBase {
 	 * @throws Exception
 	 */
 	protected void compare(TestInfo testInfo) throws Exception {
+		TestInfo finalTestInfo = testInfo(testInfo, "compare");
 		RedisItemReader<String, String, KeyComparison> reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
-		run(testInfo(testInfo, "compare"), reader, writer);
+		run(job(finalTestInfo).start(step(finalTestInfo, reader, writer).build()).build());
 		Assertions.assertFalse(writer.getItems().isEmpty());
 		awaitUntil(() -> writer.getItems().stream().allMatch(c -> c.getStatus() == Status.OK));
 	}
 
 	protected RedisItemReader<String, String, KeyComparison> comparisonReader() throws Exception {
-		return RedisItemReader.compare(sourceClient, targetClient).jobRunner(jobRunner)
+		return new ComparatorBuilder(sourceClient, targetClient).jobRepository(jobRepository)
 				.ttlTolerance(Duration.ofMillis(100)).build();
 	}
 
 	protected void generate(TestInfo testInfo) throws JobExecutionException {
-		generate(testInfo, GeneratorReaderOptions.builder().build());
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(100);
+		generate(testInfo, gen);
 	}
 
-	protected void generate(TestInfo testInfo, GeneratorReaderOptions options) throws JobExecutionException {
-		generate(testInfo, sourceClient, options);
+	protected void generate(TestInfo testInfo, GeneratorItemReader reader) throws JobExecutionException {
+		generate(testInfo, sourceClient, reader);
 	}
 
-	protected void generate(TestInfo testInfo, AbstractRedisClient client, GeneratorReaderOptions options)
+	protected void generate(TestInfo testInfo, AbstractRedisClient client, GeneratorItemReader reader)
 			throws JobExecutionException {
 		TestInfo finalTestInfo = testInfo(testInfo, "generate", String.valueOf(client.hashCode()));
-		GeneratorItemReader reader = new GeneratorItemReader(options);
-		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureWriter(client)
-				.dataStructureOptions(DataStructureWriteOptions.builder().streamIdPolicy(StreamIdPolicy.DROP).build())
-				.build();
-		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = step(finalTestInfo, reader, writer);
-		jobRunner.run(job(finalTestInfo, step));
+		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder<>(client, StringCodec.UTF8)
+				.streamIdPolicy(StreamIdPolicy.DROP).dataStructure();
+		run(finalTestInfo, reader, writer);
 	}
 
-	protected ScanBuilder<String, String, DataStructure<String>> dataStructureSourceReader() {
-		return dataStructureReader(sourceClient);
+	protected RedisItemReader<String, String, DataStructure<String>> dataStructureSourceReader() {
+		return dataStructureSourceReader(StringCodec.UTF8);
 	}
 
-	protected ScanBuilder<String, String, DataStructure<String>> dataStructureReader(AbstractRedisClient client) {
-		return scanBuilder(client, StringCodec.UTF8, new DataStructureStringReadOperation(client));
+	protected <K, V> RedisItemReader<K, V, DataStructure<K>> dataStructureSourceReader(RedisCodec<K, V> codec) {
+		return dataStructureReader(sourceClient, codec);
 	}
 
-	protected <K, V> ScanBuilder<K, V, DataStructure<K>> dataStructureReader(AbstractRedisClient client,
+	protected <K, V> RedisItemReader<K, V, DataStructure<K>> dataStructureReader(AbstractRedisClient client,
 			RedisCodec<K, V> codec) {
-		return scanBuilder(client, codec, new DataStructureCodecReadOperation<>(client, codec));
+		return reader(client, codec).dataStructure();
 	}
 
-	private <K, V, T> ScanBuilder<K, V, T> scanBuilder(AbstractRedisClient client, RedisCodec<K, V> codec,
-			Operation<K, V, K, T> operation) {
-		return new ScanBuilder<>(client, codec, operation).jobRunner(jobRunner);
+	protected <K, V> ScanReaderBuilder<K, V> reader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		return new ScanReaderBuilder<>(client, codec).jobRepository(jobRepository);
 	}
 
-	protected ScanBuilder<byte[], byte[], KeyDump<byte[]>> keyDumpSourceReader() {
-		return new ScanBuilder<>(sourceClient, ByteArrayCodec.INSTANCE, new KeyDumpReadOperation(sourceClient))
-				.jobRunner(jobRunner);
+	protected <K, V> LiveReaderBuilder<K, V> liveReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		return reader(client, codec).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
 	}
 
-	protected KeyDumpWriterBuilder<byte[], byte[]> keyDumpWriter(AbstractRedisClient client) {
-		return new KeyDumpWriterBuilder<>(client, ByteArrayCodec.INSTANCE);
+	protected RedisItemReader<byte[], byte[], KeyDump<byte[]>> keyDumpSourceReader() {
+		return new ScanReaderBuilder<>(sourceClient, ByteArrayCodec.INSTANCE).jobRepository(jobRepository).keyDump();
 	}
 
-	protected DataStructureWriterBuilder<String, String> dataStructureTargetWriter() {
-		return dataStructureWriter(targetClient);
-	}
-
-	protected DataStructureWriterBuilder<String, String> dataStructureWriter(AbstractRedisClient client) {
-		return new DataStructureWriterBuilder<>(client, StringCodec.UTF8);
-	}
-
-	protected <K, V> DataStructureWriterBuilder<K, V> dataStructureWriter(AbstractRedisClient client,
-			RedisCodec<K, V> codec) {
-		return new DataStructureWriterBuilder<>(client, codec);
+	protected RedisItemWriter<byte[], byte[], KeyDump<byte[]>> keyDumpWriter(AbstractRedisClient client) {
+		return new WriterBuilder<>(client, ByteArrayCodec.INSTANCE).keyDump();
 	}
 
 	protected void flushAll(AbstractRedisClient client) {
@@ -300,5 +303,15 @@ abstract class AbstractTestBase {
 			connection.sync().flushall();
 			awaitUntil(() -> connection.sync().dbsize() == 0);
 		}
+	}
+
+	protected JobExecution run(Job job) throws JobExecutionException {
+		return jobLauncher.run(job, new JobParameters());
+	}
+
+	protected JobExecution runAsync(Job job) throws JobExecutionException {
+		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
+		awaitRunning(execution);
+		return execution;
 	}
 }

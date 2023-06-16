@@ -14,7 +14,8 @@ import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.internal.LettuceAssert;
 
-public abstract class AbstractDataStructureReadOperation<K, V> extends AbstractLuaReadOperation<K, V, DataStructure<K>> {
+public abstract class AbstractDataStructureReadOperation<K, V>
+		extends AbstractLuaReadOperation<K, V, DataStructure<K>> {
 
 	protected AbstractDataStructureReadOperation(AbstractRedisClient client) {
 		super(client, "datastructure.lua");
@@ -23,21 +24,22 @@ public abstract class AbstractDataStructureReadOperation<K, V> extends AbstractL
 	@SuppressWarnings("unchecked")
 	@Override
 	protected DataStructure<K> convert(List<Object> list) {
+		if (list == null) {
+			return null;
+		}
 		DataStructure<K> ds = new DataStructure<>();
-		if (list != null) {
-			Iterator<Object> iterator = list.iterator();
-			if (iterator.hasNext()) {
-				ds.setKey((K) iterator.next());
-				if (iterator.hasNext()) {
-					ds.setTtl((Long) iterator.next());
-					if (iterator.hasNext()) {
-						ds.setType(string(iterator.next()));
-						if (iterator.hasNext()) {
-							ds.setValue(value(ds, iterator.next()));
-						}
-					}
-				}
-			}
+		Iterator<Object> iterator = list.iterator();
+		if (iterator.hasNext()) {
+			ds.setKey((K) iterator.next());
+		}
+		if (iterator.hasNext()) {
+			ds.setTtl((Long) iterator.next());
+		}
+		if (iterator.hasNext()) {
+			ds.setType(string(iterator.next()));
+		}
+		if (iterator.hasNext()) {
+			ds.setValue(value(ds, iterator.next()));
 		}
 		return ds;
 	}
