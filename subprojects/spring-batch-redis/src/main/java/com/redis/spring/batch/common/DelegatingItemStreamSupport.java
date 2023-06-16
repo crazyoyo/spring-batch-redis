@@ -13,6 +13,8 @@ public class DelegatingItemStreamSupport extends ItemStreamSupport {
 
 	private final List<Object> delegates = new ArrayList<>();
 
+	private boolean open;
+
 	public DelegatingItemStreamSupport(Object... delegates) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.delegates.addAll(Arrays.asList(delegates));
@@ -41,6 +43,7 @@ public class DelegatingItemStreamSupport extends ItemStreamSupport {
 				((ItemStream) delegate).open(executionContext);
 			}
 		}
+		this.open = true;
 	}
 
 	@Override
@@ -61,6 +64,11 @@ public class DelegatingItemStreamSupport extends ItemStreamSupport {
 			}
 		}
 		super.close();
+		this.open = false;
+	}
+
+	public boolean isOpen() {
+		return open;
 	}
 
 }

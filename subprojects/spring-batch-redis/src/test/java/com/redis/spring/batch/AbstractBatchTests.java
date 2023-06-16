@@ -20,7 +20,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Function;
-import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
 
 import org.awaitility.Awaitility;
@@ -566,8 +565,9 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		gen.withTypes(Arrays.asList(Type.HASH, Type.STRING));
 		generate(testInfo, gen);
 		awaitTermination(execution);
-		IntSupplier actualSize = () -> writer.getItems().size();
-		awaitUntil(() -> actualSize.getAsInt() == count);
+		awaitUntilFalse(reader::isOpen);
+		awaitUntilFalse(writer::isOpen);
+		Assertions.assertEquals(count, writer.getItems().size());
 	}
 
 	@Test
@@ -1182,6 +1182,10 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		} catch (ConditionTimeoutException e) {
 			// ignore
 		}
+		awaitUntilFalse(reader::isOpen);
+		awaitUntilFalse(writer::isOpen);
+		awaitUntilFalse(liveReader::isOpen);
+		awaitUntilFalse(liveWriter::isOpen);
 		compare(testInfo);
 	}
 

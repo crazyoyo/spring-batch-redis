@@ -247,6 +247,10 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 		super.close();
 	}
 
+	public boolean isOpen() {
+		return jobExecution != null;
+	}
+
 	@Override
 	public synchronized T poll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
