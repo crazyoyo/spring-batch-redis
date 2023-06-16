@@ -39,6 +39,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
 
 import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.KeyDump;
@@ -64,7 +65,7 @@ import com.redis.spring.batch.reader.StringDataStructureReadOperation;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisClient;
+import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
@@ -274,66 +275,56 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 		return items;
 	}
 
-	public static <K, V> ScanReaderBuilder<K, V> client(RedisModulesClient client, RedisCodec<K, V> codec) {
-		return new ScanReaderBuilder<>(client, codec);
+	public static ScanReaderBuilder client(RedisModulesClient client) {
+		return new ScanReaderBuilder(client);
 	}
 
-	public static ScanReaderBuilder<String, String> client(RedisModulesClient client) {
-		return new ScanReaderBuilder<>(client, StringCodec.UTF8);
-	}
-
-	public static <K, V> ScanReaderBuilder<K, V> client(RedisClient client, RedisCodec<K, V> codec) {
-		return new ScanReaderBuilder<>(client, codec);
-	}
-
-	public static ScanReaderBuilder<String, String> client(RedisClient client) {
-		return new ScanReaderBuilder<>(client, StringCodec.UTF8);
-	}
-
-	public static ComparatorBuilder compare(RedisClient left, RedisClient right) {
-		return new ComparatorBuilder(left, right);
-	}
-
-	public static ComparatorBuilder compare(RedisModulesClient left, RedisClient right) {
-		return new ComparatorBuilder(left, right);
-	}
-
-	public static ComparatorBuilder compare(RedisClient left, RedisModulesClient right) {
-		return new ComparatorBuilder(left, right);
+	public static ScanReaderBuilder client(RedisModulesClusterClient client) {
+		return new ScanReaderBuilder(client);
 	}
 
 	public static ComparatorBuilder compare(RedisModulesClient left, RedisModulesClient right) {
 		return new ComparatorBuilder(left, right);
 	}
 
-	public abstract static class AbstractReaderBuilder<K, V, B extends AbstractReaderBuilder<K, V, B>>
-			extends BaseBuilder<B> {
+	public static ComparatorBuilder compare(RedisModulesClient left, RedisModulesClusterClient right) {
+		return new ComparatorBuilder(left, right);
+	}
+
+	public static ComparatorBuilder compare(RedisModulesClusterClient left, RedisModulesClient right) {
+		return new ComparatorBuilder(left, right);
+	}
+
+	public static ComparatorBuilder compare(RedisModulesClusterClient left, RedisModulesClusterClient right) {
+		return new ComparatorBuilder(left, right);
+	}
+
+	public abstract static class AbstractReaderBuilder<B extends AbstractReaderBuilder<B>> extends BaseBuilder<B> {
 
 		protected final AbstractRedisClient client;
-		protected final RedisCodec<K, V> codec;
 
-		protected AbstractReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		protected AbstractReaderBuilder(AbstractRedisClient client) {
 			this.client = client;
-			this.codec = codec;
 		}
 
-		public RedisItemReader<K, V, KeyDump<K>> keyDump() {
-			return reader(new KeyDumpReadOperation<>(client));
+		public RedisItemReader<byte[], byte[], KeyDump<byte[]>> keyDump() {
+			return reader(ByteArrayCodec.INSTANCE, new KeyDumpReadOperation(client));
 		}
 
-		@SuppressWarnings({ "rawtypes", "unchecked" })
-		public RedisItemReader<K, V, DataStructure<K>> dataStructure() {
-			if (codec instanceof StringCodec) {
-				return reader((Operation) new StringDataStructureReadOperation(client));
-			}
-			return reader(new DataStructureReadOperation<>(client, codec));
+		public RedisItemReader<String, String, DataStructure<String>> dataStructure() {
+			return reader(StringCodec.UTF8, new StringDataStructureReadOperation(client));
 		}
 
-		protected <T> RedisItemReader<K, V, T> reader(Operation<K, V, K, T> operation) {
-			return configure(reader(new SimpleBatchOperation<>(operation)));
+		public <K, V> RedisItemReader<K, V, DataStructure<K>> dataStructure(RedisCodec<K, V> codec) {
+			return reader(codec, new DataStructureReadOperation<>(client, codec));
 		}
 
-		protected abstract <T> RedisItemReader<K, V, T> reader(BatchOperation<K, V, K, T> operation);
+		protected <K, V, T> RedisItemReader<K, V, T> reader(RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
+			return configure(reader(codec, new SimpleBatchOperation<>(operation)));
+		}
+
+		protected abstract <K, V, T> RedisItemReader<K, V, T> reader(RedisCodec<K, V> codec,
+				BatchOperation<K, V, K, T> operation);
 
 	}
 
@@ -395,37 +386,38 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 
 	}
 
-	public static class ScanReaderBuilder<K, V> extends AbstractReaderBuilder<K, V, ScanReaderBuilder<K, V>> {
+	public static class ScanReaderBuilder extends AbstractReaderBuilder<ScanReaderBuilder> {
 
 		protected String scanMatch = ScanKeyItemReader.DEFAULT_MATCH;
 		private long scanCount = ScanKeyItemReader.DEFAULT_COUNT;
 		private Optional<String> scanType = Optional.empty();
 
-		public ScanReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec);
+		public ScanReaderBuilder(AbstractRedisClient client) {
+			super(client);
 		}
 
-		public ScanReaderBuilder<K, V> scanMatch(String match) {
+		public ScanReaderBuilder scanMatch(String match) {
 			this.scanMatch = match;
 			return this;
 		}
 
-		public ScanReaderBuilder<K, V> scanCount(long count) {
+		public ScanReaderBuilder scanCount(long count) {
 			this.scanCount = count;
 			return this;
 		}
 
-		public ScanReaderBuilder<K, V> scanType(Optional<String> type) {
+		public ScanReaderBuilder scanType(Optional<String> type) {
 			this.scanType = type;
 			return this;
 		}
 
-		public ScanReaderBuilder<K, V> type(String type) {
+		public ScanReaderBuilder type(String type) {
 			return scanType(Optional.of(type));
 		}
 
 		@Override
-		protected <T> RedisItemReader<K, V, T> reader(BatchOperation<K, V, K, T> operation) {
+		protected <K, V, T> RedisItemReader<K, V, T> reader(RedisCodec<K, V> codec,
+				BatchOperation<K, V, K, T> operation) {
 			ScanKeyItemReader<K, V> keyReader = new ScanKeyItemReader<>(client, codec);
 			keyReader.withCount(scanCount);
 			keyReader.withMatch(scanMatch);
@@ -433,8 +425,8 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 			return new RedisItemReader<>(client, codec, keyReader, operation);
 		}
 
-		public LiveReaderBuilder<K, V> live() {
-			LiveReaderBuilder<K, V> builder = toBuilder(new LiveReaderBuilder<>(client, codec));
+		public LiveReaderBuilder live() {
+			LiveReaderBuilder builder = toBuilder(new LiveReaderBuilder(client));
 			builder.keyPatterns(scanMatch);
 			scanType.ifPresent(builder::keyTypes);
 			return builder;
@@ -442,7 +434,7 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 
 	}
 
-	public static class LiveReaderBuilder<K, V> extends AbstractReaderBuilder<K, V, LiveReaderBuilder<K, V>> {
+	public static class LiveReaderBuilder extends AbstractReaderBuilder<LiveReaderBuilder> {
 
 		private static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 		public static final int DEFAULT_DATABASE = 0;
@@ -456,47 +448,48 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 		private Duration flushingInterval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
 		private Duration idleTimeout; // no idle stream detection by default
 
-		public LiveReaderBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec);
+		public LiveReaderBuilder(AbstractRedisClient client) {
+			super(client);
 		}
 
-		public LiveReaderBuilder<K, V> idleTimeout(Duration timeout) {
+		public LiveReaderBuilder idleTimeout(Duration timeout) {
 			this.idleTimeout = timeout;
 			return this;
 		}
 
-		public LiveReaderBuilder<K, V> flushingInterval(Duration interval) {
+		public LiveReaderBuilder flushingInterval(Duration interval) {
 			this.flushingInterval = interval;
 			return this;
 		}
 
-		public LiveReaderBuilder<K, V> database(int database) {
+		public LiveReaderBuilder database(int database) {
 			this.database = database;
 			return this;
 		}
 
-		public LiveReaderBuilder<K, V> keyPatterns(String... patterns) {
+		public LiveReaderBuilder keyPatterns(String... patterns) {
 			this.keyPatterns = patterns;
 			return this;
 		}
 
-		public LiveReaderBuilder<K, V> keyTypes(String... types) {
+		public LiveReaderBuilder keyTypes(String... types) {
 			this.keyTypes = Arrays.asList(types);
 			return this;
 		}
 
-		public LiveReaderBuilder<K, V> notificationQueueOptions(QueueOptions options) {
+		public LiveReaderBuilder notificationQueueOptions(QueueOptions options) {
 			this.notificationQueueOptions = options;
 			return this;
 		}
 
-		public LiveReaderBuilder<K, V> notificationOrdering(KeyspaceNotificationOrderingStrategy strategy) {
+		public LiveReaderBuilder notificationOrdering(KeyspaceNotificationOrderingStrategy strategy) {
 			this.notificationOrdering = strategy;
 			return this;
 		}
 
 		@Override
-		protected <T> RedisItemReader<K, V, T> reader(BatchOperation<K, V, K, T> operation) {
+		protected <K, V, T> RedisItemReader<K, V, T> reader(RedisCodec<K, V> codec,
+				BatchOperation<K, V, K, T> operation) {
 			KeyspaceNotificationItemReader<K, V> keyReader = new KeyspaceNotificationItemReader<>(client, codec);
 			keyReader.withPatterns(patterns(database, keyPatterns));
 			keyReader.withTypes(keyTypes);
@@ -518,13 +511,13 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 		}
 
 		@Override
-		public LiveRedisItemReader<K, V, DataStructure<K>> dataStructure() {
-			return (LiveRedisItemReader<K, V, DataStructure<K>>) super.dataStructure();
+		public LiveRedisItemReader<String, String, DataStructure<String>> dataStructure() {
+			return (LiveRedisItemReader<String, String, DataStructure<String>>) super.dataStructure();
 		}
 
 		@Override
-		public LiveRedisItemReader<K, V, KeyDump<K>> keyDump() {
-			return (LiveRedisItemReader<K, V, KeyDump<K>>) super.keyDump();
+		public LiveRedisItemReader<byte[], byte[], KeyDump<byte[]>> keyDump() {
+			return (LiveRedisItemReader<byte[], byte[], KeyDump<byte[]>>) super.keyDump();
 		}
 
 	}

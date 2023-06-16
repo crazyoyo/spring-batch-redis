@@ -282,19 +282,19 @@ abstract class AbstractTestBase {
 
 	protected <K, V> RedisItemReader<K, V, DataStructure<K>> dataStructureReader(AbstractRedisClient client,
 			RedisCodec<K, V> codec) {
-		return reader(client, codec).dataStructure();
+		return reader(client).dataStructure(codec);
 	}
 
-	protected <K, V> ScanReaderBuilder<K, V> reader(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		return new ScanReaderBuilder<>(client, codec).jobRepository(jobRepository);
+	protected ScanReaderBuilder reader(AbstractRedisClient client) {
+		return new ScanReaderBuilder(client).jobRepository(jobRepository);
 	}
 
-	protected <K, V> LiveReaderBuilder<K, V> liveReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		return reader(client, codec).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
+	protected LiveReaderBuilder liveReader(AbstractRedisClient client) {
+		return reader(client).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
 	}
 
 	protected RedisItemReader<byte[], byte[], KeyDump<byte[]>> keyDumpSourceReader() {
-		return new ScanReaderBuilder<>(sourceClient, ByteArrayCodec.INSTANCE).jobRepository(jobRepository).keyDump();
+		return new ScanReaderBuilder(sourceClient).jobRepository(jobRepository).keyDump();
 	}
 
 	protected RedisItemWriter<byte[], byte[], KeyDump<byte[]>> keyDumpWriter(AbstractRedisClient client) {

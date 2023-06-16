@@ -453,8 +453,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	@Test
 	void filterKeySlot(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
-		RedisItemReader<String, String, DataStructure<String>> reader = liveReader(sourceClient, StringCodec.UTF8)
-				.dataStructure();
+		RedisItemReader<String, String, DataStructure<String>> reader = liveReader(sourceClient).dataStructure();
 		reader.withKeyProcessor(new FilteringItemProcessor<>(SlotRangeFilter.of(0, 8000)));
 		SynchronizedListItemWriter<DataStructure<String>> writer = new SynchronizedListItemWriter<>();
 		JobExecution execution = runAsync(job(testInfo, reader, writer));
@@ -548,16 +547,20 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		int threads = 4;
 		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = step(testInfo, reader, writer);
 		Utils.multiThread(step, threads);
-		run(job(testInfo).start(step.build()).build());
-		assertEquals(sourceConnection.sync().dbsize(), writer.getItems().size());
+		JobExecution execution = run(job(testInfo).start(step.build()).build());
+		awaitTermination(execution);
+		awaitUntilFalse(reader::isOpen);
+		awaitUntilFalse(writer::isOpen);
+		assertEquals(sourceConnection.sync().dbsize(),
+				writer.getItems().stream().collect(Collectors.toMap(DataStructure::getKey, t -> t)).size());
 	}
 
 	@Test
 	void readLive(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
-		LiveRedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = liveReader(sourceClient, ByteArrayCodec.INSTANCE)
+		LiveRedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = liveReader(sourceClient)
 				.notificationQueueOptions(QueueOptions.builder().capacity(10000).build()).keyDump();
-		SynchronizedListItemWriter<KeyDump<String>> writer = new SynchronizedListItemWriter<>();
+		SynchronizedListItemWriter<KeyDump<byte[]>> writer = new SynchronizedListItemWriter<>();
 		JobExecution execution = runAsync(job(testInfo, reader, writer));
 		GeneratorItemReader gen = new GeneratorItemReader();
 		int count = 123;
@@ -567,7 +570,10 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		awaitTermination(execution);
 		awaitUntilFalse(reader::isOpen);
 		awaitUntilFalse(writer::isOpen);
-		Assertions.assertEquals(count, writer.getItems().size());
+		Set<String> keys = writer.getItems().stream()
+				.map(d -> StringCodec.UTF8.decodeKey(ByteArrayCodec.INSTANCE.encodeKey(d.getKey())))
+				.collect(Collectors.toSet());
+		Assertions.assertEquals(sourceConnection.sync().dbsize(), keys.size());
 	}
 
 	@Test
@@ -1084,7 +1090,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	@Test
 	void liveOnlyReplication(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
-		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = liveReader(sourceClient, ByteArrayCodec.INSTANCE)
+		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = liveReader(sourceClient)
 				.notificationQueueOptions(QueueOptions.builder().capacity(100000).build())
 				.idleTimeout(DEFAULT_IDLE_TIMEOUT).keyDump();
 		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
@@ -1102,8 +1108,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		enableKeyspaceNotifications(sourceClient);
 		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader();
 		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
-		LiveRedisItemReader<byte[], byte[], KeyDump<byte[]>> liveReader = liveReader(sourceClient,
-				ByteArrayCodec.INSTANCE).keyDump();
+		LiveRedisItemReader<byte[], byte[], KeyDump<byte[]>> liveReader = liveReader(sourceClient).keyDump();
 		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> liveWriter = keyDumpWriter(targetClient);
 		liveReplication(testInfo, reader, writer, liveReader, liveWriter);
 	}
@@ -1113,7 +1118,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		enableKeyspaceNotifications(sourceClient);
 		String key = "myset";
 		sourceConnection.sync().sadd(key, "1", "2", "3", "4", "5");
-		RedisItemReader<String, String, DataStructure<String>> reader = liveReader(sourceClient, StringCodec.UTF8)
+		RedisItemReader<String, String, DataStructure<String>> reader = liveReader(sourceClient)
 				.notificationQueueOptions(QueueOptions.builder().capacity(100).build()).dataStructure();
 		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter();
 		JobExecution execution = runAsync(job(testInfo, reader, writer));
@@ -1156,8 +1161,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		enableKeyspaceNotifications(sourceClient);
 		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
 		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter();
-		LiveRedisItemReader<String, String, DataStructure<String>> liveReader = liveReader(sourceClient,
-				StringCodec.UTF8).dataStructure();
+		LiveRedisItemReader<String, String, DataStructure<String>> liveReader = liveReader(sourceClient)
+				.dataStructure();
 		RedisItemWriter<String, String, DataStructure<String>> liveWriter = dataStructureTargetWriter();
 		liveReplication(testInfo, reader, writer, liveReader, liveWriter);
 	}
@@ -1324,7 +1329,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		sourceConnection.sync().pexpireat(key, ttl);
 		StatefulRedisModulesConnection<byte[], byte[]> byteConnection = RedisModulesUtils.connection(sourceClient,
 				ByteArrayCodec.INSTANCE);
-		KeyDumpReadOperation<byte[], byte[]> operation = new KeyDumpReadOperation<>(sourceClient);
+		KeyDumpReadOperation operation = new KeyDumpReadOperation(sourceClient);
 		operation.open(new ExecutionContext());
 		Future<KeyDump<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
 		KeyDump<byte[]> keyDump = future.get();
