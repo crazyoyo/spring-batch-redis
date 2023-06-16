@@ -58,7 +58,6 @@ import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisURI;
-import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
@@ -267,7 +266,7 @@ abstract class AbstractTestBase {
 	protected void generate(TestInfo testInfo, AbstractRedisClient client, GeneratorItemReader reader)
 			throws JobExecutionException {
 		TestInfo finalTestInfo = testInfo(testInfo, "generate", String.valueOf(client.hashCode()));
-		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder<>(client, StringCodec.UTF8)
+		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder(client)
 				.streamIdPolicy(StreamIdPolicy.DROP).dataStructure();
 		run(finalTestInfo, reader, writer);
 	}
@@ -298,7 +297,7 @@ abstract class AbstractTestBase {
 	}
 
 	protected RedisItemWriter<byte[], byte[], KeyDump<byte[]>> keyDumpWriter(AbstractRedisClient client) {
-		return new WriterBuilder<>(client, ByteArrayCodec.INSTANCE).keyDump();
+		return new WriterBuilder(client).keyDump();
 	}
 
 	protected void flushAll(AbstractRedisClient client) {

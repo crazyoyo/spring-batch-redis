@@ -150,8 +150,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
 		Hset<String, String, Map<String, String>> hset = new Hset<>(m -> "hash:" + m.remove("id"), Function.identity());
-		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder<>(sourceClient,
-				StringCodec.UTF8).waitReplicas(1).waitTimeout(Duration.ofMillis(300)).operation(hset);
+		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder(sourceClient).waitReplicas(1)
+				.waitTimeout(Duration.ofMillis(300)).operation(hset);
 		JobExecution execution = run(testInfo, reader, writer);
 		List<Throwable> exceptions = execution.getAllFailureExceptions();
 		assertEquals("Insufficient replication level - expected: 1, actual: 0",
@@ -174,8 +174,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
 		Hset<String, String, Map<String, String>> hset = new Hset<>(m -> "hash:" + m.remove("id"), Function.identity());
-		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder<>(sourceClient,
-				StringCodec.UTF8).operation(hset);
+		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder(sourceClient).operation(hset);
 		run(testInfo, reader, writer);
 		assertEquals(maps.size(), sourceConnection.sync().keys("hash:*").size());
 		for (int index = 0; index < maps.size(); index++) {
@@ -197,8 +196,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		gen2.withHashOptions(HashOptions.builder().fieldCount(IntRange.is(10)).build());
 		generate(testInfo, targetClient, gen2);
 		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
-		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder<>(targetClient,
-				StringCodec.UTF8).mergePolicy(MergePolicy.OVERWRITE).dataStructure();
+		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder(targetClient)
+				.mergePolicy(MergePolicy.OVERWRITE).dataStructure();
 		run(testInfo, reader, writer);
 		assertEquals(sourceConnection.sync().hgetall("gen:1"), targetConnection.sync().hgetall("gen:1"));
 	}
@@ -216,8 +215,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		gen2.withHashOptions(HashOptions.builder().fieldCount(IntRange.is(10)).build());
 		generate(testInfo, targetClient, gen2);
 		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
-		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder<>(targetClient,
-				StringCodec.UTF8).mergePolicy(MergePolicy.MERGE).dataStructure();
+		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder(targetClient)
+				.mergePolicy(MergePolicy.MERGE).dataStructure();
 		run(testInfo, reader, writer);
 		Map<String, String> actual = targetConnection.sync().hgetall("gen:1");
 		assertEquals(10, actual.size());
@@ -256,8 +255,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		GeoValueConverter<String, Geo> value = new GeoValueConverter<>(Geo::getMember, Geo::getLongitude,
 				Geo::getLatitude);
 		Geoadd<String, String, Geo> geoadd = new Geoadd<>(t -> "geoset", value);
-		RedisItemWriter<String, String, Geo> writer = new WriterBuilder<>(sourceClient, StringCodec.UTF8)
-				.operation(geoadd);
+		RedisItemWriter<String, String, Geo> writer = new WriterBuilder(sourceClient).operation(geoadd);
 		run(testInfo, reader, writer);
 		Set<String> radius1 = sourceConnection.sync().georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
 		assertEquals(1, radius1.size());
@@ -280,8 +278,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
 		Hset<String, String, Entry<String, Map<String, String>>> hset = new Hset<>(e -> "hash:" + e.getKey(),
 				Entry::getValue);
-		RedisItemWriter<String, String, Entry<String, Map<String, String>>> writer = new WriterBuilder<>(sourceClient,
-				StringCodec.UTF8).operation(hset);
+		RedisItemWriter<String, String, Entry<String, Map<String, String>>> writer = new WriterBuilder(sourceClient)
+				.operation(hset);
 		run(testInfo, reader, writer);
 		assertEquals(100, sync.keys("hash:*").size());
 		assertEquals(2, sync.hgetall("hash:50").size());
@@ -319,8 +317,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		ScoredValueConverter<String, ZValue> converter = new ScoredValueConverter<>(ZValue::getMember,
 				ZValue::getScore);
 		Zadd<String, String, ZValue> zadd = new Zadd<>(t -> key, converter);
-		RedisItemWriter<String, String, ZValue> writer = new WriterBuilder<>(sourceClient, StringCodec.UTF8)
-				.operation(zadd);
+		RedisItemWriter<String, String, ZValue> writer = new WriterBuilder(sourceClient).operation(zadd);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		assertEquals(1, sync.dbsize());
@@ -338,8 +335,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		}
 		ListItemReader<String> reader = new ListItemReader<>(values);
 		Sadd<String, String, String> sadd = new Sadd<>(t -> key, Function.identity());
-		RedisItemWriter<String, String, String> writer = new WriterBuilder<>(sourceClient, StringCodec.UTF8)
-				.operation(sadd);
+		RedisItemWriter<String, String, String> writer = new WriterBuilder(sourceClient).operation(sadd);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		assertEquals(1, sync.dbsize());
@@ -357,8 +353,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
 				Suggestion::getScore, Suggestion::getPayload);
 		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(t -> key, converter);
-		RedisItemWriter<String, String, Suggestion<String>> writer = new WriterBuilder<>(sourceClient, StringCodec.UTF8)
-				.operation(sugadd);
+		RedisItemWriter<String, String, Suggestion<String>> writer = new WriterBuilder(sourceClient).operation(sugadd);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		assertEquals(1, sync.dbsize());
@@ -376,8 +371,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
 				Suggestion::getScore, Suggestion::getPayload);
 		SugaddIncr<String, String, Suggestion<String>> sugadd = new SugaddIncr<>(t -> key, converter);
-		RedisItemWriter<String, String, Suggestion<String>> writer = new WriterBuilder<>(sourceClient, StringCodec.UTF8)
-				.operation(sugadd);
+		RedisItemWriter<String, String, Suggestion<String>> writer = new WriterBuilder(sourceClient).operation(sugadd);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		assertEquals(1, sync.dbsize());
@@ -394,8 +388,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		ListItemReader<Sample> reader = new ListItemReader<>(values);
 		SampleConverter<Sample> converter = new SampleConverter<>(Sample::getTimestamp, Sample::getValue);
 		TsAdd<String, String, Sample> tsAdd = new TsAdd<>(t -> key, converter);
-		RedisItemWriter<String, String, Sample> writer = new WriterBuilder<>(sourceClient, StringCodec.UTF8)
-				.operation(tsAdd);
+		RedisItemWriter<String, String, Sample> writer = new WriterBuilder(sourceClient).operation(tsAdd);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		assertEquals(1, sync.dbsize());
@@ -417,8 +410,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			list.add(ds);
 		}
 		ListItemReader<DataStructure<String>> reader = new ListItemReader<>(list);
-		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder<>(sourceClient,
-				StringCodec.UTF8).dataStructure();
+		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder(sourceClient).dataStructure();
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		List<String> keys = sync.keys("hash:*");
@@ -643,8 +635,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
 		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(t -> stream, Function.identity(), m -> null);
-		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder<>(sourceClient,
-				StringCodec.UTF8).operation(xadd);
+		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder(sourceClient).operation(xadd);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -667,8 +658,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
 		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(t -> stream, Function.identity(), m -> null);
-		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder<>(sourceClient,
-				StringCodec.UTF8).multiExec(true).operation(xadd);
+		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder(sourceClient).multiExec(true)
+				.operation(xadd);
 		run(testInfo, reader, writer);
 		RedisStreamCommands<String, String> sync = sourceConnection.sync();
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -974,8 +965,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	void writeJSON(TestInfo testInfo) throws Exception {
 		JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>(n -> "beer:" + n.get("id").asText(),
 				JsonNode::toString, t -> ".");
-		RedisItemWriter<String, String, JsonNode> writer = new WriterBuilder<>(sourceClient, StringCodec.UTF8)
-				.operation(jsonSet);
+		RedisItemWriter<String, String, JsonNode> writer = new WriterBuilder(sourceClient).operation(jsonSet);
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
 		run(testInfo, reader, writer);
 		Assertions.assertEquals(BEER_COUNT, sourceConnection.sync().keys("beer:*").size());
@@ -997,8 +987,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		AddOptions<String, String> addOptions = AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST)
 				.build();
 		TsAdd<String, String, Sample> tsadd = new TsAdd<>(t -> key, Function.identity(), t -> addOptions);
-		RedisItemWriter<String, String, Sample> writer = new WriterBuilder<>(sourceClient, StringCodec.UTF8)
-				.operation(tsadd);
+		RedisItemWriter<String, String, Sample> writer = new WriterBuilder(sourceClient).operation(tsadd);
 		run(testInfo, reader, writer);
 		Assertions.assertEquals(count / 2,
 				sourceConnection.sync().tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
@@ -1030,7 +1019,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	}
 
 	private RedisItemWriter<String, String, DataStructure<String>> dataStructureTargetWriter() {
-		return new WriterBuilder<>(targetClient, StringCodec.UTF8).dataStructure();
+		return new WriterBuilder(targetClient).dataStructure();
 	}
 
 	@Test
@@ -1133,8 +1122,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 				RedisModulesClient badTargetClient = RedisModulesClient.create("redis://badhost:6379")) {
 			RedisItemReader<String, String, DataStructure<String>> reader = dataStructureReader(badSourceClient,
 					StringCodec.UTF8);
-			RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder<>(badTargetClient,
-					StringCodec.UTF8).dataStructure();
+			RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder(badTargetClient)
+					.dataStructure();
 			JobExecution execution = run(testInfo, reader, writer);
 			Assertions.assertTrue(execution.getStatus().isUnsuccessful());
 		}
@@ -1148,8 +1137,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		sourceConnection.sync().pfadd(key2, "member:1", "member:2", "member:3");
 		RedisItemReader<byte[], byte[], DataStructure<byte[]>> reader = dataStructureReader(sourceClient,
 				ByteArrayCodec.INSTANCE);
-		RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = new WriterBuilder<>(targetClient,
-				ByteArrayCodec.INSTANCE).dataStructure();
+		RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = new WriterBuilder(targetClient)
+				.dataStructure(ByteArrayCodec.INSTANCE);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sourceSync = sourceConnection.sync();
 		RedisModulesCommands<String, String> targetSync = targetConnection.sync();
