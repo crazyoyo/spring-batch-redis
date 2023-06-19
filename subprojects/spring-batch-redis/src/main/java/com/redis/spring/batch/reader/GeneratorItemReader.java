@@ -13,8 +13,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
@@ -29,8 +28,6 @@ import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
 public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<DataStructure<String>> {
-
-	private static final Log log = LogFactory.getLog(GeneratorItemReader.class);
 
 	private static final int LEFT_LIMIT = 48; // numeral '0'
 	private static final int RIGHT_LIMIT = 122; // letter 'z'
@@ -52,9 +49,9 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	public static final StringOptions DEFAULT_STRING_OPTIONS = StringOptions.builder().build();
 	public static final ZsetOptions DEFAULT_ZSET_OPTIONS = ZsetOptions.builder().build();
 	private static final Type[] DEFAULT_TYPES = { Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET };
-	public static final int DEFAULT_KEY_RANGE_MAX = 100;
-	public static final IntRange DEFAULT_KEY_RANGE = IntRange.between(1, DEFAULT_KEY_RANGE_MAX);
+	public static final IntRange DEFAULT_KEY_RANGE = IntRange.from(1);
 
+	private IntRange keyRange = DEFAULT_KEY_RANGE;
 	private Optional<IntRange> expiration = Optional.empty();
 	private HashOptions hashOptions = DEFAULT_HASH_OPTIONS;
 	private StreamOptions streamOptions = DEFAULT_STREAM_OPTIONS;
@@ -66,7 +63,6 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	private ZsetOptions zsetOptions = DEFAULT_ZSET_OPTIONS;
 	private String keyspace = DEFAULT_KEYSPACE;
 	private List<Type> types = defaultTypes();
-	private IntRange keyRange = DEFAULT_KEY_RANGE;
 
 	public GeneratorItemReader() {
 		setName(ClassUtils.getShortName(getClass()));
@@ -556,7 +552,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		return range.getMin() + index() % (range.getMax() - range.getMin() + 1);
 	}
 
-	private Object value(DataStructure<String> ds) {
+	private Object value(DataStructure<String> ds) throws JsonProcessingException {
 		switch (ds.getType()) {
 		case DataStructure.HASH:
 			return map(hashOptions);
@@ -571,12 +567,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		case DataStructure.ZSET:
 			return zset();
 		case DataStructure.JSON:
-			try {
-				return mapper.writeValueAsString(map(jsonOptions));
-			} catch (JsonProcessingException e) {
-				log.error("Could not serialize object to JSON", e);
-				return null;
-			}
+			return mapper.writeValueAsString(map(jsonOptions));
 		case DataStructure.TIMESERIES:
 			return samples();
 		default:
@@ -654,7 +645,13 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		Type type = types.get(index() % types.size());
 		ds.setType(typeString(type));
 		ds.setKey(key());
-		ds.setValue(value(ds));
+		Object value;
+		try {
+			value = value(ds);
+		} catch (JsonProcessingException e) {
+			throw new ItemStreamException("Could not read value", e);
+		}
+		ds.setValue(value);
 		expiration.ifPresent(e -> ds.setTtl(System.currentTimeMillis() + randomInt(e)));
 		return ds;
 	}
