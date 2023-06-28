@@ -1,10 +1,13 @@
 package com.redis.spring.batch.common;
 
 import java.util.Objects;
+import java.util.function.IntPredicate;
 
 public class IntRange {
 
-	public static final String SEPARATOR = ":";
+	public static final String SEPARATOR = "-";
+
+	private static final IntRange UNBOUNDED = new IntRange(Integer.MIN_VALUE, Integer.MAX_VALUE);
 
 	private final int min;
 	private final int max;
@@ -20,6 +23,14 @@ public class IntRange {
 
 	public int getMax() {
 		return max;
+	}
+
+	public boolean contains(int value) {
+		return value >= min && value <= max;
+	}
+
+	public IntPredicate asPredicate() {
+		return this::contains;
 	}
 
 	@Override
@@ -60,7 +71,11 @@ public class IntRange {
 	}
 
 	public static IntRange to(int max) {
-		return new IntRange(0, max);
+		return new IntRange(Integer.MIN_VALUE, max);
+	}
+
+	public static IntRange unbounded() {
+		return UNBOUNDED;
 	}
 
 }

@@ -86,7 +86,7 @@ public class RedisItemWriter<K, V, T> extends OperationItemStreamSupport<K, V, T
 		}
 
 		protected <K, V, T> RedisItemWriter<K, V, T> build(RedisCodec<K, V> codec, Operation<K, V, T, ?> operation) {
-			return build(codec, new SimpleBatchOperation<>(operation));
+			return build(codec, SimpleBatchOperation.of(operation));
 		}
 
 		protected <K, V, T> RedisItemWriter<K, V, T> build(RedisCodec<K, V> codec,

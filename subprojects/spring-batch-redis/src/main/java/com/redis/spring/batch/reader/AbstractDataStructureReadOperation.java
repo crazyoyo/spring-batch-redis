@@ -1,10 +1,13 @@
 package com.redis.spring.batch.reader;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.common.DataStructure;
@@ -17,8 +20,10 @@ import io.lettuce.core.internal.LettuceAssert;
 public abstract class AbstractDataStructureReadOperation<K, V>
 		extends AbstractLuaReadOperation<K, V, DataStructure<K>> {
 
+	private static final String FILENAME = "datastructure.lua";
+
 	protected AbstractDataStructureReadOperation(AbstractRedisClient client) {
-		super(client, "datastructure.lua");
+		super(client, FILENAME);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -49,6 +54,8 @@ public abstract class AbstractDataStructureReadOperation<K, V>
 		switch (ds.getType()) {
 		case DataStructure.HASH:
 			return map((List<Object>) object);
+		case DataStructure.SET:
+			return new HashSet<>((Collection<Object>) object);
 		case DataStructure.ZSET:
 			return zset((List<Object>) object);
 		case DataStructure.STREAM:
@@ -82,9 +89,9 @@ public abstract class AbstractDataStructureReadOperation<K, V>
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<ScoredValue<V>> zset(List<Object> list) {
+	private Set<ScoredValue<V>> zset(List<Object> list) {
 		LettuceAssert.isTrue(list.size() % 2 == 0, "List size must be a multiple of 2");
-		List<ScoredValue<V>> values = new ArrayList<>();
+		Set<ScoredValue<V>> values = new HashSet<>();
 		for (int i = 0; i < list.size(); i += 2) {
 			values.add(ScoredValue.just(Double.parseDouble(string(list.get(i + 1))), (V) list.get(i)));
 		}

@@ -25,4 +25,8 @@ public class SimpleBatchOperation<K, V, I, O> extends DelegatingItemStreamSuppor
 		return futures;
 	}
 
+	public static <K, V, I, O> BatchOperation<K, V, I, O> of(Operation<K, V, I, O> operation) {
+		return new SimpleBatchOperation<>(operation);
+	}
+
 }

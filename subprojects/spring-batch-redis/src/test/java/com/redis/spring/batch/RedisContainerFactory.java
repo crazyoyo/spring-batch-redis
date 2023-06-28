@@ -4,6 +4,7 @@ import org.springframework.util.unit.DataSize;
 
 import com.redis.enterprise.Database;
 import com.redis.enterprise.RedisModule;
+import com.redis.testcontainers.RedisClusterContainer;
 import com.redis.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisStackContainer;
 
@@ -21,6 +22,10 @@ public class RedisContainerFactory {
 		return new RedisEnterpriseContainer(RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
 				.withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(50)).ossCluster(true)
 						.modules(RedisModule.JSON, RedisModule.TIMESERIES, RedisModule.SEARCH).build());
+	}
+
+	public static RedisClusterContainer cluster() {
+		return new RedisClusterContainer(RedisClusterContainer.DEFAULT_IMAGE_NAME.withTag("latest"));
 	}
 
 }

@@ -19,7 +19,8 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
-import com.redis.lettucemod.util.RedisModulesUtils;
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.RedisItemReader.LiveReaderBuilder;
 import com.redis.spring.batch.common.SetBlockingQueue;
 import com.redis.spring.batch.common.Utils;
@@ -50,12 +51,13 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 			.collect(Collectors.toMap(KeyEventType::getString, Function.identity()));
 
 	private QueueOptions queueOptions = QueueOptions.builder().build();
-	private List<String> patterns = LiveReaderBuilder.defaultPatterns();
+	private List<String> pubSubPatterns = LiveReaderBuilder.defaultPubSubPatterns();
 	private Set<String> types = new HashSet<>();
 	private KeyspaceNotificationOrderingStrategy prioritization = DEFAULT_ORDERING;
 
-	private Publisher publisher;
 	private BlockingQueue<KeyspaceNotification> queue;
+
+	private KeyspaceNotificationPublisher publisher;
 
 	public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		setName(ClassUtils.getShortName(getClass()));
@@ -63,14 +65,12 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 		this.codec = codec;
 	}
 
-	public KeyspaceNotificationItemReader<K, V> withQueueOptions(QueueOptions options) {
+	public void setQueueOptions(QueueOptions options) {
 		this.queueOptions = options;
-		return this;
 	}
 
-	public KeyspaceNotificationItemReader<K, V> withPatterns(List<String> patterns) {
-		this.patterns = patterns;
-		return this;
+	public void setPubSubPatterns(List<String> patterns) {
+		this.pubSubPatterns = patterns;
 	}
 
 	/**
@@ -78,18 +78,16 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 	 * 
 	 * @param types
 	 */
-	public KeyspaceNotificationItemReader<K, V> withTypes(List<String> types) {
+	public void setTypes(List<String> types) {
 		this.types = new HashSet<>(types);
-		return this;
 	}
 
-	public KeyspaceNotificationItemReader<K, V> withTypes(String... types) {
-		return withTypes(Arrays.asList(types));
+	public void setTypes(String... types) {
+		setTypes(Arrays.asList(types));
 	}
 
-	public KeyspaceNotificationItemReader<K, V> withOrderingStrategy(KeyspaceNotificationOrderingStrategy strategy) {
+	public void setOrderingStrategy(KeyspaceNotificationOrderingStrategy strategy) {
 		this.prioritization = strategy;
-		return this;
 	}
 
 	public BlockingQueue<KeyspaceNotification> getQueue() {
@@ -103,8 +101,6 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 			queue = new SetBlockingQueue<>(notificationQueue());
 			Utils.createGaugeCollectionSize(QUEUE_SIZE_GAUGE_NAME, queue);
 			publisher = publisher();
-			log.debug("Subscribing to keyspace notifications");
-			publisher.open(patterns);
 		}
 	}
 
@@ -115,19 +111,20 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 		return new LinkedBlockingQueue<>(queueOptions.getCapacity());
 	}
 
-	private Publisher publisher() {
-		StatefulRedisPubSubConnection<String, String> connection = RedisModulesUtils.pubSubConnection(client);
-		if (connection instanceof StatefulRedisClusterPubSubConnection) {
-			return new RedisClusterPublisher((StatefulRedisClusterPubSubConnection<String, String>) connection);
+	private KeyspaceNotificationPublisher publisher() {
+		String[] patterns = pubSubPatterns.toArray(new String[0]);
+		if (client instanceof RedisModulesClusterClient) {
+			return new RedisClusterKeyspaceNotificationPublisher(((RedisModulesClusterClient) client).connectPubSub(),
+					patterns);
 		}
-		return new RedisPublisher(connection);
+		return new RedisKeyspaceNotificationPublisher(((RedisModulesClient) client).connectPubSub(), patterns);
 	}
 
 	@Override
 	public void close() {
 		if (publisher != null) {
 			log.debug("Unsubscribing from keyspace notifications");
-			publisher.close(patterns);
+			publisher.close();
 			publisher = null;
 		}
 		super.close();
@@ -164,30 +161,30 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 		return codec.decodeKey(StringCodec.UTF8.encodeKey(notification.getKey()));
 	}
 
-	private interface Publisher {
+	private interface KeyspaceNotificationPublisher extends AutoCloseable {
 
-		void open(List<String> patterns);
+		@Override
+		void close();
 
-		void close(List<String> patterns);
 	}
 
-	private class RedisPublisher extends RedisPubSubAdapter<String, String> implements Publisher {
+	private class RedisKeyspaceNotificationPublisher extends RedisPubSubAdapter<String, String>
+			implements KeyspaceNotificationPublisher {
 
 		private final StatefulRedisPubSubConnection<String, String> connection;
+		private final String[] patterns;
 
-		public RedisPublisher(StatefulRedisPubSubConnection<String, String> connection) {
+		public RedisKeyspaceNotificationPublisher(StatefulRedisPubSubConnection<String, String> connection,
+				String[] patterns) {
 			this.connection = connection;
-		}
-
-		@Override
-		public void open(List<String> patterns) {
+			this.patterns = patterns;
 			connection.addListener(this);
-			connection.sync().psubscribe(patterns.toArray(new String[0]));
+			connection.sync().psubscribe(patterns);
 		}
 
 		@Override
-		public void close(List<String> patterns) {
-			connection.sync().punsubscribe(patterns.toArray(new String[0]));
+		public void close() {
+			connection.sync().punsubscribe(patterns);
 			connection.removeListener(this);
 			connection.close();
 		}
@@ -204,26 +201,26 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
 	}
 
-	private class RedisClusterPublisher extends RedisClusterPubSubAdapter<String, String> implements Publisher {
+	private class RedisClusterKeyspaceNotificationPublisher extends RedisClusterPubSubAdapter<String, String>
+			implements KeyspaceNotificationPublisher {
 
 		private final StatefulRedisClusterPubSubConnection<String, String> connection;
+		private final String[] patterns;
 
-		public RedisClusterPublisher(StatefulRedisClusterPubSubConnection<String, String> connection) {
+		public RedisClusterKeyspaceNotificationPublisher(
+				StatefulRedisClusterPubSubConnection<String, String> connection, String[] patterns) {
 			this.connection = connection;
-		}
-
-		@Override
-		public void open(List<String> patterns) {
+			this.patterns = patterns;
 			connection.addListener(this);
 			connection.setNodeMessagePropagation(true);
-			connection.sync().upstream().commands().psubscribe(patterns.toArray(new String[0]));
+			connection.sync().upstream().commands().psubscribe(patterns);
+
 		}
 
 		@Override
-		public void close(List<String> patterns) {
-			connection.sync().upstream().commands().punsubscribe(patterns.toArray(new String[0]));
+		public void close() {
+			connection.sync().upstream().commands().punsubscribe(patterns);
 			connection.removeListener(this);
-			connection.close();
 		}
 
 		@Override

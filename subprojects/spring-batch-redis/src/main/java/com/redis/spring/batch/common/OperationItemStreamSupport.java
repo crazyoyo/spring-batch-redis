@@ -2,6 +2,7 @@ package com.redis.spring.batch.common;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -9,6 +10,7 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.ReadFrom;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -19,9 +21,10 @@ public class OperationItemStreamSupport<K, V, I, O> extends DelegatingItemStream
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
-	private PoolOptions poolOptions = PoolOptions.builder().build();
 	private final BatchOperation<K, V, I, O> operation;
 
+	private PoolOptions poolOptions = PoolOptions.builder().build();
+	private Optional<ReadFrom> readFrom = Optional.empty();
 	private GenericObjectPool<StatefulConnection<K, V>> pool;
 
 	public OperationItemStreamSupport(AbstractRedisClient client, RedisCodec<K, V> codec,
@@ -32,16 +35,20 @@ public class OperationItemStreamSupport<K, V, I, O> extends DelegatingItemStream
 		this.operation = operation;
 	}
 
-	public OperationItemStreamSupport<K, V, I, O> withPoolOptions(PoolOptions poolOptions) {
+	public void setReadFrom(Optional<ReadFrom> readFrom) {
+		this.readFrom = readFrom;
+	}
+
+	public void setPoolOptions(PoolOptions poolOptions) {
 		this.poolOptions = poolOptions;
-		return this;
 	}
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
 		if (pool == null) {
-			this.pool = ConnectionPoolBuilder.client(client).options(poolOptions).codec(codec);
+			this.pool = ConnectionPoolFactory.client(client).withOptions(poolOptions).withReadFrom(readFrom)
+					.codec(codec);
 		}
 	}
 

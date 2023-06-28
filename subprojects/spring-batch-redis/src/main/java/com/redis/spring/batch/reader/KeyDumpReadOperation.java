@@ -8,8 +8,10 @@ import io.lettuce.core.AbstractRedisClient;
 
 public class KeyDumpReadOperation extends AbstractLuaReadOperation<byte[], byte[], KeyDump<byte[]>> {
 
+	private static final String FILENAME = "keydump.lua";
+
 	public KeyDumpReadOperation(AbstractRedisClient client) {
-		super(client, "keydump.lua");
+		super(client, FILENAME);
 	}
 
 	@Override

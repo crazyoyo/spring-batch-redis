@@ -72,72 +72,60 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		return Stream.of(DEFAULT_TYPES).collect(Collectors.toList());
 	}
 
-	public GeneratorItemReader withKeyRange(IntRange keyRange) {
+	public void setKeyRange(IntRange keyRange) {
 		this.keyRange = keyRange;
-		return this;
 	}
 
-	public GeneratorItemReader withExpiration(IntRange expiration) {
-		return withExpiration(Optional.of(expiration));
+	public void setExpiration(IntRange expiration) {
+		setExpiration(Optional.of(expiration));
 	}
 
-	public GeneratorItemReader withExpiration(Optional<IntRange> expiration) {
+	public void setExpiration(Optional<IntRange> expiration) {
 		this.expiration = expiration;
-		return this;
 	}
 
-	public GeneratorItemReader withHashOptions(HashOptions hashOptions) {
+	public void setHashOptions(HashOptions hashOptions) {
 		this.hashOptions = hashOptions;
-		return this;
 	}
 
-	public GeneratorItemReader withStreamOptions(StreamOptions streamOptions) {
+	public void setStreamOptions(StreamOptions streamOptions) {
 		this.streamOptions = streamOptions;
-		return this;
 	}
 
-	public GeneratorItemReader withJsonOptions(JsonOptions jsonOptions) {
+	public void setJsonOptions(JsonOptions jsonOptions) {
 		this.jsonOptions = jsonOptions;
-		return this;
 	}
 
-	public GeneratorItemReader withTimeSeriesOptions(TimeSeriesOptions options) {
+	public void setTimeSeriesOptions(TimeSeriesOptions options) {
 		this.timeSeriesOptions = options;
-		return this;
 	}
 
-	public GeneratorItemReader withListOptions(ListOptions options) {
+	public void setListOptions(ListOptions options) {
 		this.listOptions = options;
-		return this;
 	}
 
-	public GeneratorItemReader withSetOptions(SetOptions options) {
+	public void setSetOptions(SetOptions options) {
 		this.setOptions = options;
-		return this;
 	}
 
-	public GeneratorItemReader withZsetOptions(ZsetOptions options) {
+	public void setZsetOptions(ZsetOptions options) {
 		this.zsetOptions = options;
-		return this;
 	}
 
-	public GeneratorItemReader withStringOptions(StringOptions options) {
+	public void setStringOptions(StringOptions options) {
 		this.stringOptions = options;
-		return this;//
 	}
 
-	public GeneratorItemReader withKeyspace(String keyspace) {
+	public void setKeyspace(String keyspace) {
 		this.keyspace = keyspace;
-		return this;
 	}
 
-	public GeneratorItemReader withTypes(Type... types) {
-		return withTypes(Arrays.asList(types));
+	public void setTypes(Type... types) {
+		setTypes(Arrays.asList(types));
 	}
 
-	public GeneratorItemReader withTypes(List<Type> types) {
+	public void setTypes(List<Type> types) {
 		this.types = types;
-		return this;
 	}
 
 	public static class ZsetOptions extends CollectionOptions {

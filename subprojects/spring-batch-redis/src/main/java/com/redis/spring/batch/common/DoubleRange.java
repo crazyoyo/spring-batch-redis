@@ -4,7 +4,7 @@ import java.util.Objects;
 
 public class DoubleRange {
 
-	public static final String SEPARATOR = ":";
+	public static final String SEPARATOR = "-";
 
 	private final double min;
 	private final double max;
@@ -20,6 +20,10 @@ public class DoubleRange {
 
 	public double getMax() {
 		return max;
+	}
+
+	public boolean contains(double value) {
+		return value >= min && value <= max;
 	}
 
 	@Override

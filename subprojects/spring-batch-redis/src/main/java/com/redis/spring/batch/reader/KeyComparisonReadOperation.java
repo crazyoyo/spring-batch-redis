@@ -30,14 +30,13 @@ public class KeyComparisonReadOperation
 	private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
 	public KeyComparisonReadOperation(AbstractRedisClient left, AbstractRedisClient right) {
-		super(right, StringCodec.UTF8, new SimpleBatchOperation<>(new StringDataStructureReadOperation(right)));
-		this.left = addDelegate(new SimpleBatchOperation<>(new StringDataStructureReadOperation(left)));
+		super(right, StringCodec.UTF8, SimpleBatchOperation.of(new StringDataStructureReadOperation(right)));
+		this.left = addDelegate(SimpleBatchOperation.of(new StringDataStructureReadOperation(left)));
 	}
 
-	public KeyComparisonReadOperation withTtlTolerance(Duration ttlTolerance) {
+	public void setTtlTolerance(Duration ttlTolerance) {
 		Assert.notNull(ttlTolerance, "Tolerance must not be null");
 		this.ttlTolerance = ttlTolerance;
-		return this;
 	}
 
 	@Override

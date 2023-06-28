@@ -1,26 +1,44 @@
 package com.redis.spring.batch.common;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.NonTransientResourceException;
 import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
+import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.springframework.transaction.TransactionManager;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
+import org.springframework.util.FileCopyUtils;
 
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import com.redis.spring.batch.reader.AbstractLuaReadOperation;
+import com.redis.spring.batch.reader.PollableItemReader;
+
+import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.ReadFrom;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.sync.RedisScriptingCommands;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Tag;
 
@@ -46,6 +64,27 @@ public interface Utils {
 	static void assertPositive(Number value, String name) {
 		Assert.notNull(value, name + " must not be null");
 		Assert.isTrue(value.doubleValue() > 0, name + " must be greater than zero");
+	}
+
+	static Supplier<StatefulConnection<String, String>> connectionSupplier(AbstractRedisClient client) {
+		return connectionSupplier(client, Optional.empty());
+	}
+
+	static Supplier<StatefulConnection<String, String>> connectionSupplier(AbstractRedisClient client,
+			Optional<ReadFrom> readFrom) {
+		return connectionSupplier(client, StringCodec.UTF8, readFrom);
+	}
+
+	static <K, V> Supplier<StatefulConnection<K, V>> connectionSupplier(AbstractRedisClient client,
+			RedisCodec<K, V> codec, Optional<ReadFrom> readFrom) {
+		if (client instanceof RedisModulesClusterClient) {
+			return () -> {
+				StatefulRedisClusterConnection<K, V> connection = ((RedisModulesClusterClient) client).connect(codec);
+				readFrom.ifPresent(connection::setReadFrom);
+				return connection;
+			};
+		}
+		return () -> ((RedisModulesClient) client).connect(codec);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -100,8 +139,33 @@ public interface Utils {
 		return bean.getObject();
 	}
 
-	public static TransactionManager inMemoryTransactionManager() {
+	public static PlatformTransactionManager inMemoryTransactionManager() {
 		return new ResourcelessTransactionManager();
+	}
+
+	static <K> ItemReader<K> synchronizedReader(ItemReader<K> reader) {
+		if (reader instanceof PollableItemReader) {
+			return new SynchronizedPollableItemReader<>((PollableItemReader<K>) reader);
+		}
+		if (reader instanceof ItemStreamReader) {
+			SynchronizedItemStreamReader<K> synchronizedReader = new SynchronizedItemStreamReader<>();
+			synchronizedReader.setDelegate((ItemStreamReader<K>) reader);
+			return synchronizedReader;
+		}
+		return reader;
+	}
+
+	@SuppressWarnings("unchecked")
+	static String loadScript(Supplier<StatefulConnection<String, String>> connectionSupplier, String filename) {
+		byte[] bytes;
+		try (InputStream inputStream = AbstractLuaReadOperation.class.getClassLoader().getResourceAsStream(filename)) {
+			bytes = FileCopyUtils.copyToByteArray(inputStream);
+		} catch (IOException e) {
+			throw new ItemStreamException("Could not read LUA script file " + filename);
+		}
+		try (StatefulConnection<String, String> connection = connectionSupplier.get()) {
+			return ((RedisScriptingCommands<String, String>) Utils.sync(connection)).scriptLoad(bytes);
+		}
 	}
 
 }

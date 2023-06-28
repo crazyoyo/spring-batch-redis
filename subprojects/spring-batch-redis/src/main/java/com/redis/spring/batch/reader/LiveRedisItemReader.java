@@ -23,14 +23,12 @@ public class LiveRedisItemReader<K, V, T> extends RedisItemReader<K, V, T> {
 		super(client, codec, reader, operation);
 	}
 
-	public LiveRedisItemReader<K, V, T> withFlushingInterval(Duration flushingInterval) {
+	public void setFlushingInterval(Duration flushingInterval) {
 		this.flushingInterval = flushingInterval;
-		return this;
 	}
 
-	public LiveRedisItemReader<K, V, T> withIdleTimeout(Duration idleTimeout) {
+	public void setIdleTimeout(Duration idleTimeout) {
 		this.idleTimeout = idleTimeout;
-		return this;
 	}
 
 	@Override

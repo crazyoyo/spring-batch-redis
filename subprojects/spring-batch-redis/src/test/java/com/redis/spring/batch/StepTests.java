@@ -71,7 +71,7 @@ class StepTests {
 		int count = 100;
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(count);
-		gen.withTypes(Arrays.asList(Type.STRING));
+		gen.setTypes(Arrays.asList(Type.STRING));
 		ErrorItemReader<DataStructure<String>> reader = new ErrorItemReader<>(gen);
 		SynchronizedListItemWriter<DataStructure<String>> writer = new SynchronizedListItemWriter<>();
 		String name = "readKeyValueFaultTolerance";

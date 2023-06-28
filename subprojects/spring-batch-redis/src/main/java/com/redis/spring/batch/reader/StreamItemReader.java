@@ -66,29 +66,24 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 		return codec.decodeKey(StringCodec.UTF8.encodeKey(key));
 	}
 
-	public StreamItemReader<K, V> withConsumer(Consumer<K> consumer) {
+	public void setConsumer(Consumer<K> consumer) {
 		this.consumer = consumer;
-		return this;
 	}
 
-	public StreamItemReader<K, V> withOffset(String offset) {
+	public void setOffset(String offset) {
 		this.offset = offset;
-		return this;
 	}
 
-	public StreamItemReader<K, V> withBlock(Duration block) {
+	public void setBlock(Duration block) {
 		this.block = block;
-		return this;
 	}
 
-	public StreamItemReader<K, V> withCount(long count) {
+	public void setCount(long count) {
 		this.count = count;
-		return this;
 	}
 
-	public StreamItemReader<K, V> withAckPolicy(StreamAckPolicy policy) {
+	public void setAckPolicy(StreamAckPolicy policy) {
 		this.ackPolicy = policy;
-		return this;
 	}
 
 	private XReadArgs args(long blockMillis) {

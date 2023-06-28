@@ -2,73 +2,63 @@ package com.redis.spring.batch.reader;
 
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 
-import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.lettucemod.util.RedisModulesUtils;
+import com.redis.spring.batch.common.Utils;
 
-import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.ScanArgs;
 import io.lettuce.core.ScanIterator;
-import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.api.StatefulConnection;
 
 public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 
-	public static final String DEFAULT_MATCH = "*";
+	public static final String MATCH_ALL = "*";
+	public static final String DEFAULT_MATCH = MATCH_ALL;
 	public static final long DEFAULT_COUNT = 1000;
 
-	private final AbstractRedisClient client;
-	private final RedisCodec<K, V> codec;
-
+	private final Supplier<StatefulConnection<K, V>> connectionSupplier;
 	private String match = DEFAULT_MATCH;
 	private long count = DEFAULT_COUNT;
 	private Optional<String> type = Optional.empty();
-	private StatefulRedisModulesConnection<K, V> connection;
 	private Iterator<K> iterator;
 
-	public ScanKeyItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		this.client = client;
-		this.codec = codec;
+	public ScanKeyItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier) {
+		this.connectionSupplier = connectionSupplier;
 	}
 
-	public ScanKeyItemReader<K, V> withMatch(String match) {
+	public void setMatch(String match) {
 		this.match = match;
-		return this;
 	}
 
-	public ScanKeyItemReader<K, V> withCount(long count) {
+	public void setCount(long count) {
 		this.count = count;
-		return this;
 	}
 
-	public ScanKeyItemReader<K, V> withType(String type) {
-		return withType(Optional.of(type));
+	public void setType(String type) {
+		setType(Optional.of(type));
 	}
 
-	public ScanKeyItemReader<K, V> withType(Optional<String> type) {
+	public void setType(Optional<String> type) {
 		this.type = type;
-		return this;
 	}
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		if (connection == null) {
-			connection = RedisModulesUtils.connection(client, codec);
-		}
 		if (iterator == null) {
-			iterator = ScanIterator.scan(connection.sync(), args());
+			iterator = ScanIterator.scan(Utils.sync(connectionSupplier.get()), args());
 		}
 	}
 
 	@Override
 	public synchronized void close() {
 		super.close();
-		if (connection != null) {
-			connection.close();
+		if (iterator != null) {
+			iterator = null;
 		}
 	}
 

@@ -3,7 +3,7 @@ package com.redis.spring.batch;
 import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
 
-class RedisStackBatchTests extends AbstractBatchTests {
+class RedisStackBatchTests extends AbstractModulesBatchTests {
 
 	private static final RedisStackContainer SOURCE = RedisContainerFactory.stack();
 	private static final RedisStackContainer TARGET = RedisContainerFactory.stack();

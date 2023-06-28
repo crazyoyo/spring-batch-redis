@@ -5,14 +5,14 @@ import java.util.Objects;
 public class DataStructure<K> extends KeyTtlValue<K> {
 
 	public static final String NONE = "none";
-	public static final String SET = "set";
-	public static final String LIST = "list";
-	public static final String ZSET = "zset";
-	public static final String STREAM = "stream";
-	public static final String STRING = "string";
 	public static final String HASH = "hash";
 	public static final String JSON = "ReJSON-RL";
+	public static final String LIST = "list";
+	public static final String SET = "set";
+	public static final String STREAM = "stream";
+	public static final String STRING = "string";
 	public static final String TIMESERIES = "TSDB-TYPE";
+	public static final String ZSET = "zset";
 
 	private String type = NONE;
 
