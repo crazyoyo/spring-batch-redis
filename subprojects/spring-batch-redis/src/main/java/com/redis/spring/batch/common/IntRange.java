@@ -5,7 +5,7 @@ import java.util.function.IntPredicate;
 
 public class IntRange {
 
-	public static final String SEPARATOR = "-";
+	public static final String SEPARATOR = ":";
 
 	private static final IntRange UNBOUNDED = new IntRange(Integer.MIN_VALUE, Integer.MAX_VALUE);
 
@@ -71,7 +71,7 @@ public class IntRange {
 	}
 
 	public static IntRange to(int max) {
-		return new IntRange(Integer.MIN_VALUE, max);
+		return new IntRange(0, max);
 	}
 
 	public static IntRange unbounded() {

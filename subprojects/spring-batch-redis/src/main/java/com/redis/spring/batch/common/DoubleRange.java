@@ -4,7 +4,7 @@ import java.util.Objects;
 
 public class DoubleRange {
 
-	public static final String SEPARATOR = "-";
+	public static final String SEPARATOR = ":";
 
 	private final double min;
 	private final double max;
