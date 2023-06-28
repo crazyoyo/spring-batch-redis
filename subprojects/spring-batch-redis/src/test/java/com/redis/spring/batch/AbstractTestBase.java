@@ -163,10 +163,19 @@ abstract class AbstractTestBase {
 
 	}
 
+	@SuppressWarnings("rawtypes")
 	protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer)
 			throws JobExecutionException {
-		return jobLauncher.run(job(testInfo).start(step(testInfo, reader, writer).build()).build(),
+		JobExecution execution = jobLauncher.run(job(testInfo).start(step(testInfo, reader, writer).build()).build(),
 				new JobParameters());
+		awaitTermination(execution);
+		if (reader instanceof RedisItemReader) {
+			awaitUntilFalse(((RedisItemReader) reader)::isOpen);
+		}
+		if (writer instanceof RedisItemWriter) {
+			awaitUntilFalse(((RedisItemWriter) writer)::isOpen);
+		}
+		return execution;
 	}
 
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
@@ -233,10 +242,11 @@ abstract class AbstractTestBase {
 	 * 
 	 * @param left
 	 * @param right
+	 * @return
 	 * @return list of differences
 	 * @throws Exception
 	 */
-	protected void compare(TestInfo testInfo) throws Exception {
+	protected boolean compare(TestInfo testInfo) throws Exception {
 		TestInfo finalTestInfo = testInfo(testInfo, "compare");
 		RedisItemReader<String, String, KeyComparison> reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
@@ -245,7 +255,7 @@ abstract class AbstractTestBase {
 		awaitUntilFalse(reader::isOpen);
 		awaitUntilFalse(writer::isOpen);
 		Assertions.assertFalse(writer.getItems().isEmpty());
-		Assertions.assertTrue(writer.getItems().stream().allMatch(c -> c.getStatus() == Status.OK));
+		return writer.getItems().stream().allMatch(c -> c.getStatus() == Status.OK);
 	}
 
 	protected RedisItemReader<String, String, KeyComparison> comparisonReader() throws Exception {

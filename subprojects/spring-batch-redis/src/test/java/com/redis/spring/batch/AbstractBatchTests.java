@@ -876,7 +876,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		generate(testInfo, gen);
 		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
 		run(testInfo, reader, dataStructureTargetWriter());
-		compare(testInfo);
+		Assertions.assertTrue(compare(testInfo));
 	}
 
 	@Test
@@ -886,7 +886,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		generate(testInfo, gen);
 		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader();
 		run(testInfo, reader, keyDumpWriter(targetClient));
-		compare(testInfo);
+		Assertions.assertTrue(compare(testInfo));
 	}
 
 	@Test
@@ -909,10 +909,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		}
 		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader();
 		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
-		JobExecution execution = run(testInfo, reader, writer);
-		awaitTermination(execution);
-		awaitUntilFalse(reader::isOpen);
-		awaitUntilFalse(writer::isOpen);
+		run(testInfo, reader, writer);
 		Assertions.assertEquals(sourceConnection.sync().dbsize(), targetConnection.sync().dbsize());
 	}
 
@@ -929,7 +926,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET));
 		generate(testInfo, gen);
 		awaitTermination(execution);
-		compare(testInfo);
+		Assertions.assertTrue(compare(testInfo));
 	}
 
 	@Test
@@ -1021,7 +1018,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		awaitUntilFalse(writer::isOpen);
 		awaitUntilFalse(liveReader::isOpen);
 		awaitUntilFalse(liveWriter::isOpen);
-		compare(testInfo);
+		Assertions.assertTrue(compare(testInfo));
 	}
 
 	@Test
