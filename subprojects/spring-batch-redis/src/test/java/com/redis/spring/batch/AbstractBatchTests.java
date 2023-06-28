@@ -20,7 +20,6 @@ import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionTimeoutException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -908,8 +907,13 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			LettuceFutures.awaitAll(connection.getTimeout(), futures.toArray(new RedisFuture[0]));
 			connection.setAutoFlushCommands(true);
 		}
-		run(testInfo, keyDumpSourceReader(), keyDumpWriter(targetClient));
-		Awaitility.await().until(() -> sourceConnection.sync().dbsize() == targetConnection.sync().dbsize());
+		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader();
+		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
+		JobExecution execution = run(testInfo, reader, writer);
+		awaitTermination(execution);
+		awaitUntilFalse(reader::isOpen);
+		awaitUntilFalse(writer::isOpen);
+		Assertions.assertEquals(sourceConnection.sync().dbsize(), targetConnection.sync().dbsize());
 	}
 
 	@Test
