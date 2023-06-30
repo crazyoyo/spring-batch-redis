@@ -421,8 +421,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		Utils.multiThread(step, threads);
 		JobExecution execution = run(job(testInfo).start(step.build()).build());
 		awaitTermination(execution);
-		awaitUntilFalse(reader::isOpen);
-		awaitUntilFalse(writer::isOpen);
+		awaitClosed(reader);
+		awaitClosed(writer);
 		assertEquals(sourceConnection.sync().dbsize(),
 				writer.getItems().stream().collect(Collectors.toMap(DataStructure::getKey, t -> t)).size());
 	}
@@ -440,8 +440,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		gen.setTypes(Arrays.asList(Type.HASH, Type.STRING));
 		generate(testInfo, gen);
 		awaitTermination(execution);
-		awaitUntilFalse(reader::isOpen);
-		awaitUntilFalse(writer::isOpen);
+		awaitClosed(reader);
+		awaitClosed(writer);
 		Set<String> keys = writer.getItems().stream()
 				.map(d -> StringCodec.UTF8.decodeKey(ByteArrayCodec.INSTANCE.encodeKey(d.getKey())))
 				.collect(Collectors.toSet());
@@ -830,11 +830,11 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 			SynchronizedListItemWriter<StreamMessage<String, String>> writer2 = new SynchronizedListItemWriter<>();
 			JobExecution execution2 = runAsync(job(testInfo(testInfo, key, "2"), reader2, writer2));
 			awaitTermination(execution1);
-			awaitUntilFalse(reader1::isOpen);
-			awaitUntilFalse(writer1::isOpen);
+			awaitClosed(reader1);
+			awaitClosed(writer1);
 			awaitTermination(execution2);
-			awaitUntilFalse(reader2::isOpen);
-			awaitUntilFalse(writer2::isOpen);
+			awaitClosed(reader2);
+			awaitClosed(writer2);
 			Assertions.assertEquals(STREAM_MESSAGE_COUNT, writer1.getItems().size() + writer2.getItems().size());
 			assertMessageBody(writer1.getItems());
 			assertMessageBody(writer2.getItems());
@@ -1015,10 +1015,10 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		} catch (ConditionTimeoutException e) {
 			// ignore
 		}
-		awaitUntilFalse(reader::isOpen);
-		awaitUntilFalse(writer::isOpen);
-		awaitUntilFalse(liveReader::isOpen);
-		awaitUntilFalse(liveWriter::isOpen);
+		awaitClosed(reader);
+		awaitClosed(writer);
+		awaitClosed(liveReader);
+		awaitClosed(liveWriter);
 		Assertions.assertTrue(compare(testInfo));
 	}
 

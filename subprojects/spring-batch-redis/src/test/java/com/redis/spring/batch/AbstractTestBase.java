@@ -177,7 +177,7 @@ abstract class AbstractTestBase {
 		return execution;
 	}
 
-	private void awaitClosed(Object object) {
+	protected void awaitClosed(Object object) {
 		if (object instanceof Openable) {
 			awaitUntilFalse(((Openable) object)::isOpen);
 		}
@@ -258,7 +258,8 @@ abstract class AbstractTestBase {
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
 		JobExecution execution = run(job(finalTestInfo).start(step(finalTestInfo, reader, writer).build()).build());
 		awaitTermination(execution);
-		awaitUntilFalse(writer::isOpen);
+		awaitClosed(reader);
+		awaitClosed(writer);
 		Assertions.assertFalse(writer.getItems().isEmpty());
 		return writer.getItems().stream().allMatch(c -> c.getStatus() == Status.OK);
 	}

@@ -6,7 +6,9 @@ import java.util.List;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 
-public class SynchronizedListItemWriter<T> extends AbstractItemStreamItemWriter<T> {
+import com.redis.spring.batch.common.Openable;
+
+public class SynchronizedListItemWriter<T> extends AbstractItemStreamItemWriter<T> implements Openable {
 
 	private List<T> items = new ArrayList<>();
 	private boolean open;
@@ -20,6 +22,7 @@ public class SynchronizedListItemWriter<T> extends AbstractItemStreamItemWriter<
 		return this.items;
 	}
 
+	@Override
 	public boolean isOpen() {
 		return open;
 	}
