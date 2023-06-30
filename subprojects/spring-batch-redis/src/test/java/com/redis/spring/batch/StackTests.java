@@ -32,7 +32,7 @@ import io.lettuce.core.ScanIterator;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 
-class StackTests extends AbstractTests {
+class StackTests extends AbstractModulesTests {
 
 	private static final RedisStackContainer SOURCE = RedisContainerFactory.stack();
 	private static final RedisStackContainer TARGET = RedisContainerFactory.stack();
