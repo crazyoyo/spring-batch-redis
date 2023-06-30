@@ -22,12 +22,14 @@ import io.lettuce.core.codec.StringCodec;
 
 public class LiveRedisItemReader<K, V, T> extends AbstractRedisItemReader<K, V, T> {
 
+	private final KeyspaceNotificationItemReader<K, V> keyReader;
 	private KeyspaceNotificationOptions keyspaceNotificationOptions = KeyspaceNotificationOptions.builder().build();
 	private FlushingStepOptions flushingOptions = FlushingStepOptions.builder().build();
 
 	public LiveRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec,
 			BatchOperation<K, V, K, T> operation) {
 		super(client, codec, operation);
+		this.keyReader = new KeyspaceNotificationItemReader<>(client, codec);
 	}
 
 	public KeyspaceNotificationOptions getKeyspaceNotificationOptions() {
@@ -46,9 +48,12 @@ public class LiveRedisItemReader<K, V, T> extends AbstractRedisItemReader<K, V, 
 		this.flushingOptions = options;
 	}
 
+	public KeyspaceNotificationItemReader<K, V> getKeyReader() {
+		return keyReader;
+	}
+
 	@Override
 	protected ItemReader<K> keyReader() {
-		KeyspaceNotificationItemReader<K, V> keyReader = new KeyspaceNotificationItemReader<>(client, codec);
 		keyReader.setOptions(keyspaceNotificationOptions);
 		return keyReader;
 	}

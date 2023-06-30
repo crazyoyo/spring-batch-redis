@@ -1,7 +1,5 @@
 package com.redis.spring.batch;
 
-import java.util.function.Supplier;
-
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.item.ItemReader;
 
@@ -24,17 +22,18 @@ import com.redis.spring.batch.reader.ScanOptions;
 import com.redis.spring.batch.reader.StringDataStructureReadOperation;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
 public class RedisItemReader<K, V, T> extends AbstractRedisItemReader<K, V, T> {
 
+	private final ScanKeyItemReader<K, V> keyReader;
 	private ScanOptions scanOptions = ScanOptions.builder().build();
 
 	public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, BatchOperation<K, V, K, T> operation) {
 		super(client, codec, operation);
+		this.keyReader = new ScanKeyItemReader<>(Utils.connectionSupplier(client, codec, options.getReadFrom()));
 	}
 
 	public ScanOptions getScanOptions() {
@@ -47,8 +46,6 @@ public class RedisItemReader<K, V, T> extends AbstractRedisItemReader<K, V, T> {
 
 	@Override
 	protected ItemReader<K> keyReader() {
-		Supplier<StatefulConnection<K, V>> supplier = Utils.connectionSupplier(client, codec, options.getReadFrom());
-		ScanKeyItemReader<K, V> keyReader = new ScanKeyItemReader<>(supplier);
 		keyReader.setOptions(scanOptions);
 		return keyReader;
 	}

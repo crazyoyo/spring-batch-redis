@@ -116,7 +116,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 			Optional<String> type = options.getType();
 			if (!type.isPresent() || type.get().equals(eventType.getType())) {
 				KeyspaceNotification notification = new KeyspaceNotification(key, eventType);
-				if (!queue.offer(notification)) {
+				if (queue.size() >= options.getQueueOptions().getCapacity() || !queue.offer(notification)) {
 					log.warn("Could not add key because queue is full");
 				}
 			}
