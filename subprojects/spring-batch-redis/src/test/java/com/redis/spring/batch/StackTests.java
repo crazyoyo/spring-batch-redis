@@ -19,6 +19,7 @@ import com.redis.spring.batch.RedisItemWriter.WriterBuilder;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.reader.GeneratorItemReader;
+import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.writer.operation.Xadd;
@@ -65,6 +66,17 @@ class StackTests extends AbstractModulesTests {
 		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader();
 		run(testInfo, reader, keyDumpWriter(targetClient));
 		Assertions.assertTrue(compare(testInfo));
+	}
+
+	@Test
+	void liveTypeBasedReplication(TestInfo testInfo) throws Exception {
+		enableKeyspaceNotifications(sourceClient);
+		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
+		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter();
+		LiveRedisItemReader<String, String, DataStructure<String>> liveReader = liveReader(sourceClient)
+				.dataStructure();
+		RedisItemWriter<String, String, DataStructure<String>> liveWriter = dataStructureTargetWriter();
+		liveReplication(testInfo, reader, writer, liveReader, liveWriter);
 	}
 
 	private static final String DEFAULT_CONSUMER_GROUP = "consumerGroup";

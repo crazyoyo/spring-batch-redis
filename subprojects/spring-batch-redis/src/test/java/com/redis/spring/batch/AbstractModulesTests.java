@@ -56,9 +56,9 @@ import com.redis.spring.batch.convert.SampleConverter;
 import com.redis.spring.batch.convert.SuggestionConverter;
 import com.redis.spring.batch.reader.DataStructureReadOperation;
 import com.redis.spring.batch.reader.GeneratorItemReader;
-import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.GeneratorItemReader.HashOptions;
 import com.redis.spring.batch.reader.GeneratorItemReader.Type;
+import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 import com.redis.spring.batch.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.reader.KeyEventType;
@@ -68,8 +68,8 @@ import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
 import com.redis.spring.batch.reader.StringDataStructureReadOperation;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter;
-import com.redis.spring.batch.writer.MergePolicy;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter.Results;
+import com.redis.spring.batch.writer.MergePolicy;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Sugadd;
 import com.redis.spring.batch.writer.operation.SugaddIncr;
@@ -451,18 +451,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		assertEquals(sourceSync.pfcount(key1), targetSync.pfcount(key1));
 	}
 
-	@Test
-	void liveTypeBasedReplication(TestInfo testInfo) throws Exception {
-		enableKeyspaceNotifications(sourceClient);
-		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
-		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter();
-		LiveRedisItemReader<String, String, DataStructure<String>> liveReader = liveReader(sourceClient)
-				.dataStructure();
-		RedisItemWriter<String, String, DataStructure<String>> liveWriter = dataStructureTargetWriter();
-		liveReplication(testInfo, reader, writer, liveReader, liveWriter);
-	}
-
-	private <K, V, T extends KeyValue<K>> void liveReplication(TestInfo testInfo, RedisItemReader<K, V, T> reader,
+	protected <K, V, T extends KeyValue<K>> void liveReplication(TestInfo testInfo, RedisItemReader<K, V, T> reader,
 			RedisItemWriter<K, V, T> writer, LiveRedisItemReader<K, V, T> liveReader,
 			RedisItemWriter<K, V, T> liveWriter) throws Exception {
 		GeneratorItemReader gen = new GeneratorItemReader();
