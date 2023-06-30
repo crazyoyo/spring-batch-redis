@@ -419,8 +419,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		int threads = 4;
 		SimpleStepBuilder<DataStructure<String>, DataStructure<String>> step = step(testInfo, reader, writer);
 		Utils.multiThread(step, threads);
-		JobExecution execution = run(job(testInfo).start(step.build()).build());
-		awaitTermination(execution);
+		run(job(testInfo).start(step.build()).build());
 		awaitClosed(reader);
 		awaitClosed(writer);
 		assertEquals(sourceConnection.sync().dbsize(),

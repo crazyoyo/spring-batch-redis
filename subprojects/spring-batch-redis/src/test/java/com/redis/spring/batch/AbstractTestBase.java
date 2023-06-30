@@ -26,6 +26,7 @@ import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
@@ -167,16 +168,6 @@ abstract class AbstractTestBase {
 
 	}
 
-	protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer)
-			throws JobExecutionException {
-		JobExecution execution = jobLauncher.run(job(testInfo).start(step(testInfo, reader, writer).build()).build(),
-				new JobParameters());
-		awaitTermination(execution);
-		awaitClosed(reader);
-		awaitClosed(writer);
-		return execution;
-	}
-
 	protected void awaitClosed(Object object) {
 		if (object instanceof Openable) {
 			awaitUntilFalse(((Openable) object)::isOpen);
@@ -256,8 +247,7 @@ abstract class AbstractTestBase {
 		TestInfo finalTestInfo = testInfo(testInfo, "compare");
 		KeyComparisonItemReader reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
-		JobExecution execution = run(job(finalTestInfo).start(step(finalTestInfo, reader, writer).build()).build());
-		awaitTermination(execution);
+		run(job(finalTestInfo).start(step(finalTestInfo, reader, writer).build()).build());
 		awaitClosed(reader);
 		awaitClosed(writer);
 		Assertions.assertFalse(writer.getItems().isEmpty());
@@ -325,8 +315,20 @@ abstract class AbstractTestBase {
 		}
 	}
 
+	protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer)
+			throws JobExecutionException {
+		SimpleStepBuilder<I, O> step = step(testInfo, reader, writer);
+		SimpleJobBuilder job = job(testInfo).start(step.build());
+		JobExecution execution = run(job.build());
+		awaitClosed(reader);
+		awaitClosed(writer);
+		return execution;
+	}
+
 	protected JobExecution run(Job job) throws JobExecutionException {
-		return jobLauncher.run(job, new JobParameters());
+		JobExecution execution = jobLauncher.run(job, new JobParameters());
+		awaitTermination(execution);
+		return execution;
 	}
 
 	protected JobExecution runAsync(Job job) throws JobExecutionException {
