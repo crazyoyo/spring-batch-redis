@@ -3,6 +3,7 @@ package com.redis.spring.batch;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -10,51 +11,91 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionTimeoutException;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestInstance.Lifecycle;
+import org.junit.runner.RunWith;
+import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.job.builder.FlowBuilder;
+import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
+import org.springframework.batch.core.launch.support.SimpleJobLauncher;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.NonTransientResourceException;
 import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
+import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
+import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.util.Assert;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.redis.lettucemod.Beers;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
+import com.redis.lettucemod.search.IndexInfo;
+import com.redis.lettucemod.search.Suggestion;
+import com.redis.lettucemod.timeseries.AddOptions;
+import com.redis.lettucemod.timeseries.DuplicatePolicy;
+import com.redis.lettucemod.timeseries.RangeOptions;
+import com.redis.lettucemod.timeseries.Sample;
+import com.redis.lettucemod.timeseries.TimeRange;
+import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
+import com.redis.spring.batch.RedisItemReader.ScanBuilder;
 import com.redis.spring.batch.RedisItemWriter.WriterBuilder;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.IntRange;
 import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyPredicateFactory;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.PredicateItemProcessor;
 import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.convert.GeoValueConverter;
+import com.redis.spring.batch.convert.SampleConverter;
 import com.redis.spring.batch.convert.ScoredValueConverter;
+import com.redis.spring.batch.convert.SuggestionConverter;
 import com.redis.spring.batch.reader.DataStructureReadOperation;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorItemReader.HashOptions;
@@ -64,22 +105,35 @@ import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 import com.redis.spring.batch.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.reader.KeyDumpReadOperation;
+import com.redis.spring.batch.reader.KeyEventType;
+import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.LiveRedisItemReader.Builder;
+import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.QueueOptions;
+import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StringDataStructureReadOperation;
+import com.redis.spring.batch.step.FlushingStepBuilder;
+import com.redis.spring.batch.step.FlushingStepOptions;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter.Results;
 import com.redis.spring.batch.writer.MergePolicy;
+import com.redis.spring.batch.writer.StreamIdPolicy;
 import com.redis.spring.batch.writer.operation.Geoadd;
 import com.redis.spring.batch.writer.operation.Hset;
+import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Sadd;
+import com.redis.spring.batch.writer.operation.Sugadd;
+import com.redis.spring.batch.writer.operation.SugaddIncr;
+import com.redis.spring.batch.writer.operation.TsAdd;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.spring.batch.writer.operation.Zadd;
+import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
@@ -89,15 +143,16 @@ import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisConnectionException;
 import io.lettuce.core.RedisFuture;
+import io.lettuce.core.RedisURI;
 import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
-import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.cluster.SlotHash;
 import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.models.stream.PendingMessages;
 import io.micrometer.core.instrument.Clock;
@@ -106,10 +161,278 @@ import io.micrometer.core.instrument.search.Search;
 import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-abstract class AbstractBatchTests extends AbstractTestBase {
+@SpringBootTest(classes = BatchTestApplication.class)
+@RunWith(SpringRunner.class)
+@TestInstance(Lifecycle.PER_CLASS)
+abstract class AbstractTests {
 
-	private static final int STREAM_MESSAGE_COUNT = 57;
-	private static final String DEFAULT_CONSUMER_GROUP = "consumerGroup";
+	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(1000);
+	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(300);
+	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(30);
+
+	@Value("${running-timeout:PT5S}")
+	private Duration runningTimeout;
+	@Value("${termination-timeout:PT5S}")
+	private Duration terminationTimeout;
+
+	protected JobRepository jobRepository;
+
+	protected AbstractRedisClient sourceClient;
+	protected StatefulRedisModulesConnection<String, String> sourceConnection;
+	protected AbstractRedisClient targetClient;
+	protected StatefulRedisModulesConnection<String, String> targetConnection;
+	private SimpleJobLauncher jobLauncher;
+	private SimpleJobLauncher asyncJobLauncher;
+	private JobBuilderFactory jobBuilderFactory;
+	private StepBuilderFactory stepBuilderFactory;
+
+	protected abstract RedisServer getSourceServer();
+
+	protected abstract RedisServer getTargetServer();
+
+	@BeforeAll
+	void setup() throws Exception {
+		getSourceServer().start();
+		getTargetServer().start();
+		sourceClient = client(getSourceServer());
+		sourceConnection = RedisModulesUtils.connection(sourceClient);
+		targetClient = client(getTargetServer());
+		targetConnection = RedisModulesUtils.connection(targetClient);
+		jobRepository = Utils.inMemoryJobRepository();
+		jobLauncher = new SimpleJobLauncher();
+		jobLauncher.setJobRepository(jobRepository);
+		jobLauncher.afterPropertiesSet();
+		asyncJobLauncher = new SimpleJobLauncher();
+		asyncJobLauncher.setJobRepository(jobRepository);
+		asyncJobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+		asyncJobLauncher.afterPropertiesSet();
+		jobBuilderFactory = new JobBuilderFactory(jobRepository);
+		stepBuilderFactory = new StepBuilderFactory(jobRepository, new ResourcelessTransactionManager());
+	}
+
+	@AfterAll
+	void teardown() {
+		sourceConnection.close();
+		sourceClient.shutdown();
+		sourceClient.getResources().shutdown();
+		targetConnection.close();
+		targetClient.shutdown();
+		targetClient.getResources().shutdown();
+		getTargetServer().close();
+		getSourceServer().close();
+	}
+
+	@BeforeEach
+	void flushAll() {
+		sourceConnection.sync().flushall();
+		targetConnection.sync().flushall();
+	}
+
+	private static class SimpleTestInfo implements TestInfo {
+
+		private final TestInfo delegate;
+		private final String[] suffixes;
+
+		public SimpleTestInfo(TestInfo delegate, String... suffixes) {
+			this.delegate = delegate;
+			this.suffixes = suffixes;
+		}
+
+		@Override
+		public String getDisplayName() {
+			List<String> elements = new ArrayList<>();
+			elements.add(delegate.getDisplayName());
+			elements.addAll(Arrays.asList(suffixes));
+			return String.join("-", elements);
+		}
+
+		@Override
+		public Set<String> getTags() {
+			return delegate.getTags();
+		}
+
+		@Override
+		public Optional<Class<?>> getTestClass() {
+			return delegate.getTestClass();
+		}
+
+		@Override
+		public Optional<Method> getTestMethod() {
+			return delegate.getTestMethod();
+		}
+
+	}
+
+	protected void awaitClosed(Object object) {
+		if (object instanceof Openable) {
+			awaitUntilFalse(((Openable) object)::isOpen);
+		}
+	}
+
+	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
+		String name = name(testInfo);
+		if (reader instanceof ItemStreamSupport) {
+			((ItemStreamSupport) reader).setName(name + "-reader");
+		}
+		SimpleStepBuilder<I, O> step = stepBuilderFactory.get(name).chunk(ReaderOptions.DEFAULT_CHUNK_SIZE);
+		step.reader(reader);
+		step.writer(writer);
+		if (reader instanceof PollableItemReader) {
+			return new FlushingStepBuilder<>(step)
+					.options(FlushingStepOptions.builder().idleTimeout(DEFAULT_IDLE_TIMEOUT).build());
+		}
+		return step;
+	}
+
+	public static String name(TestInfo testInfo) {
+		return testInfo.getDisplayName().replace("(TestInfo)", "");
+	}
+
+	public static TestInfo testInfo(TestInfo testInfo, String... suffixes) {
+		return new SimpleTestInfo(testInfo, suffixes);
+	}
+
+	protected AbstractRedisClient client(RedisServer server) {
+		RedisURI uri = RedisURI.create(server.getRedisURI());
+		return ClientBuilder.create(uri).cluster(server.isCluster()).build();
+	}
+
+	public static JobExecution awaitRunning(JobExecution jobExecution) {
+		Awaitility.await().until(() -> isRunning(jobExecution));
+		return jobExecution;
+	}
+
+	public static JobExecution awaitTermination(JobExecution jobExecution) {
+		Awaitility.await().until(() -> isTerminated(jobExecution));
+		return jobExecution;
+	}
+
+	public static boolean isRunning(JobExecution jobExecution) {
+		return jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful()
+				|| jobExecution.getStatus() != BatchStatus.STARTING;
+	}
+
+	public static boolean isTerminated(JobExecution jobExecution) {
+		return !jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful()
+				|| jobExecution.getStatus() == BatchStatus.COMPLETED || jobExecution.getStatus() == BatchStatus.STOPPED
+				|| jobExecution.getStatus().isGreaterThan(BatchStatus.STOPPED);
+	}
+
+	protected void awaitUntilFalse(Callable<Boolean> conditionEvaluator) {
+		awaitUntil(() -> !conditionEvaluator.call());
+	}
+
+	protected void awaitUntil(Callable<Boolean> conditionEvaluator) {
+		Awaitility.await().pollInterval(DEFAULT_POLL_INTERVAL).timeout(DEFAULT_AWAIT_TIMEOUT).until(conditionEvaluator);
+	}
+
+	protected JobBuilder job(TestInfo testInfo) {
+		return jobBuilderFactory.get(name(testInfo));
+	}
+
+	/**
+	 * 
+	 * @param left
+	 * @param right
+	 * @return
+	 * @return list of differences
+	 * @throws Exception
+	 */
+	protected boolean compare(TestInfo testInfo) throws Exception {
+		TestInfo finalTestInfo = testInfo(testInfo, "compare");
+		KeyComparisonItemReader reader = comparisonReader();
+		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
+		run(job(finalTestInfo).start(step(finalTestInfo, reader, writer).build()).build());
+		awaitClosed(reader);
+		awaitClosed(writer);
+		Assertions.assertFalse(writer.getItems().isEmpty());
+		return writer.getItems().stream().allMatch(c -> c.getStatus() == Status.OK);
+	}
+
+	protected KeyComparisonItemReader comparisonReader() throws Exception {
+		return new KeyComparisonItemReader.Builder(sourceClient, targetClient).jobRepository(jobRepository)
+				.ttlTolerance(Duration.ofMillis(100)).build();
+	}
+
+	protected void generate(TestInfo testInfo) throws JobExecutionException {
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(100);
+		generate(testInfo, gen);
+	}
+
+	protected void generate(TestInfo testInfo, GeneratorItemReader reader) throws JobExecutionException {
+		generate(testInfo, sourceClient, reader);
+	}
+
+	protected void generate(TestInfo testInfo, AbstractRedisClient client, GeneratorItemReader reader)
+			throws JobExecutionException {
+		TestInfo finalTestInfo = testInfo(testInfo, "generate", String.valueOf(client.hashCode()));
+		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder(client)
+				.streamIdPolicy(StreamIdPolicy.DROP).dataStructure();
+		run(finalTestInfo, reader, writer);
+	}
+
+	protected RedisItemReader<String, String, DataStructure<String>> dataStructureSourceReader() {
+		return dataStructureSourceReader(StringCodec.UTF8);
+	}
+
+	protected <K, V> RedisItemReader<K, V, DataStructure<K>> dataStructureSourceReader(RedisCodec<K, V> codec) {
+		return dataStructureReader(sourceClient, codec);
+	}
+
+	protected <K, V> RedisItemReader<K, V, DataStructure<K>> dataStructureReader(AbstractRedisClient client,
+			RedisCodec<K, V> codec) {
+		return reader(client).dataStructure(codec);
+	}
+
+	protected ScanBuilder reader(AbstractRedisClient client) {
+		return new ScanBuilder(client).jobRepository(jobRepository);
+	}
+
+	protected LiveRedisItemReader.Builder liveReader(AbstractRedisClient client) {
+		Builder builder = reader(client).live();
+		builder.flushingOptions(FlushingStepOptions.builder().idleTimeout(DEFAULT_IDLE_TIMEOUT).build());
+		return builder;
+	}
+
+	protected RedisItemReader<byte[], byte[], KeyDump<byte[]>> keyDumpSourceReader() {
+		return new ScanBuilder(sourceClient).jobRepository(jobRepository).keyDump();
+	}
+
+	protected RedisItemWriter<byte[], byte[], KeyDump<byte[]>> keyDumpWriter(AbstractRedisClient client) {
+		return new WriterBuilder(client).keyDump();
+	}
+
+	protected void flushAll(AbstractRedisClient client) {
+		try (StatefulRedisModulesConnection<String, String> connection = RedisModulesUtils.connection(client)) {
+			connection.sync().flushall();
+			awaitUntil(() -> connection.sync().dbsize() == 0);
+		}
+	}
+
+	protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer)
+			throws JobExecutionException {
+		SimpleStepBuilder<I, O> step = step(testInfo, reader, writer);
+		SimpleJobBuilder job = job(testInfo).start(step.build());
+		JobExecution execution = run(job.build());
+		awaitClosed(reader);
+		awaitClosed(writer);
+		return execution;
+	}
+
+	protected JobExecution run(Job job) throws JobExecutionException {
+		JobExecution execution = jobLauncher.run(job, new JobParameters());
+		awaitTermination(execution);
+		return execution;
+	}
+
+	protected JobExecution runAsync(Job job) throws JobExecutionException {
+		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
+		awaitRunning(execution);
+		return execution;
+	}
+
+	protected static final int STREAM_MESSAGE_COUNT = 57;
 
 	protected void enableKeyspaceNotifications(AbstractRedisClient client) {
 		RedisModulesUtils.connection(client).sync().configSet("notify-keyspace-events", "AK");
@@ -135,7 +458,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 				exceptions.get(0).getCause().getMessage());
 	}
 
-	private <I, O> Job job(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
+	protected <I, O> Job job(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
 		return job(testInfo).start(step(testInfo, reader, writer).build()).build();
 	}
 
@@ -466,7 +789,7 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		assertEquals(count / 2, estimator.getAsLong(), expectedCount / 10);
 	}
 
-	private void generateStreams(TestInfo testInfo) throws JobExecutionException {
+	protected void generateStreams(TestInfo testInfo) throws JobExecutionException {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setTypes(Arrays.asList(Type.STREAM));
 		gen.setMaxItemCount(3);
@@ -474,11 +797,11 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		generate(testInfo(testInfo, "streams"), gen);
 	}
 
-	private StreamItemReader<String, String> streamReader(String stream) {
+	protected StreamItemReader<String, String> streamReader(String stream) {
 		return new StreamItemReader<>(sourceClient, StringCodec.UTF8, stream);
 	}
 
-	private void assertMessageBody(List<? extends StreamMessage<String, String>> items) {
+	protected void assertMessageBody(List<? extends StreamMessage<String, String>> items) {
 		for (StreamMessage<String, String> message : items) {
 			assertTrue(message.getBody().containsKey("field1"));
 			assertTrue(message.getBody().containsKey("field2"));
@@ -517,30 +840,6 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder(sourceClient).operation(xadd);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
-		Assertions.assertEquals(messages.size(), sync.xlen(stream));
-		List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
-		for (int index = 0; index < xrange.size(); index++) {
-			StreamMessage<String, String> message = xrange.get(index);
-			Assertions.assertEquals(messages.get(index), message.getBody());
-		}
-	}
-
-	@Test
-	void writeStreamMultiExec(TestInfo testInfo) throws Exception {
-		String stream = "stream:1";
-		List<Map<String, String>> messages = new ArrayList<>();
-		for (int index = 0; index < 100; index++) {
-			Map<String, String> body = new HashMap<>();
-			body.put("field1", "value1");
-			body.put("field2", "value2");
-			messages.add(body);
-		}
-		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(t -> stream, Function.identity(), m -> null);
-		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder(sourceClient).multiExec(true)
-				.operation(xadd);
-		run(testInfo, reader, writer);
-		RedisStreamCommands<String, String> sync = sourceConnection.sync();
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
 		List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
 		for (int index = 0; index < xrange.size(); index++) {
@@ -812,50 +1111,6 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 	}
 
 	@Test
-	void readMultipleStreams(TestInfo testInfo) throws Exception {
-		generateStreams(testInfo(testInfo, "streams"));
-		final List<String> keys = ScanIterator
-				.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(DataStructure.STREAM)).stream()
-				.collect(Collectors.toList());
-		for (String key : keys) {
-			StreamItemReader<String, String> reader1 = streamReader(key);
-			reader1.setConsumer(Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
-			reader1.setAckPolicy(StreamAckPolicy.MANUAL);
-			StreamItemReader<String, String> reader2 = streamReader(key);
-			reader2.setConsumer(Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"));
-			reader2.setAckPolicy(StreamAckPolicy.MANUAL);
-			SynchronizedListItemWriter<StreamMessage<String, String>> writer1 = new SynchronizedListItemWriter<>();
-			JobExecution execution1 = runAsync(job(testInfo(testInfo, key, "1"), reader1, writer1));
-			SynchronizedListItemWriter<StreamMessage<String, String>> writer2 = new SynchronizedListItemWriter<>();
-			JobExecution execution2 = runAsync(job(testInfo(testInfo, key, "2"), reader2, writer2));
-			awaitTermination(execution1);
-			awaitClosed(reader1);
-			awaitClosed(writer1);
-			awaitTermination(execution2);
-			awaitClosed(reader2);
-			awaitClosed(writer2);
-			Assertions.assertEquals(STREAM_MESSAGE_COUNT, writer1.getItems().size() + writer2.getItems().size());
-			assertMessageBody(writer1.getItems());
-			assertMessageBody(writer2.getItems());
-			RedisModulesCommands<String, String> sync = sourceConnection.sync();
-			Assertions.assertEquals(STREAM_MESSAGE_COUNT, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
-			reader1 = streamReader(key);
-			reader1.setConsumer(Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
-			reader1.setAckPolicy(StreamAckPolicy.MANUAL);
-			reader1.open(new ExecutionContext());
-			reader1.ack(writer1.getItems());
-			reader1.close();
-			reader2 = streamReader(key);
-			reader2.setConsumer(Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"));
-			reader2.setAckPolicy(StreamAckPolicy.MANUAL);
-			reader2.open(new ExecutionContext());
-			reader2.ack(writer2.getItems());
-			reader2.close();
-			Assertions.assertEquals(0, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
-		}
-	}
-
-	@Test
 	void setComparator(TestInfo testInfo) throws Exception {
 		sourceConnection.sync().sadd("set:1", "value1", "value2");
 		targetConnection.sync().sadd("set:1", "value2", "value1");
@@ -865,28 +1120,8 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 		Assertions.assertEquals(KeyComparison.Status.OK, writer.getItems().get(0).getStatus());
 	}
 
-	private RedisItemWriter<String, String, DataStructure<String>> dataStructureTargetWriter() {
+	protected RedisItemWriter<String, String, DataStructure<String>> dataStructureTargetWriter() {
 		return new WriterBuilder(targetClient).dataStructure();
-	}
-
-	@Test
-	void dataStructures(TestInfo testInfo) throws Exception {
-		GeneratorItemReader gen = new GeneratorItemReader();
-		gen.setMaxItemCount(100);
-		generate(testInfo, gen);
-		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
-		run(testInfo, reader, dataStructureTargetWriter());
-		Assertions.assertTrue(compare(testInfo));
-	}
-
-	@Test
-	void dumpAndRestore(TestInfo testInfo) throws Exception {
-		GeneratorItemReader gen = new GeneratorItemReader();
-		gen.setMaxItemCount(100);
-		generate(testInfo, gen);
-		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader();
-		run(testInfo, reader, keyDumpWriter(targetClient));
-		Assertions.assertTrue(compare(testInfo));
 	}
 
 	@Test
@@ -1209,6 +1444,189 @@ abstract class AbstractBatchTests extends AbstractTestBase {
 
 	protected byte[] keyBytes(String string) {
 		return ByteArrayCodec.INSTANCE.decodeKey(StringCodec.UTF8.encodeKey(string));
+	}
+
+	private static final String JSON_BEER_1 = "{\"id\":\"1\",\"brewery_id\":\"812\",\"name\":\"Hocus Pocus\",\"abv\":\"4.5\",\"ibu\":\"0\",\"srm\":\"0\",\"upc\":\"0\",\"filepath\":\"\",\"descript\":\"Our take on a classic summer ale.  A toast to weeds, rays, and summer haze.  A light, crisp ale for mowing lawns, hitting lazy fly balls, and communing with nature, Hocus Pocus is offered up as a summer sacrifice to clodless days.\\n\\nIts malty sweetness finishes tart and crisp and is best apprediated with a wedge of orange.\",\"add_user\":\"0\",\"last_mod\":\"2010-07-22 20:00:20 UTC\",\"style_name\":\"Light American Wheat Ale or Lager\",\"cat_name\":\"Other Style\"}";
+	private static final int BEER_COUNT = 1019;
+
+	@Test
+	void readKeyspaceNotifications(TestInfo testInfo) throws Exception {
+		enableKeyspaceNotifications(sourceClient);
+		KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(sourceClient,
+				StringCodec.UTF8);
+		reader.open(new ExecutionContext());
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(100);
+		gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET, Type.TIMESERIES,
+				Type.JSON));
+		generate(testInfo, gen);
+		awaitUntil(() -> reader.getQueue().size() > 0);
+		Assertions.assertEquals(KeyEventType.SET, reader.getQueue().remove().getEventType());
+		Set<KeyEventType> eventTypes = new LinkedHashSet<>(
+				Arrays.asList(KeyEventType.SET, KeyEventType.HSET, KeyEventType.JSON_SET, KeyEventType.RPUSH,
+						KeyEventType.SADD, KeyEventType.ZADD, KeyEventType.XADD, KeyEventType.TS_ADD));
+		KeyspaceNotification notification;
+		while ((notification = reader.getQueue().poll()) != null) {
+			Assertions.assertTrue(eventTypes.contains(notification.getEventType()));
+		}
+		reader.close();
+	}
+
+	@Test
+	void readKeyspaceNotificationsWithType(TestInfo testInfo) throws Exception {
+		enableKeyspaceNotifications(sourceClient);
+		KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(sourceClient,
+				StringCodec.UTF8);
+		reader.getOptions().setType(DataStructure.HASH);
+		reader.open(new ExecutionContext());
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(100);
+		gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET, Type.TIMESERIES,
+				Type.JSON));
+		generate(testInfo, gen);
+		BlockingQueue<KeyspaceNotification> queue = reader.getQueue();
+		awaitUntil(() -> reader.getQueue().size() > 0);
+		KeyspaceNotification notification;
+		while ((notification = queue.poll()) != null) {
+			Assertions.assertEquals(DataStructure.HASH, notification.getEventType().getType());
+		}
+		reader.close();
+	}
+
+	@Test
+	void writeJSON(TestInfo testInfo) throws Exception {
+		JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>(n -> "beer:" + n.get("id").asText(),
+				JsonNode::toString, t -> ".");
+		RedisItemWriter<String, String, JsonNode> writer = new WriterBuilder(sourceClient).operation(jsonSet);
+		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
+		run(testInfo, reader, writer);
+		Assertions.assertEquals(BEER_COUNT, sourceConnection.sync().keys("beer:*").size());
+		Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
+				new ObjectMapper().readTree(sourceConnection.sync().jsonGet("beer:1")));
+	}
+
+	@Test
+	void writeTS(TestInfo testInfo) throws Exception {
+		String key = "ts:1";
+		Random random = new Random();
+		int count = 100;
+		List<Sample> samples = new ArrayList<>(count);
+		for (int index = 0; index < count; index++) {
+			long timestamp = System.currentTimeMillis() - count + (index % (count / 2));
+			samples.add(Sample.of(timestamp, random.nextDouble()));
+		}
+		ListItemReader<Sample> reader = new ListItemReader<>(samples);
+		AddOptions<String, String> addOptions = AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST)
+				.build();
+		TsAdd<String, String, Sample> tsadd = new TsAdd<>(t -> key, Function.identity(), t -> addOptions);
+		RedisItemWriter<String, String, Sample> writer = new WriterBuilder(sourceClient).operation(tsadd);
+		run(testInfo, reader, writer);
+		Assertions.assertEquals(count / 2,
+				sourceConnection.sync().tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
+	}
+
+	@Test
+	void beerIndex() throws Exception {
+		Beers.populateIndex(sourceConnection);
+		IndexInfo indexInfo = RedisModulesUtils.indexInfo(sourceConnection.sync().ftInfo(Beers.INDEX));
+		Assertions.assertEquals(BEER_COUNT, indexInfo.getNumDocs());
+	}
+
+	@Test
+	void tsComparator(TestInfo testInfo) throws Exception {
+		sourceConnection.sync().tsAdd("ts:1", Sample.of(123));
+		KeyComparisonItemReader reader = comparisonReader();
+		KeyComparisonCountItemWriter writer = new KeyComparisonCountItemWriter();
+		run(testInfo, reader, writer);
+		Assertions.assertEquals(1, writer.getResults().getCount(Status.MISSING));
+	}
+
+	@Test
+	void testLuaTimeSeries() throws InterruptedException, ExecutionException {
+		String key = "myts";
+		Sample[] samples = { Sample.of(System.currentTimeMillis(), 1.1),
+				Sample.of(System.currentTimeMillis() + 10, 2.2) };
+		for (Sample sample : samples) {
+			sourceConnection.sync().tsAdd(key, sample);
+		}
+		StringDataStructureReadOperation operation = new StringDataStructureReadOperation(sourceClient);
+		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key);
+		DataStructure<String> ds = future.get();
+		Assertions.assertEquals(key, ds.getKey());
+		Assertions.assertEquals(DataStructure.TIMESERIES, ds.getType());
+		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
+	}
+
+	@Test
+	void testLuaTimeSeriesByteArray() throws InterruptedException, ExecutionException {
+		String key = "myts";
+		Sample[] samples = { Sample.of(System.currentTimeMillis(), 1.1),
+				Sample.of(System.currentTimeMillis() + 10, 2.2) };
+		for (Sample sample : samples) {
+			sourceConnection.sync().tsAdd(key, sample);
+		}
+		DataStructureReadOperation<byte[], byte[]> operation = new DataStructureReadOperation<>(sourceClient,
+				ByteArrayCodec.INSTANCE);
+		StatefulRedisModulesConnection<byte[], byte[]> byteConnection = RedisModulesUtils.connection(sourceClient,
+				ByteArrayCodec.INSTANCE);
+		Future<DataStructure<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
+		DataStructure<byte[]> ds = future.get();
+		Assertions.assertArrayEquals(keyBytes(key), ds.getKey());
+		Assertions.assertEquals(DataStructure.TIMESERIES, ds.getType());
+		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
+	}
+
+	@Test
+	void writeSamples(TestInfo testInfo) throws Exception {
+		String key = "ts:1";
+		List<Sample> values = new ArrayList<>();
+		for (int index = 0; index < 100; index++) {
+			values.add(Sample.of(System.currentTimeMillis() - 1000 + index, index));
+		}
+		ListItemReader<Sample> reader = new ListItemReader<>(values);
+		SampleConverter<Sample> converter = new SampleConverter<>(Sample::getTimestamp, Sample::getValue);
+		TsAdd<String, String, Sample> tsAdd = new TsAdd<>(t -> key, converter);
+		RedisItemWriter<String, String, Sample> writer = new WriterBuilder(sourceClient).operation(tsAdd);
+		run(testInfo, reader, writer);
+		RedisModulesCommands<String, String> sync = sourceConnection.sync();
+		assertEquals(1, sync.dbsize());
+		assertEquals(values.size(), sync.tsRange(key, TimeRange.unbounded()).size());
+	}
+
+	@Test
+	void writeSug(TestInfo testInfo) throws Exception {
+		String key = "sugadd";
+		List<Suggestion<String>> values = new ArrayList<>();
+		for (int index = 0; index < 100; index++) {
+			values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
+		}
+		ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
+		SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
+				Suggestion::getScore, Suggestion::getPayload);
+		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(t -> key, converter);
+		RedisItemWriter<String, String, Suggestion<String>> writer = new WriterBuilder(sourceClient).operation(sugadd);
+		run(testInfo, reader, writer);
+		RedisModulesCommands<String, String> sync = sourceConnection.sync();
+		assertEquals(1, sync.dbsize());
+		assertEquals(values.size(), sync.ftSuglen(key));
+	}
+
+	@Test
+	void writeSugIncr(TestInfo testInfo) throws Exception {
+		String key = "sugaddIncr";
+		List<Suggestion<String>> values = new ArrayList<>();
+		for (int index = 0; index < 100; index++) {
+			values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
+		}
+		ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
+		SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
+				Suggestion::getScore, Suggestion::getPayload);
+		SugaddIncr<String, String, Suggestion<String>> sugadd = new SugaddIncr<>(t -> key, converter);
+		RedisItemWriter<String, String, Suggestion<String>> writer = new WriterBuilder(sourceClient).operation(sugadd);
+		run(testInfo, reader, writer);
+		RedisModulesCommands<String, String> sync = sourceConnection.sync();
+		assertEquals(1, sync.dbsize());
+		assertEquals(values.size(), sync.ftSuglen(key));
 	}
 
 }
