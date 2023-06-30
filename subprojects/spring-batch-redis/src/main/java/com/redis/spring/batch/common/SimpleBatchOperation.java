@@ -2,8 +2,8 @@ package com.redis.spring.batch.common;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
 
-import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public class SimpleBatchOperation<K, V, I, O> extends DelegatingItemStreamSupport
@@ -17,8 +17,8 @@ public class SimpleBatchOperation<K, V, I, O> extends DelegatingItemStreamSuppor
 	}
 
 	@Override
-	public List<RedisFuture<O>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends I> items) {
-		List<RedisFuture<O>> futures = new ArrayList<>();
+	public List<Future<O>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends I> items) {
+		List<Future<O>> futures = new ArrayList<>();
 		for (I item : items) {
 			futures.add(operation.execute(commands, item));
 		}

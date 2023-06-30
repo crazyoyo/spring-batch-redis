@@ -40,8 +40,8 @@ import com.redis.spring.batch.convert.SuggestionConverter;
 import com.redis.spring.batch.reader.DataStructureReadOperation;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorItemReader.Type;
-import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
+import com.redis.spring.batch.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.reader.KeyEventType;
 import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
@@ -88,7 +88,7 @@ public abstract class AbstractModulesBatchTests extends AbstractBatchTests {
 		enableKeyspaceNotifications(sourceClient);
 		KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(sourceClient,
 				StringCodec.UTF8);
-		reader.setTypes(DataStructure.HASH);
+		reader.getOptions().setType(DataStructure.HASH);
 		reader.open(new ExecutionContext());
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(100);
@@ -146,7 +146,7 @@ public abstract class AbstractModulesBatchTests extends AbstractBatchTests {
 	@Test
 	void tsComparator(TestInfo testInfo) throws Exception {
 		sourceConnection.sync().tsAdd("ts:1", Sample.of(123));
-		RedisItemReader<String, String, KeyComparison> reader = comparisonReader();
+		KeyComparisonItemReader reader = comparisonReader();
 		KeyComparisonCountItemWriter writer = new KeyComparisonCountItemWriter();
 		run(testInfo, reader, writer);
 		Assertions.assertEquals(1, writer.getResults().getCount(Status.MISSING));

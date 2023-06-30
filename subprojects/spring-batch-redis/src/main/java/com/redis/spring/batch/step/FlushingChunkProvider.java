@@ -30,12 +30,9 @@ import io.micrometer.core.instrument.Timer.Sample;
  */
 public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 
-	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
-	public static final long NO_IDLE_TIMEOUT = -1;
-
 	private final RepeatOperations repeatOperations;
 
-	private Duration interval = DEFAULT_FLUSHING_INTERVAL;
+	private Duration interval = FlushingStepOptions.DEFAULT_FLUSHING_INTERVAL;
 	private Duration idleTimeout;
 	private long lastActivity = 0;
 

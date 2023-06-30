@@ -2,6 +2,7 @@ package com.redis.spring.batch.writer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
 
 import com.redis.lettucemod.timeseries.AddOptions;
 import com.redis.spring.batch.common.BatchOperation;
@@ -64,9 +65,8 @@ public class DataStructureWriteOperation<K, V> implements BatchOperation<K, V, D
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
-	public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands,
-			List<? extends DataStructure<K>> items) {
-		List<RedisFuture<Object>> futures = new ArrayList<>();
+	public List<Future<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends DataStructure<K>> items) {
+		List<Future<Object>> futures = new ArrayList<>();
 		for (DataStructure<K> item : items) {
 			if (item == null || item.getKey() == null) {
 				continue;

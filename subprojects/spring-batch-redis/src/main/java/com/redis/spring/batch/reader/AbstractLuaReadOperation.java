@@ -1,8 +1,8 @@
 package com.redis.spring.batch.reader;
 
 import java.util.List;
+import java.util.concurrent.Future;
 
-import com.redis.spring.batch.common.ConvertingRedisFuture;
 import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.Utils;
 
@@ -22,10 +22,10 @@ public abstract class AbstractLuaReadOperation<K, V, T> implements Operation<K, 
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public RedisFuture<T> execute(BaseRedisAsyncCommands<K, V> commands, K key) {
+	public Future<T> execute(BaseRedisAsyncCommands<K, V> commands, K key) {
 		RedisFuture<List<Object>> result = ((RedisScriptingAsyncCommands<K, V>) commands).evalsha(digest,
 				ScriptOutputType.MULTI, key);
-		return new ConvertingRedisFuture<>(result, this::convert);
+		return result.thenApply(this::convert).toCompletableFuture();
 	}
 
 	protected abstract T convert(List<Object> list);

@@ -14,6 +14,7 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.util.RedisModulesUtils;
+import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.Utils;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -29,7 +30,7 @@ import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
 public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamMessage<K, V>>
-		implements PollableItemReader<StreamMessage<K, V>> {
+		implements PollableItemReader<StreamMessage<K, V>>, Openable {
 
 	public static final String DEFAULT_CONSUMER_GROUP = ClassUtils.getShortName(StreamItemReader.class);
 	public static final String DEFAULT_CONSUMER = "consumer1";
@@ -113,6 +114,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 		reader = reader();
 	}
 
+	@Override
 	public boolean isOpen() {
 		return connection != null;
 	}

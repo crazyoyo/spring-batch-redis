@@ -2,7 +2,6 @@ package com.redis.spring.batch.reader;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -10,7 +9,6 @@ import java.util.function.Supplier;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.util.Assert;
 
 import com.hrakaroo.glob.GlobPattern;
 import com.hrakaroo.glob.MatchingEngine;
@@ -32,30 +30,18 @@ public class ScanSizeEstimator implements LongSupplier {
 	private static final String FILENAME = "randomkeytype.lua";
 
 	private final Supplier<StatefulConnection<String, String>> connectionSupplier;
-	private String match = ScanKeyItemReader.DEFAULT_MATCH;
-	private long sampleSize = DEFAULT_SAMPLE_SIZE;
-	private Optional<String> type = Optional.empty();
+	private ScanOptions options = ScanOptions.builder().build();
 
 	public ScanSizeEstimator(Supplier<StatefulConnection<String, String>> connectionSupplier) {
 		this.connectionSupplier = connectionSupplier;
 	}
 
-	public void setMatch(String match) {
-		Assert.notNull(match, "Match must be null");
-		Assert.isTrue(!match.trim().isEmpty(), "Match must not be empty");
-		this.match = match;
+	public ScanOptions getOptions() {
+		return options;
 	}
 
-	public void setSampleSize(long sampleSize) {
-		this.sampleSize = sampleSize;
-	}
-
-	public void setType(String type) {
-		setType(Optional.of(type));
-	}
-
-	public void setType(Optional<String> type) {
-		this.type = type;
+	public void setOptions(ScanOptions options) {
+		this.options = options;
 	}
 
 	/**
@@ -73,7 +59,7 @@ public class ScanSizeEstimator implements LongSupplier {
 		if (dbsize == null) {
 			return UNKNOWN_SIZE;
 		}
-		if (ScanKeyItemReader.MATCH_ALL.equals(match) && !type.isPresent()) {
+		if (ScanOptions.MATCH_ALL.equals(options.getMatch()) && !options.getType().isPresent()) {
 			return dbsize;
 		}
 		String digest = Utils.loadScript(connectionSupplier, FILENAME);
@@ -81,12 +67,12 @@ public class ScanSizeEstimator implements LongSupplier {
 		try {
 			connection.setAutoFlushCommands(false);
 			List<RedisFuture<List<Object>>> futures = new ArrayList<>();
-			for (int index = 0; index < sampleSize; index++) {
+			for (int index = 0; index < options.getCount(); index++) {
 				futures.add(commands.evalsha(digest, ScriptOutputType.MULTI));
 			}
 			connection.flushCommands();
-			MatchingEngine matchingEngine = GlobPattern.compile(match);
-			Predicate<String> typePredicate = type.map(t -> caseInsensitivePredicate(t)).orElse(s -> true);
+			MatchingEngine matchingEngine = GlobPattern.compile(options.getMatch());
+			Predicate<String> typePredicate = options.getType().map(t -> caseInsensitivePredicate(t)).orElse(s -> true);
 			int total = 0;
 			int matchCount = 0;
 			for (RedisFuture<List<Object>> future : futures) {

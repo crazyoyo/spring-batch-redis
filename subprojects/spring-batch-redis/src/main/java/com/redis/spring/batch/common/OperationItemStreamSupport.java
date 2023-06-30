@@ -3,6 +3,7 @@ package com.redis.spring.batch.common;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -11,7 +12,6 @@ import org.springframework.batch.item.ItemProcessor;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
-import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
@@ -68,10 +68,10 @@ public class OperationItemStreamSupport<K, V, I, O> extends DelegatingItemStream
 			connection.setAutoFlushCommands(false);
 			try {
 				BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
-				List<RedisFuture<O>> futures = operation.execute(commands, items);
+				List<Future<O>> futures = operation.execute(commands, items);
 				connection.flushCommands();
 				List<O> results = new ArrayList<>(futures.size());
-				for (RedisFuture<O> future : futures) {
+				for (Future<O> future : futures) {
 					O result = future.get(timeout, TimeUnit.MILLISECONDS);
 					results.add(result);
 				}

@@ -1,6 +1,5 @@
 package com.redis.spring.batch.step;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.function.Function;
 
@@ -24,8 +23,7 @@ import com.redis.spring.batch.reader.PollableItemReader;
 
 public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 
-	private Duration flushingInterval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
-	private Duration idleTimeout;
+	private FlushingStepOptions options = FlushingStepOptions.builder().build();
 
 	public FlushingStepBuilder(StepBuilderHelper<?> parent) {
 		super(parent);
@@ -61,8 +59,8 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 
 	protected FlushingChunkProvider<I> createChunkProvider() {
 		FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>(getReader(), createChunkOperations());
-		chunkProvider.setInterval(flushingInterval);
-		chunkProvider.setIdleTimeout(idleTimeout);
+		chunkProvider.setInterval(options.getInterval());
+		chunkProvider.setIdleTimeout(options.getIdleTimeout().orElse(null));
 		ArrayList<StepListener> listeners = new ArrayList<>(getItemListeners());
 		chunkProvider.setListeners(listeners);
 		return chunkProvider;
@@ -78,22 +76,9 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 		return (FlushingStepBuilder<I, O>) super.chunk(completionPolicy);
 	}
 
-	public FlushingStepBuilder<I, O> flushingInterval(Duration interval) {
-		this.flushingInterval = interval;
+	public FlushingStepBuilder<I, O> options(FlushingStepOptions options) {
+		this.options = options;
 		return this;
-	}
-
-	public Duration getFlushingInterval() {
-		return flushingInterval;
-	}
-
-	public FlushingStepBuilder<I, O> idleTimeout(Duration timeout) {
-		this.idleTimeout = timeout;
-		return this;
-	}
-
-	public Duration getIdleTimeout() {
-		return idleTimeout;
 	}
 
 	@Override
@@ -145,6 +130,10 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 	@Override
 	public FlushingStepBuilder<I, O> chunkOperations(RepeatOperations repeatTemplate) {
 		return (FlushingStepBuilder<I, O>) super.chunkOperations(repeatTemplate);
+	}
+
+	public FlushingStepOptions getOptions() {
+		return options;
 	}
 
 }

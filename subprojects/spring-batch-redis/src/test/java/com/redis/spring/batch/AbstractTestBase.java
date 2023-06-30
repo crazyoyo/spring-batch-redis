@@ -41,18 +41,22 @@ import org.springframework.test.context.junit4.SpringRunner;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemReader.ComparatorBuilder;
-import com.redis.spring.batch.RedisItemReader.LiveReaderBuilder;
-import com.redis.spring.batch.RedisItemReader.ScanReaderBuilder;
+import com.redis.spring.batch.RedisItemReader.ScanBuilder;
 import com.redis.spring.batch.RedisItemWriter.WriterBuilder;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.KeyDump;
+import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
+import com.redis.spring.batch.reader.KeyComparisonItemReader;
+import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.LiveRedisItemReader.Builder;
 import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.step.FlushingStepBuilder;
+import com.redis.spring.batch.step.FlushingStepOptions;
 import com.redis.spring.batch.writer.StreamIdPolicy;
 import com.redis.testcontainers.RedisServer;
 
@@ -163,19 +167,20 @@ abstract class AbstractTestBase {
 
 	}
 
-	@SuppressWarnings("rawtypes")
 	protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer)
 			throws JobExecutionException {
 		JobExecution execution = jobLauncher.run(job(testInfo).start(step(testInfo, reader, writer).build()).build(),
 				new JobParameters());
 		awaitTermination(execution);
-		if (reader instanceof RedisItemReader) {
-			awaitUntilFalse(((RedisItemReader) reader)::isOpen);
-		}
-		if (writer instanceof RedisItemWriter) {
-			awaitUntilFalse(((RedisItemWriter) writer)::isOpen);
-		}
+		awaitClosed(reader);
+		awaitClosed(writer);
 		return execution;
+	}
+
+	private void awaitClosed(Object object) {
+		if (object instanceof Openable) {
+			awaitUntilFalse(((Openable) object)::isOpen);
+		}
 	}
 
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
@@ -183,11 +188,12 @@ abstract class AbstractTestBase {
 		if (reader instanceof ItemStreamSupport) {
 			((ItemStreamSupport) reader).setName(name + "-reader");
 		}
-		SimpleStepBuilder<I, O> step = stepBuilderFactory.get(name).chunk(RedisItemReader.DEFAULT_CHUNK_SIZE);
+		SimpleStepBuilder<I, O> step = stepBuilderFactory.get(name).chunk(ReaderOptions.DEFAULT_CHUNK_SIZE);
 		step.reader(reader);
 		step.writer(writer);
 		if (reader instanceof PollableItemReader) {
-			return new FlushingStepBuilder<>(step).idleTimeout(DEFAULT_IDLE_TIMEOUT);
+			return new FlushingStepBuilder<>(step)
+					.options(FlushingStepOptions.builder().idleTimeout(DEFAULT_IDLE_TIMEOUT).build());
 		}
 		return step;
 	}
@@ -248,18 +254,17 @@ abstract class AbstractTestBase {
 	 */
 	protected boolean compare(TestInfo testInfo) throws Exception {
 		TestInfo finalTestInfo = testInfo(testInfo, "compare");
-		RedisItemReader<String, String, KeyComparison> reader = comparisonReader();
+		KeyComparisonItemReader reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
 		JobExecution execution = run(job(finalTestInfo).start(step(finalTestInfo, reader, writer).build()).build());
 		awaitTermination(execution);
-		awaitUntilFalse(reader::isOpen);
 		awaitUntilFalse(writer::isOpen);
 		Assertions.assertFalse(writer.getItems().isEmpty());
 		return writer.getItems().stream().allMatch(c -> c.getStatus() == Status.OK);
 	}
 
-	protected RedisItemReader<String, String, KeyComparison> comparisonReader() throws Exception {
-		return new ComparatorBuilder(sourceClient, targetClient).jobRepository(jobRepository)
+	protected KeyComparisonItemReader comparisonReader() throws Exception {
+		return new KeyComparisonItemReader.Builder(sourceClient, targetClient).jobRepository(jobRepository)
 				.ttlTolerance(Duration.ofMillis(100)).build();
 	}
 
@@ -294,16 +299,18 @@ abstract class AbstractTestBase {
 		return reader(client).dataStructure(codec);
 	}
 
-	protected ScanReaderBuilder reader(AbstractRedisClient client) {
-		return new ScanReaderBuilder(client).jobRepository(jobRepository);
+	protected ScanBuilder reader(AbstractRedisClient client) {
+		return new ScanBuilder(client).jobRepository(jobRepository);
 	}
 
-	protected LiveReaderBuilder liveReader(AbstractRedisClient client) {
-		return reader(client).live().idleTimeout(DEFAULT_IDLE_TIMEOUT);
+	protected LiveRedisItemReader.Builder liveReader(AbstractRedisClient client) {
+		Builder builder = reader(client).live();
+		builder.flushingOptions(FlushingStepOptions.builder().idleTimeout(DEFAULT_IDLE_TIMEOUT).build());
+		return builder;
 	}
 
 	protected RedisItemReader<byte[], byte[], KeyDump<byte[]>> keyDumpSourceReader() {
-		return new ScanReaderBuilder(sourceClient).jobRepository(jobRepository).keyDump();
+		return new ScanBuilder(sourceClient).jobRepository(jobRepository).keyDump();
 	}
 
 	protected RedisItemWriter<byte[], byte[], KeyDump<byte[]>> keyDumpWriter(AbstractRedisClient client) {

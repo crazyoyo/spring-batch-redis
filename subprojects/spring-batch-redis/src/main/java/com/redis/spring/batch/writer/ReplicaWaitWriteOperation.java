@@ -3,6 +3,7 @@ package com.redis.spring.batch.writer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
 
 import org.springframework.util.Assert;
 
@@ -40,8 +41,8 @@ public class ReplicaWaitWriteOperation<K, V, T, U> extends DelegatingItemStreamS
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	public List<RedisFuture<U>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
-		List<RedisFuture<?>> futures = new ArrayList<>();
+	public List<Future<U>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
+		List<Future<?>> futures = new ArrayList<>();
 		futures.addAll(delegate.execute(commands, items));
 		futures.add(replicationFuture(commands));
 		return (List) futures;

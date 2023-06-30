@@ -9,7 +9,7 @@ import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.util.ClassUtils;
 
-public class DelegatingItemStreamSupport extends ItemStreamSupport {
+public class DelegatingItemStreamSupport extends ItemStreamSupport implements Openable {
 
 	private final List<Object> delegates = new ArrayList<>();
 
@@ -67,7 +67,13 @@ public class DelegatingItemStreamSupport extends ItemStreamSupport {
 		this.open = false;
 	}
 
+	@Override
 	public boolean isOpen() {
+		for (Object delegate : delegates) {
+			if (delegate instanceof Openable && !((Openable) delegate).isOpen()) {
+				return false;
+			}
+		}
 		return open;
 	}
 
