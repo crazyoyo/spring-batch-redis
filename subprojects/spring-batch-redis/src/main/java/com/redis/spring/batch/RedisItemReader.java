@@ -5,12 +5,12 @@ import org.springframework.batch.item.ItemReader;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.KeyDump;
-import com.redis.spring.batch.common.Operation;
-import com.redis.spring.batch.common.SimpleBatchOperation;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Utils;
+import com.redis.spring.batch.reader.AbstractDataStructureReadOperation;
+import com.redis.spring.batch.reader.AbstractLuaReadOperation;
 import com.redis.spring.batch.reader.AbstractRedisItemReader;
 import com.redis.spring.batch.reader.DataStructureReadOperation;
 import com.redis.spring.batch.reader.KeyDumpReadOperation;
@@ -19,19 +19,19 @@ import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.ScanOptions;
-import com.redis.spring.batch.reader.StringDataStructureReadOperation;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemReader<K, V, T> extends AbstractRedisItemReader<K, V, T> {
+public class RedisItemReader<K, V, T extends KeyValue<K>> extends AbstractRedisItemReader<K, V, T> {
 
 	private final ScanKeyItemReader<K, V> keyReader;
 	private ScanOptions scanOptions = ScanOptions.builder().build();
 
-	public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, BatchOperation<K, V, K, T> operation) {
+	public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec,
+			AbstractLuaReadOperation<K, V, T> operation) {
 		super(client, codec, operation);
 		this.keyReader = new ScanKeyItemReader<>(Utils.connectionSupplier(client, codec, options.getReadFrom()));
 	}
@@ -80,6 +80,12 @@ public class RedisItemReader<K, V, T> extends AbstractRedisItemReader<K, V, T> {
 			return (B) this;
 		}
 
+		protected <R extends AbstractRedisItemReader<?, ?, ?>> R configure(R reader) {
+			reader.setJobRepository(jobRepository);
+			reader.setOptions(options);
+			return reader;
+		}
+
 	}
 
 	public static class BaseScanBuilder<B extends BaseScanBuilder<B>> extends BaseBuilder<B> {
@@ -96,18 +102,8 @@ public class RedisItemReader<K, V, T> extends AbstractRedisItemReader<K, V, T> {
 			return (B) this;
 		}
 
-		protected <K, V, T> RedisItemReader<K, V, T> reader(RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
-			return reader(codec, SimpleBatchOperation.of(operation));
-		}
-
-		protected <K, V, T> RedisItemReader<K, V, T> reader(RedisCodec<K, V> codec,
-				BatchOperation<K, V, K, T> operation) {
-			RedisItemReader<K, V, T> reader = new RedisItemReader<>(client, codec, operation);
-			reader.setJobRepository(jobRepository);
-			reader.setOptions(options);
-			reader.setScanOptions(scanOptions);
-			return reader;
-
+		protected <K, V> AbstractDataStructureReadOperation<K, V> dataStructureOperation(RedisCodec<K, V> codec) {
+			return DataStructureReadOperation.of(client, codec);
 		}
 
 	}
@@ -128,19 +124,15 @@ public class RedisItemReader<K, V, T> extends AbstractRedisItemReader<K, V, T> {
 		}
 
 		public RedisItemReader<byte[], byte[], KeyDump<byte[]>> keyDump() {
-			return reader(ByteArrayCodec.INSTANCE, new KeyDumpReadOperation(client));
+			return configure(new RedisItemReader<>(client, ByteArrayCodec.INSTANCE, new KeyDumpReadOperation(client)));
 		}
 
 		public RedisItemReader<String, String, DataStructure<String>> dataStructure() {
 			return dataStructure(StringCodec.UTF8);
 		}
 
-		@SuppressWarnings({ "unchecked", "rawtypes" })
 		public <K, V> RedisItemReader<K, V, DataStructure<K>> dataStructure(RedisCodec<K, V> codec) {
-			if (codec instanceof StringCodec) {
-				reader(StringCodec.UTF8, (Operation) new StringDataStructureReadOperation(client));
-			}
-			return reader(codec, new DataStructureReadOperation<>(client, codec));
+			return configure(new RedisItemReader<>(client, codec, dataStructureOperation(codec)));
 		}
 
 	}

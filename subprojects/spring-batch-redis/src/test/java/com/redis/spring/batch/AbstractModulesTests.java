@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -30,9 +31,13 @@ import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStream;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.util.unit.DataSize;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -65,7 +70,9 @@ import com.redis.spring.batch.reader.KeyEventType;
 import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.MemoryUsageOptions;
 import com.redis.spring.batch.reader.QueueOptions;
+import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.StringDataStructureReadOperation;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter.Results;
@@ -142,7 +149,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		enableKeyspaceNotifications(sourceClient);
 		KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(sourceClient,
 				StringCodec.UTF8);
-		reader.getOptions().setType(DataStructure.HASH);
+		reader.getOptions().setType(KeyValue.HASH);
 		reader.open(new ExecutionContext());
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(100);
@@ -153,7 +160,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		awaitUntil(() -> reader.getQueue().size() > 0);
 		KeyspaceNotification notification;
 		while ((notification = queue.poll()) != null) {
-			Assertions.assertEquals(DataStructure.HASH, notification.getEventType().getType());
+			Assertions.assertEquals(KeyValue.HASH, notification.getEventType().getType());
 		}
 		reader.close();
 	}
@@ -218,7 +225,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key);
 		DataStructure<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
-		Assertions.assertEquals(DataStructure.TIMESERIES, ds.getType());
+		Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
 		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
 	}
 
@@ -237,7 +244,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		Future<DataStructure<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
 		DataStructure<byte[]> ds = future.get();
 		Assertions.assertArrayEquals(keyBytes(key), ds.getKey());
-		Assertions.assertEquals(DataStructure.TIMESERIES, ds.getType());
+		Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
 		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
 	}
 
@@ -302,7 +309,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 	 * @return list of differences
 	 * @throws Exception
 	 */
-	protected boolean compare(TestInfo testInfo) throws Exception {
+	protected List<? extends KeyComparison> compare(TestInfo testInfo) throws Exception {
 		TestInfo finalTestInfo = testInfo(testInfo, "compare");
 		KeyComparisonItemReader reader = comparisonReader();
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
@@ -310,7 +317,11 @@ abstract class AbstractModulesTests extends AbstractTests {
 		awaitClosed(reader);
 		awaitClosed(writer);
 		Assertions.assertFalse(writer.getItems().isEmpty());
-		return writer.getItems().stream().allMatch(c -> c.getStatus() == Status.OK);
+		return writer.getItems();
+	}
+
+	protected boolean isOk(List<? extends KeyComparison> comparisons) {
+		return comparisons.stream().allMatch(c -> c.getStatus() == Status.OK);
 	}
 
 	protected KeyComparisonItemReader comparisonReader() throws Exception {
@@ -408,7 +419,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET));
 		generate(testInfo, gen);
 		awaitTermination(execution);
-		Assertions.assertTrue(compare(testInfo));
+		Assertions.assertTrue(isOk(compare(testInfo)));
 	}
 
 	@Test
@@ -480,7 +491,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		awaitClosed(writer);
 		awaitClosed(liveReader);
 		awaitClosed(liveWriter);
-		Assertions.assertTrue(compare(testInfo));
+		Assertions.assertTrue(isOk(compare(testInfo)));
 	}
 
 	@Test
@@ -506,7 +517,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		for (int index = 0; index < 17; index++) {
 			String key = targetConnection.sync().randomkey();
 			String type = targetConnection.sync().type(key);
-			if (type.equalsIgnoreCase(DataStructure.STRING)) {
+			if (type.equalsIgnoreCase(KeyValue.STRING)) {
 				if (!typeChanges.contains(key)) {
 					valueChanges.add(key);
 				}
@@ -567,6 +578,89 @@ abstract class AbstractModulesTests extends AbstractTests {
 		awaitUntil(() -> reader.getQueue().size() == 1);
 		Assertions.assertEquals(key, reader.read());
 		reader.close();
+	}
+
+	@Test
+	void readDataStructuresMemUsage(TestInfo testInfo) throws Exception {
+		generate(testInfo);
+		long memLimit = 200;
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
+				.limit(DataSize.ofBytes(memLimit)).build();
+		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
+		RedisItemReader<String, String, DataStructure<String>> reader = reader(sourceClient).options(readerOptions)
+				.dataStructure();
+		reader.open(new ExecutionContext());
+		DataStructure<String> ds;
+		while ((ds = reader.read()) != null) {
+			Assertions.assertTrue(ds.getMemoryUsage() > 0);
+			if (ds.getMemoryUsage() > memLimit) {
+				Assertions.assertNull(ds.getValue());
+			}
+		}
+	}
+
+	@Test
+	void replicateDataStructuresMemLimit(TestInfo testInfo) throws Exception {
+		generate(testInfo);
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
+				.limit(DataSize.ofMegabytes(100)).build();
+		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
+		RedisItemReader<String, String, DataStructure<String>> reader = reader(sourceClient).options(readerOptions)
+				.dataStructure();
+		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter();
+		run(testInfo, reader, writer);
+		Assertions.assertTrue(isOk(compare(testInfo)));
+	}
+
+	@Test
+	void replicateKeyDumpsMemLimitHigh(TestInfo testInfo) throws Exception {
+		generate(testInfo);
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
+				.limit(DataSize.ofMegabytes(100)).build();
+		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
+		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = reader(sourceClient).options(readerOptions).keyDump();
+		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
+		run(testInfo, reader, writer);
+		Assertions.assertTrue(isOk(compare(testInfo)));
+	}
+
+	private <T> List<T> readAll(ItemReader<T> reader) throws Exception {
+		List<T> items = new ArrayList<>();
+		if (reader instanceof ItemStream) {
+			if (reader instanceof ItemStreamSupport) {
+				((ItemStreamSupport) reader).setName(UUID.randomUUID().toString());
+			}
+			((ItemStream) reader).open(new ExecutionContext());
+		}
+		T item;
+		while ((item = reader.read()) != null) {
+			items.add(item);
+		}
+		if (reader instanceof ItemStream) {
+			((ItemStream) reader).close();
+		}
+		return items;
+	}
+
+	@Test
+	void replicateKeyDumpsMemLimitLow(TestInfo testInfo) throws Exception {
+		generate(testInfo);
+		Assertions.assertTrue(sourceConnection.sync().dbsize() > 10);
+		long memLimit = 1500;
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
+				.limit(DataSize.ofBytes(memLimit)).build();
+		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
+		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = reader(sourceClient).options(readerOptions).keyDump();
+		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
+		run(testInfo, reader, writer);
+		List<DataStructure<String>> items = readAll(
+				reader(sourceClient)
+						.options(ReaderOptions.builder()
+								.memoryUsageOptions(MemoryUsageOptions.builder().enabled(true).build()).build())
+						.dataStructure());
+		List<DataStructure<String>> bigkeys = items.stream().filter(ds -> ds.getMemoryUsage() > memLimit)
+				.collect(Collectors.toList());
+		Assertions.assertEquals(sourceConnection.sync().dbsize(), bigkeys.size() + targetConnection.sync().dbsize());
 	}
 
 }

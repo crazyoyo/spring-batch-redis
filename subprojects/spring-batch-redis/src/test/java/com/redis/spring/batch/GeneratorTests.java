@@ -13,6 +13,7 @@ import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
 import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 
 class GeneratorTests {
@@ -45,19 +46,19 @@ class GeneratorTests {
 		Assertions.assertEquals(count, list.size());
 		for (DataStructure<String> ds : list) {
 			switch (ds.getType()) {
-			case DataStructure.SET:
+			case KeyValue.SET:
 				Assertions.assertEquals(GeneratorItemReader.DEFAULT_SET_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
-			case DataStructure.LIST:
+			case KeyValue.LIST:
 				Assertions.assertEquals(GeneratorItemReader.DEFAULT_LIST_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
-			case DataStructure.ZSET:
+			case KeyValue.ZSET:
 				Assertions.assertEquals(GeneratorItemReader.DEFAULT_ZSET_OPTIONS.getCardinality().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;
-			case DataStructure.STREAM:
+			case KeyValue.STREAM:
 				Assertions.assertEquals(GeneratorItemReader.DEFAULT_STREAM_OPTIONS.getMessageCount().getMax(),
 						((Collection<?>) ds.getValue()).size());
 				break;

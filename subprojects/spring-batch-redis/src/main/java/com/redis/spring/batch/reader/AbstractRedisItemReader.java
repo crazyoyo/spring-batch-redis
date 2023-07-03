@@ -27,22 +27,23 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.common.BatchOperation;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.OperationItemStreamSupport;
 import com.redis.spring.batch.common.ProcessingItemWriter;
 import com.redis.spring.batch.common.QueueItemWriter;
+import com.redis.spring.batch.common.SimpleBatchOperation;
 import com.redis.spring.batch.common.Utils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public abstract class AbstractRedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T>
+public abstract class AbstractRedisItemReader<K, V, T extends KeyValue<K>> extends AbstractItemStreamItemReader<T>
 		implements PollableItemReader<T>, Openable {
 
 	protected final AbstractRedisClient client;
 	protected final RedisCodec<K, V> codec;
-	private final BatchOperation<K, V, K, T> operation;
+	private final AbstractLuaReadOperation<K, V, T> operation;
 	private ItemProcessor<K, K> processor;
 
 	private JobRepository jobRepository;
@@ -52,7 +53,7 @@ public abstract class AbstractRedisItemReader<K, V, T> extends AbstractItemStrea
 	private BlockingQueue<T> queue;
 
 	protected AbstractRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec,
-			BatchOperation<K, V, K, T> operation) {
+			AbstractLuaReadOperation<K, V, T> operation) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.codec = codec;
@@ -125,8 +126,9 @@ public abstract class AbstractRedisItemReader<K, V, T> extends AbstractItemStrea
 	}
 
 	public OperationItemStreamSupport<K, V, K, T> operationProcessor() {
+		operation.setMemoryUsageOptions(options.getMemoryUsageOptions());
 		OperationItemStreamSupport<K, V, K, T> operationProcessor = new OperationItemStreamSupport<>(client, codec,
-				operation);
+				new SimpleBatchOperation<>(operation));
 		operationProcessor.setPoolOptions(options.getPoolOptions());
 		operationProcessor.setReadFrom(options.getReadFrom());
 		return operationProcessor;

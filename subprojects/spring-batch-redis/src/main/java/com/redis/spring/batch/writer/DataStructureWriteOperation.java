@@ -9,6 +9,7 @@ import com.redis.lettucemod.timeseries.AddOptions;
 import com.redis.lettucemod.timeseries.AddOptions.Builder;
 import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.JsonSet;
@@ -73,26 +74,22 @@ public class DataStructureWriteOperation<K, V> implements BatchOperation<K, V, D
 	public List<Future<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends DataStructure<K>> items) {
 		List<Future<Object>> futures = new ArrayList<>();
 		for (DataStructure<K> item : items) {
-			if (item == null || item.getKey() == null) {
+			if (item == null || item.getKey() == null || (item.getValue() == null && item.getMemoryUsage() > 0)) {
 				continue;
 			}
 			if (shouldDelete(item)) {
 				futures.add((Future) delete(commands, item));
 			} else {
-				if (mergePolicy == MergePolicy.OVERWRITE && !DataStructure.STRING.equals(item.getType())) {
+				if (mergePolicy == MergePolicy.OVERWRITE && !KeyValue.STRING.equals(item.getType())) {
 					futures.add((Future) delete(commands, item));
 				}
 				futures.add((Future) operation(item).execute(commands, item));
-				if (shouldExpire(item)) {
+				if (item.getTtl() > 0) {
 					futures.add((Future) expire(commands, item));
 				}
 			}
 		}
 		return futures;
-	}
-
-	private boolean shouldExpire(DataStructure<K> item) {
-		return item.getTtl() != null && item.getTtl() > 0;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -101,8 +98,7 @@ public class DataStructureWriteOperation<K, V> implements BatchOperation<K, V, D
 	}
 
 	private boolean shouldDelete(DataStructure<K> item) {
-		return item.getValue() == null || Restore.TTL_KEY_DOES_NOT_EXIST.equals(item.getTtl())
-				|| DataStructure.isNone(item);
+		return item.getValue() == null || Restore.TTL_KEY_DOES_NOT_EXIST.equals(item.getTtl()) || KeyValue.isNone(item);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -112,21 +108,21 @@ public class DataStructureWriteOperation<K, V> implements BatchOperation<K, V, D
 
 	private Operation<K, V, DataStructure<K>, ?> operation(DataStructure<K> item) {
 		switch (item.getType()) {
-		case DataStructure.HASH:
+		case KeyValue.HASH:
 			return hset;
-		case DataStructure.JSON:
+		case KeyValue.JSON:
 			return jsonSet;
-		case DataStructure.LIST:
+		case KeyValue.LIST:
 			return rpush;
-		case DataStructure.SET:
+		case KeyValue.SET:
 			return sadd;
-		case DataStructure.STREAM:
+		case KeyValue.STREAM:
 			return xadd;
-		case DataStructure.STRING:
+		case KeyValue.STRING:
 			return set;
-		case DataStructure.TIMESERIES:
+		case KeyValue.TIMESERIES:
 			return tsAdd;
-		case DataStructure.ZSET:
+		case KeyValue.ZSET:
 			return zadd;
 		default:
 			return noop;

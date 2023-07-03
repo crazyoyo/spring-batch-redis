@@ -18,6 +18,7 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.RedisItemWriter.WriterBuilder;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.KeyDump;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.StreamAckPolicy;
@@ -55,7 +56,7 @@ class StackTests extends AbstractModulesTests {
 		generate(testInfo, gen);
 		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
 		run(testInfo, reader, dataStructureTargetWriter());
-		Assertions.assertTrue(compare(testInfo));
+		Assertions.assertTrue(isOk(compare(testInfo)));
 	}
 
 	@Test
@@ -65,7 +66,7 @@ class StackTests extends AbstractModulesTests {
 		generate(testInfo, gen);
 		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader();
 		run(testInfo, reader, keyDumpWriter(targetClient));
-		Assertions.assertTrue(compare(testInfo));
+		Assertions.assertTrue(isOk(compare(testInfo)));
 	}
 
 	@Test
@@ -84,9 +85,8 @@ class StackTests extends AbstractModulesTests {
 	@Test
 	void readMultipleStreams(TestInfo testInfo) throws Exception {
 		generateStreams(testInfo(testInfo, "streams"));
-		final List<String> keys = ScanIterator
-				.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(DataStructure.STREAM)).stream()
-				.collect(Collectors.toList());
+		final List<String> keys = ScanIterator.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(KeyValue.STREAM))
+				.stream().collect(Collectors.toList());
 		for (String key : keys) {
 			StreamItemReader<String, String> reader1 = streamReader(key);
 			reader1.setConsumer(Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));

@@ -4,13 +4,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.KeyValue;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ScoredValue;
@@ -26,41 +26,28 @@ public abstract class AbstractDataStructureReadOperation<K, V>
 		super(client, FILENAME);
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
-	protected DataStructure<K> convert(List<Object> list) {
-		if (list == null) {
-			return null;
-		}
-		DataStructure<K> ds = new DataStructure<>();
-		Iterator<Object> iterator = list.iterator();
-		if (iterator.hasNext()) {
-			ds.setKey((K) iterator.next());
-		}
-		if (iterator.hasNext()) {
-			ds.setTtl((Long) iterator.next());
-		}
-		if (iterator.hasNext()) {
-			ds.setType(string(iterator.next()));
-		}
-		if (iterator.hasNext()) {
-			ds.setValue(value(ds, iterator.next()));
-		}
-		return ds;
+	protected DataStructure<K> keyValue() {
+		return new DataStructure<>();
+	}
+
+	@Override
+	protected void setValue(DataStructure<K> keyValue, Object value) {
+		keyValue.setValue(value(keyValue, value));
 	}
 
 	@SuppressWarnings("unchecked")
 	private Object value(DataStructure<K> ds, Object object) {
 		switch (ds.getType()) {
-		case DataStructure.HASH:
+		case KeyValue.HASH:
 			return map((List<Object>) object);
-		case DataStructure.SET:
+		case KeyValue.SET:
 			return new HashSet<>((Collection<Object>) object);
-		case DataStructure.ZSET:
+		case KeyValue.ZSET:
 			return zset((List<Object>) object);
-		case DataStructure.STREAM:
+		case KeyValue.STREAM:
 			return stream(ds.getKey(), (List<Object>) object);
-		case DataStructure.TIMESERIES:
+		case KeyValue.TIMESERIES:
 			return timeSeries((List<Object>) object);
 		default:
 			return object;
@@ -97,8 +84,6 @@ public abstract class AbstractDataStructureReadOperation<K, V>
 		}
 		return values;
 	}
-
-	protected abstract String string(Object object);
 
 	@SuppressWarnings("unchecked")
 	private List<StreamMessage<K, V>> stream(K key, List<Object> list) {

@@ -70,6 +70,7 @@ import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.IntRange;
 import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyPredicateFactory;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.PredicateItemProcessor;
 import com.redis.spring.batch.common.Utils;
@@ -82,6 +83,7 @@ import com.redis.spring.batch.reader.GeneratorItemReader.Type;
 import com.redis.spring.batch.reader.KeyDumpReadOperation;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader.Builder;
+import com.redis.spring.batch.reader.MemoryUsageOptions;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
@@ -537,7 +539,7 @@ abstract class AbstractTests {
 			map.put("field2", "value2");
 			DataStructure<String> ds = new DataStructure<>();
 			ds.setKey("hash:" + index);
-			ds.setType(DataStructure.HASH);
+			ds.setType(KeyValue.HASH);
 			ds.setValue(map);
 			list.add(ds);
 		}
@@ -633,7 +635,7 @@ abstract class AbstractTests {
 		assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
 		estimator = new ScanSizeEstimator(Utils.connectionSupplier(sourceClient));
 		estimator.getOptions().setCount(200);
-		estimator.getOptions().setType(DataStructure.HASH);
+		estimator.getOptions().setType(KeyValue.HASH);
 		assertEquals(count / 2, estimator.getAsLong(), expectedCount / 10);
 	}
 
@@ -924,7 +926,7 @@ abstract class AbstractTests {
 	@Test
 	void readMessages(TestInfo testInfo) throws Exception {
 		generateStreams(testInfo);
-		List<String> keys = ScanIterator.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(DataStructure.STREAM))
+		List<String> keys = ScanIterator.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(KeyValue.STREAM))
 				.stream().collect(Collectors.toList());
 		for (String key : keys) {
 			long count = sourceConnection.sync().xlen(key);
@@ -945,7 +947,7 @@ abstract class AbstractTests {
 	@Test
 	void streamReaderJob(TestInfo testInfo) throws Exception {
 		generateStreams(testInfo);
-		List<String> keys = ScanIterator.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(DataStructure.STREAM))
+		List<String> keys = ScanIterator.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(KeyValue.STREAM))
 				.stream().collect(Collectors.toList());
 		for (String key : keys) {
 			Consumer<String> consumer = Consumer.from("batchtests-readstreamjob", "consumer1");
@@ -968,7 +970,7 @@ abstract class AbstractTests {
 	}
 
 	@Test
-	void testLuaHash() throws InterruptedException, ExecutionException {
+	void luaHash() throws InterruptedException, ExecutionException {
 		String key = "myhash";
 		Map<String, String> hash = new HashMap<>();
 		hash.put("field1", "value1");
@@ -981,13 +983,32 @@ abstract class AbstractTests {
 		DataStructure<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(ttl, ds.getTtl());
-		Assertions.assertEquals(DataStructure.HASH, ds.getType());
+		Assertions.assertEquals(KeyValue.HASH, ds.getType());
 		Assertions.assertEquals(hash, ds.getValue());
+	}
+
+	@Test
+	void luaHashMem() throws InterruptedException, ExecutionException {
+		String key = "myhash";
+		Map<String, String> hash = new HashMap<>();
+		hash.put("field1", "value1");
+		hash.put("field2", "value2");
+		sourceConnection.sync().hset(key, hash);
+		long ttl = System.currentTimeMillis() + 123456;
+		sourceConnection.sync().pexpireat(key, ttl);
+		StringDataStructureReadOperation operation = new StringDataStructureReadOperation(sourceClient);
+		operation.setMemoryUsageOptions(MemoryUsageOptions.builder().enabled(true).build());
+		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key);
+		DataStructure<String> ds = future.get();
+		Assertions.assertEquals(key, ds.getKey());
+		Assertions.assertEquals(ttl, ds.getTtl());
+		Assertions.assertEquals(KeyValue.HASH, ds.getType());
+		Assertions.assertTrue(ds.getMemoryUsage() > 0);
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
-	void testLuaZset() throws InterruptedException, ExecutionException {
+	void luaZset() throws InterruptedException, ExecutionException {
 		String key = "myzset";
 		ScoredValue[] values = { ScoredValue.just(123.456, "value1"), ScoredValue.just(654.321, "value2") };
 		sourceConnection.sync().zadd(key, values);
@@ -995,12 +1016,12 @@ abstract class AbstractTests {
 		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key);
 		DataStructure<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
-		Assertions.assertEquals(DataStructure.ZSET, ds.getType());
+		Assertions.assertEquals(KeyValue.ZSET, ds.getType());
 		Assertions.assertEquals(new HashSet<>(Arrays.asList(values)), ds.getValue());
 	}
 
 	@Test
-	void testLuaList() throws InterruptedException, ExecutionException {
+	void luaList() throws InterruptedException, ExecutionException {
 		String key = "mylist";
 		List<String> values = Arrays.asList("value1", "value2");
 		sourceConnection.sync().rpush(key, values.toArray(new String[0]));
@@ -1008,12 +1029,12 @@ abstract class AbstractTests {
 		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key);
 		DataStructure<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
-		Assertions.assertEquals(DataStructure.LIST, ds.getType());
+		Assertions.assertEquals(KeyValue.LIST, ds.getType());
 		Assertions.assertEquals(values, ds.getValue());
 	}
 
 	@Test
-	void testLuaStream() throws InterruptedException, ExecutionException {
+	void luaStream() throws InterruptedException, ExecutionException {
 		String key = "mystream";
 		Map<String, String> body = new HashMap<>();
 		body.put("field1", "value1");
@@ -1024,7 +1045,7 @@ abstract class AbstractTests {
 		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key);
 		DataStructure<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
-		Assertions.assertEquals(DataStructure.STREAM, ds.getType());
+		Assertions.assertEquals(KeyValue.STREAM, ds.getType());
 		List<StreamMessage<String, String>> messages = ds.getValue();
 		Assertions.assertEquals(2, messages.size());
 		for (StreamMessage<String, String> message : messages) {
@@ -1034,7 +1055,7 @@ abstract class AbstractTests {
 	}
 
 	@Test
-	void testLuaStreamKeyDump() throws InterruptedException, ExecutionException {
+	void luaStreamKeyDump() throws InterruptedException, ExecutionException {
 		String key = "mystream";
 		Map<String, String> body = new HashMap<>();
 		body.put("field1", "value1");
@@ -1052,11 +1073,11 @@ abstract class AbstractTests {
 		Assertions.assertTrue(Math.abs(ttl - keyDump.getTtl()) <= 3);
 		sourceConnection.sync().del(key);
 		sourceConnection.sync().restore(key, keyDump.getDump(), RestoreArgs.Builder.ttl(ttl).absttl());
-		Assertions.assertEquals(DataStructure.STREAM, sourceConnection.sync().type(key));
+		Assertions.assertEquals(KeyValue.STREAM, sourceConnection.sync().type(key));
 	}
 
 	@Test
-	void testLuaStreamByteArray() throws InterruptedException, ExecutionException {
+	void luaStreamByteArray() throws InterruptedException, ExecutionException {
 		String key = "mystream";
 		Map<String, String> body = new HashMap<>();
 		body.put("field1", "value1");
@@ -1070,7 +1091,7 @@ abstract class AbstractTests {
 		Future<DataStructure<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
 		DataStructure<byte[]> ds = future.get();
 		Assertions.assertArrayEquals(keyBytes(key), ds.getKey());
-		Assertions.assertEquals(DataStructure.STREAM, ds.getType());
+		Assertions.assertEquals(KeyValue.STREAM, ds.getType());
 		List<StreamMessage<byte[], byte[]>> messages = ds.getValue();
 		Assertions.assertEquals(2, messages.size());
 		for (StreamMessage<byte[], byte[]> message : messages) {
@@ -1083,7 +1104,7 @@ abstract class AbstractTests {
 	}
 
 	@Test
-	void testLuaHLL() throws InterruptedException, ExecutionException {
+	void luaHLL() throws InterruptedException, ExecutionException {
 		String key1 = "hll:1";
 		sourceConnection.sync().pfadd(key1, "member:1", "member:2");
 		String key2 = "hll:2";
@@ -1092,7 +1113,7 @@ abstract class AbstractTests {
 		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key1);
 		DataStructure<String> ds1 = future.get();
 		Assertions.assertEquals(key1, ds1.getKey());
-		Assertions.assertEquals(DataStructure.STRING, ds1.getType());
+		Assertions.assertEquals(KeyValue.STRING, ds1.getType());
 		Assertions.assertEquals(sourceConnection.sync().get(key1), ds1.getValue());
 	}
 

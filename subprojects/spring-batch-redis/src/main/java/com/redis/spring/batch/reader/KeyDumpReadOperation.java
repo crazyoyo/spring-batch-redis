@@ -1,10 +1,10 @@
 package com.redis.spring.batch.reader;
 
-import java.util.List;
-
 import com.redis.spring.batch.common.KeyDump;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.codec.StringCodec;
 
 public class KeyDumpReadOperation extends AbstractLuaReadOperation<byte[], byte[], KeyDump<byte[]>> {
 
@@ -15,14 +15,23 @@ public class KeyDumpReadOperation extends AbstractLuaReadOperation<byte[], byte[
 	}
 
 	@Override
-	protected KeyDump<byte[]> convert(List<Object> list) {
-		KeyDump<byte[]> dump = new KeyDump<>();
-		byte[] key = (byte[]) list.get(0);
-		dump.setKey(key);
-		Long ttl = (Long) list.get(1);
-		dump.setTtl(ttl);
-		dump.setDump((byte[]) list.get(2));
-		return dump;
+	protected KeyDump<byte[]> keyValue() {
+		return new KeyDump<>();
+	}
+
+	@Override
+	protected String string(Object object) {
+		return StringCodec.UTF8.decodeValue(ByteArrayCodec.INSTANCE.encodeValue((byte[]) object));
+	}
+
+	@Override
+	protected void setValue(KeyDump<byte[]> keyValue, Object value) {
+		keyValue.setDump((byte[]) value);
+	}
+
+	@Override
+	protected byte[] encodeValue(String value) {
+		return ByteArrayCodec.INSTANCE.decodeValue(StringCodec.UTF8.encodeValue(value));
 	}
 
 }

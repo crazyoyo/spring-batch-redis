@@ -1,13 +1,19 @@
--- Returns a key's absolute TTL in milliseconds
-
 local key = KEYS[1]
+local type = redis.call('TYPE', key)['ok']
 local ttl = redis.call('PTTL', key)
 if ttl >= 0 then
   local e = redis.call('TIME')
   e = e[1] * 1000 + e[2] / 1000
   ttl = e + ttl
 end
-local type = redis.call('TYPE', key)['ok']
+local mem = 0
+if #ARGV == 2 then
+  mem = redis.call('MEMORY', 'USAGE', key, 'SAMPLES', tonumber(ARGV[2]))
+  local memlimit = tonumber(ARGV[1])
+  if memlimit > 0 and mem > memlimit then
+    return { key, ttl, type, mem }
+  end
+end
 local value = nil
 if type == 'hash' then
   value = redis.call('HGETALL', key)
@@ -26,4 +32,4 @@ elseif type == 'TSDB-TYPE' then
 elseif type == 'zset' then
   value = redis.call('ZRANGE', key, 0, -1, 'WITHSCORES')
 end
-return { key, ttl, type, value }
+return { key, ttl, type, mem, value }

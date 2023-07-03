@@ -16,6 +16,7 @@ public class ReaderOptions {
 	private PoolOptions poolOptions = PoolOptions.builder().build();
 	private Optional<ReadFrom> readFrom = Optional.empty();
 	private QueueOptions queueOptions = QueueOptions.builder().build();
+	private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
 
 	private ReaderOptions(Builder builder) {
 		this.threads = builder.threads;
@@ -23,6 +24,15 @@ public class ReaderOptions {
 		this.poolOptions = builder.poolOptions;
 		this.readFrom = builder.readFrom;
 		this.queueOptions = builder.queueOptions;
+		this.memoryUsageOptions = builder.memoryUsageOptions;
+	}
+
+	public MemoryUsageOptions getMemoryUsageOptions() {
+		return memoryUsageOptions;
+	}
+
+	public void setMemoryUsageOptions(MemoryUsageOptions memoryUsageOptions) {
+		this.memoryUsageOptions = memoryUsageOptions;
 	}
 
 	public int getThreads() {
@@ -80,8 +90,14 @@ public class ReaderOptions {
 		private PoolOptions poolOptions = PoolOptions.builder().build();
 		private Optional<ReadFrom> readFrom = Optional.empty();
 		private QueueOptions queueOptions = QueueOptions.builder().build();
+		private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
 
 		private Builder() {
+		}
+
+		public Builder memoryUsageOptions(MemoryUsageOptions options) {
+			this.memoryUsageOptions = options;
+			return this;
 		}
 
 		public Builder threads(int threads) {

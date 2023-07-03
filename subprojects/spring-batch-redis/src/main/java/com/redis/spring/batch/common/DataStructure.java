@@ -2,19 +2,7 @@ package com.redis.spring.batch.common;
 
 import java.util.Objects;
 
-public class DataStructure<K> extends KeyTtlValue<K> {
-
-	public static final String NONE = "none";
-	public static final String HASH = "hash";
-	public static final String JSON = "ReJSON-RL";
-	public static final String LIST = "list";
-	public static final String SET = "set";
-	public static final String STREAM = "stream";
-	public static final String STRING = "string";
-	public static final String TIMESERIES = "TSDB-TYPE";
-	public static final String ZSET = "zset";
-
-	private String type = NONE;
+public class DataStructure<K> extends KeyValue<K> {
 
 	/**
 	 * Redis value. Null if key does not exist
@@ -30,24 +18,11 @@ public class DataStructure<K> extends KeyTtlValue<K> {
 		this.value = value;
 	}
 
-	public String getType() {
-		return type;
-	}
-
-	public void setType(String type) {
-		this.type = type;
-	}
-
-	@Override
-	public String toString() {
-		return "DataStructure [type=" + type + ", key=" + getKey() + ", value=" + value + ", ttl=" + getTtl() + "]";
-	}
-
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = super.hashCode();
-		result = prime * result + Objects.hash(type, value);
+		result = prime * result + Objects.hash(value);
 		return result;
 	}
 
@@ -59,12 +34,9 @@ public class DataStructure<K> extends KeyTtlValue<K> {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		DataStructure<?> other = (DataStructure<?>) obj;
-		return type == other.type && Objects.equals(value, other.value);
-	}
-
-	public static boolean isNone(DataStructure<?> item) {
-		return NONE.equals(item.getType());
+		@SuppressWarnings("rawtypes")
+		DataStructure other = (DataStructure) obj;
+		return Objects.equals(value, other.value);
 	}
 
 }

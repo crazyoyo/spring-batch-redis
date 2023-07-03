@@ -2,7 +2,7 @@ package com.redis.spring.batch.common;
 
 import java.util.Arrays;
 
-public class KeyDump<K> extends KeyTtlValue<K> {
+public class KeyDump<K> extends KeyValue<K> {
 
 	/**
 	 * Redis value dump. Null if key does not exist

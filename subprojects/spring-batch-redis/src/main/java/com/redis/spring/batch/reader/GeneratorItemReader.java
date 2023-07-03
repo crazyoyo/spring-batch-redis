@@ -23,6 +23,7 @@ import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.DoubleRange;
 import com.redis.spring.batch.common.IntRange;
+import com.redis.spring.batch.common.KeyValue;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -542,21 +543,21 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
 	private Object value(DataStructure<String> ds) throws JsonProcessingException {
 		switch (ds.getType()) {
-		case DataStructure.HASH:
+		case KeyValue.HASH:
 			return map(hashOptions);
-		case DataStructure.LIST:
+		case KeyValue.LIST:
 			return members(listOptions);
-		case DataStructure.SET:
+		case KeyValue.SET:
 			return new HashSet<>(members(setOptions));
-		case DataStructure.STREAM:
+		case KeyValue.STREAM:
 			return streamMessages();
-		case DataStructure.STRING:
+		case KeyValue.STRING:
 			return string(stringOptions.getLength());
-		case DataStructure.ZSET:
+		case KeyValue.ZSET:
 			return zset();
-		case DataStructure.JSON:
+		case KeyValue.JSON:
 			return mapper.writeValueAsString(map(jsonOptions));
-		case DataStructure.TIMESERIES:
+		case KeyValue.TIMESERIES:
 			return samples();
 		default:
 			return null;
@@ -647,23 +648,23 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	private String typeString(Type type) {
 		switch (type) {
 		case HASH:
-			return DataStructure.HASH;
+			return KeyValue.HASH;
 		case JSON:
-			return DataStructure.JSON;
+			return KeyValue.JSON;
 		case LIST:
-			return DataStructure.LIST;
+			return KeyValue.LIST;
 		case SET:
-			return DataStructure.SET;
+			return KeyValue.SET;
 		case STREAM:
-			return DataStructure.STREAM;
+			return KeyValue.STREAM;
 		case STRING:
-			return DataStructure.STRING;
+			return KeyValue.STRING;
 		case TIMESERIES:
-			return DataStructure.TIMESERIES;
+			return KeyValue.TIMESERIES;
 		case ZSET:
-			return DataStructure.ZSET;
+			return KeyValue.ZSET;
 		default:
-			return DataStructure.NONE;
+			return KeyValue.NONE;
 		}
 	}
 

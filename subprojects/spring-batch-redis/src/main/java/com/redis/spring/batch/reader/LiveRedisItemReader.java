@@ -7,11 +7,9 @@ import org.springframework.batch.item.ItemReader;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.RedisItemReader.BaseBuilder;
-import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.KeyDump;
-import com.redis.spring.batch.common.Operation;
-import com.redis.spring.batch.common.SimpleBatchOperation;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.step.FlushingStepOptions;
 
@@ -20,14 +18,14 @@ import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class LiveRedisItemReader<K, V, T> extends AbstractRedisItemReader<K, V, T> {
+public class LiveRedisItemReader<K, V, T extends KeyValue<K>> extends AbstractRedisItemReader<K, V, T> {
 
 	private final KeyspaceNotificationItemReader<K, V> keyReader;
 	private KeyspaceNotificationOptions keyspaceNotificationOptions = KeyspaceNotificationOptions.builder().build();
 	private FlushingStepOptions flushingOptions = FlushingStepOptions.builder().build();
 
 	public LiveRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec,
-			BatchOperation<K, V, K, T> operation) {
+			AbstractLuaReadOperation<K, V, T> operation) {
 		super(client, codec, operation);
 		this.keyReader = new KeyspaceNotificationItemReader<>(client, codec);
 	}
@@ -99,19 +97,13 @@ public class LiveRedisItemReader<K, V, T> extends AbstractRedisItemReader<K, V, 
 			return dataStructure(StringCodec.UTF8);
 		}
 
-		@SuppressWarnings({ "unchecked", "rawtypes" })
 		public <K, V> LiveRedisItemReader<K, V, DataStructure<K>> dataStructure(RedisCodec<K, V> codec) {
-			if (codec instanceof StringCodec) {
-				return reader(StringCodec.UTF8, (Operation) new StringDataStructureReadOperation(client));
-			}
-			return reader(codec, new DataStructureReadOperation<>(client, codec));
+			return reader(codec, DataStructureReadOperation.of(client, codec));
 		}
 
-		private <K, V, T> LiveRedisItemReader<K, V, T> reader(RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
-			LiveRedisItemReader<K, V, T> reader = new LiveRedisItemReader<>(client, codec,
-					SimpleBatchOperation.of(operation));
-			reader.setJobRepository(jobRepository);
-			reader.setOptions(options);
+		private <K, V, T extends KeyValue<K>> LiveRedisItemReader<K, V, T> reader(RedisCodec<K, V> codec,
+				AbstractLuaReadOperation<K, V, T> operation) {
+			LiveRedisItemReader<K, V, T> reader = configure(new LiveRedisItemReader<>(client, codec, operation));
 			reader.setFlushingOptions(flushingOptions);
 			reader.setKeyspaceNotificationOptions(keyspaceNotificationOptions);
 			return reader;

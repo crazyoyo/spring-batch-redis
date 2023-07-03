@@ -1,5 +1,7 @@
 package com.redis.spring.batch.reader;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
@@ -10,8 +12,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.ClassUtils;
@@ -35,8 +35,6 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 
-	private static final Log log = LogFactory.getLog(KeyspaceNotificationItemReader.class);
-
 	public static final String QUEUE_SIZE_GAUGE_NAME = "reader.notification.queue.size";
 	private static final String SEPARATOR = ":";
 	private static final KeyspaceNotificationComparator NOTIFICATION_COMPARATOR = new KeyspaceNotificationComparator();
@@ -45,6 +43,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
+	private final List<KeyspaceNotificationListener> listeners = new ArrayList<>();
 
 	private KeyspaceNotificationOptions options = KeyspaceNotificationOptions.builder().build();
 
@@ -55,6 +54,10 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.codec = codec;
+	}
+
+	public void addListener(KeyspaceNotificationListener listener) {
+		this.listeners.add(listener);
 	}
 
 	public KeyspaceNotificationOptions getOptions() {
@@ -102,7 +105,6 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 	@Override
 	public void close() {
 		if (publisher != null) {
-			log.debug("Unsubscribing from keyspace notifications");
 			publisher.close();
 			publisher = null;
 		}
@@ -116,8 +118,8 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 			Optional<String> type = options.getType();
 			if (!type.isPresent() || type.get().equals(eventType.getType())) {
 				KeyspaceNotification notification = new KeyspaceNotification(key, eventType);
-				if (queue.size() >= options.getQueueOptions().getCapacity() || !queue.offer(notification)) {
-					log.warn("Could not add key because queue is full");
+				if (!queue.offer(notification)) {
+					listeners.forEach(l -> l.queueFull(notification));
 				}
 			}
 		}

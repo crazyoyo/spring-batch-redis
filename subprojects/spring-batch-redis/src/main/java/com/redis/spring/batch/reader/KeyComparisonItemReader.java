@@ -19,6 +19,7 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemReader.BaseScanBuilder;
 import com.redis.spring.batch.RedisItemReader.ScanBuilder;
 import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.OperationItemStreamSupport;
 import com.redis.spring.batch.reader.KeyComparison.Status;
@@ -136,7 +137,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 			return Status.MISSING;
 		}
 		if (!Objects.equals(left.getType(), right.getType())) {
-			if (DataStructure.isNone(right)) {
+			if (KeyValue.isNone(right)) {
 				return Status.MISSING;
 			}
 			return Status.TYPE;
@@ -217,8 +218,8 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 		}
 
 		public KeyComparisonItemReader build() {
-			RedisItemReader<String, String, DataStructure<String>> leftReader = reader(StringCodec.UTF8,
-					new StringDataStructureReadOperation(client));
+			RedisItemReader<String, String, DataStructure<String>> leftReader = new RedisItemReader<>(client,
+					StringCodec.UTF8, new StringDataStructureReadOperation(client));
 			RedisItemReader<String, String, DataStructure<String>> rightReader = new ScanBuilder(right)
 					.jobRepository(jobRepository).options(rightOptions).scanOptions(scanOptions).dataStructure();
 			KeyComparisonItemReader reader = new KeyComparisonItemReader(leftReader, rightReader);

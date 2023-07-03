@@ -13,4 +13,9 @@ public class StringDataStructureReadOperation extends AbstractDataStructureReadO
 		return (String) object;
 	}
 
+	@Override
+	protected String encodeValue(String value) {
+		return value;
+	}
+
 }
