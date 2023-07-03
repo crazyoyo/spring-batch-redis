@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -12,7 +15,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStream;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.ListItemReader;
+import org.springframework.util.unit.DataSize;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.RedisItemWriter.WriterBuilder;
@@ -21,8 +28,11 @@ import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.MemoryUsageOptions;
+import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StreamItemReader;
+import com.redis.spring.batch.reader.StringDataStructureReadOperation;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
@@ -147,5 +157,107 @@ class StackTests extends AbstractModulesTests {
 			StreamMessage<String, String> message = xrange.get(index);
 			Assertions.assertEquals(messages.get(index), message.getBody());
 		}
+	}
+
+	@Test
+	void luaHashMem() throws InterruptedException, ExecutionException {
+		String key = "myhash";
+		Map<String, String> hash = new HashMap<>();
+		hash.put("field1", "value1");
+		hash.put("field2", "value2");
+		sourceConnection.sync().hset(key, hash);
+		long ttl = System.currentTimeMillis() + 123456;
+		sourceConnection.sync().pexpireat(key, ttl);
+		StringDataStructureReadOperation operation = new StringDataStructureReadOperation(sourceClient);
+		operation.setMemoryUsageOptions(MemoryUsageOptions.builder().enabled(true).build());
+		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key);
+		DataStructure<String> ds = future.get();
+		Assertions.assertEquals(key, ds.getKey());
+		Assertions.assertEquals(ttl, ds.getTtl());
+		Assertions.assertEquals(KeyValue.HASH, ds.getType());
+		Assertions.assertTrue(ds.getMemoryUsage() > 0);
+	}
+
+	@Test
+	void readDataStructuresMemUsage(TestInfo testInfo) throws Exception {
+		generate(testInfo);
+		long memLimit = 200;
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
+				.limit(DataSize.ofBytes(memLimit)).build();
+		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
+		RedisItemReader<String, String, DataStructure<String>> reader = reader(sourceClient).options(readerOptions)
+				.dataStructure();
+		reader.open(new ExecutionContext());
+		DataStructure<String> ds;
+		while ((ds = reader.read()) != null) {
+			Assertions.assertTrue(ds.getMemoryUsage() > 0);
+			if (ds.getMemoryUsage() > memLimit) {
+				Assertions.assertNull(ds.getValue());
+			}
+		}
+	}
+
+	@Test
+	void replicateDataStructuresMemLimit(TestInfo testInfo) throws Exception {
+		generate(testInfo);
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
+				.limit(DataSize.ofMegabytes(100)).build();
+		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
+		RedisItemReader<String, String, DataStructure<String>> reader = reader(sourceClient).options(readerOptions)
+				.dataStructure();
+		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter();
+		run(testInfo, reader, writer);
+		Assertions.assertTrue(isOk(compare(testInfo)));
+	}
+
+	@Test
+	void replicateKeyDumpsMemLimitHigh(TestInfo testInfo) throws Exception {
+		generate(testInfo);
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
+				.limit(DataSize.ofMegabytes(100)).build();
+		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
+		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = reader(sourceClient).options(readerOptions).keyDump();
+		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
+		run(testInfo, reader, writer);
+		Assertions.assertTrue(isOk(compare(testInfo)));
+	}
+
+	private <T> List<T> readAll(ItemReader<T> reader) throws Exception {
+		List<T> items = new ArrayList<>();
+		if (reader instanceof ItemStream) {
+			if (reader instanceof ItemStreamSupport) {
+				((ItemStreamSupport) reader).setName(UUID.randomUUID().toString());
+			}
+			((ItemStream) reader).open(new ExecutionContext());
+		}
+		T item;
+		while ((item = reader.read()) != null) {
+			items.add(item);
+		}
+		if (reader instanceof ItemStream) {
+			((ItemStream) reader).close();
+		}
+		return items;
+	}
+
+	@Test
+	void replicateKeyDumpsMemLimitLow(TestInfo testInfo) throws Exception {
+		generate(testInfo);
+		Assertions.assertTrue(sourceConnection.sync().dbsize() > 10);
+		long memLimit = 1500;
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
+				.limit(DataSize.ofBytes(memLimit)).build();
+		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
+		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = reader(sourceClient).options(readerOptions).keyDump();
+		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
+		run(testInfo, reader, writer);
+		List<DataStructure<String>> items = readAll(
+				reader(sourceClient)
+						.options(ReaderOptions.builder()
+								.memoryUsageOptions(MemoryUsageOptions.builder().enabled(true).build()).build())
+						.dataStructure());
+		List<DataStructure<String>> bigkeys = items.stream().filter(ds -> ds.getMemoryUsage() > memLimit)
+				.collect(Collectors.toList());
+		Assertions.assertEquals(sourceConnection.sync().dbsize(), bigkeys.size() + targetConnection.sync().dbsize());
 	}
 }

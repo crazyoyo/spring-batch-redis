@@ -83,7 +83,6 @@ import com.redis.spring.batch.reader.GeneratorItemReader.Type;
 import com.redis.spring.batch.reader.KeyDumpReadOperation;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader.Builder;
-import com.redis.spring.batch.reader.MemoryUsageOptions;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
@@ -985,25 +984,6 @@ abstract class AbstractTests {
 		Assertions.assertEquals(ttl, ds.getTtl());
 		Assertions.assertEquals(KeyValue.HASH, ds.getType());
 		Assertions.assertEquals(hash, ds.getValue());
-	}
-
-	@Test
-	void luaHashMem() throws InterruptedException, ExecutionException {
-		String key = "myhash";
-		Map<String, String> hash = new HashMap<>();
-		hash.put("field1", "value1");
-		hash.put("field2", "value2");
-		sourceConnection.sync().hset(key, hash);
-		long ttl = System.currentTimeMillis() + 123456;
-		sourceConnection.sync().pexpireat(key, ttl);
-		StringDataStructureReadOperation operation = new StringDataStructureReadOperation(sourceClient);
-		operation.setMemoryUsageOptions(MemoryUsageOptions.builder().enabled(true).build());
-		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key);
-		DataStructure<String> ds = future.get();
-		Assertions.assertEquals(key, ds.getKey());
-		Assertions.assertEquals(ttl, ds.getTtl());
-		Assertions.assertEquals(KeyValue.HASH, ds.getType());
-		Assertions.assertTrue(ds.getMemoryUsage() > 0);
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
