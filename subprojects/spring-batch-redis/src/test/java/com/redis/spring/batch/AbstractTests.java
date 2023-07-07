@@ -60,13 +60,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.util.Assert;
+import org.springframework.util.unit.DataSize;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemReader.Builder;
 import com.redis.spring.batch.common.IntRange;
 import com.redis.spring.batch.common.KeyPredicateFactory;
 import com.redis.spring.batch.common.KeyValue;
@@ -80,6 +80,7 @@ import com.redis.spring.batch.reader.GeneratorItemReader.StreamOptions;
 import com.redis.spring.batch.reader.GeneratorItemReader.Type;
 import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.MemoryUsageOptions;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
@@ -278,6 +279,10 @@ abstract class AbstractTests {
 		return jobBuilderFactory.get(name(testInfo));
 	}
 
+	protected ReaderOptions readerOptions(DataSize size) {
+		return ReaderOptions.builder().memoryUsageOptions(MemoryUsageOptions.builder().limit(size).build()).build();
+	}
+
 	protected void generate(TestInfo testInfo) throws JobExecutionException {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(100);
@@ -308,12 +313,13 @@ abstract class AbstractTests {
 		builder.setFlushingOptions(FlushingStepOptions.builder().idleTimeout(DEFAULT_IDLE_TIMEOUT).build());
 	}
 
-	protected Builder<String, String> reader(AbstractRedisClient client) {
+	protected RedisItemReader.Builder<String, String> reader(AbstractRedisClient client) {
 		return reader(client, StringCodec.UTF8);
 	}
 
-	protected <K, V> Builder<K, V> reader(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec).jobRepository(jobRepository);
+	protected <K, V> RedisItemReader.Builder<K, V> reader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		return RedisItemReader.client(client, codec).jobRepository(jobRepository)
+				.options(readerOptions(DataSize.ofBytes(0)));
 	}
 
 	protected void flushAll(AbstractRedisClient client) {

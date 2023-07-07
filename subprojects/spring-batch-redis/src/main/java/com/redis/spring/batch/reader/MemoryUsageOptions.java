@@ -4,8 +4,8 @@ import org.springframework.util.unit.DataSize;
 
 public class MemoryUsageOptions {
 
-	private static final DataSize DEFAULT_LIMIT = DataSize.ofMegabytes(100);
-	private static final int DEFAULT_SAMPLES = 5;
+	public static final DataSize DEFAULT_LIMIT = DataSize.ofMegabytes(100);
+	public static final int DEFAULT_SAMPLES = 5;
 
 	private DataSize limit = DEFAULT_LIMIT;
 	private int samples = DEFAULT_SAMPLES;
@@ -21,7 +21,8 @@ public class MemoryUsageOptions {
 
 	/**
 	 * 
-	 * @param limit maximum memory usage for a given key. Use 0 to disable memory usage checks, -1 for no limit.
+	 * @param limit maximum memory usage for a given key. Use 0 to disable memory
+	 *              usage checks, -1 for no limit.
 	 */
 	public void setLimit(DataSize limit) {
 		this.limit = limit;

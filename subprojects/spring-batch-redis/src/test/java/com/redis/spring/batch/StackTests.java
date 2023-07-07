@@ -26,8 +26,6 @@ import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
-import com.redis.spring.batch.reader.MemoryUsageOptions;
-import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.writer.OperationItemWriter;
@@ -191,9 +189,8 @@ class StackTests extends AbstractModulesTests {
 	void structsMemUsage(TestInfo testInfo) throws Exception {
 		generate(testInfo);
 		long memLimit = 200;
-		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().limit(DataSize.ofBytes(memLimit)).build();
-		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
-		RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions).struct();
+		RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions(DataSize.ofBytes(memLimit)))
+				.struct();
 		reader.open(new ExecutionContext());
 		KeyValue<String> ds;
 		while ((ds = reader.read()) != null) {
@@ -207,9 +204,8 @@ class StackTests extends AbstractModulesTests {
 	@Test
 	void replicateStructsMemLimit(TestInfo testInfo) throws Exception {
 		generate(testInfo);
-		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().limit(DataSize.ofMegabytes(100)).build();
-		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
-		RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions).struct();
+		RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions(DataSize.ofMegabytes(100)))
+				.struct();
 		RedisItemWriter<String, String> writer = structTargetWriter();
 		run(testInfo, reader, writer);
 		Assertions.assertTrue(isOk(compare(testInfo)));
@@ -218,10 +214,8 @@ class StackTests extends AbstractModulesTests {
 	@Test
 	void replicateDumpsMemLimitHigh(TestInfo testInfo) throws Exception {
 		generate(testInfo);
-		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().limit(DataSize.ofMegabytes(100)).build();
-		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
-		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).options(readerOptions)
-				.dump();
+		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE)
+				.options(readerOptions(DataSize.ofMegabytes(100))).dump();
 		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).dump();
 		run(testInfo, reader, writer);
 		Assertions.assertTrue(isOk(compare(testInfo)));
@@ -250,15 +244,47 @@ class StackTests extends AbstractModulesTests {
 		generate(testInfo);
 		Assertions.assertTrue(sourceConnection.sync().dbsize() > 10);
 		long memLimit = 1500;
-		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().limit(DataSize.ofBytes(memLimit)).build();
-		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
-		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).options(readerOptions)
-				.dump();
+		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE)
+				.options(readerOptions(DataSize.ofBytes(memLimit))).dump();
 		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).dump();
 		run(testInfo, reader, writer);
-		List<KeyValue<String>> items = readAll(reader(sourceClient).struct());
+		RedisItemReader<String, String> fullReader = RedisItemReader.client(sourceClient, StringCodec.UTF8)
+				.jobRepository(jobRepository).options(readerOptions(DataSize.ofBytes(-1))).struct();
+		List<KeyValue<String>> items = readAll(fullReader);
 		List<KeyValue<String>> bigkeys = items.stream().filter(ds -> ds.getMemoryUsage() > memLimit)
 				.collect(Collectors.toList());
 		Assertions.assertEquals(sourceConnection.sync().dbsize(), bigkeys.size() + targetConnection.sync().dbsize());
+	}
+
+	@Test
+	void replicateMemLimit(TestInfo testInfo) throws Exception {
+		DataSize limit = DataSize.ofBytes(500);
+		String key1 = "key:1";
+		sourceConnection.sync().set(key1, "bar");
+		String key2 = "key:2";
+		sourceConnection.sync().set(key2, GeneratorItemReader.randomString(Math.toIntExact(limit.toBytes() * 2)));
+		RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions(limit)).struct();
+		SynchronizedListItemWriter<KeyValue<String>> writer = new SynchronizedListItemWriter<>();
+		run(testInfo, reader, writer);
+		Map<String, KeyValue<String>> map = writer.getItems().stream()
+				.collect(Collectors.toMap(s -> s.getKey(), s -> s));
+		Assertions.assertNull(map.get(key2).getValue());
+	}
+
+	@Test
+	void blockBigKeys() throws Exception {
+		enableKeyspaceNotifications(sourceClient);
+		LiveRedisItemReader<String, String> reader = reader(sourceClient).live()
+				.options(readerOptions(DataSize.ofBytes(300))).struct();
+		reader.setName("blockBigKeys");
+		reader.open(new ExecutionContext());
+		RedisModulesCommands<String, String> commands = sourceConnection.sync();
+		String key = "key:1";
+		for (int index = 0; index < 30; index++) {
+			commands.sadd(key, "value:" + index);
+			Thread.sleep(10);
+		}
+		Assertions.assertTrue(reader.getKeyReader().getBlockedKeys().contains(key));
+		reader.close();
 	}
 }

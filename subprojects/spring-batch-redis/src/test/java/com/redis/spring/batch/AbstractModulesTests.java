@@ -33,7 +33,6 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
-import org.springframework.util.unit.DataSize;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -63,9 +62,7 @@ import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
-import com.redis.spring.batch.reader.MemoryUsageOptions;
 import com.redis.spring.batch.reader.QueueOptions;
-import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter.Results;
 import com.redis.spring.batch.writer.MergePolicy;
@@ -445,23 +442,6 @@ abstract class AbstractModulesTests extends AbstractTests {
 	}
 
 	@Test
-	void replicateMemLimit(TestInfo testInfo) throws Exception {
-		DataSize limit = DataSize.ofBytes(500);
-		String key1 = "key:1";
-		sourceConnection.sync().set(key1, "bar");
-		String key2 = "key:2";
-		sourceConnection.sync().set(key2, GeneratorItemReader.randomString(Math.toIntExact(limit.toBytes() * 2)));
-		RedisItemReader<String, String> reader = reader(sourceClient).options(
-				ReaderOptions.builder().memoryUsageOptions(MemoryUsageOptions.builder().limit(limit).build()).build())
-				.struct();
-		SynchronizedListItemWriter<KeyValue<String>> writer = new SynchronizedListItemWriter<>();
-		run(testInfo, reader, writer);
-		Map<String, KeyValue<String>> map = writer.getItems().stream()
-				.collect(Collectors.toMap(s -> s.getKey(), s -> s));
-		Assertions.assertNull(map.get(key2).getValue());
-	}
-
-	@Test
 	void replicateHLL(TestInfo testInfo) throws Exception {
 		String key1 = "hll:1";
 		sourceConnection.sync().pfadd(key1, "member:1", "member:2");
@@ -590,25 +570,6 @@ abstract class AbstractModulesTests extends AbstractTests {
 		commands.zadd(key, 3, "member3");
 		awaitUntil(() -> reader.getQueue().size() == 1);
 		Assertions.assertEquals(key, reader.read());
-		reader.close();
-	}
-
-	@Test
-	void blockBigKeys() throws Exception {
-		enableKeyspaceNotifications(sourceClient);
-		LiveRedisItemReader<String, String> reader = reader(sourceClient).live()
-				.options(ReaderOptions.builder()
-						.memoryUsageOptions(MemoryUsageOptions.builder().limit(DataSize.ofBytes(300)).build()).build())
-				.struct();
-		reader.setName("blockBigKeys");
-		reader.open(new ExecutionContext());
-		RedisModulesCommands<String, String> commands = sourceConnection.sync();
-		String key = "key:1";
-		for (int index = 0; index < 30; index++) {
-			commands.sadd(key, "value:" + index);
-			Thread.sleep(10);
-		}
-		Assertions.assertTrue(reader.getKeyReader().getBlockedKeys().contains(key));
 		reader.close();
 	}
 
