@@ -26,6 +26,8 @@ import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.MemoryUsageOptions;
+import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.writer.OperationItemWriter;
@@ -176,6 +178,7 @@ class StackTests extends AbstractModulesTests {
 		long ttl = System.currentTimeMillis() + 123456;
 		sourceConnection.sync().pexpireat(key, ttl);
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
+		operation.setMemoryUsageOptions(MemoryUsageOptions.builder().limit(DataSize.ofBytes(-1)).build());
 		open(operation);
 		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
 		KeyValue<String> ds = future.get();
@@ -237,6 +240,10 @@ class StackTests extends AbstractModulesTests {
 			((ItemStream) reader).close();
 		}
 		return items;
+	}
+
+	private ReaderOptions readerOptions(DataSize size) {
+		return ReaderOptions.builder().memoryUsageOptions(MemoryUsageOptions.builder().limit(size).build()).build();
 	}
 
 	@Test

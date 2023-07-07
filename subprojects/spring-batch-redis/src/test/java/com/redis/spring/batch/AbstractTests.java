@@ -60,7 +60,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.util.Assert;
-import org.springframework.util.unit.DataSize;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
@@ -80,7 +79,6 @@ import com.redis.spring.batch.reader.GeneratorItemReader.StreamOptions;
 import com.redis.spring.batch.reader.GeneratorItemReader.Type;
 import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
-import com.redis.spring.batch.reader.MemoryUsageOptions;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
@@ -279,10 +277,6 @@ abstract class AbstractTests {
 		return jobBuilderFactory.get(name(testInfo));
 	}
 
-	protected ReaderOptions readerOptions(DataSize size) {
-		return ReaderOptions.builder().memoryUsageOptions(MemoryUsageOptions.builder().limit(size).build()).build();
-	}
-
 	protected void generate(TestInfo testInfo) throws JobExecutionException {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(100);
@@ -318,8 +312,7 @@ abstract class AbstractTests {
 	}
 
 	protected <K, V> RedisItemReader.Builder<K, V> reader(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		return RedisItemReader.client(client, codec).jobRepository(jobRepository)
-				.options(readerOptions(DataSize.ofBytes(0)));
+		return RedisItemReader.client(client, codec).jobRepository(jobRepository);
 	}
 
 	protected void flushAll(AbstractRedisClient client) {
