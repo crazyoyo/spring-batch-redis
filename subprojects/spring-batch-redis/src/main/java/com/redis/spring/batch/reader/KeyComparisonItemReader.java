@@ -13,15 +13,11 @@ import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemReader.BaseScanBuilder;
-import com.redis.spring.batch.RedisItemReader.ScanBuilder;
-import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Openable;
-import com.redis.spring.batch.common.OperationItemStreamSupport;
+import com.redis.spring.batch.common.OperationItemProcessor;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -33,25 +29,24 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 
 	private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-	private final RedisItemReader<String, String, DataStructure<String>> left;
-	private final RedisItemReader<String, String, DataStructure<String>> right;
+	private final RedisItemReader<String, String> left;
+	private final RedisItemReader<String, String> right;
 
 	private int chunkSize = ReaderOptions.DEFAULT_CHUNK_SIZE;
-	private OperationItemStreamSupport<String, String, String, DataStructure<String>> rightOperationProcessor;
+	private OperationItemProcessor<String, String, String, KeyValue<String>> rightOperationProcessor;
 	private Iterator<KeyComparison> iterator = Collections.emptyIterator();
 
-	public KeyComparisonItemReader(RedisItemReader<String, String, DataStructure<String>> left,
-			RedisItemReader<String, String, DataStructure<String>> right) {
+	public KeyComparisonItemReader(RedisItemReader<String, String> left, RedisItemReader<String, String> right) {
 		this.left = left;
 		this.right = right;
 		setName(ClassUtils.getShortName(getClass()));
 	}
 
-	public RedisItemReader<String, String, DataStructure<String>> getLeft() {
+	public RedisItemReader<String, String> getLeft() {
 		return left;
 	}
 
-	public RedisItemReader<String, String, DataStructure<String>> getRight() {
+	public RedisItemReader<String, String> getRight() {
 		return right;
 	}
 
@@ -99,13 +94,13 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 		if (iterator.hasNext()) {
 			return iterator.next();
 		}
-		List<DataStructure<String>> leftItems = readChunk();
-		List<String> keys = leftItems.stream().map(DataStructure::getKey).collect(Collectors.toList());
-		List<DataStructure<String>> rightItems = rightOperationProcessor.process(keys);
+		List<KeyValue<String>> leftItems = readChunk();
+		List<String> keys = leftItems.stream().map(KeyValue::getKey).collect(Collectors.toList());
+		List<KeyValue<String>> rightItems = rightOperationProcessor.process(keys);
 		List<KeyComparison> results = new ArrayList<>();
 		for (int index = 0; index < leftItems.size(); index++) {
-			DataStructure<String> leftItem = leftItems.get(index);
-			DataStructure<String> rightItem = getElement(rightItems, index);
+			KeyValue<String> leftItem = leftItems.get(index);
+			KeyValue<String> rightItem = getElement(rightItems, index);
 			Status status = compare(leftItem, rightItem);
 			results.add(new KeyComparison(leftItem, rightItem, status));
 		}
@@ -123,16 +118,16 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 		return list.get(index);
 	}
 
-	private List<DataStructure<String>> readChunk() throws Exception {
-		List<DataStructure<String>> items = new ArrayList<>();
-		DataStructure<String> item;
+	private List<KeyValue<String>> readChunk() throws Exception {
+		List<KeyValue<String>> items = new ArrayList<>();
+		KeyValue<String> item;
 		while (items.size() < chunkSize && (item = left.read()) != null) {
 			items.add(item);
 		}
 		return items;
 	}
 
-	private Status compare(DataStructure<String> left, DataStructure<String> right) {
+	private Status compare(KeyValue<String> left, KeyValue<String> right) {
 		if (right == null) {
 			return Status.MISSING;
 		}
@@ -162,48 +157,18 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 		return Math.abs(source - target) <= ttlTolerance.toMillis();
 	}
 
-	public static Builder compare(RedisModulesClient left, RedisModulesClient right) {
+	public static Builder builder(AbstractRedisClient left, AbstractRedisClient right) {
 		return new Builder(left, right);
 	}
 
-	public static Builder compare(RedisModulesClient left, RedisModulesClusterClient right) {
-		return new Builder(left, right);
-	}
-
-	public static Builder compare(RedisModulesClusterClient left, RedisModulesClient right) {
-		return new Builder(left, right);
-	}
-
-	public static Builder compare(RedisModulesClusterClient left, RedisModulesClusterClient right) {
-		return new Builder(left, right);
-	}
-
-	public static class IntermediaryBuilder {
-
-		private final AbstractRedisClient left;
-
-		public IntermediaryBuilder(AbstractRedisClient left) {
-			this.left = left;
-		}
-
-		public Builder right(RedisModulesClient right) {
-			return new Builder(left, right);
-		}
-
-		public Builder right(RedisModulesClusterClient right) {
-			return new Builder(left, right);
-		}
-
-	}
-
-	public static class Builder extends BaseScanBuilder<Builder> {
+	public static class Builder extends BaseScanBuilder<String, String, Builder> {
 
 		private final AbstractRedisClient right;
 		private Duration ttlTolerance = KeyComparisonItemReader.DEFAULT_TTL_TOLERANCE;
 		private ReaderOptions rightOptions = ReaderOptions.builder().build();
 
 		public Builder(AbstractRedisClient left, AbstractRedisClient right) {
-			super(left);
+			super(left, StringCodec.UTF8);
 			this.right = right;
 		}
 
@@ -218,13 +183,18 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 		}
 
 		public KeyComparisonItemReader build() {
-			RedisItemReader<String, String, DataStructure<String>> leftReader = new RedisItemReader<>(client,
-					StringCodec.UTF8, new StringDataStructureReadOperation(client));
-			RedisItemReader<String, String, DataStructure<String>> rightReader = new ScanBuilder(right)
-					.jobRepository(jobRepository).options(rightOptions).scanOptions(scanOptions).dataStructure();
+			RedisItemReader<String, String> leftReader = reader(client).options(options).struct();
+			RedisItemReader<String, String> rightReader = reader(right).options(rightOptions).struct();
 			KeyComparisonItemReader reader = new KeyComparisonItemReader(leftReader, rightReader);
 			reader.setTtlTolerance(ttlTolerance);
 			return reader;
+		}
+
+		private RedisItemReader.Builder<String, String> reader(AbstractRedisClient client) {
+			RedisItemReader.Builder<String, String> builder = new RedisItemReader.Builder<>(client, StringCodec.UTF8);
+			builder.jobRepository(jobRepository);
+			builder.scanOptions(scanOptions);
+			return builder;
 		}
 
 	}

@@ -1,9 +1,12 @@
 package com.redis.spring.batch.reader;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -16,12 +19,12 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.common.SetBlockingQueue;
 import com.redis.spring.batch.common.Utils;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubAdapter;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
@@ -49,11 +52,25 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
 	private BlockingQueue<KeyspaceNotification> queue;
 	private KeyspaceNotificationPublisher publisher;
+	// Used to dynamically block problematic keys (e.g. big keys)
+	private final Set<String> blockedKeys = new HashSet<>();
 
 	public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.codec = codec;
+	}
+
+	public Set<String> getBlockedKeys() {
+		return blockedKeys;
+	}
+
+	public void blockKeys(String... keys) {
+		blockKeys(Arrays.asList(keys));
+	}
+
+	public void blockKeys(Iterable<String> keys) {
+		keys.forEach(blockedKeys::add);
 	}
 
 	public void addListener(KeyspaceNotificationListener listener) {
@@ -95,11 +112,11 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
 	private KeyspaceNotificationPublisher publisher() {
 		String pattern = pattern(options.getDatabase(), options.getMatch());
-		if (client instanceof RedisModulesClusterClient) {
-			return new RedisClusterKeyspaceNotificationPublisher(((RedisModulesClusterClient) client).connectPubSub(),
+		if (client instanceof RedisClusterClient) {
+			return new RedisClusterKeyspaceNotificationPublisher(((RedisClusterClient) client).connectPubSub(),
 					pattern);
 		}
-		return new RedisKeyspaceNotificationPublisher(((RedisModulesClient) client).connectPubSub(), pattern);
+		return new RedisKeyspaceNotificationPublisher(((RedisClient) client).connectPubSub(), pattern);
 	}
 
 	@Override
@@ -114,6 +131,9 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 	private void notification(String channel, String message) {
 		if (channel != null) {
 			String key = channel.substring(channel.indexOf(SEPARATOR) + 1);
+			if (blockedKeys.contains(key)) {
+				return;
+			}
 			KeyEventType eventType = eventType(message);
 			Optional<String> type = options.getType();
 			if (!type.isPresent() || type.get().equals(eventType.getType())) {

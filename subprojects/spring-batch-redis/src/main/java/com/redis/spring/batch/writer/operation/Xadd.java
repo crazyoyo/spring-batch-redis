@@ -12,7 +12,7 @@ import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 
-public class Xadd<K, V, T> extends AbstractWriteOperation<K, V, T, String> {
+public class Xadd<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
 	private final Function<T, XAddArgs> args;
 	private final Function<T, Map<K, V>> body;

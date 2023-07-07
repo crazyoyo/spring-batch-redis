@@ -10,7 +10,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Expire<K, V, T> extends AbstractWriteOperation<K, V, T, Boolean> {
+public class Expire<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
 	private final Function<T, Long> milliseconds;
 

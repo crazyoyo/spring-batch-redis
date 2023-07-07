@@ -1,11 +1,8 @@
 package com.redis.spring.batch.writer;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
-
-import org.springframework.util.Assert;
 
 import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.DelegatingItemStreamSupport;
@@ -18,25 +15,20 @@ import io.lettuce.core.cluster.PipelinedRedisFuture;
 public class ReplicaWaitWriteOperation<K, V, T, U> extends DelegatingItemStreamSupport
 		implements BatchOperation<K, V, T, U> {
 
-	public static final int DEFAULT_REPLICAS = 0;
-	public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(1);
-
 	private final BatchOperation<K, V, T, ?> delegate;
-	private int replicas = DEFAULT_REPLICAS;
-	private Duration timeout = DEFAULT_TIMEOUT;
+	private ReplicaWaitOptions options = ReplicaWaitOptions.builder().build();
 
 	public ReplicaWaitWriteOperation(BatchOperation<K, V, T, ?> delegate) {
 		super(delegate);
 		this.delegate = delegate;
 	}
 
-	public void setReplicas(int replicas) {
-		this.replicas = replicas;
+	public ReplicaWaitOptions getOptions() {
+		return options;
 	}
 
-	public void setTimeout(Duration timeout) {
-		Assert.notNull(timeout, "Replication timeout should not be null");
-		this.timeout = timeout;
+	public void setOptions(ReplicaWaitOptions options) {
+		this.options = options;
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -49,12 +41,26 @@ public class ReplicaWaitWriteOperation<K, V, T, U> extends DelegatingItemStreamS
 	}
 
 	private RedisFuture<?> replicationFuture(BaseRedisAsyncCommands<K, V> commands) {
-		return new PipelinedRedisFuture<>(commands.waitForReplication(replicas, timeout.toMillis()).thenAccept(r -> {
-			if (r < replicas) {
-				throw new RedisCommandExecutionException(
-						String.format("Insufficient replication level - expected: %s, actual: %s", replicas, r));
-			}
-		}));
+		return new PipelinedRedisFuture<>(
+				commands.waitForReplication(options.getReplicas(), options.getTimeout().toMillis())
+						.thenAccept(this::checkReplicas));
+	}
+
+	private void checkReplicas(Long actual) {
+		if (actual == null || actual < options.getReplicas()) {
+			throw new InsufficientReplicasException(options.getReplicas(), actual);
+		}
+	}
+
+	private static class InsufficientReplicasException extends RedisCommandExecutionException {
+
+		private static final long serialVersionUID = 1L;
+		private static final String MESSAGE = "Insufficient replication level - expected: %s, actual: %s";
+
+		public InsufficientReplicasException(long expected, long actual) {
+			super(String.format(MESSAGE, expected, actual));
+		}
+
 	}
 
 }

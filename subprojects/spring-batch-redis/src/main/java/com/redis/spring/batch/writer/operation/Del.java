@@ -6,7 +6,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Del<K, V, T> extends AbstractWriteOperation<K, V, T, Long> {
+public class Del<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
 	public Del(Function<T, K> key) {
 		super(key);

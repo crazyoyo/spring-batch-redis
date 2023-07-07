@@ -7,7 +7,7 @@ import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class JsonSet<K, V, T> extends AbstractWriteOperation<K, V, T, String> {
+public class JsonSet<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
 	private final Function<T, String> path;
 	private final Function<T, V> value;

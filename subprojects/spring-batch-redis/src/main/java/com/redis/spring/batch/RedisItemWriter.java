@@ -1,130 +1,114 @@
 package com.redis.spring.batch;
 
-import java.time.Duration;
-import java.util.List;
-
-import org.springframework.batch.item.ItemStreamWriter;
-
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.spring.batch.common.BatchOperation;
-import com.redis.spring.batch.common.DataStructure;
-import com.redis.spring.batch.common.KeyDump;
-import com.redis.spring.batch.common.Operation;
-import com.redis.spring.batch.common.OperationItemStreamSupport;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.SimpleBatchOperation;
-import com.redis.spring.batch.writer.DataStructureWriteOperation;
-import com.redis.spring.batch.writer.MergePolicy;
-import com.redis.spring.batch.writer.MultiExecWriteOperation;
-import com.redis.spring.batch.writer.ReplicaWaitWriteOperation;
-import com.redis.spring.batch.writer.StreamIdPolicy;
+import com.redis.spring.batch.common.ValueType;
+import com.redis.spring.batch.writer.AbstractRedisItemWriter;
+import com.redis.spring.batch.writer.StructOptions;
+import com.redis.spring.batch.writer.StructWriteOperation;
+import com.redis.spring.batch.writer.WriterOptions;
 import com.redis.spring.batch.writer.operation.RestoreReplace;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemWriter<K, V, T> extends OperationItemStreamSupport<K, V, T, Object>
-		implements ItemStreamWriter<T> {
+public class RedisItemWriter<K, V> extends AbstractRedisItemWriter<K, V, KeyValue<K>> {
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public RedisItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec, BatchOperation<K, V, T, ?> operation) {
-		super(client, codec, (BatchOperation) operation);
+	private final ValueType valueType;
+	private StructOptions structWriteOptions = StructOptions.builder().build();
+
+	public RedisItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec, ValueType valueType) {
+		super(client, codec);
+		this.valueType = valueType;
+	}
+
+	public StructOptions getStructWriteOptions() {
+		return structWriteOptions;
+	}
+
+	public void setStructOptions(StructOptions structWriteOptions) {
+		this.structWriteOptions = structWriteOptions;
+	}
+
+	public ValueType getValueType() {
+		return valueType;
 	}
 
 	@Override
-	public synchronized void write(List<? extends T> items) throws Exception {
-		process(items);
+	protected BatchOperation<K, V, KeyValue<K>, Object> operation() {
+		if (valueType == ValueType.DUMP) {
+			return new SimpleBatchOperation<>(restoreOperation());
+		}
+		StructWriteOperation<K, V> operation = new StructWriteOperation<>();
+		operation.setOptions(structWriteOptions);
+		return operation;
 	}
 
-	public static WriterBuilder client(RedisModulesClient client) {
-		return new WriterBuilder(client);
+	private RestoreReplace<K, V, KeyValue<K>> restoreOperation() {
+		return new RestoreReplace<>(KeyValue::getKey, v -> (byte[]) v.getValue(), KeyValue::getTtl);
 	}
 
-	public static WriterBuilder client(RedisModulesClusterClient client) {
-		return new WriterBuilder(client);
+	public static Builder<String, String> client(AbstractRedisClient client) {
+		return client(client, StringCodec.UTF8);
 	}
 
-	public static class WriterBuilder {
+	public static <K, V> Builder<K, V> client(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		return new Builder<>(client, codec);
+	}
+
+	public abstract static class BaseBuilder<K, V, B extends BaseBuilder<K, V, B>> {
 
 		protected final AbstractRedisClient client;
+		protected final RedisCodec<K, V> codec;
 
-		private int waitReplicas = ReplicaWaitWriteOperation.DEFAULT_REPLICAS;
-		private Duration waitTimeout = ReplicaWaitWriteOperation.DEFAULT_TIMEOUT;
-		private boolean multiExec;
-		protected MergePolicy mergePolicy = DataStructureWriteOperation.DEFAULT_MERGE_POLICY;
-		protected StreamIdPolicy streamIdPolicy = DataStructureWriteOperation.DEFAULT_STREAM_ID_POLICY;
+		protected WriterOptions options = WriterOptions.builder().build();
 
-		public WriterBuilder(AbstractRedisClient client) {
+		protected BaseBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			this.client = client;
+			this.codec = codec;
 		}
 
-		public WriterBuilder mergePolicy(MergePolicy policy) {
-			this.mergePolicy = policy;
+		@SuppressWarnings("unchecked")
+		public B options(WriterOptions options) {
+			this.options = options;
+			return (B) this;
+		}
+
+		protected void configure(AbstractRedisItemWriter<K, V, ?> writer) {
+			writer.setOptions(options);
+		}
+
+	}
+
+	public static class Builder<K, V> extends BaseBuilder<K, V, Builder<K, V>> {
+
+		private StructOptions structOptions = StructOptions.builder().build();
+
+		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+			super(client, codec);
+		}
+
+		public Builder<K, V> structOptions(StructOptions options) {
+			this.structOptions = options;
 			return this;
 		}
 
-		public WriterBuilder streamIdPolicy(StreamIdPolicy policy) {
-			this.streamIdPolicy = policy;
-			return this;
+		public RedisItemWriter<K, V> dump() {
+			return build(ValueType.DUMP);
 		}
 
-		public WriterBuilder multiExec(boolean multiExec) {
-			this.multiExec = multiExec;
-			return this;
+		public RedisItemWriter<K, V> build(ValueType type) {
+			RedisItemWriter<K, V> writer = new RedisItemWriter<>(client, codec, type);
+			configure(writer);
+			return writer;
 		}
 
-		public WriterBuilder waitReplicas(int replicas) {
-			this.waitReplicas = replicas;
-			return this;
-		}
-
-		public WriterBuilder waitTimeout(Duration timeout) {
-			this.waitTimeout = timeout;
-			return this;
-		}
-
-		protected <K, V, T> RedisItemWriter<K, V, T> build(RedisCodec<K, V> codec, Operation<K, V, T, ?> operation) {
-			return build(codec, SimpleBatchOperation.of(operation));
-		}
-
-		protected <K, V, T> RedisItemWriter<K, V, T> build(RedisCodec<K, V> codec,
-				BatchOperation<K, V, T, ?> operation) {
-			if (waitReplicas > 0) {
-				ReplicaWaitWriteOperation<K, V, T, ?> replicaOperation = new ReplicaWaitWriteOperation<>(operation);
-				replicaOperation.setReplicas(waitReplicas);
-				replicaOperation.setTimeout(waitTimeout);
-				operation = replicaOperation;
-			}
-			if (multiExec) {
-				operation = new MultiExecWriteOperation<>(operation);
-			}
-			return new RedisItemWriter<>(client, codec, operation);
-		}
-
-		public RedisItemWriter<String, String, DataStructure<String>> dataStructure() {
-			return dataStructure(StringCodec.UTF8);
-		}
-
-		public <K, V> RedisItemWriter<K, V, DataStructure<K>> dataStructure(RedisCodec<K, V> codec) {
-			DataStructureWriteOperation<K, V> operation = new DataStructureWriteOperation<>();
-			operation.setMergePolicy(mergePolicy);
-			operation.setStreamIdPolicy(streamIdPolicy);
-			return build(codec, operation);
-		}
-
-		public RedisItemWriter<byte[], byte[], KeyDump<byte[]>> keyDump() {
-			return build(ByteArrayCodec.INSTANCE, new RestoreReplace<byte[], byte[], KeyDump<byte[]>>(KeyDump::getKey,
-					KeyDump::getDump, KeyDump::getTtl));
-		}
-
-		public <T> RedisItemWriter<String, String, T> operation(Operation<String, String, T, ?> operation) {
-			return operation(StringCodec.UTF8, operation);
-		}
-
-		public <K, V, T> RedisItemWriter<K, V, T> operation(RedisCodec<K, V> codec, Operation<K, V, T, ?> operation) {
-			return build(codec, operation);
+		public RedisItemWriter<K, V> struct() {
+			RedisItemWriter<K, V> writer = build(ValueType.STRUCT);
+			writer.setStructOptions(structOptions);
+			return writer;
 		}
 
 	}

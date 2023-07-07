@@ -28,7 +28,7 @@ import org.springframework.util.FileCopyUtils;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.spring.batch.reader.AbstractLuaReadOperation;
+import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.PollableItemReader;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -158,7 +158,7 @@ public interface Utils {
 	@SuppressWarnings("unchecked")
 	static String loadScript(Supplier<StatefulConnection<String, String>> connectionSupplier, String filename) {
 		byte[] bytes;
-		try (InputStream inputStream = AbstractLuaReadOperation.class.getClassLoader().getResourceAsStream(filename)) {
+		try (InputStream inputStream = KeyValueReadOperation.class.getClassLoader().getResourceAsStream(filename)) {
 			bytes = FileCopyUtils.copyToByteArray(inputStream);
 		} catch (IOException e) {
 			throw new ItemStreamException("Could not read LUA script file " + filename);

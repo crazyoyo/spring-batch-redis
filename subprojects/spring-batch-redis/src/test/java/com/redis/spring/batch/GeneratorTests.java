@@ -12,7 +12,6 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
-import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 
@@ -23,14 +22,14 @@ class GeneratorTests {
 		int count = 123;
 		GeneratorItemReader reader = new GeneratorItemReader();
 		reader.setMaxItemCount(count);
-		List<DataStructure<String>> list = readAll(reader);
+		List<KeyValue<String>> list = readAll(reader);
 		Assertions.assertEquals(count, list.size());
 	}
 
-	private List<DataStructure<String>> readAll(GeneratorItemReader reader)
+	private List<KeyValue<String>> readAll(GeneratorItemReader reader)
 			throws UnexpectedInputException, ParseException, Exception {
-		List<DataStructure<String>> list = new ArrayList<>();
-		DataStructure<String> ds;
+		List<KeyValue<String>> list = new ArrayList<>();
+		KeyValue<String> ds;
 		while ((ds = reader.read()) != null) {
 			list.add(ds);
 		}
@@ -42,9 +41,9 @@ class GeneratorTests {
 		int count = 123;
 		GeneratorItemReader reader = new GeneratorItemReader();
 		reader.setMaxItemCount(count);
-		List<DataStructure<String>> list = readAll(reader);
+		List<KeyValue<String>> list = readAll(reader);
 		Assertions.assertEquals(count, list.size());
-		for (DataStructure<String> ds : list) {
+		for (KeyValue<String> ds : list) {
 			switch (ds.getType()) {
 			case KeyValue.SET:
 				Assertions.assertEquals(GeneratorItemReader.DEFAULT_SET_OPTIONS.getCardinality().getMax(),
@@ -74,7 +73,7 @@ class GeneratorTests {
 		GeneratorItemReader reader = new GeneratorItemReader();
 		reader.open(new ExecutionContext());
 		reader.setMaxItemCount(456);
-		DataStructure<String> ds1 = reader.read();
+		KeyValue<String> ds1 = reader.read();
 		assertEquals("gen:1", ds1.getKey());
 		int actualCount = 1;
 		while (reader.read() != null) {

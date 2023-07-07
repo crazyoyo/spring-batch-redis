@@ -8,7 +8,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisGeoAsyncCommands;
 
-public class Geoadd<K, V, T> extends AbstractWriteOperation<K, V, T, Long> {
+public class Geoadd<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
 	private final Function<T, GeoValue<V>> value;
 	private final Function<T, GeoAddArgs> args;

@@ -1,7 +1,5 @@
 package com.redis.spring.batch.common;
 
-import java.util.Objects;
-
 public class KeyValue<K> {
 
 	public static final String NONE = "none";
@@ -19,6 +17,11 @@ public class KeyValue<K> {
 	 *
 	 */
 	private K key;
+
+	/**
+	 * Value stored at key. Null if key does not exist.
+	 */
+	protected Object value;
 
 	/**
 	 * Expiration POSIX time in milliseconds for this key.
@@ -66,27 +69,25 @@ public class KeyValue<K> {
 		this.key = key;
 	}
 
-	public static boolean isNone(DataStructure<?> item) {
-		return NONE.equals(item.getType());
+	@SuppressWarnings("unchecked")
+	public <T> T getValue() {
+		return (T) value;
 	}
 
-	@Override
-	public int hashCode() {
-		return Objects.hash(key, memoryUsage, ttl, type);
+	public void setValue(Object value) {
+		this.value = value;
 	}
 
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		@SuppressWarnings("rawtypes")
-		KeyValue other = (KeyValue) obj;
-		return Objects.equals(key, other.key) && memoryUsage == other.memoryUsage && ttl == other.ttl
-				&& Objects.equals(type, other.type);
+	public static boolean isNone(KeyValue<?> item) {
+		return isType(item, NONE);
+	}
+
+	public static boolean isType(KeyValue<?> item, String type) {
+		return type.equals(item.getType());
+	}
+
+	public static boolean isString(KeyValue<?> item) {
+		return isType(item, STRING);
 	}
 
 }

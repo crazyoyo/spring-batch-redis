@@ -16,7 +16,7 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public class OperationItemStreamSupport<K, V, I, O> extends DelegatingItemStreamSupport
+public class OperationItemProcessor<K, V, I, O> extends DelegatingItemStreamSupport
 		implements ItemProcessor<List<? extends I>, List<O>> {
 
 	private final AbstractRedisClient client;
@@ -27,7 +27,11 @@ public class OperationItemStreamSupport<K, V, I, O> extends DelegatingItemStream
 	private Optional<ReadFrom> readFrom = Optional.empty();
 	private GenericObjectPool<StatefulConnection<K, V>> pool;
 
-	public OperationItemStreamSupport(AbstractRedisClient client, RedisCodec<K, V> codec,
+	public OperationItemProcessor(AbstractRedisClient client, RedisCodec<K, V> codec, Operation<K, V, I, O> operation) {
+		this(client, codec, new SimpleBatchOperation<>(operation));
+	}
+
+	public OperationItemProcessor(AbstractRedisClient client, RedisCodec<K, V> codec,
 			BatchOperation<K, V, I, O> operation) {
 		super(operation);
 		this.client = client;

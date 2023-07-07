@@ -114,4 +114,11 @@ public class KeyspaceNotificationOptions {
 		}
 	}
 
+	public static KeyspaceNotificationOptions from(ScanOptions scanOptions) {
+		KeyspaceNotificationOptions.Builder builder = KeyspaceNotificationOptions.builder();
+		builder.match(scanOptions.getMatch());
+		builder.type(scanOptions.getType());
+		return builder.build();
+	}
+
 }

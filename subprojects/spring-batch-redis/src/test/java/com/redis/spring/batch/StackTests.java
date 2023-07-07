@@ -22,17 +22,15 @@ import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.spring.batch.RedisItemWriter.WriterBuilder;
-import com.redis.spring.batch.common.DataStructure;
-import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.GeneratorItemReader;
+import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.MemoryUsageOptions;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StreamItemReader;
-import com.redis.spring.batch.reader.StringDataStructureReadOperation;
+import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
@@ -43,6 +41,8 @@ import io.lettuce.core.Range;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.sync.RedisStreamCommands;
+import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.codec.StringCodec;
 
 class StackTests extends AbstractModulesTests {
 
@@ -60,13 +60,21 @@ class StackTests extends AbstractModulesTests {
 	}
 
 	@Test
-	void dataStructures(TestInfo testInfo) throws Exception {
+	void structs(TestInfo testInfo) throws Exception {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(100);
 		generate(testInfo, gen);
-		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
-		run(testInfo, reader, dataStructureTargetWriter());
+		RedisItemReader<String, String> reader = structSourceReader();
+		run(testInfo, reader, structTargetWriter());
 		Assertions.assertTrue(isOk(compare(testInfo)));
+	}
+
+	private RedisItemWriter<String, String> structTargetWriter() {
+		return writer(targetClient).struct();
+	}
+
+	private RedisItemReader<String, String> structSourceReader() {
+		return reader(sourceClient).struct();
 	}
 
 	@Test
@@ -74,19 +82,19 @@ class StackTests extends AbstractModulesTests {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(100);
 		generate(testInfo, gen);
-		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader();
-		run(testInfo, reader, keyDumpWriter(targetClient));
+		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).dump();
+		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).dump();
+		run(testInfo, reader, writer);
 		Assertions.assertTrue(isOk(compare(testInfo)));
 	}
 
 	@Test
 	void liveTypeBasedReplication(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
-		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
-		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter();
-		LiveRedisItemReader<String, String, DataStructure<String>> liveReader = liveReader(sourceClient)
-				.dataStructure();
-		RedisItemWriter<String, String, DataStructure<String>> liveWriter = dataStructureTargetWriter();
+		RedisItemReader<String, String> reader = structSourceReader();
+		RedisItemWriter<String, String> writer = structTargetWriter();
+		LiveRedisItemReader<String, String> liveReader = reader(sourceClient).live().struct();
+		RedisItemWriter<String, String> liveWriter = structTargetWriter();
 		liveReplication(testInfo, reader, writer, liveReader, liveWriter);
 	}
 
@@ -147,8 +155,9 @@ class StackTests extends AbstractModulesTests {
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
 		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(t -> stream, Function.identity(), m -> null);
-		RedisItemWriter<String, String, Map<String, String>> writer = new WriterBuilder(sourceClient).multiExec(true)
-				.operation(xadd);
+		OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(sourceClient,
+				StringCodec.UTF8, xadd);
+		writer.getOptions().setMultiExec(true);
 		run(testInfo, reader, writer);
 		RedisStreamCommands<String, String> sync = sourceConnection.sync();
 		Assertions.assertEquals(messages.size(), sync.xlen(stream));
@@ -168,10 +177,10 @@ class StackTests extends AbstractModulesTests {
 		sourceConnection.sync().hset(key, hash);
 		long ttl = System.currentTimeMillis() + 123456;
 		sourceConnection.sync().pexpireat(key, ttl);
-		StringDataStructureReadOperation operation = new StringDataStructureReadOperation(sourceClient);
-		operation.setMemoryUsageOptions(MemoryUsageOptions.builder().enabled(true).build());
-		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key);
-		DataStructure<String> ds = future.get();
+		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
+		open(operation);
+		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
+		KeyValue<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(ttl, ds.getTtl());
 		Assertions.assertEquals(KeyValue.HASH, ds.getType());
@@ -179,16 +188,14 @@ class StackTests extends AbstractModulesTests {
 	}
 
 	@Test
-	void readDataStructuresMemUsage(TestInfo testInfo) throws Exception {
+	void structsMemUsage(TestInfo testInfo) throws Exception {
 		generate(testInfo);
 		long memLimit = 200;
-		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
-				.limit(DataSize.ofBytes(memLimit)).build();
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().limit(DataSize.ofBytes(memLimit)).build();
 		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
-		RedisItemReader<String, String, DataStructure<String>> reader = reader(sourceClient).options(readerOptions)
-				.dataStructure();
+		RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions).struct();
 		reader.open(new ExecutionContext());
-		DataStructure<String> ds;
+		KeyValue<String> ds;
 		while ((ds = reader.read()) != null) {
 			Assertions.assertTrue(ds.getMemoryUsage() > 0);
 			if (ds.getMemoryUsage() > memLimit) {
@@ -198,26 +205,24 @@ class StackTests extends AbstractModulesTests {
 	}
 
 	@Test
-	void replicateDataStructuresMemLimit(TestInfo testInfo) throws Exception {
+	void replicateStructsMemLimit(TestInfo testInfo) throws Exception {
 		generate(testInfo);
-		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
-				.limit(DataSize.ofMegabytes(100)).build();
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().limit(DataSize.ofMegabytes(100)).build();
 		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
-		RedisItemReader<String, String, DataStructure<String>> reader = reader(sourceClient).options(readerOptions)
-				.dataStructure();
-		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter();
+		RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions).struct();
+		RedisItemWriter<String, String> writer = structTargetWriter();
 		run(testInfo, reader, writer);
 		Assertions.assertTrue(isOk(compare(testInfo)));
 	}
 
 	@Test
-	void replicateKeyDumpsMemLimitHigh(TestInfo testInfo) throws Exception {
+	void replicateDumpsMemLimitHigh(TestInfo testInfo) throws Exception {
 		generate(testInfo);
-		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
-				.limit(DataSize.ofMegabytes(100)).build();
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().limit(DataSize.ofMegabytes(100)).build();
 		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
-		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = reader(sourceClient).options(readerOptions).keyDump();
-		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
+		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).options(readerOptions)
+				.dump();
+		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).dump();
 		run(testInfo, reader, writer);
 		Assertions.assertTrue(isOk(compare(testInfo)));
 	}
@@ -241,22 +246,18 @@ class StackTests extends AbstractModulesTests {
 	}
 
 	@Test
-	void replicateKeyDumpsMemLimitLow(TestInfo testInfo) throws Exception {
+	void replicateDumpsMemLimitLow(TestInfo testInfo) throws Exception {
 		generate(testInfo);
 		Assertions.assertTrue(sourceConnection.sync().dbsize() > 10);
 		long memLimit = 1500;
-		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().enabled(true)
-				.limit(DataSize.ofBytes(memLimit)).build();
+		MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().limit(DataSize.ofBytes(memLimit)).build();
 		ReaderOptions readerOptions = ReaderOptions.builder().memoryUsageOptions(memoryUsageOptions).build();
-		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = reader(sourceClient).options(readerOptions).keyDump();
-		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
+		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).options(readerOptions)
+				.dump();
+		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).dump();
 		run(testInfo, reader, writer);
-		List<DataStructure<String>> items = readAll(
-				reader(sourceClient)
-						.options(ReaderOptions.builder()
-								.memoryUsageOptions(MemoryUsageOptions.builder().enabled(true).build()).build())
-						.dataStructure());
-		List<DataStructure<String>> bigkeys = items.stream().filter(ds -> ds.getMemoryUsage() > memLimit)
+		List<KeyValue<String>> items = readAll(reader(sourceClient).struct());
+		List<KeyValue<String>> bigkeys = items.stream().filter(ds -> ds.getMemoryUsage() > memLimit)
 				.collect(Collectors.toList());
 		Assertions.assertEquals(sourceConnection.sync().dbsize(), bigkeys.size() + targetConnection.sync().dbsize());
 	}

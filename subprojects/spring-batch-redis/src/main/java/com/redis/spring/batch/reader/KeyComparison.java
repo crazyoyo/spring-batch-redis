@@ -2,7 +2,7 @@ package com.redis.spring.batch.reader;
 
 import java.util.Objects;
 
-import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.KeyValue;
 
 public class KeyComparison {
 
@@ -14,29 +14,29 @@ public class KeyComparison {
 		VALUE // Value mismatch
 	}
 
-	private DataStructure<String> source;
-	private DataStructure<String> target;
+	private KeyValue<String> source;
+	private KeyValue<String> target;
 	private Status status;
 
-	public KeyComparison(DataStructure<String> source, DataStructure<String> target, Status status) {
+	public KeyComparison(KeyValue<String> source, KeyValue<String> target, Status status) {
 		this.source = source;
 		this.target = target;
 		this.status = status;
 	}
 
-	public DataStructure<String> getSource() {
+	public KeyValue<String> getSource() {
 		return source;
 	}
 
-	public void setSource(DataStructure<String> source) {
+	public void setSource(KeyValue<String> source) {
 		this.source = source;
 	}
 
-	public DataStructure<String> getTarget() {
+	public KeyValue<String> getTarget() {
 		return target;
 	}
 
-	public void setTarget(DataStructure<String> target) {
+	public void setTarget(KeyValue<String> target) {
 		this.target = target;
 	}
 

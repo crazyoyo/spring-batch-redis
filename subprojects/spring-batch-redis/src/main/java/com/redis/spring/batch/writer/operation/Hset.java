@@ -11,7 +11,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisHashAsyncCommands;
 
-public class Hset<K, V, T> extends AbstractWriteOperation<K, V, T, Long> {
+public class Hset<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
 	private final Function<T, Map<K, V>> map;
 

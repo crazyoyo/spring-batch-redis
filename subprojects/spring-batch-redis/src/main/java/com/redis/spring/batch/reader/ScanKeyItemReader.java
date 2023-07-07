@@ -6,6 +6,7 @@ import java.util.function.Supplier;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 
+import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.Utils;
 
 import io.lettuce.core.KeyScanArgs;
@@ -13,7 +14,7 @@ import io.lettuce.core.ScanArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.api.StatefulConnection;
 
-public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
+public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> implements Openable {
 
 	private final Supplier<StatefulConnection<K, V>> connectionSupplier;
 
@@ -38,6 +39,11 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 		if (iterator == null) {
 			iterator = ScanIterator.scan(Utils.sync(connectionSupplier.get()), args());
 		}
+	}
+
+	@Override
+	public boolean isOpen() {
+		return iterator != null;
 	}
 
 	@Override

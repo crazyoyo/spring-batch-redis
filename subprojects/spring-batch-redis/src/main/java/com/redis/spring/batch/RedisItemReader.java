@@ -1,19 +1,14 @@
 package com.redis.spring.batch;
 
-import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.item.ItemReader;
+import java.util.function.Supplier;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.spring.batch.common.DataStructure;
-import com.redis.spring.batch.common.KeyDump;
-import com.redis.spring.batch.common.KeyValue;
+import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemStreamReader;
+
 import com.redis.spring.batch.common.Utils;
-import com.redis.spring.batch.reader.AbstractDataStructureReadOperation;
-import com.redis.spring.batch.reader.AbstractLuaReadOperation;
+import com.redis.spring.batch.common.ValueType;
 import com.redis.spring.batch.reader.AbstractRedisItemReader;
-import com.redis.spring.batch.reader.DataStructureReadOperation;
-import com.redis.spring.batch.reader.KeyDumpReadOperation;
 import com.redis.spring.batch.reader.KeyspaceNotificationOptions;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.ReaderOptions;
@@ -21,19 +16,18 @@ import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.ScanOptions;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemReader<K, V, T extends KeyValue<K>> extends AbstractRedisItemReader<K, V, T> {
+public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V> {
 
-	private final ScanKeyItemReader<K, V> keyReader;
+	public static final ValueType DEFAULT_VALUE_TYPE = ValueType.DUMP;
+
 	private ScanOptions scanOptions = ScanOptions.builder().build();
 
-	public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec,
-			AbstractLuaReadOperation<K, V, T> operation) {
-		super(client, codec, operation);
-		this.keyReader = new ScanKeyItemReader<>(Utils.connectionSupplier(client, codec, options.getReadFrom()));
+	public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, ValueType valueType) {
+		super(client, codec, valueType);
 	}
 
 	public ScanOptions getScanOptions() {
@@ -45,27 +39,33 @@ public class RedisItemReader<K, V, T extends KeyValue<K>> extends AbstractRedisI
 	}
 
 	@Override
-	protected ItemReader<K> keyReader() {
+	protected ItemStreamReader<K> keyReader() {
+		Supplier<StatefulConnection<K, V>> connections = Utils.connectionSupplier(client, codec, options.getReadFrom());
+		ScanKeyItemReader<K, V> keyReader = new ScanKeyItemReader<>(connections);
 		keyReader.setOptions(scanOptions);
 		return keyReader;
 	}
 
-	public static ScanBuilder client(RedisModulesClient client) {
-		return new ScanBuilder(client);
+	public static Builder<String, String> client(AbstractRedisClient client) {
+		return client(client, StringCodec.UTF8);
 	}
 
-	public static ScanBuilder client(RedisModulesClusterClient client) {
-		return new ScanBuilder(client);
+	public static <K, V> Builder<K, V> client(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		return new Builder<>(client, codec);
 	}
 
-	public static class BaseBuilder<B extends BaseBuilder<B>> {
+	public static class BaseBuilder<K, V, B extends BaseBuilder<K, V, B>> {
 
 		protected final AbstractRedisClient client;
+		protected final RedisCodec<K, V> codec;
+
 		protected JobRepository jobRepository;
 		protected ReaderOptions options = ReaderOptions.builder().build();
+		protected ItemProcessor<K, K> keyProcessor;
 
-		protected BaseBuilder(AbstractRedisClient client) {
+		protected BaseBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			this.client = client;
+			this.codec = codec;
 		}
 
 		@SuppressWarnings("unchecked")
@@ -80,20 +80,26 @@ public class RedisItemReader<K, V, T extends KeyValue<K>> extends AbstractRedisI
 			return (B) this;
 		}
 
-		protected <R extends AbstractRedisItemReader<?, ?, ?>> R configure(R reader) {
+		@SuppressWarnings("unchecked")
+		public B keyProcessor(ItemProcessor<K, K> processor) {
+			this.keyProcessor = processor;
+			return (B) this;
+		}
+
+		protected void configure(AbstractRedisItemReader<K, V> reader) {
 			reader.setJobRepository(jobRepository);
 			reader.setOptions(options);
-			return reader;
+			reader.setKeyProcessor(keyProcessor);
 		}
 
 	}
 
-	public static class BaseScanBuilder<B extends BaseScanBuilder<B>> extends BaseBuilder<B> {
+	public static class BaseScanBuilder<K, V, B extends BaseScanBuilder<K, V, B>> extends BaseBuilder<K, V, B> {
 
 		protected ScanOptions scanOptions = ScanOptions.builder().build();
 
-		protected BaseScanBuilder(AbstractRedisClient client) {
-			super(client);
+		protected BaseScanBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+			super(client, codec);
 		}
 
 		@SuppressWarnings("unchecked")
@@ -102,37 +108,40 @@ public class RedisItemReader<K, V, T extends KeyValue<K>> extends AbstractRedisI
 			return (B) this;
 		}
 
-		protected <K, V> AbstractDataStructureReadOperation<K, V> dataStructureOperation(RedisCodec<K, V> codec) {
-			return DataStructureReadOperation.of(client, codec);
+		protected void configure(RedisItemReader<K, V> reader) {
+			super.configure(reader);
+			reader.setScanOptions(scanOptions);
 		}
 
 	}
 
-	public static class ScanBuilder extends BaseScanBuilder<ScanBuilder> {
+	public static class Builder<K, V> extends BaseScanBuilder<K, V, Builder<K, V>> {
 
-		public ScanBuilder(AbstractRedisClient client) {
-			super(client);
+		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+			super(client, codec);
 		}
 
-		public LiveRedisItemReader.Builder live() {
-			LiveRedisItemReader.Builder builder = new LiveRedisItemReader.Builder(client);
+		public LiveRedisItemReader.Builder<K, V> live() {
+			LiveRedisItemReader.Builder<K, V> builder = new LiveRedisItemReader.Builder<>(client, codec);
 			builder.jobRepository(jobRepository);
 			builder.options(options);
-			builder.keyspaceNotificationOptions(KeyspaceNotificationOptions.builder().match(scanOptions.getMatch())
-					.type(scanOptions.getType()).build());
+			builder.keyProcessor(keyProcessor);
+			builder.keyspaceNotificationOptions(KeyspaceNotificationOptions.from(scanOptions));
 			return builder;
 		}
 
-		public RedisItemReader<byte[], byte[], KeyDump<byte[]>> keyDump() {
-			return configure(new RedisItemReader<>(client, ByteArrayCodec.INSTANCE, new KeyDumpReadOperation(client)));
+		public RedisItemReader<K, V> struct() {
+			return build(ValueType.STRUCT);
 		}
 
-		public RedisItemReader<String, String, DataStructure<String>> dataStructure() {
-			return dataStructure(StringCodec.UTF8);
+		public RedisItemReader<K, V> dump() {
+			return build(ValueType.DUMP);
 		}
 
-		public <K, V> RedisItemReader<K, V, DataStructure<K>> dataStructure(RedisCodec<K, V> codec) {
-			return configure(new RedisItemReader<>(client, codec, dataStructureOperation(codec)));
+		public RedisItemReader<K, V> build(ValueType valueType) {
+			RedisItemReader<K, V> reader = new RedisItemReader<>(client, codec, valueType);
+			configure(reader);
+			return reader;
 		}
 
 	}

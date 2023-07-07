@@ -34,7 +34,7 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import com.redis.spring.batch.common.DataStructure;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorItemReader.Type;
 import com.redis.spring.batch.reader.PollableItemReader;
@@ -72,16 +72,16 @@ class StepTests {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(count);
 		gen.setTypes(Arrays.asList(Type.STRING));
-		ErrorItemReader<DataStructure<String>> reader = new ErrorItemReader<>(gen);
-		SynchronizedListItemWriter<DataStructure<String>> writer = new SynchronizedListItemWriter<>();
+		ErrorItemReader<KeyValue<String>> reader = new ErrorItemReader<>(gen);
+		SynchronizedListItemWriter<KeyValue<String>> writer = new SynchronizedListItemWriter<>();
 		String name = "readKeyValueFaultTolerance";
-		FlushingStepBuilder<DataStructure<String>, DataStructure<String>> step = new FlushingStepBuilder<>(
+		FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = new FlushingStepBuilder<>(
 				stepBuilderFactory.get(name));
 		step.chunk(1);
 		step.reader(reader);
 		step.writer(writer);
 		step.options(FlushingStepOptions.builder().idleTimeout(Duration.ofMillis(300)).build());
-		FlushingFaultTolerantStepBuilder<DataStructure<String>, DataStructure<String>> ftStep = step.faultTolerant();
+		FlushingFaultTolerantStepBuilder<KeyValue<String>, KeyValue<String>> ftStep = step.faultTolerant();
 		ftStep.skip(TimeoutException.class);
 		ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
 		Job job = jobBuilderFactory.get(name).start(ftStep.build()).build();

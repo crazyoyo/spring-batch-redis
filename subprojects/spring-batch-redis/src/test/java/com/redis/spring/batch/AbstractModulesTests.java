@@ -33,6 +33,7 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.util.unit.DataSize;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,14 +48,10 @@ import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemWriter.WriterBuilder;
-import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.IntRange;
-import com.redis.spring.batch.common.KeyDump;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.convert.SampleConverter;
 import com.redis.spring.batch.convert.SuggestionConverter;
-import com.redis.spring.batch.reader.DataStructureReadOperation;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorItemReader.HashOptions;
 import com.redis.spring.batch.reader.GeneratorItemReader.Type;
@@ -62,14 +59,18 @@ import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 import com.redis.spring.batch.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.reader.KeyEventType;
+import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
+import com.redis.spring.batch.reader.MemoryUsageOptions;
 import com.redis.spring.batch.reader.QueueOptions;
-import com.redis.spring.batch.reader.StringDataStructureReadOperation;
+import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter.Results;
 import com.redis.spring.batch.writer.MergePolicy;
+import com.redis.spring.batch.writer.OperationItemWriter;
+import com.redis.spring.batch.writer.StructOptions;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Sugadd;
 import com.redis.spring.batch.writer.operation.SugaddIncr;
@@ -162,7 +163,8 @@ abstract class AbstractModulesTests extends AbstractTests {
 	void writeJSON(TestInfo testInfo) throws Exception {
 		JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>(n -> "beer:" + n.get("id").asText(),
 				JsonNode::toString, t -> ".");
-		RedisItemWriter<String, String, JsonNode> writer = new WriterBuilder(sourceClient).operation(jsonSet);
+		OperationItemWriter<String, String, JsonNode> writer = new OperationItemWriter<>(sourceClient, StringCodec.UTF8,
+				jsonSet);
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
 		run(testInfo, reader, writer);
 		Assertions.assertEquals(BEER_COUNT, sourceConnection.sync().keys("beer:*").size());
@@ -184,7 +186,8 @@ abstract class AbstractModulesTests extends AbstractTests {
 		AddOptions<String, String> addOptions = AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST)
 				.build();
 		TsAdd<String, String, Sample> tsadd = new TsAdd<>(t -> key, Function.identity(), t -> addOptions);
-		RedisItemWriter<String, String, Sample> writer = new WriterBuilder(sourceClient).operation(tsadd);
+		OperationItemWriter<String, String, Sample> writer = new OperationItemWriter<>(sourceClient, StringCodec.UTF8,
+				tsadd);
 		run(testInfo, reader, writer);
 		Assertions.assertEquals(count / 2,
 				sourceConnection.sync().tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
@@ -214,9 +217,10 @@ abstract class AbstractModulesTests extends AbstractTests {
 		for (Sample sample : samples) {
 			sourceConnection.sync().tsAdd(key, sample);
 		}
-		StringDataStructureReadOperation operation = new StringDataStructureReadOperation(sourceClient);
-		Future<DataStructure<String>> future = operation.execute(sourceConnection.async(), key);
-		DataStructure<String> ds = future.get();
+		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
+		open(operation);
+		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
+		KeyValue<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
 		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
@@ -230,12 +234,13 @@ abstract class AbstractModulesTests extends AbstractTests {
 		for (Sample sample : samples) {
 			sourceConnection.sync().tsAdd(key, sample);
 		}
-		DataStructureReadOperation<byte[], byte[]> operation = new DataStructureReadOperation<>(sourceClient,
-				ByteArrayCodec.INSTANCE);
+		KeyValueReadOperation<byte[], byte[]> operation = KeyValueReadOperation
+				.builder(sourceClient, ByteArrayCodec.INSTANCE).struct();
+		open(operation);
 		StatefulRedisModulesConnection<byte[], byte[]> byteConnection = RedisModulesUtils.connection(sourceClient,
 				ByteArrayCodec.INSTANCE);
-		Future<DataStructure<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
-		DataStructure<byte[]> ds = future.get();
+		Future<KeyValue<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
+		KeyValue<byte[]> ds = future.get();
 		Assertions.assertArrayEquals(keyBytes(key), ds.getKey());
 		Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
 		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
@@ -251,7 +256,8 @@ abstract class AbstractModulesTests extends AbstractTests {
 		ListItemReader<Sample> reader = new ListItemReader<>(values);
 		SampleConverter<Sample> converter = new SampleConverter<>(Sample::getTimestamp, Sample::getValue);
 		TsAdd<String, String, Sample> tsAdd = new TsAdd<>(t -> key, converter);
-		RedisItemWriter<String, String, Sample> writer = new WriterBuilder(sourceClient).operation(tsAdd);
+		OperationItemWriter<String, String, Sample> writer = new OperationItemWriter<>(sourceClient, StringCodec.UTF8,
+				tsAdd);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		assertEquals(1, sync.dbsize());
@@ -269,7 +275,8 @@ abstract class AbstractModulesTests extends AbstractTests {
 		SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
 				Suggestion::getScore, Suggestion::getPayload);
 		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(t -> key, converter);
-		RedisItemWriter<String, String, Suggestion<String>> writer = new WriterBuilder(sourceClient).operation(sugadd);
+		OperationItemWriter<String, String, Suggestion<String>> writer = new OperationItemWriter<>(sourceClient,
+				StringCodec.UTF8, sugadd);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		assertEquals(1, sync.dbsize());
@@ -287,7 +294,8 @@ abstract class AbstractModulesTests extends AbstractTests {
 		SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
 				Suggestion::getScore, Suggestion::getPayload);
 		SugaddIncr<String, String, Suggestion<String>> sugadd = new SugaddIncr<>(t -> key, converter);
-		RedisItemWriter<String, String, Suggestion<String>> writer = new WriterBuilder(sourceClient).operation(sugadd);
+		OperationItemWriter<String, String, Suggestion<String>> writer = new OperationItemWriter<>(sourceClient,
+				StringCodec.UTF8, sugadd);
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sync = sourceConnection.sync();
 		assertEquals(1, sync.dbsize());
@@ -323,7 +331,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 	}
 
 	@Test
-	void writeDataStructuresOverwrite(TestInfo testInfo) throws Exception {
+	void writeStructsOverwrite(TestInfo testInfo) throws Exception {
 		GeneratorItemReader gen1 = new GeneratorItemReader();
 		gen1.setMaxItemCount(100);
 		gen1.setTypes(Arrays.asList(Type.HASH));
@@ -334,15 +342,15 @@ abstract class AbstractModulesTests extends AbstractTests {
 		gen2.setTypes(Arrays.asList(Type.HASH));
 		gen2.setHashOptions(HashOptions.builder().fieldCount(IntRange.is(10)).build());
 		generate(testInfo, targetClient, gen2);
-		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
-		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder(targetClient)
-				.mergePolicy(MergePolicy.OVERWRITE).dataStructure();
+		RedisItemReader<String, String> reader = reader(sourceClient).struct();
+		RedisItemWriter<String, String> writer = writer(targetClient)
+				.structOptions(StructOptions.builder().mergePolicy(MergePolicy.OVERWRITE).build()).struct();
 		run(testInfo, reader, writer);
 		assertEquals(sourceConnection.sync().hgetall("gen:1"), targetConnection.sync().hgetall("gen:1"));
 	}
 
 	@Test
-	void writeDataStructuresMerge(TestInfo testInfo) throws Exception {
+	void writeStructsMerge(TestInfo testInfo) throws Exception {
 		GeneratorItemReader gen1 = new GeneratorItemReader();
 		gen1.setMaxItemCount(100);
 		gen1.setTypes(Arrays.asList(Type.HASH));
@@ -353,9 +361,9 @@ abstract class AbstractModulesTests extends AbstractTests {
 		gen2.setTypes(Arrays.asList(Type.HASH));
 		gen2.setHashOptions(HashOptions.builder().fieldCount(IntRange.is(10)).build());
 		generate(testInfo, targetClient, gen2);
-		RedisItemReader<String, String, DataStructure<String>> reader = dataStructureSourceReader();
-		RedisItemWriter<String, String, DataStructure<String>> writer = new WriterBuilder(targetClient)
-				.mergePolicy(MergePolicy.MERGE).dataStructure();
+		RedisItemReader<String, String> reader = reader(sourceClient).struct();
+		RedisItemWriter<String, String> writer = writer(targetClient)
+				.structOptions(StructOptions.builder().mergePolicy(MergePolicy.MERGE).build()).struct();
 		run(testInfo, reader, writer);
 		Map<String, String> actual = targetConnection.sync().hgetall("gen:1");
 		assertEquals(10, actual.size());
@@ -369,10 +377,6 @@ abstract class AbstractModulesTests extends AbstractTests {
 		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
 		run(testInfo, reader, writer);
 		Assertions.assertEquals(KeyComparison.Status.OK, writer.getItems().get(0).getStatus());
-	}
-
-	protected RedisItemWriter<String, String, DataStructure<String>> dataStructureTargetWriter() {
-		return new WriterBuilder(targetClient).dataStructure();
 	}
 
 	@Test
@@ -393,8 +397,8 @@ abstract class AbstractModulesTests extends AbstractTests {
 			LettuceFutures.awaitAll(connection.getTimeout(), futures.toArray(new RedisFuture[0]));
 			connection.setAutoFlushCommands(true);
 		}
-		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader();
-		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
+		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).dump();
+		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).dump();
 		run(testInfo, reader, writer);
 		Assertions.assertEquals(sourceConnection.sync().dbsize(), targetConnection.sync().dbsize());
 	}
@@ -402,10 +406,10 @@ abstract class AbstractModulesTests extends AbstractTests {
 	@Test
 	void liveOnlyReplication(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
-		LiveRedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = liveReader(sourceClient).keyDump();
+		LiveRedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).live().dump();
 		reader.getKeyspaceNotificationOptions().setQueueOptions(QueueOptions.builder().capacity(100000).build());
 		reader.getFlushingOptions().setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
+		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).dump();
 		JobExecution execution = runAsync(job(testInfo, reader, writer));
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(100);
@@ -418,10 +422,11 @@ abstract class AbstractModulesTests extends AbstractTests {
 	@Test
 	void liveDumpAndRestoreReplication(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
-		RedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = keyDumpSourceReader();
-		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> writer = keyDumpWriter(targetClient);
-		LiveRedisItemReader<byte[], byte[], KeyDump<byte[]>> liveReader = liveReader(sourceClient).keyDump();
-		RedisItemWriter<byte[], byte[], KeyDump<byte[]>> liveWriter = keyDumpWriter(targetClient);
+		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).dump();
+		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).dump();
+		LiveRedisItemReader<byte[], byte[]> liveReader = reader(sourceClient, ByteArrayCodec.INSTANCE).live().dump();
+		configure(liveReader);
+		RedisItemWriter<byte[], byte[]> liveWriter = writer(targetClient, ByteArrayCodec.INSTANCE).dump();
 		liveReplication(testInfo, reader, writer, liveReader, liveWriter);
 	}
 
@@ -430,13 +435,30 @@ abstract class AbstractModulesTests extends AbstractTests {
 		enableKeyspaceNotifications(sourceClient);
 		String key = "myset";
 		sourceConnection.sync().sadd(key, "1", "2", "3", "4", "5");
-		LiveRedisItemReader<String, String, DataStructure<String>> reader = liveReader(sourceClient).dataStructure();
+		LiveRedisItemReader<String, String> reader = reader(sourceClient).live().struct();
 		reader.getKeyspaceNotificationOptions().setQueueOptions(QueueOptions.builder().capacity(100).build());
-		RedisItemWriter<String, String, DataStructure<String>> writer = dataStructureTargetWriter();
+		RedisItemWriter<String, String> writer = writer(targetClient).struct();
 		JobExecution execution = runAsync(job(testInfo, reader, writer));
 		sourceConnection.sync().srem(key, "5");
 		awaitTermination(execution);
 		assertEquals(sourceConnection.sync().smembers(key), targetConnection.sync().smembers(key));
+	}
+
+	@Test
+	void replicateMemLimit(TestInfo testInfo) throws Exception {
+		DataSize limit = DataSize.ofBytes(500);
+		String key1 = "key:1";
+		sourceConnection.sync().set(key1, "bar");
+		String key2 = "key:2";
+		sourceConnection.sync().set(key2, GeneratorItemReader.randomString(Math.toIntExact(limit.toBytes() * 2)));
+		RedisItemReader<String, String> reader = reader(sourceClient).options(
+				ReaderOptions.builder().memoryUsageOptions(MemoryUsageOptions.builder().limit(limit).build()).build())
+				.struct();
+		SynchronizedListItemWriter<KeyValue<String>> writer = new SynchronizedListItemWriter<>();
+		run(testInfo, reader, writer);
+		Map<String, KeyValue<String>> map = writer.getItems().stream()
+				.collect(Collectors.toMap(s -> s.getKey(), s -> s));
+		Assertions.assertNull(map.get(key2).getValue());
 	}
 
 	@Test
@@ -445,19 +467,16 @@ abstract class AbstractModulesTests extends AbstractTests {
 		sourceConnection.sync().pfadd(key1, "member:1", "member:2");
 		String key2 = "hll:2";
 		sourceConnection.sync().pfadd(key2, "member:1", "member:2", "member:3");
-		RedisItemReader<byte[], byte[], DataStructure<byte[]>> reader = dataStructureReader(sourceClient,
-				ByteArrayCodec.INSTANCE);
-		RedisItemWriter<byte[], byte[], DataStructure<byte[]>> writer = new WriterBuilder(targetClient)
-				.dataStructure(ByteArrayCodec.INSTANCE);
+		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).struct();
+		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).struct();
 		run(testInfo, reader, writer);
 		RedisModulesCommands<String, String> sourceSync = sourceConnection.sync();
 		RedisModulesCommands<String, String> targetSync = targetConnection.sync();
 		assertEquals(sourceSync.pfcount(key1), targetSync.pfcount(key1));
 	}
 
-	protected <K, V, T extends KeyValue<K>> void liveReplication(TestInfo testInfo, RedisItemReader<K, V, T> reader,
-			RedisItemWriter<K, V, T> writer, LiveRedisItemReader<K, V, T> liveReader,
-			RedisItemWriter<K, V, T> liveWriter) throws Exception {
+	protected <K, V> void liveReplication(TestInfo testInfo, RedisItemReader<K, V> reader, RedisItemWriter<K, V> writer,
+			LiveRedisItemReader<K, V> liveReader, RedisItemWriter<K, V> liveWriter) throws Exception {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(300);
 		gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET));
@@ -492,7 +511,8 @@ abstract class AbstractModulesTests extends AbstractTests {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(120);
 		generate(testInfo, gen);
-		run(testInfo(testInfo, "replicate"), keyDumpSourceReader(), keyDumpWriter(targetClient));
+		run(testInfo(testInfo, "replicate"), reader(sourceClient, ByteArrayCodec.INSTANCE).dump(),
+				writer(targetClient, ByteArrayCodec.INSTANCE).dump());
 		long deleted = 0;
 		for (int index = 0; index < 13; index++) {
 			deleted += targetConnection.sync().del(targetConnection.sync().randomkey());
@@ -539,9 +559,9 @@ abstract class AbstractModulesTests extends AbstractTests {
 	@Test
 	void readLive(TestInfo testInfo) throws Exception {
 		enableKeyspaceNotifications(sourceClient);
-		LiveRedisItemReader<byte[], byte[], KeyDump<byte[]>> reader = liveReader(sourceClient).keyDump();
+		LiveRedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).live().dump();
 		reader.getKeyspaceNotificationOptions().setQueueOptions(QueueOptions.builder().capacity(10000).build());
-		SynchronizedListItemWriter<KeyDump<byte[]>> writer = new SynchronizedListItemWriter<>();
+		SynchronizedListItemWriter<KeyValue<byte[]>> writer = new SynchronizedListItemWriter<>();
 		JobExecution execution = runAsync(job(testInfo, reader, writer));
 		GeneratorItemReader gen = new GeneratorItemReader();
 		int count = 123;
@@ -570,6 +590,25 @@ abstract class AbstractModulesTests extends AbstractTests {
 		commands.zadd(key, 3, "member3");
 		awaitUntil(() -> reader.getQueue().size() == 1);
 		Assertions.assertEquals(key, reader.read());
+		reader.close();
+	}
+
+	@Test
+	void blockBigKeys() throws Exception {
+		enableKeyspaceNotifications(sourceClient);
+		LiveRedisItemReader<String, String> reader = reader(sourceClient).live()
+				.options(ReaderOptions.builder()
+						.memoryUsageOptions(MemoryUsageOptions.builder().limit(DataSize.ofBytes(300)).build()).build())
+				.struct();
+		reader.setName("blockBigKeys");
+		reader.open(new ExecutionContext());
+		RedisModulesCommands<String, String> commands = sourceConnection.sync();
+		String key = "key:1";
+		for (int index = 0; index < 30; index++) {
+			commands.sadd(key, "value:" + index);
+			Thread.sleep(10);
+		}
+		Assertions.assertTrue(reader.getKeyReader().getBlockedKeys().contains(key));
 		reader.close();
 	}
 

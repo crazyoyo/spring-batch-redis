@@ -7,7 +7,7 @@ import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class JsonDel<K, V, T> extends AbstractWriteOperation<K, V, T, Long> {
+public class JsonDel<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
 	private final Function<T, String> path;
 

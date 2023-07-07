@@ -6,7 +6,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisSetAsyncCommands;
 
-public class Sadd<K, V, T> extends AbstractWriteOperation<K, V, T, Long> {
+public class Sadd<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
 	private final Function<T, V> value;
 

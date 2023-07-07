@@ -1,14 +1,14 @@
 package com.redis.spring.batch.writer.operation;
 
 import java.util.Collection;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 
 import com.redis.spring.batch.common.NoOpFuture;
 
-import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public abstract class AbstractAddAllOperation<K, V, I, O> extends AbstractWriteOperation<K, V, I, Long> {
+public abstract class AbstractAddAllOperation<K, V, I, O> extends AbstractWriteOperation<K, V, I> {
 
 	private final Function<I, Collection<O>> values;
 
@@ -18,7 +18,7 @@ public abstract class AbstractAddAllOperation<K, V, I, O> extends AbstractWriteO
 	}
 
 	@Override
-	protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> context, I item, K key) {
+	protected Future<Long> execute(BaseRedisAsyncCommands<K, V> context, I item, K key) {
 		Collection<O> collection = values.apply(item);
 		if (collection.isEmpty()) {
 			return NoOpFuture.instance();
@@ -26,7 +26,6 @@ public abstract class AbstractAddAllOperation<K, V, I, O> extends AbstractWriteO
 		return execute(context, item, key, collection);
 	}
 
-	protected abstract RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> context, I item, K key,
-			Collection<O> values);
+	protected abstract Future<Long> execute(BaseRedisAsyncCommands<K, V> context, I item, K key, Collection<O> values);
 
 }

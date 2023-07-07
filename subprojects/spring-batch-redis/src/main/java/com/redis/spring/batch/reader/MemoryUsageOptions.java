@@ -7,28 +7,22 @@ public class MemoryUsageOptions {
 	private static final DataSize DEFAULT_LIMIT = DataSize.ofMegabytes(100);
 	private static final int DEFAULT_SAMPLES = 5;
 
-	private boolean enabled;
 	private DataSize limit = DEFAULT_LIMIT;
 	private int samples = DEFAULT_SAMPLES;
 
 	private MemoryUsageOptions(Builder builder) {
-		this.enabled = builder.enabled;
 		this.limit = builder.limit;
 		this.samples = builder.samples;
-	}
-
-	public boolean isEnabled() {
-		return enabled;
-	}
-
-	public void setEnabled(boolean enabled) {
-		this.enabled = enabled;
 	}
 
 	public DataSize getLimit() {
 		return limit;
 	}
 
+	/**
+	 * 
+	 * @param limit maximum memory usage for a given key. Use 0 to disable memory usage checks, -1 for no limit.
+	 */
 	public void setLimit(DataSize limit) {
 		this.limit = limit;
 	}
@@ -47,16 +41,10 @@ public class MemoryUsageOptions {
 
 	public static final class Builder {
 
-		private boolean enabled;
 		private DataSize limit = DEFAULT_LIMIT;
 		private int samples = DEFAULT_SAMPLES;
 
 		private Builder() {
-		}
-
-		public Builder enabled(boolean enabled) {
-			this.enabled = enabled;
-			return this;
 		}
 
 		public Builder limit(DataSize limit) {

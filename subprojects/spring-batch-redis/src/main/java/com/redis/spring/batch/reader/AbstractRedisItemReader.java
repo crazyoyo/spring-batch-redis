@@ -19,8 +19,10 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemStreamReader;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -29,39 +31,49 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Openable;
-import com.redis.spring.batch.common.OperationItemStreamSupport;
+import com.redis.spring.batch.common.OperationItemProcessor;
 import com.redis.spring.batch.common.ProcessingItemWriter;
 import com.redis.spring.batch.common.QueueItemWriter;
-import com.redis.spring.batch.common.SimpleBatchOperation;
 import com.redis.spring.batch.common.Utils;
+import com.redis.spring.batch.common.ValueType;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public abstract class AbstractRedisItemReader<K, V, T extends KeyValue<K>> extends AbstractItemStreamItemReader<T>
-		implements PollableItemReader<T>, Openable {
+public abstract class AbstractRedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue<K>>
+		implements PollableItemReader<KeyValue<K>>, Openable {
 
 	protected final AbstractRedisClient client;
 	protected final RedisCodec<K, V> codec;
-	private final AbstractLuaReadOperation<K, V, T> operation;
+	private final ValueType valueType;
 	private ItemProcessor<K, K> processor;
-
 	private JobRepository jobRepository;
 	protected ReaderOptions options = ReaderOptions.builder().build();
 	private String name;
 	private JobExecution jobExecution;
-	private BlockingQueue<T> queue;
+	private BlockingQueue<KeyValue<K>> queue;
 
-	protected AbstractRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec,
-			AbstractLuaReadOperation<K, V, T> operation) {
+	protected AbstractRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, ValueType valueType) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.codec = codec;
-		this.operation = operation;
+		this.valueType = valueType;
+	}
+
+	public ValueType getValueType() {
+		return valueType;
+	}
+
+	public ReaderOptions getOptions() {
+		return options;
 	}
 
 	public void setOptions(ReaderOptions options) {
 		this.options = options;
+	}
+
+	public JobRepository getJobRepository() {
+		return jobRepository;
 	}
 
 	public void setJobRepository(JobRepository jobRepository) {
@@ -84,7 +96,6 @@ public abstract class AbstractRedisItemReader<K, V, T extends KeyValue<K>> exten
 		if (queue != null) {
 			return;
 		}
-		OperationItemStreamSupport<K, V, K, T> operationProcessor = operationProcessor();
 		queue = queue();
 		if (jobRepository == null) {
 			try {
@@ -97,11 +108,11 @@ public abstract class AbstractRedisItemReader<K, V, T extends KeyValue<K>> exten
 		stepBuilder.repository(jobRepository);
 		stepBuilder.transactionManager(transactionManager());
 		SimpleStepBuilder<K, K> step = step(stepBuilder);
-		ItemReader<K> reader = keyReader();
+		ItemStreamReader<K> reader = keyReader();
 		step.reader(options.getThreads() > 1 ? Utils.synchronizedReader(reader) : reader);
 		step.processor(processor);
-		QueueItemWriter<T> queueWriter = new QueueItemWriter<>(queue);
-		ProcessingItemWriter<K, T> writer = new ProcessingItemWriter<>(operationProcessor, queueWriter);
+		ItemWriter<KeyValue<K>> keyValueWriter = queueWriter(queue);
+		ProcessingItemWriter<K, KeyValue<K>> writer = new ProcessingItemWriter<>(operationProcessor(), keyValueWriter);
 		step.writer(writer);
 		Utils.multiThread(step, options.getThreads());
 		JobBuilderFactory jobBuilderFactory = new JobBuilderFactory(jobRepository);
@@ -114,27 +125,42 @@ public abstract class AbstractRedisItemReader<K, V, T extends KeyValue<K>> exten
 		} catch (JobExecutionException e) {
 			throw new ItemStreamException("Job execution failed", e);
 		}
-		while (!jobExecution.isRunning() && !jobExecution.getStatus().isUnsuccessful()
-				&& jobExecution.getStatus() != BatchStatus.COMPLETED) {
+		while (!(isOpen(reader) || jobExecution.getStatus().isUnsuccessful()
+				|| jobExecution.getStatus().isLessThanOrEqualTo(BatchStatus.COMPLETED))) {
 			sleep();
 		}
-		sleep();
 		if (jobExecution.getStatus().isUnsuccessful()) {
 			throw new ItemStreamException("Could not run job",
 					jobExecution.getAllFailureExceptions().iterator().next());
 		}
 	}
 
-	public OperationItemStreamSupport<K, V, K, T> operationProcessor() {
-		operation.setMemoryUsageOptions(options.getMemoryUsageOptions());
-		OperationItemStreamSupport<K, V, K, T> operationProcessor = new OperationItemStreamSupport<>(client, codec,
-				new SimpleBatchOperation<>(operation));
-		operationProcessor.setPoolOptions(options.getPoolOptions());
-		operationProcessor.setReadFrom(options.getReadFrom());
-		return operationProcessor;
+	private boolean isOpen(ItemStream itemStream) {
+		if (itemStream instanceof Openable) {
+			return ((Openable) itemStream).isOpen();
+		}
+		return true;
 	}
 
-	protected abstract ItemReader<K> keyReader();
+	protected ItemWriter<KeyValue<K>> queueWriter(BlockingQueue<KeyValue<K>> queue) {
+		return new QueueItemWriter<>(queue);
+	}
+
+	public OperationItemProcessor<K, V, K, KeyValue<K>> operationProcessor() {
+		OperationItemProcessor<K, V, K, KeyValue<K>> proc = new OperationItemProcessor<>(client, codec, operation());
+		proc.setPoolOptions(options.getPoolOptions());
+		proc.setReadFrom(options.getReadFrom());
+		return proc;
+	}
+
+	private KeyValueReadOperation<K, V> operation() {
+		KeyValueReadOperation<K, V> operation = new KeyValueReadOperation<>(client, codec);
+		operation.setMemoryUsageOptions(options.getMemoryUsageOptions());
+		operation.setValueType(valueType);
+		return operation;
+	}
+
+	protected abstract ItemStreamReader<K> keyReader();
 
 	private void sleep() {
 		try {
@@ -157,10 +183,14 @@ public abstract class AbstractRedisItemReader<K, V, T extends KeyValue<K>> exten
 		return step.chunk(options.getChunkSize());
 	}
 
-	private BlockingQueue<T> queue() {
-		BlockingQueue<T> blockingQueue = new LinkedBlockingQueue<>(options.getQueueOptions().getCapacity());
+	private BlockingQueue<KeyValue<K>> queue() {
+		BlockingQueue<KeyValue<K>> blockingQueue = new LinkedBlockingQueue<>(queueCapacity());
 		Utils.createGaugeCollectionSize("reader.queue.size", blockingQueue);
 		return blockingQueue;
+	}
+
+	private int queueCapacity() {
+		return options.getQueueOptions().getCapacity();
 	}
 
 	@Override
@@ -184,13 +214,13 @@ public abstract class AbstractRedisItemReader<K, V, T extends KeyValue<K>> exten
 	}
 
 	@Override
-	public synchronized T poll(long timeout, TimeUnit unit) throws InterruptedException {
+	public synchronized KeyValue<K> poll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
 	}
 
 	@Override
-	public synchronized T read() throws Exception {
-		T item;
+	public synchronized KeyValue<K> read() throws Exception {
+		KeyValue<K> item;
 		do {
 			item = queue.poll(options.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
 		} while (item == null && jobExecution != null && jobExecution.isRunning());
@@ -200,8 +230,8 @@ public abstract class AbstractRedisItemReader<K, V, T extends KeyValue<K>> exten
 		return item;
 	}
 
-	public synchronized List<T> read(int maxElements) {
-		List<T> items = new ArrayList<>(maxElements);
+	public synchronized List<KeyValue<K>> read(int maxElements) {
+		List<KeyValue<K>> items = new ArrayList<>(maxElements);
 		queue.drainTo(items, maxElements);
 		return items;
 	}

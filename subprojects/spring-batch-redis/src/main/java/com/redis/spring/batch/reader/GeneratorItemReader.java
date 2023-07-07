@@ -20,7 +20,6 @@ import org.springframework.util.ClassUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
-import com.redis.spring.batch.common.DataStructure;
 import com.redis.spring.batch.common.DoubleRange;
 import com.redis.spring.batch.common.IntRange;
 import com.redis.spring.batch.common.KeyValue;
@@ -28,13 +27,13 @@ import com.redis.spring.batch.common.KeyValue;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
-public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<DataStructure<String>> {
+public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<KeyValue<String>> {
 
 	private static final int LEFT_LIMIT = 48; // numeral '0'
 	private static final int RIGHT_LIMIT = 122; // letter 'z'
 
 	private final ObjectMapper mapper = new ObjectMapper();
-	private final Random random = new Random();
+	private static final Random random = new Random();
 
 	public enum Type {
 		HASH, STRING, LIST, SET, ZSET, JSON, STREAM, TIMESERIES
@@ -541,7 +540,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		return range.getMin() + index() % (range.getMax() - range.getMin() + 1);
 	}
 
-	private Object value(DataStructure<String> ds) throws JsonProcessingException {
+	private Object value(KeyValue<String> ds) throws JsonProcessingException {
 		switch (ds.getType()) {
 		case KeyValue.HASH:
 			return map(hashOptions);
@@ -599,6 +598,10 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
 	private String string(IntRange range) {
 		int length = range.getMin() + random.nextInt((range.getMax() - range.getMin()) + 1);
+		return randomString(length);
+	}
+
+	public static String randomString(int length) {
 		return random.ints(LEFT_LIMIT, RIGHT_LIMIT + 1).filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
 				.limit(length).collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
 				.toString();
@@ -629,8 +632,8 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	@Override
-	protected DataStructure<String> doRead() {
-		DataStructure<String> ds = new DataStructure<>();
+	protected KeyValue<String> doRead() {
+		KeyValue<String> ds = new KeyValue<>();
 		Type type = types.get(index() % types.size());
 		ds.setType(typeString(type));
 		ds.setKey(key());

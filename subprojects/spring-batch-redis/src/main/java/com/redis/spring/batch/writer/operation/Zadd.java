@@ -8,7 +8,7 @@ import io.lettuce.core.ZAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 
-public class Zadd<K, V, T> extends AbstractWriteOperation<K, V, T, Long> {
+public class Zadd<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
 	private final Function<T, ScoredValue<V>> value;
 	private final Function<T, ZAddArgs> args;
