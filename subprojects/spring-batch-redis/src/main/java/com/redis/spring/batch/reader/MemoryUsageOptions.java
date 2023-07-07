@@ -4,7 +4,7 @@ import org.springframework.util.unit.DataSize;
 
 public class MemoryUsageOptions {
 
-	public static final DataSize DEFAULT_LIMIT = DataSize.ofMegabytes(100);
+	public static final DataSize DEFAULT_LIMIT = DataSize.ofBytes(0);
 	public static final int DEFAULT_SAMPLES = 5;
 
 	private DataSize limit = DEFAULT_LIMIT;

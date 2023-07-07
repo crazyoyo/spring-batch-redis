@@ -64,10 +64,6 @@ public class KeyValueReadOperation<K, V> extends ItemStreamSupport implements Op
 		return memoryUsageOptions;
 	}
 
-	/**
-	 * 
-	 * @param limit memory limit in bytes
-	 */
 	public void setMemoryUsageOptions(MemoryUsageOptions options) {
 		this.memoryUsageOptions = options;
 	}
