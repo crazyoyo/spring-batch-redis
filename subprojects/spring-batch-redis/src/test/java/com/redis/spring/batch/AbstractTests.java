@@ -66,7 +66,6 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.common.IntRange;
 import com.redis.spring.batch.common.KeyPredicateFactory;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Openable;
@@ -618,16 +617,14 @@ abstract class AbstractTests {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(count);
 		gen.setTypes(Type.HASH, Type.STRING);
-		gen.setKeyRange(IntRange.to(count));
 		generate(testInfo, gen);
 		long expectedCount = sourceConnection.sync().dbsize();
 		ScanSizeEstimator estimator = new ScanSizeEstimator(sourceClient);
 		estimator.getOptions().setMatch(pattern);
 		assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
 		estimator = new ScanSizeEstimator(sourceClient);
-		estimator.getOptions().setCount(200);
 		estimator.getOptions().setType(KeyValue.HASH);
-		assertEquals(count / 2, estimator.getAsLong(), expectedCount / 10);
+		assertEquals(expectedCount / 2, estimator.getAsLong(), expectedCount / 10);
 	}
 
 	protected void generateStreams(TestInfo testInfo) throws JobExecutionException {

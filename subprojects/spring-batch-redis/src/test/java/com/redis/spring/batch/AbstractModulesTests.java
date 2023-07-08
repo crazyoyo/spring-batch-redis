@@ -472,7 +472,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		liveGen.setMaxItemCount(700);
 		liveGen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET));
 		liveGen.setExpiration(IntRange.is(100));
-		liveGen.setKeyRange(IntRange.between(300, 1000));
+		liveGen.setKeyRange(IntRange.from(300));
 		generate(testInfo(testInfo, "generateLive"), liveGen);
 		try {
 			awaitTermination(execution);
