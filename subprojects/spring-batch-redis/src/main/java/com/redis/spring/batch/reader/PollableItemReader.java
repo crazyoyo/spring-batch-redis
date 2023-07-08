@@ -2,9 +2,9 @@ package com.redis.spring.batch.reader;
 
 import java.util.concurrent.TimeUnit;
 
-import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamReader;
 
-public interface PollableItemReader<T> extends ItemReader<T> {
+public interface PollableItemReader<T> extends ItemStreamReader<T> {
 
 	/**
 	 * Tries to read a piece of input data. If such input is available within the

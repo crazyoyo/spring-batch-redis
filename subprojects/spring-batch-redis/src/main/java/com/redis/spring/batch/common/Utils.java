@@ -33,7 +33,6 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.reader.KeyValueReadOperation;
-import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.ScanOptions;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
@@ -152,9 +151,6 @@ public interface Utils {
 	}
 
 	static <K> ItemReader<K> synchronizedReader(ItemReader<K> reader) {
-		if (reader instanceof PollableItemReader) {
-			return new SynchronizedPollableItemReader<>((PollableItemReader<K>) reader);
-		}
 		if (reader instanceof ItemStreamReader) {
 			SynchronizedItemStreamReader<K> synchronizedReader = new SynchronizedItemStreamReader<>();
 			synchronizedReader.setDelegate((ItemStreamReader<K>) reader);
