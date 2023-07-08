@@ -27,6 +27,7 @@ import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
+import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -128,7 +129,7 @@ class StepTests {
 		assertEquals(count, writer.getItems().size());
 	}
 
-	private static class QueueItemReader<T> implements PollableItemReader<T> {
+	private static class QueueItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
 		private final BlockingQueue<T> queue;
 		private final long timeout;
