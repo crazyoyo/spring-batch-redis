@@ -68,6 +68,7 @@ import com.redis.spring.batch.writer.KeyComparisonCountItemWriter.Results;
 import com.redis.spring.batch.writer.MergePolicy;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructOptions;
+import com.redis.spring.batch.writer.operation.JsonDel;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Sugadd;
 import com.redis.spring.batch.writer.operation.SugaddIncr;
@@ -157,7 +158,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 	}
 
 	@Test
-	void writeJSON(TestInfo testInfo) throws Exception {
+	void writeJsonSet(TestInfo testInfo) throws Exception {
 		JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>(n -> "beer:" + n.get("id").asText(),
 				JsonNode::toString, t -> ".");
 		OperationItemWriter<String, String, JsonNode> writer = new OperationItemWriter<>(sourceClient, StringCodec.UTF8,
@@ -170,7 +171,19 @@ abstract class AbstractModulesTests extends AbstractTests {
 	}
 
 	@Test
-	void writeTS(TestInfo testInfo) throws Exception {
+	void writeJsonDel(TestInfo testInfo) throws Exception {
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setTypes(Type.JSON);
+		gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
+		generate(testInfo, gen);
+		Assertions.assertEquals(DEFAULT_GENERATOR_COUNT, sourceConnection.sync().dbsize());
+		JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>(KeyValue::getKey);
+		run(testInfo, gen, new OperationItemWriter<>(sourceClient, StringCodec.UTF8, jsonDel));
+		Assertions.assertEquals(0, sourceConnection.sync().dbsize());
+	}
+
+	@Test
+	void writeTs(TestInfo testInfo) throws Exception {
 		String key = "ts:1";
 		Random random = new Random();
 		int count = 100;

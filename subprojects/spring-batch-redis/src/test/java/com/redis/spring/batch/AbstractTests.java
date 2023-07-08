@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -91,8 +92,14 @@ import com.redis.spring.batch.writer.ReplicaWaitOptions;
 import com.redis.spring.batch.writer.StreamIdPolicy;
 import com.redis.spring.batch.writer.StructOptions;
 import com.redis.spring.batch.writer.WriterOptions;
+import com.redis.spring.batch.writer.operation.Del;
+import com.redis.spring.batch.writer.operation.Expire;
+import com.redis.spring.batch.writer.operation.ExpireAt;
 import com.redis.spring.batch.writer.operation.Geoadd;
 import com.redis.spring.batch.writer.operation.Hset;
+import com.redis.spring.batch.writer.operation.Lpush;
+import com.redis.spring.batch.writer.operation.LpushAll;
+import com.redis.spring.batch.writer.operation.Rpush;
 import com.redis.spring.batch.writer.operation.Sadd;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.spring.batch.writer.operation.Zadd;
@@ -127,6 +134,7 @@ abstract class AbstractTests {
 	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(1000);
 	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(300);
 	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(30);
+	protected static final int DEFAULT_GENERATOR_COUNT = 100;
 
 	@Value("${running-timeout:PT5S}")
 	private Duration runningTimeout;
@@ -278,7 +286,7 @@ abstract class AbstractTests {
 
 	protected void generate(TestInfo testInfo) throws JobExecutionException {
 		GeneratorItemReader gen = new GeneratorItemReader();
-		gen.setMaxItemCount(100);
+		gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
 		generate(testInfo, gen);
 	}
 
@@ -394,6 +402,80 @@ abstract class AbstractTests {
 			Map<String, String> hash = sourceConnection.sync().hgetall("hash:" + index);
 			assertEquals(maps.get(index), hash);
 		}
+	}
+
+	@Test
+	void writeDel(TestInfo testInfo) throws Exception {
+		generate(testInfo);
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
+		Del<String, String, KeyValue<String>> del = new Del<>(KeyValue::getKey);
+		run(testInfo, gen, new OperationItemWriter<>(sourceClient, StringCodec.UTF8, del));
+		assertEquals(0, sourceConnection.sync().dbsize());
+	}
+
+	@Test
+	void writeLpush(TestInfo testInfo) throws Exception {
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
+		gen.setTypes(Type.STRING);
+		Lpush<String, String, KeyValue<String>> lpush = new Lpush<>(KeyValue::getKey, v -> (String) v.getValue());
+		run(testInfo, gen, new OperationItemWriter<>(sourceClient, StringCodec.UTF8, lpush));
+		assertEquals(DEFAULT_GENERATOR_COUNT, sourceConnection.sync().dbsize());
+		for (String key : sourceConnection.sync().keys("*")) {
+			assertEquals(KeyValue.LIST, sourceConnection.sync().type(key));
+		}
+	}
+
+	@Test
+	void writeRpush(TestInfo testInfo) throws Exception {
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
+		gen.setTypes(Type.STRING);
+		Rpush<String, String, KeyValue<String>> rpush = new Rpush<>(KeyValue::getKey, v -> (String) v.getValue());
+		run(testInfo, gen, new OperationItemWriter<>(sourceClient, StringCodec.UTF8, rpush));
+		assertEquals(DEFAULT_GENERATOR_COUNT, sourceConnection.sync().dbsize());
+		for (String key : sourceConnection.sync().keys("*")) {
+			assertEquals(KeyValue.LIST, sourceConnection.sync().type(key));
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void writeLpushAll(TestInfo testInfo) throws Exception {
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
+		gen.setTypes(Type.LIST);
+		LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>(KeyValue::getKey,
+				v -> (Collection<String>) v.getValue());
+		run(testInfo, gen, new OperationItemWriter<>(sourceClient, StringCodec.UTF8, lpushAll));
+		assertEquals(DEFAULT_GENERATOR_COUNT, sourceConnection.sync().dbsize());
+		for (String key : sourceConnection.sync().keys("*")) {
+			assertEquals(KeyValue.LIST, sourceConnection.sync().type(key));
+		}
+	}
+
+	@Test
+	void writeExpire(TestInfo testInfo) throws Exception {
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
+		gen.setTypes(Type.STRING);
+		Expire<String, String, KeyValue<String>> expire = new Expire<>(KeyValue::getKey, v -> 1L);
+		run(testInfo, gen, new OperationItemWriter<>(sourceClient, StringCodec.UTF8, expire));
+		awaitUntil(() -> sourceConnection.sync().keys("*").isEmpty());
+		assertEquals(0, sourceConnection.sync().dbsize());
+	}
+
+	@Test
+	void writeExpireAt(TestInfo testInfo) throws Exception {
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
+		gen.setTypes(Type.STRING);
+		ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>(KeyValue::getKey,
+				v -> System.currentTimeMillis());
+		run(testInfo, gen, new OperationItemWriter<>(sourceClient, StringCodec.UTF8, expireAt));
+		awaitUntil(() -> sourceConnection.sync().keys("*").isEmpty());
+		assertEquals(0, sourceConnection.sync().dbsize());
 	}
 
 	private class Geo {
