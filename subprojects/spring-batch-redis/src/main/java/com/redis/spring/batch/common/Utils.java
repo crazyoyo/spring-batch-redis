@@ -28,8 +28,16 @@ import org.springframework.util.FileCopyUtils;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import com.redis.lettucemod.util.RedisModulesUtils;
+import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.reader.GeneratorItemReader;
+import com.redis.spring.batch.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.ScanKeyItemReader;
+import com.redis.spring.batch.reader.ScanOptions;
+import com.redis.spring.batch.reader.ScanSizeEstimator;
+import com.redis.spring.batch.reader.StreamItemReader;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -156,16 +164,44 @@ public interface Utils {
 	}
 
 	@SuppressWarnings("unchecked")
-	static String loadScript(Supplier<StatefulConnection<String, String>> connectionSupplier, String filename) {
+	static String loadScript(AbstractRedisClient client, String filename) {
 		byte[] bytes;
 		try (InputStream inputStream = KeyValueReadOperation.class.getClassLoader().getResourceAsStream(filename)) {
 			bytes = FileCopyUtils.copyToByteArray(inputStream);
 		} catch (IOException e) {
 			throw new ItemStreamException("Could not read LUA script file " + filename);
 		}
-		try (StatefulConnection<String, String> connection = connectionSupplier.get()) {
+		try (StatefulConnection<String, String> connection = RedisModulesUtils.connection(client)) {
 			return ((RedisScriptingCommands<String, String>) Utils.sync(connection)).scriptLoad(bytes);
 		}
+	}
+
+	static long getItemReaderSize(ItemReader<?> reader) {
+		if (reader instanceof RedisItemReader) {
+			RedisItemReader<?, ?> redisItemReader = (RedisItemReader<?, ?>) reader;
+			return scanSizeEstimate(redisItemReader.getClient(), redisItemReader.getScanOptions());
+		}
+		if (reader instanceof KeyComparisonItemReader) {
+			return getItemReaderSize(((KeyComparisonItemReader) reader).getLeft());
+		}
+		if (reader instanceof StreamItemReader) {
+			StreamItemReader<?, ?> streamItemReader = (StreamItemReader<?, ?>) reader;
+			return streamItemReader.streamLength();
+		}
+		if (reader instanceof GeneratorItemReader) {
+			return ((GeneratorItemReader) reader).size();
+		}
+		if (reader instanceof ScanKeyItemReader) {
+			ScanKeyItemReader<?, ?> scanKeyReader = (ScanKeyItemReader<?, ?>) reader;
+			return scanSizeEstimate(scanKeyReader.getClient(), scanKeyReader.getOptions());
+		}
+		return -1;
+	}
+
+	static long scanSizeEstimate(AbstractRedisClient client, ScanOptions scanOptions) {
+		ScanSizeEstimator estimator = new ScanSizeEstimator(client);
+		estimator.setOptions(scanOptions);
+		return estimator.getAsLong();
 	}
 
 }

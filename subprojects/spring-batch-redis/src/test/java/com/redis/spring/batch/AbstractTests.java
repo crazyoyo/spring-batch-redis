@@ -590,7 +590,7 @@ abstract class AbstractTests {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(count);
 		generate(testInfo, gen);
-		ScanKeyItemReader<String, String> reader = new ScanKeyItemReader<>(Utils.connectionSupplier(sourceClient));
+		ScanKeyItemReader<String, String> reader = new ScanKeyItemReader<>(sourceClient, StringCodec.UTF8);
 		open(reader);
 		Assertions.assertEquals(count, Utils.readAll(reader).size());
 		reader.close();
@@ -621,10 +621,10 @@ abstract class AbstractTests {
 		gen.setKeyRange(IntRange.to(count));
 		generate(testInfo, gen);
 		long expectedCount = sourceConnection.sync().dbsize();
-		ScanSizeEstimator estimator = new ScanSizeEstimator(Utils.connectionSupplier(sourceClient));
+		ScanSizeEstimator estimator = new ScanSizeEstimator(sourceClient);
 		estimator.getOptions().setMatch(pattern);
 		assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
-		estimator = new ScanSizeEstimator(Utils.connectionSupplier(sourceClient));
+		estimator = new ScanSizeEstimator(sourceClient);
 		estimator.getOptions().setCount(200);
 		estimator.getOptions().setType(KeyValue.HASH);
 		assertEquals(count / 2, estimator.getAsLong(), expectedCount / 10);

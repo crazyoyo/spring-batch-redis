@@ -49,7 +49,7 @@ public class KeyValueReadOperation<K, V> extends ItemStreamSupport implements Op
 	@Override
 	public void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		this.digest = Utils.loadScript(Utils.connectionSupplier(client), FILENAME);
+		this.digest = Utils.loadScript(client, FILENAME);
 	}
 
 	public ValueType getValueType() {

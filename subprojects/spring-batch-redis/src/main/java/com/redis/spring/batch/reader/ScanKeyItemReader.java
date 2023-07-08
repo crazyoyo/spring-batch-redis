@@ -1,28 +1,47 @@
 package com.redis.spring.batch.reader;
 
 import java.util.Iterator;
-import java.util.function.Supplier;
+import java.util.Optional;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.Utils;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.KeyScanArgs;
+import io.lettuce.core.ReadFrom;
 import io.lettuce.core.ScanArgs;
 import io.lettuce.core.ScanIterator;
-import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
+import io.lettuce.core.codec.RedisCodec;
 
 public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> implements Openable {
 
-	private final Supplier<StatefulConnection<K, V>> connectionSupplier;
+	private final AbstractRedisClient client;
+	private final RedisCodec<K, V> codec;
+	private final Optional<ReadFrom> readFrom;
 
 	private ScanOptions options = ScanOptions.builder().build();
 	private Iterator<K> iterator;
 
-	public ScanKeyItemReader(Supplier<StatefulConnection<K, V>> connectionSupplier) {
-		this.connectionSupplier = connectionSupplier;
+	private StatefulRedisModulesConnection<K, V> connection;
+
+	public ScanKeyItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		this(client, codec, Optional.empty());
+	}
+
+	public ScanKeyItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, Optional<ReadFrom> readFrom) {
+		this.client = client;
+		this.codec = codec;
+		this.readFrom = readFrom;
+	}
+
+	public AbstractRedisClient getClient() {
+		return client;
 	}
 
 	public ScanOptions getOptions() {
@@ -33,11 +52,16 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> imp
 		this.options = options;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		if (iterator == null) {
-			iterator = ScanIterator.scan(Utils.sync(connectionSupplier.get()), args());
+		if (connection == null) {
+			connection = RedisModulesUtils.connection(client, codec);
+			if (readFrom.isPresent() && connection instanceof StatefulRedisClusterConnection) {
+				((StatefulRedisClusterConnection<K, V>) connection).setReadFrom(readFrom.get());
+			}
+			iterator = ScanIterator.scan(Utils.sync(connection), args());
 		}
 	}
 
@@ -49,7 +73,8 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> imp
 	@Override
 	public synchronized void close() {
 		super.close();
-		if (iterator != null) {
+		if (connection != null) {
+			connection.close();
 			iterator = null;
 		}
 	}
@@ -63,8 +88,7 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> imp
 	@Override
 	public synchronized K read() {
 		if (iterator != null && iterator.hasNext()) {
-			K key = iterator.next();
-			return key;
+			return iterator.next();
 		}
 		return null;
 	}

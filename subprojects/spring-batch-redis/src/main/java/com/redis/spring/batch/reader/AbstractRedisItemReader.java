@@ -60,6 +60,10 @@ public abstract class AbstractRedisItemReader<K, V> extends AbstractItemStreamIt
 		this.valueType = valueType;
 	}
 
+	public AbstractRedisClient getClient() {
+		return client;
+	}
+
 	public ValueType getValueType() {
 		return valueType;
 	}

@@ -63,9 +63,23 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	private ZsetOptions zsetOptions = DEFAULT_ZSET_OPTIONS;
 	private String keyspace = DEFAULT_KEYSPACE;
 	private List<Type> types = defaultTypes();
+	private int maxItemCount = Integer.MAX_VALUE;
 
 	public GeneratorItemReader() {
 		setName(ClassUtils.getShortName(getClass()));
+	}
+
+	@Override
+	public void setMaxItemCount(int count) {
+		super.setMaxItemCount(count);
+		this.maxItemCount = count;
+	}
+
+	public int size() {
+		if (maxItemCount == Integer.MAX_VALUE) {
+			return -1;
+		}
+		return maxItemCount - getCurrentItemCount();
 	}
 
 	public static List<Type> defaultTypes() {

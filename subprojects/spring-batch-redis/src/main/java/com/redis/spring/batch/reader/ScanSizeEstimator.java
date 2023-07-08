@@ -5,15 +5,16 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.hrakaroo.glob.GlobPattern;
 import com.hrakaroo.glob.MatchingEngine;
+import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.common.Utils;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.StatefulConnection;
@@ -29,11 +30,11 @@ public class ScanSizeEstimator implements LongSupplier {
 	public static final long DEFAULT_SAMPLE_SIZE = 100;
 	private static final String FILENAME = "randomkeytype.lua";
 
-	private final Supplier<StatefulConnection<String, String>> connectionSupplier;
+	private final AbstractRedisClient client;
 	private ScanOptions options = ScanOptions.builder().build();
 
-	public ScanSizeEstimator(Supplier<StatefulConnection<String, String>> connectionSupplier) {
-		this.connectionSupplier = connectionSupplier;
+	public ScanSizeEstimator(AbstractRedisClient client) {
+		this.client = client;
 	}
 
 	public ScanOptions getOptions() {
@@ -53,7 +54,7 @@ public class ScanSizeEstimator implements LongSupplier {
 	@Override
 	@SuppressWarnings("unchecked")
 	public long getAsLong() {
-		StatefulConnection<String, String> connection = connectionSupplier.get();
+		StatefulConnection<String, String> connection = RedisModulesUtils.connection(client);
 		BaseRedisCommands<String, String> sync = Utils.sync(connection);
 		Long dbsize = ((RedisServerCommands<String, String>) sync).dbsize();
 		if (dbsize == null) {
@@ -62,7 +63,7 @@ public class ScanSizeEstimator implements LongSupplier {
 		if (ScanOptions.MATCH_ALL.equals(options.getMatch()) && !options.getType().isPresent()) {
 			return dbsize;
 		}
-		String digest = Utils.loadScript(connectionSupplier, FILENAME);
+		String digest = Utils.loadScript(client, FILENAME);
 		RedisScriptingAsyncCommands<String, String> commands = Utils.async(connection);
 		try {
 			connection.setAutoFlushCommands(false);

@@ -1,12 +1,9 @@
 package com.redis.spring.batch;
 
-import java.util.function.Supplier;
-
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamReader;
 
-import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.common.ValueType;
 import com.redis.spring.batch.reader.AbstractRedisItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationOptions;
@@ -16,7 +13,6 @@ import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.ScanOptions;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
@@ -40,8 +36,7 @@ public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V> {
 
 	@Override
 	protected ItemStreamReader<K> keyReader() {
-		Supplier<StatefulConnection<K, V>> connections = Utils.connectionSupplier(client, codec, options.getReadFrom());
-		ScanKeyItemReader<K, V> keyReader = new ScanKeyItemReader<>(connections);
+		ScanKeyItemReader<K, V> keyReader = new ScanKeyItemReader<>(client, codec, options.getReadFrom());
 		keyReader.setOptions(scanOptions);
 		return keyReader;
 	}
