@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
@@ -24,7 +26,6 @@ import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XGroupCreateArgs;
 import io.lettuce.core.XReadArgs;
 import io.lettuce.core.XReadArgs.StreamOffset;
-import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
@@ -54,6 +55,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
 	private MessageReader<K, V> reader;
 	private String lastId;
+	private RedisStreamCommands<K, V> commands;
 
 	public StreamItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, K stream) {
 		setName(ClassUtils.getShortName(getClass()));
@@ -91,10 +93,6 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 		return XReadArgs.Builder.count(count).block(blockMillis);
 	}
 
-	private RedisStreamCommands<K, V> commands(StatefulConnection<K, V> connection) {
-		return Utils.sync(connection);
-	}
-
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
@@ -102,7 +100,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 			return;
 		}
 		connection = RedisModulesUtils.connection(client, codec);
-		RedisStreamCommands<K, V> commands = Utils.sync(connection);
+		commands = Utils.sync(connection);
 		StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
 		XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
 		try {
@@ -126,6 +124,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 			lastId = null;
 			connection.close();
 			connection = null;
+			commands = null;
 		}
 		super.close();
 	}
@@ -168,13 +167,12 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	 * 
 	 * @param messages to be acked
 	 */
-	public long ack(Iterable<? extends StreamMessage<K, V>> messages) {
+	public Long ack(Iterable<? extends StreamMessage<K, V>> messages) {
 		if (messages == null) {
-			return 0;
+			return 0L;
 		}
-		List<String> ids = new ArrayList<>();
-		messages.forEach(m -> ids.add(m.getId()));
-		return ack(ids.toArray(new String[0]));
+		Stream<String> ids = StreamSupport.stream(messages.spliterator(), false).map(StreamMessage::getId);
+		return doAck(ids.toArray(String[]::new));
 	}
 
 	/**
@@ -183,23 +181,15 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	 * @param ids message ids to be acked
 	 * @return
 	 */
-	public long ack(String... ids) {
+	public Long ack(String... ids) {
 		if (ids.length == 0) {
-			return 0;
+			return 0L;
 		}
 		lastId = ids[ids.length - 1];
-		return ack(Utils.sync(connection), ids);
+		return doAck(ids);
 	}
 
-	private void ack(RedisStreamCommands<K, V> commands, Iterable<StreamMessage<K, V>> messages) {
-		List<String> ids = new ArrayList<>();
-		for (StreamMessage<K, V> message : messages) {
-			ids.add(message.getId());
-		}
-		ack(commands, ids.toArray(new String[0]));
-	}
-
-	private Long ack(RedisStreamCommands<K, V> commands, String... ids) {
+	private Long doAck(String... ids) {
 		if (ids.length == 0) {
 			return 0L;
 		}
@@ -297,12 +287,11 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	private class ExplicitAckPendingMessageReader implements MessageReader<K, V> {
 
 		@SuppressWarnings("unchecked")
-		protected List<StreamMessage<K, V>> readMessages(RedisStreamCommands<K, V> commands, XReadArgs args) {
-			return recover(commands, commands.xreadgroup(consumer, args, StreamOffset.from(stream, DEFAULT_OFFSET)));
+		protected List<StreamMessage<K, V>> readMessages(XReadArgs args) {
+			return recover(commands.xreadgroup(consumer, args, StreamOffset.from(stream, DEFAULT_OFFSET)));
 		}
 
-		protected List<StreamMessage<K, V>> recover(RedisStreamCommands<K, V> commands,
-				List<StreamMessage<K, V>> messages) {
+		protected List<StreamMessage<K, V>> recover(List<StreamMessage<K, V>> messages) {
 			if (messages.isEmpty()) {
 				return messages;
 			}
@@ -318,7 +307,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 					messagesToAck.add(message);
 				}
 			}
-			ack(commands, messagesToAck);
+			ack(messagesToAck);
 			return recoveredMessages;
 		}
 
@@ -329,7 +318,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 		@Override
 		public List<StreamMessage<K, V>> read(long blockMillis) {
 			List<StreamMessage<K, V>> messages;
-			messages = readMessages(commands(connection), args(blockMillis));
+			messages = readMessages(args(blockMillis));
 			if (messages.isEmpty()) {
 				reader = messageReader();
 				return reader.read(blockMillis);
@@ -344,7 +333,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 		@SuppressWarnings("unchecked")
 		@Override
 		public List<StreamMessage<K, V>> read(long blockMillis) {
-			return commands(connection).xreadgroup(consumer, args(blockMillis), StreamOffset.lastConsumed(stream));
+			return commands.xreadgroup(consumer, args(blockMillis), StreamOffset.lastConsumed(stream));
 		}
 	}
 
@@ -356,9 +345,8 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 		}
 
 		@Override
-		protected List<StreamMessage<K, V>> recover(RedisStreamCommands<K, V> commands,
-				List<StreamMessage<K, V>> messages) {
-			ack(commands, messages);
+		protected List<StreamMessage<K, V>> recover(List<StreamMessage<K, V>> messages) {
+			ack(messages);
 			return Collections.emptyList();
 		}
 
@@ -373,6 +361,10 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 			return messages;
 		}
 
+	}
+
+	public long streamLength() {
+		return commands.xlen(stream);
 	}
 
 }
