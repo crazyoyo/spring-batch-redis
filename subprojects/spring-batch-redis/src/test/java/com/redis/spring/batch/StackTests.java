@@ -179,7 +179,6 @@ class StackTests extends AbstractModulesTests {
 		sourceConnection.sync().pexpireat(key, ttl);
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
 		operation.setMemoryUsageOptions(MemoryUsageOptions.builder().limit(DataSize.ofBytes(-1)).build());
-		open(operation);
 		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
 		KeyValue<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
@@ -194,12 +193,14 @@ class StackTests extends AbstractModulesTests {
 		long memLimit = 200;
 		RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions(DataSize.ofBytes(memLimit)))
 				.struct();
+		reader.setName(name(testInfo) + "-reader");
 		reader.open(new ExecutionContext());
-		KeyValue<String> ds;
-		while ((ds = reader.read()) != null) {
-			Assertions.assertTrue(ds.getMemoryUsage() > 0);
-			if (ds.getMemoryUsage() > memLimit) {
-				Assertions.assertNull(ds.getValue());
+		List<KeyValue<String>> keyValues = readAll(reader);
+		Assertions.assertFalse(keyValues.isEmpty());
+		for (KeyValue<String> keyValue : keyValues) {
+			Assertions.assertTrue(keyValue.getMemoryUsage() > 0);
+			if (keyValue.getMemoryUsage() > memLimit) {
+				Assertions.assertNull(keyValue.getValue());
 			}
 		}
 	}

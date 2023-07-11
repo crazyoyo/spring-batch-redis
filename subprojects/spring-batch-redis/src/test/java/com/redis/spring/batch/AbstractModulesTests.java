@@ -57,7 +57,7 @@ import com.redis.spring.batch.reader.GeneratorItemReader.Type;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 import com.redis.spring.batch.reader.KeyComparisonItemReader;
-import com.redis.spring.batch.reader.KeyEventType;
+import com.redis.spring.batch.reader.KeyEvent;
 import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
@@ -125,13 +125,12 @@ abstract class AbstractModulesTests extends AbstractTests {
 				Type.JSON));
 		generate(testInfo, gen);
 		awaitUntil(() -> reader.getQueue().size() > 0);
-		Assertions.assertEquals(KeyEventType.SET, reader.getQueue().remove().getEventType());
-		Set<KeyEventType> eventTypes = new LinkedHashSet<>(
-				Arrays.asList(KeyEventType.SET, KeyEventType.HSET, KeyEventType.JSON_SET, KeyEventType.RPUSH,
-						KeyEventType.SADD, KeyEventType.ZADD, KeyEventType.XADD, KeyEventType.TS_ADD));
+		Assertions.assertEquals(KeyEvent.SET, reader.getQueue().remove().getEvent());
+		Set<KeyEvent> eventTypes = new LinkedHashSet<>(Arrays.asList(KeyEvent.SET, KeyEvent.HSET, KeyEvent.JSON_SET,
+				KeyEvent.RPUSH, KeyEvent.SADD, KeyEvent.ZADD, KeyEvent.XADD, KeyEvent.TS_ADD));
 		KeyspaceNotification notification;
 		while ((notification = reader.getQueue().poll()) != null) {
-			Assertions.assertTrue(eventTypes.contains(notification.getEventType()));
+			Assertions.assertTrue(eventTypes.contains(notification.getEvent()));
 		}
 		reader.close();
 	}
@@ -141,7 +140,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		enableKeyspaceNotifications(sourceClient);
 		KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(sourceClient,
 				StringCodec.UTF8);
-		reader.getOptions().setType(KeyValue.HASH);
+		reader.getScanOptions().setType(KeyValue.HASH);
 		reader.open(new ExecutionContext());
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(100);
@@ -152,7 +151,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 		awaitUntil(() -> reader.getQueue().size() > 0);
 		KeyspaceNotification notification;
 		while ((notification = queue.poll()) != null) {
-			Assertions.assertEquals(KeyValue.HASH, notification.getEventType().getType());
+			Assertions.assertEquals(KeyValue.HASH, notification.getEvent().getType());
 		}
 		reader.close();
 	}
@@ -228,7 +227,6 @@ abstract class AbstractModulesTests extends AbstractTests {
 			sourceConnection.sync().tsAdd(key, sample);
 		}
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		open(operation);
 		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
 		KeyValue<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
@@ -246,7 +244,6 @@ abstract class AbstractModulesTests extends AbstractTests {
 		}
 		KeyValueReadOperation<byte[], byte[]> operation = KeyValueReadOperation
 				.builder(sourceClient, ByteArrayCodec.INSTANCE).struct();
-		open(operation);
 		StatefulRedisModulesConnection<byte[], byte[]> byteConnection = RedisModulesUtils.connection(sourceClient,
 				ByteArrayCodec.INSTANCE);
 		Future<KeyValue<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));

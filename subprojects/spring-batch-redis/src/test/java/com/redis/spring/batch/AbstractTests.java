@@ -48,7 +48,6 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStream;
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.NonTransientResourceException;
@@ -69,7 +68,6 @@ import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.common.KeyPredicateFactory;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.PredicateItemProcessor;
 import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.convert.GeoValueConverter;
@@ -82,6 +80,7 @@ import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
+import com.redis.spring.batch.reader.ScanOptions;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StreamItemReader;
@@ -110,6 +109,7 @@ import io.lettuce.core.Consumer;
 import io.lettuce.core.GeoArgs;
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.Range;
+import io.lettuce.core.RedisConnectionException;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.ScanIterator;
@@ -217,9 +217,9 @@ abstract class AbstractTests {
 
 	}
 
-	protected void awaitClosed(Object object) {
-		if (object instanceof Openable) {
-			awaitUntilFalse(((Openable) object)::isOpen);
+	protected static void awaitClosed(Object object) {
+		if (object instanceof ItemStream) {
+			awaitUntilFalse(() -> Utils.isOpen((ItemStream) object, false));
 		}
 	}
 
@@ -272,11 +272,11 @@ abstract class AbstractTests {
 				|| jobExecution.getStatus().isGreaterThan(BatchStatus.STOPPED);
 	}
 
-	protected void awaitUntilFalse(Callable<Boolean> conditionEvaluator) {
+	protected static void awaitUntilFalse(Callable<Boolean> conditionEvaluator) {
 		awaitUntil(() -> !conditionEvaluator.call());
 	}
 
-	protected void awaitUntil(Callable<Boolean> conditionEvaluator) {
+	protected static void awaitUntil(Callable<Boolean> conditionEvaluator) {
 		Awaitility.await().pollInterval(DEFAULT_POLL_INTERVAL).timeout(DEFAULT_AWAIT_TIMEOUT).until(conditionEvaluator);
 	}
 
@@ -678,6 +678,16 @@ abstract class AbstractTests {
 	}
 
 	@Test
+	void reader(TestInfo testInfo) throws Exception {
+		generate(testInfo);
+		RedisItemReader<String, String> reader = reader(sourceClient).struct();
+		reader.setName(name(testInfo) + "-reader");
+		reader.open(new ExecutionContext());
+		List<KeyValue<String>> list = Utils.readAll(reader);
+		assertEquals(sourceConnection.sync().dbsize(), list.size());
+	}
+
+	@Test
 	void readThreads(TestInfo testInfo) throws Exception {
 		generate(testInfo);
 		RedisItemReader<String, String> reader = reader(sourceClient).struct();
@@ -694,19 +704,18 @@ abstract class AbstractTests {
 
 	@Test
 	void scanSizeEstimator(TestInfo testInfo) throws Exception {
-		String pattern = GeneratorItemReader.DEFAULT_KEYSPACE + "*";
-		int count = 12345;
 		GeneratorItemReader gen = new GeneratorItemReader();
-		gen.setMaxItemCount(count);
+		gen.setMaxItemCount(12345);
 		gen.setTypes(Type.HASH, Type.STRING);
 		generate(testInfo, gen);
 		long expectedCount = sourceConnection.sync().dbsize();
 		ScanSizeEstimator estimator = new ScanSizeEstimator(sourceClient);
-		estimator.getOptions().setMatch(pattern);
-		assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
+		assertEquals(expectedCount,
+				estimator.estimateSize(ScanOptions.builder().match(GeneratorItemReader.DEFAULT_KEYSPACE + "*").build()),
+				expectedCount / 10);
 		estimator = new ScanSizeEstimator(sourceClient);
-		estimator.getOptions().setType(KeyValue.HASH);
-		assertEquals(expectedCount / 2, estimator.getAsLong(), expectedCount / 10);
+		assertEquals(expectedCount / 2, estimator.estimateSize(ScanOptions.builder().type(KeyValue.HASH).build()),
+				expectedCount / 10);
 	}
 
 	protected void generateStreams(TestInfo testInfo) throws JobExecutionException {
@@ -1036,7 +1045,7 @@ abstract class AbstractTests {
 		try (RedisModulesClient badSourceClient = RedisModulesClient.create("redis://badhost:6379")) {
 			RedisItemReader<String, String> reader = reader(badSourceClient).struct();
 			reader.setName(name(testInfo) + "-reader");
-			Assertions.assertThrows(ItemStreamException.class, () -> open(reader));
+			Assertions.assertThrows(RedisConnectionException.class, () -> open(reader));
 		}
 	}
 
@@ -1050,7 +1059,6 @@ abstract class AbstractTests {
 		long ttl = System.currentTimeMillis() + 123456;
 		sourceConnection.sync().pexpireat(key, ttl);
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		open(operation);
 		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
 		KeyValue<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
@@ -1066,7 +1074,6 @@ abstract class AbstractTests {
 		ScoredValue[] values = { ScoredValue.just(123.456, "value1"), ScoredValue.just(654.321, "value2") };
 		sourceConnection.sync().zadd(key, values);
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		open(operation);
 		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
 		KeyValue<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
@@ -1080,7 +1087,6 @@ abstract class AbstractTests {
 		List<String> values = Arrays.asList("value1", "value2");
 		sourceConnection.sync().rpush(key, values.toArray(new String[0]));
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		open(operation);
 		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
 		KeyValue<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
@@ -1097,7 +1103,6 @@ abstract class AbstractTests {
 		sourceConnection.sync().xadd(key, body);
 		sourceConnection.sync().xadd(key, body);
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		open(operation);
 		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
 		KeyValue<String> ds = future.get();
 		Assertions.assertEquals(key, ds.getKey());
@@ -1124,7 +1129,6 @@ abstract class AbstractTests {
 				ByteArrayCodec.INSTANCE);
 		KeyValueReadOperation<byte[], byte[]> operation = KeyValueReadOperation
 				.builder(sourceClient, ByteArrayCodec.INSTANCE).dump();
-		open(operation);
 		Future<KeyValue<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
 		KeyValue<byte[]> dump = future.get();
 		Assertions.assertArrayEquals(keyBytes(key), dump.getKey());
@@ -1148,7 +1152,6 @@ abstract class AbstractTests {
 		sourceConnection.sync().xadd(key, body);
 		KeyValueReadOperation<byte[], byte[]> operation = KeyValueReadOperation
 				.builder(sourceClient, ByteArrayCodec.INSTANCE).struct();
-		open(operation);
 		StatefulRedisModulesConnection<byte[], byte[]> byteConnection = RedisModulesUtils.connection(sourceClient,
 				ByteArrayCodec.INSTANCE);
 		Future<KeyValue<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
@@ -1173,7 +1176,6 @@ abstract class AbstractTests {
 		String key2 = "hll:2";
 		sourceConnection.sync().pfadd(key2, "member:1", "member:2", "member:3");
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		open(operation);
 		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key1);
 		KeyValue<String> ds1 = future.get();
 		Assertions.assertEquals(key1, ds1.getKey());
