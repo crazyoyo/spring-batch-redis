@@ -52,7 +52,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 
 	private StatefulRedisModulesConnection<K, V> connection;
 	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
-	private MessageReader<K, V> reader;
+	private MessageReader<K, V> messageReader;
 	private String lastId;
 	private RedisStreamCommands<K, V> commands;
 
@@ -111,11 +111,11 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 			// Consumer Group name already exists, ignore
 		}
 		lastId = offset;
-		reader = reader();
+		messageReader = reader();
 	}
 
 	public boolean isOpen() {
-		return reader != null;
+		return messageReader != null;
 	}
 
 	@Override
@@ -127,7 +127,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	}
 
 	private void doClose() {
-		reader = null;
+		messageReader = null;
 		lastId = null;
 		connection.close();
 		connection = null;
@@ -154,7 +154,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	@Override
 	public StreamMessage<K, V> poll(long timeout, TimeUnit unit) throws PollingException {
 		if (!iterator.hasNext()) {
-			List<StreamMessage<K, V>> messages = reader.read(unit.toMillis(timeout));
+			List<StreamMessage<K, V>> messages = messageReader.read(unit.toMillis(timeout));
 			if (messages == null || messages.isEmpty()) {
 				return null;
 			}
@@ -164,7 +164,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	}
 
 	public List<StreamMessage<K, V>> readMessages() {
-		return reader.read(block.toMillis());
+		return messageReader.read(block.toMillis());
 	}
 
 	/**
@@ -325,8 +325,8 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 			List<StreamMessage<K, V>> messages;
 			messages = readMessages(args(blockMillis));
 			if (messages.isEmpty()) {
-				reader = messageReader();
-				return reader.read(blockMillis);
+				messageReader = messageReader();
+				return messageReader.read(blockMillis);
 			}
 			return messages;
 		}

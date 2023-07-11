@@ -57,7 +57,10 @@ public class OperationItemProcessor<K, V, I, O> extends ItemStreamSupport
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		if (!isOpen()) {
-			doOpen();
+			ConnectionPoolFactory poolFactory = ConnectionPoolFactory.client(client);
+			poolFactory.withOptions(poolOptions);
+			poolFactory.withReadFrom(readFrom);
+			pool = poolFactory.build(codec);
 		}
 		super.open(executionContext);
 	}
@@ -66,24 +69,13 @@ public class OperationItemProcessor<K, V, I, O> extends ItemStreamSupport
 		return pool != null;
 	}
 
-	private void doOpen() {
-		ConnectionPoolFactory poolFactory = ConnectionPoolFactory.client(client);
-		poolFactory.withOptions(poolOptions);
-		poolFactory.withReadFrom(readFrom);
-		pool = poolFactory.build(codec);
-	}
-
 	@Override
 	public synchronized void close() {
 		super.close();
 		if (isOpen()) {
-			doClose();
+			pool.close();
+			pool = null;
 		}
-	}
-
-	private void doClose() {
-		pool.close();
-		pool = null;
 	}
 
 	@Override
@@ -97,8 +89,7 @@ public class OperationItemProcessor<K, V, I, O> extends ItemStreamSupport
 				connection.flushCommands();
 				List<O> results = new ArrayList<>(futures.size());
 				for (Future<O> future : futures) {
-					O result = future.get(timeout, TimeUnit.MILLISECONDS);
-					results.add(result);
+					results.add(future.get(timeout, TimeUnit.MILLISECONDS));
 				}
 				return results;
 			} finally {
