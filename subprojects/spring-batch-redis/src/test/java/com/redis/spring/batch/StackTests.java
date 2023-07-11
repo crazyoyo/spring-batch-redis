@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Function;
@@ -15,9 +14,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStream;
-import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.util.unit.DataSize;
 
@@ -193,9 +189,7 @@ class StackTests extends AbstractModulesTests {
 		long memLimit = 200;
 		RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions(DataSize.ofBytes(memLimit)))
 				.struct();
-		reader.setName(name(testInfo) + "-reader");
-		reader.open(new ExecutionContext());
-		List<KeyValue<String>> keyValues = readAll(reader);
+		List<KeyValue<String>> keyValues = readAll(testInfo, reader);
 		Assertions.assertFalse(keyValues.isEmpty());
 		for (KeyValue<String> keyValue : keyValues) {
 			Assertions.assertTrue(keyValue.getMemoryUsage() > 0);
@@ -225,24 +219,6 @@ class StackTests extends AbstractModulesTests {
 		Assertions.assertTrue(isOk(compare(testInfo)));
 	}
 
-	private <T> List<T> readAll(ItemReader<T> reader) throws Exception {
-		List<T> items = new ArrayList<>();
-		if (reader instanceof ItemStream) {
-			if (reader instanceof ItemStreamSupport) {
-				((ItemStreamSupport) reader).setName(UUID.randomUUID().toString());
-			}
-			((ItemStream) reader).open(new ExecutionContext());
-		}
-		T item;
-		while ((item = reader.read()) != null) {
-			items.add(item);
-		}
-		if (reader instanceof ItemStream) {
-			((ItemStream) reader).close();
-		}
-		return items;
-	}
-
 	private ReaderOptions readerOptions(DataSize size) {
 		return ReaderOptions.builder().memoryUsageOptions(MemoryUsageOptions.builder().limit(size).build()).build();
 	}
@@ -258,7 +234,7 @@ class StackTests extends AbstractModulesTests {
 		run(testInfo, reader, writer);
 		RedisItemReader<String, String> fullReader = RedisItemReader.client(sourceClient, StringCodec.UTF8)
 				.jobRepository(jobRepository).options(readerOptions(DataSize.ofBytes(-1))).struct();
-		List<KeyValue<String>> items = readAll(fullReader);
+		List<KeyValue<String>> items = readAll(testInfo, fullReader);
 		List<KeyValue<String>> bigkeys = items.stream().filter(ds -> ds.getMemoryUsage() > memLimit)
 				.collect(Collectors.toList());
 		Assertions.assertEquals(sourceConnection.sync().dbsize(), bigkeys.size() + targetConnection.sync().dbsize());
@@ -272,10 +248,8 @@ class StackTests extends AbstractModulesTests {
 		String key2 = "key:2";
 		sourceConnection.sync().set(key2, GeneratorItemReader.randomString(Math.toIntExact(limit.toBytes() * 2)));
 		RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions(limit)).struct();
-		SynchronizedListItemWriter<KeyValue<String>> writer = new SynchronizedListItemWriter<>();
-		run(testInfo, reader, writer);
-		Map<String, KeyValue<String>> map = writer.getItems().stream()
-				.collect(Collectors.toMap(s -> s.getKey(), s -> s));
+		List<KeyValue<String>> keyValues = readAll(testInfo, reader);
+		Map<String, KeyValue<String>> map = keyValues.stream().collect(Collectors.toMap(s -> s.getKey(), s -> s));
 		Assertions.assertNull(map.get(key2).getValue());
 	}
 

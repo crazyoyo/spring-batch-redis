@@ -217,6 +217,23 @@ abstract class AbstractTests {
 
 	}
 
+	protected <T> List<T> readAll(TestInfo testInfo, ItemReader<T> reader)
+			throws UnexpectedInputException, ParseException, NonTransientResourceException, Exception {
+		if (reader instanceof ItemStream) {
+			if (reader instanceof ItemStreamSupport) {
+				((ItemStreamSupport) reader).setName(name(testInfo) + "-readAll");
+			}
+			((ItemStream) reader).open(new ExecutionContext());
+		}
+		try {
+			return Utils.readAll(reader);
+		} finally {
+			if (reader instanceof ItemStream) {
+				((ItemStream) reader).close();
+			}
+		}
+	}
+
 	protected static void awaitClosed(Object object) {
 		if (object instanceof ItemStream) {
 			awaitUntilFalse(() -> Utils.isOpen((ItemStream) object, false));
@@ -672,18 +689,15 @@ abstract class AbstractTests {
 		gen.setMaxItemCount(count);
 		generate(testInfo, gen);
 		ScanKeyItemReader<String, String> reader = new ScanKeyItemReader<>(sourceClient, StringCodec.UTF8);
-		open(reader);
-		Assertions.assertEquals(count, Utils.readAll(reader).size());
-		reader.close();
+		List<String> keys = readAll(testInfo, reader);
+		Assertions.assertEquals(count, keys.size());
 	}
 
 	@Test
 	void reader(TestInfo testInfo) throws Exception {
 		generate(testInfo);
 		RedisItemReader<String, String> reader = reader(sourceClient).struct();
-		reader.setName(name(testInfo) + "-reader");
-		reader.open(new ExecutionContext());
-		List<KeyValue<String>> list = Utils.readAll(reader);
+		List<KeyValue<String>> list = readAll(testInfo, reader);
 		assertEquals(sourceConnection.sync().dbsize(), list.size());
 	}
 
@@ -1033,10 +1047,9 @@ abstract class AbstractTests {
 			Consumer<String> consumer = Consumer.from("batchtests-readstreamjob", "consumer1");
 			StreamItemReader<String, String> reader = streamReader(key);
 			reader.setConsumer(consumer);
-			SynchronizedListItemWriter<StreamMessage<String, String>> writer = new SynchronizedListItemWriter<>();
-			run(testInfo(testInfo, key), reader, writer);
-			Assertions.assertEquals(STREAM_MESSAGE_COUNT, writer.getItems().size());
-			assertMessageBody(writer.getItems());
+			List<StreamMessage<String, String>> messages = readAll(testInfo, reader);
+			Assertions.assertEquals(STREAM_MESSAGE_COUNT, messages.size());
+			assertMessageBody(messages);
 		}
 	}
 

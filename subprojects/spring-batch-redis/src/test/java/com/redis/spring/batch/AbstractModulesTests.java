@@ -318,14 +318,10 @@ abstract class AbstractModulesTests extends AbstractTests {
 	 * @throws Exception
 	 */
 	protected List<? extends KeyComparison> compare(TestInfo testInfo) throws Exception {
-		TestInfo finalTestInfo = testInfo(testInfo, "compare");
-		KeyComparisonItemReader reader = comparisonReader();
-		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
-		run(job(finalTestInfo).start(step(finalTestInfo, reader, writer).build()).build());
-		awaitClosed(reader);
-		awaitClosed(writer);
-		Assertions.assertFalse(writer.getItems().isEmpty());
-		return writer.getItems();
+		TestInfo finalTestInfo = testInfo(testInfo, "compare", "reader");
+		List<KeyComparison> comparisons = readAll(finalTestInfo, comparisonReader());
+		Assertions.assertFalse(comparisons.isEmpty());
+		return comparisons;
 	}
 
 	protected boolean isOk(List<? extends KeyComparison> comparisons) {
@@ -381,9 +377,8 @@ abstract class AbstractModulesTests extends AbstractTests {
 		sourceConnection.sync().sadd("set:1", "value1", "value2");
 		targetConnection.sync().sadd("set:1", "value2", "value1");
 		KeyComparisonItemReader reader = comparisonReader();
-		SynchronizedListItemWriter<KeyComparison> writer = new SynchronizedListItemWriter<>();
-		run(testInfo, reader, writer);
-		Assertions.assertEquals(KeyComparison.Status.OK, writer.getItems().get(0).getStatus());
+		List<KeyComparison> comparisons = readAll(testInfo, reader);
+		Assertions.assertEquals(KeyComparison.Status.OK, comparisons.get(0).getStatus());
 	}
 
 	@Test
