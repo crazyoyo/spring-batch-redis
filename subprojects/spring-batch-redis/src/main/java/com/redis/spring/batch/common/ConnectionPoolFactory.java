@@ -67,10 +67,10 @@ public class ConnectionPoolFactory {
 	}
 
 	public GenericObjectPool<StatefulConnection<String, String>> build() {
-		return codec(StringCodec.UTF8);
+		return build(StringCodec.UTF8);
 	}
 
-	public <K, V> GenericObjectPool<StatefulConnection<K, V>> codec(RedisCodec<K, V> codec) {
+	public <K, V> GenericObjectPool<StatefulConnection<K, V>> build(RedisCodec<K, V> codec) {
 		Supplier<StatefulConnection<K, V>> connectionSupplier = Utils.connectionSupplier(client, codec, readFrom);
 		return ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config());
 	}

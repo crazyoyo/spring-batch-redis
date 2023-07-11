@@ -5,18 +5,15 @@ import java.util.List;
 import java.util.concurrent.Future;
 
 import com.redis.spring.batch.common.BatchOperation;
-import com.redis.spring.batch.common.DelegatingItemStreamSupport;
 
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 
-public class MultiExecWriteOperation<K, V, T> extends DelegatingItemStreamSupport
-		implements BatchOperation<K, V, T, Object> {
+public class MultiExecWriteOperation<K, V, T> implements BatchOperation<K, V, T, Object> {
 
 	private final BatchOperation<K, V, T, ?> delegate;
 
 	public MultiExecWriteOperation(BatchOperation<K, V, T, ?> delegate) {
-		super(delegate);
 		this.delegate = delegate;
 	}
 

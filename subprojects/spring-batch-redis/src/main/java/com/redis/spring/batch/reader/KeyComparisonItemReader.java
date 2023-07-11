@@ -14,16 +14,15 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemReader.BaseScanBuilder;
+import com.redis.spring.batch.RedisItemReader.BaseBuilder;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.OperationItemProcessor;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.StringCodec;
 
-public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyComparison> implements Openable {
+public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyComparison> {
 
 	public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
@@ -33,8 +32,9 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 	private final RedisItemReader<String, String> right;
 
 	private int chunkSize = ReaderOptions.DEFAULT_CHUNK_SIZE;
-	private OperationItemProcessor<String, String, String, KeyValue<String>> rightOperationProcessor;
 	private Iterator<KeyComparison> iterator = Collections.emptyIterator();
+
+	private OperationItemProcessor<String, String, String, KeyValue<String>> rightOperationProcessor;
 
 	public KeyComparisonItemReader(RedisItemReader<String, String> left, RedisItemReader<String, String> right) {
 		this.left = left;
@@ -63,16 +63,17 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 	}
 
 	@Override
-	public void open(ExecutionContext executionContext) {
+	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		rightOperationProcessor = right.operationProcessor();
-		rightOperationProcessor.open(executionContext);
-		left.open(executionContext);
+		if (!isOpen()) {
+			rightOperationProcessor = right.operationProcessor();
+			rightOperationProcessor.open(executionContext);
+			left.open(executionContext);
+		}
 	}
 
-	@Override
 	public boolean isOpen() {
-		return left.isOpen() && rightOperationProcessor.isOpen();
+		return rightOperationProcessor != null && rightOperationProcessor.isOpen() && left.isOpen();
 	}
 
 	@Override
@@ -83,14 +84,23 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 	}
 
 	@Override
-	public void close() {
-		left.close();
-		rightOperationProcessor.close();
+	public synchronized void close() {
+		if (isOpen()) {
+			left.close();
+			rightOperationProcessor.close();
+		}
 		super.close();
 	}
 
 	@Override
 	public synchronized KeyComparison read() throws Exception {
+		if (isOpen()) {
+			return doRead();
+		}
+		return null;
+	}
+
+	private KeyComparison doRead() throws Exception {
 		if (iterator.hasNext()) {
 			return iterator.next();
 		}
@@ -161,7 +171,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 		return new Builder(left, right);
 	}
 
-	public static class Builder extends BaseScanBuilder<String, String, Builder> {
+	public static class Builder extends BaseBuilder<String, String, Builder> {
 
 		private final AbstractRedisClient right;
 		private Duration ttlTolerance = KeyComparisonItemReader.DEFAULT_TTL_TOLERANCE;
@@ -193,7 +203,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 		private RedisItemReader.Builder<String, String> reader(AbstractRedisClient client) {
 			RedisItemReader.Builder<String, String> builder = new RedisItemReader.Builder<>(client, StringCodec.UTF8);
 			builder.jobRepository(jobRepository);
-			builder.scanOptions(scanOptions);
+			builder.keyProcessor(keyProcessor);
 			return builder;
 		}
 

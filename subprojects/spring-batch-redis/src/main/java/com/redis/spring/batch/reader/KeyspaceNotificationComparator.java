@@ -1,60 +1,60 @@
 package com.redis.spring.batch.reader;
 
-import static com.redis.spring.batch.reader.KeyEventType.APPEND;
-import static com.redis.spring.batch.reader.KeyEventType.COPY_TO;
-import static com.redis.spring.batch.reader.KeyEventType.DEL;
-import static com.redis.spring.batch.reader.KeyEventType.EVICTED;
-import static com.redis.spring.batch.reader.KeyEventType.EXPIRE;
-import static com.redis.spring.batch.reader.KeyEventType.EXPIRED;
-import static com.redis.spring.batch.reader.KeyEventType.HDEL;
-import static com.redis.spring.batch.reader.KeyEventType.HINCRBY;
-import static com.redis.spring.batch.reader.KeyEventType.HINCRBYFLOAT;
-import static com.redis.spring.batch.reader.KeyEventType.HSET;
-import static com.redis.spring.batch.reader.KeyEventType.INCRBY;
-import static com.redis.spring.batch.reader.KeyEventType.INCRBYFLOAT;
-import static com.redis.spring.batch.reader.KeyEventType.JSON_SET;
-import static com.redis.spring.batch.reader.KeyEventType.LINSERT;
-import static com.redis.spring.batch.reader.KeyEventType.LPOP;
-import static com.redis.spring.batch.reader.KeyEventType.LPUSH;
-import static com.redis.spring.batch.reader.KeyEventType.LREM;
-import static com.redis.spring.batch.reader.KeyEventType.LSET;
-import static com.redis.spring.batch.reader.KeyEventType.LTRIM;
-import static com.redis.spring.batch.reader.KeyEventType.MOVE_FROM;
-import static com.redis.spring.batch.reader.KeyEventType.MOVE_TO;
-import static com.redis.spring.batch.reader.KeyEventType.NEW_KEY;
-import static com.redis.spring.batch.reader.KeyEventType.PERSIST;
-import static com.redis.spring.batch.reader.KeyEventType.RENAME_FROM;
-import static com.redis.spring.batch.reader.KeyEventType.RENAME_TO;
-import static com.redis.spring.batch.reader.KeyEventType.RESTORE;
-import static com.redis.spring.batch.reader.KeyEventType.RPOP;
-import static com.redis.spring.batch.reader.KeyEventType.RPUSH;
-import static com.redis.spring.batch.reader.KeyEventType.SADD;
-import static com.redis.spring.batch.reader.KeyEventType.SDIFFSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.SET;
-import static com.redis.spring.batch.reader.KeyEventType.SETRANGE;
-import static com.redis.spring.batch.reader.KeyEventType.SINTERSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.SORTSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.SPOP;
-import static com.redis.spring.batch.reader.KeyEventType.SUNIONSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.TS_ADD;
-import static com.redis.spring.batch.reader.KeyEventType.UNKNOWN;
-import static com.redis.spring.batch.reader.KeyEventType.XADD;
-import static com.redis.spring.batch.reader.KeyEventType.XDEL;
-import static com.redis.spring.batch.reader.KeyEventType.XGROUP_CREATE;
-import static com.redis.spring.batch.reader.KeyEventType.XGROUP_CREATECONSUMER;
-import static com.redis.spring.batch.reader.KeyEventType.XGROUP_DELCONSUMER;
-import static com.redis.spring.batch.reader.KeyEventType.XGROUP_DESTROY;
-import static com.redis.spring.batch.reader.KeyEventType.XGROUP_SETID;
-import static com.redis.spring.batch.reader.KeyEventType.XSETID;
-import static com.redis.spring.batch.reader.KeyEventType.XTRIM;
-import static com.redis.spring.batch.reader.KeyEventType.ZADD;
-import static com.redis.spring.batch.reader.KeyEventType.ZDIFFSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.ZINCR;
-import static com.redis.spring.batch.reader.KeyEventType.ZINTERSTORE;
-import static com.redis.spring.batch.reader.KeyEventType.ZREM;
-import static com.redis.spring.batch.reader.KeyEventType.ZREMBYRANK;
-import static com.redis.spring.batch.reader.KeyEventType.ZREMBYSCORE;
-import static com.redis.spring.batch.reader.KeyEventType.ZUNIONSTORE;
+import static com.redis.spring.batch.reader.KeyEvent.APPEND;
+import static com.redis.spring.batch.reader.KeyEvent.COPY_TO;
+import static com.redis.spring.batch.reader.KeyEvent.DEL;
+import static com.redis.spring.batch.reader.KeyEvent.EVICTED;
+import static com.redis.spring.batch.reader.KeyEvent.EXPIRE;
+import static com.redis.spring.batch.reader.KeyEvent.EXPIRED;
+import static com.redis.spring.batch.reader.KeyEvent.HDEL;
+import static com.redis.spring.batch.reader.KeyEvent.HINCRBY;
+import static com.redis.spring.batch.reader.KeyEvent.HINCRBYFLOAT;
+import static com.redis.spring.batch.reader.KeyEvent.HSET;
+import static com.redis.spring.batch.reader.KeyEvent.INCRBY;
+import static com.redis.spring.batch.reader.KeyEvent.INCRBYFLOAT;
+import static com.redis.spring.batch.reader.KeyEvent.JSON_SET;
+import static com.redis.spring.batch.reader.KeyEvent.LINSERT;
+import static com.redis.spring.batch.reader.KeyEvent.LPOP;
+import static com.redis.spring.batch.reader.KeyEvent.LPUSH;
+import static com.redis.spring.batch.reader.KeyEvent.LREM;
+import static com.redis.spring.batch.reader.KeyEvent.LSET;
+import static com.redis.spring.batch.reader.KeyEvent.LTRIM;
+import static com.redis.spring.batch.reader.KeyEvent.MOVE_FROM;
+import static com.redis.spring.batch.reader.KeyEvent.MOVE_TO;
+import static com.redis.spring.batch.reader.KeyEvent.NEW_KEY;
+import static com.redis.spring.batch.reader.KeyEvent.PERSIST;
+import static com.redis.spring.batch.reader.KeyEvent.RENAME_FROM;
+import static com.redis.spring.batch.reader.KeyEvent.RENAME_TO;
+import static com.redis.spring.batch.reader.KeyEvent.RESTORE;
+import static com.redis.spring.batch.reader.KeyEvent.RPOP;
+import static com.redis.spring.batch.reader.KeyEvent.RPUSH;
+import static com.redis.spring.batch.reader.KeyEvent.SADD;
+import static com.redis.spring.batch.reader.KeyEvent.SDIFFSTORE;
+import static com.redis.spring.batch.reader.KeyEvent.SET;
+import static com.redis.spring.batch.reader.KeyEvent.SETRANGE;
+import static com.redis.spring.batch.reader.KeyEvent.SINTERSTORE;
+import static com.redis.spring.batch.reader.KeyEvent.SORTSTORE;
+import static com.redis.spring.batch.reader.KeyEvent.SPOP;
+import static com.redis.spring.batch.reader.KeyEvent.SUNIONSTORE;
+import static com.redis.spring.batch.reader.KeyEvent.TS_ADD;
+import static com.redis.spring.batch.reader.KeyEvent.UNKNOWN;
+import static com.redis.spring.batch.reader.KeyEvent.XADD;
+import static com.redis.spring.batch.reader.KeyEvent.XDEL;
+import static com.redis.spring.batch.reader.KeyEvent.XGROUP_CREATE;
+import static com.redis.spring.batch.reader.KeyEvent.XGROUP_CREATECONSUMER;
+import static com.redis.spring.batch.reader.KeyEvent.XGROUP_DELCONSUMER;
+import static com.redis.spring.batch.reader.KeyEvent.XGROUP_DESTROY;
+import static com.redis.spring.batch.reader.KeyEvent.XGROUP_SETID;
+import static com.redis.spring.batch.reader.KeyEvent.XSETID;
+import static com.redis.spring.batch.reader.KeyEvent.XTRIM;
+import static com.redis.spring.batch.reader.KeyEvent.ZADD;
+import static com.redis.spring.batch.reader.KeyEvent.ZDIFFSTORE;
+import static com.redis.spring.batch.reader.KeyEvent.ZINCR;
+import static com.redis.spring.batch.reader.KeyEvent.ZINTERSTORE;
+import static com.redis.spring.batch.reader.KeyEvent.ZREM;
+import static com.redis.spring.batch.reader.KeyEvent.ZREMBYRANK;
+import static com.redis.spring.batch.reader.KeyEvent.ZREMBYSCORE;
+import static com.redis.spring.batch.reader.KeyEvent.ZUNIONSTORE;
 
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -62,7 +62,7 @@ import java.util.Map;
 
 public class KeyspaceNotificationComparator implements Comparator<KeyspaceNotification> {
 
-	private static final KeyEventType[] EVENT_TYPES = {
+	private static final KeyEvent[] EVENT_TYPES = {
 			// Delete
 			DEL, EXPIRED, EVICTED, EXPIRE,
 			// Create
@@ -87,10 +87,10 @@ public class KeyspaceNotificationComparator implements Comparator<KeyspaceNotifi
 			// Other
 			UNKNOWN };
 
-	private final Map<KeyEventType, Integer> ranking;
+	private final Map<KeyEvent, Integer> ranking;
 
 	public KeyspaceNotificationComparator() {
-		this.ranking = new EnumMap<>(KeyEventType.class);
+		this.ranking = new EnumMap<>(KeyEvent.class);
 		for (int index = 0; index < EVENT_TYPES.length; index++) {
 			ranking.put(EVENT_TYPES[index], index);
 		}
@@ -98,8 +98,8 @@ public class KeyspaceNotificationComparator implements Comparator<KeyspaceNotifi
 
 	@Override
 	public int compare(KeyspaceNotification o1, KeyspaceNotification o2) {
-		return ranking.getOrDefault(o1.getEventType(), Integer.MAX_VALUE)
-				- ranking.getOrDefault(o2.getEventType(), Integer.MAX_VALUE);
+		return ranking.getOrDefault(o1.getEvent(), Integer.MAX_VALUE)
+				- ranking.getOrDefault(o2.getEvent(), Integer.MAX_VALUE);
 	}
 
 }

@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemStreamSupport;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -16,13 +17,12 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public class OperationItemProcessor<K, V, I, O> extends DelegatingItemStreamSupport
+public class OperationItemProcessor<K, V, I, O> extends ItemStreamSupport
 		implements ItemProcessor<List<? extends I>, List<O>> {
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 	private final BatchOperation<K, V, I, O> operation;
-
 	private PoolOptions poolOptions = PoolOptions.builder().build();
 	private Optional<ReadFrom> readFrom = Optional.empty();
 	private GenericObjectPool<StatefulConnection<K, V>> pool;
@@ -31,38 +31,59 @@ public class OperationItemProcessor<K, V, I, O> extends DelegatingItemStreamSupp
 		this(client, codec, new SimpleBatchOperation<>(operation));
 	}
 
-	public OperationItemProcessor(AbstractRedisClient client, RedisCodec<K, V> codec,
-			BatchOperation<K, V, I, O> operation) {
-		super(operation);
-		this.client = client;
-		this.codec = codec;
-		this.operation = operation;
-	}
-
-	public void setReadFrom(Optional<ReadFrom> readFrom) {
-		this.readFrom = readFrom;
+	public PoolOptions getPoolOptions() {
+		return poolOptions;
 	}
 
 	public void setPoolOptions(PoolOptions poolOptions) {
 		this.poolOptions = poolOptions;
 	}
 
+	public Optional<ReadFrom> getReadFrom() {
+		return readFrom;
+	}
+
+	public void setReadFrom(Optional<ReadFrom> readFrom) {
+		this.readFrom = readFrom;
+	}
+
+	public OperationItemProcessor(AbstractRedisClient client, RedisCodec<K, V> codec,
+			BatchOperation<K, V, I, O> operation) {
+		this.client = client;
+		this.codec = codec;
+		this.operation = operation;
+	}
+
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
-		super.open(executionContext);
-		if (pool == null) {
-			this.pool = ConnectionPoolFactory.client(client).withOptions(poolOptions).withReadFrom(readFrom)
-					.codec(codec);
+		if (!isOpen()) {
+			doOpen();
 		}
+		super.open(executionContext);
+	}
+
+	public boolean isOpen() {
+		return pool != null;
+	}
+
+	private void doOpen() {
+		ConnectionPoolFactory poolFactory = ConnectionPoolFactory.client(client);
+		poolFactory.withOptions(poolOptions);
+		poolFactory.withReadFrom(readFrom);
+		pool = poolFactory.build(codec);
 	}
 
 	@Override
 	public synchronized void close() {
-		if (pool != null) {
-			pool.close();
-			pool = null;
-		}
 		super.close();
+		if (isOpen()) {
+			doClose();
+		}
+	}
+
+	private void doClose() {
+		pool.close();
+		pool = null;
 	}
 
 	@Override

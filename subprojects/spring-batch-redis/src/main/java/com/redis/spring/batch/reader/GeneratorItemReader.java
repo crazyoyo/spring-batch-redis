@@ -64,6 +64,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	private String keyspace = DEFAULT_KEYSPACE;
 	private List<Type> types = defaultTypes();
 	private int maxItemCount = Integer.MAX_VALUE;
+	private boolean open;
 
 	public GeneratorItemReader() {
 		setName(ClassUtils.getShortName(getClass()));
@@ -691,12 +692,16 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
 	@Override
 	protected void doOpen() {
-		// do nothing
+		this.open = true;
 	}
 
 	@Override
 	protected void doClose() {
-		// do nothing
+		this.open = false;
+	}
+
+	public boolean isOpen() {
+		return open;
 	}
 
 }

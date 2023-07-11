@@ -2,7 +2,7 @@ package com.redis.spring.batch.reader;
 
 import com.redis.spring.batch.common.KeyValue;
 
-public enum KeyEventType {
+public enum KeyEvent {
 
 	DEL, RENAME_FROM, RENAME_TO, MOVE_FROM, MOVE_TO, COPY_TO, RESTORE, EXPIRE, SORTSTORE, SET(KeyValue.STRING),
 	SETRANGE(KeyValue.STRING), INCRBY(KeyValue.STRING), INCRBYFLOAT(KeyValue.STRING), APPEND(KeyValue.STRING),
@@ -20,17 +20,17 @@ public enum KeyEventType {
 	private final String string;
 	private final String type;
 
-	private KeyEventType() {
+	private KeyEvent() {
 		this.string = this.name().toLowerCase();
 		this.type = KeyValue.NONE;
 	}
 
-	private KeyEventType(String type) {
+	private KeyEvent(String type) {
 		this.string = this.name().toLowerCase();
 		this.type = type;
 	}
 
-	private KeyEventType(String string, String type) {
+	private KeyEvent(String string, String type) {
 		this.string = string;
 		this.type = type;
 	}

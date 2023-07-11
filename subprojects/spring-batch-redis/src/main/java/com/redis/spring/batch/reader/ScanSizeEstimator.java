@@ -2,12 +2,10 @@ package com.redis.spring.batch.reader;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.LongSupplier;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 
 import com.hrakaroo.glob.GlobPattern;
 import com.hrakaroo.glob.MatchingEngine;
@@ -22,27 +20,16 @@ import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 import io.lettuce.core.api.sync.BaseRedisCommands;
 import io.lettuce.core.api.sync.RedisServerCommands;
 
-public class ScanSizeEstimator implements LongSupplier {
-
-	private static final Log log = LogFactory.getLog(ScanSizeEstimator.class);
+public class ScanSizeEstimator {
 
 	public static final long UNKNOWN_SIZE = -1;
 	public static final long DEFAULT_SAMPLE_SIZE = 100;
 	private static final String FILENAME = "randomkeytype.lua";
 
 	private final AbstractRedisClient client;
-	private ScanOptions options = ScanOptions.builder().build();
 
 	public ScanSizeEstimator(AbstractRedisClient client) {
 		this.client = client;
-	}
-
-	public ScanOptions getOptions() {
-		return options;
-	}
-
-	public void setOptions(ScanOptions options) {
-		this.options = options;
 	}
 
 	/**
@@ -50,10 +37,11 @@ public class ScanSizeEstimator implements LongSupplier {
 	 * 
 	 * @return Estimated number of keys matching the given pattern and type. Returns
 	 *         null if database is empty or any error occurs
+	 * @throws TimeoutException
+	 * @throws ExecutionException
 	 */
-	@Override
 	@SuppressWarnings("unchecked")
-	public long getAsLong() {
+	public long estimateSize(ScanOptions options) throws ExecutionException, TimeoutException {
 		StatefulConnection<String, String> connection = RedisModulesUtils.connection(client);
 		BaseRedisCommands<String, String> sync = Utils.sync(connection);
 		Long dbsize = ((RedisServerCommands<String, String>) sync).dbsize();
@@ -92,8 +80,6 @@ public class ScanSizeEstimator implements LongSupplier {
 			return Math.round(dbsize * matchRate);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-		} catch (Exception e) {
-			log.error("Could not estimate size", e);
 		} finally {
 			connection.setAutoFlushCommands(true);
 		}

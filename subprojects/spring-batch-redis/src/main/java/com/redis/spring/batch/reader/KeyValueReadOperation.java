@@ -11,9 +11,6 @@ import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamSupport;
-
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Operation;
@@ -31,24 +28,17 @@ import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.internal.LettuceAssert;
 
-public class KeyValueReadOperation<K, V> extends ItemStreamSupport implements Operation<K, V, K, KeyValue<K>> {
+public class KeyValueReadOperation<K, V> implements Operation<K, V, K, KeyValue<K>> {
 
 	private static final String FILENAME = "keyvalue.lua";
 
-	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 	private String digest;
 	private ValueType valueType = ValueType.DUMP;
 	private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
 
 	public KeyValueReadOperation(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		this.client = client;
 		this.codec = codec;
-	}
-
-	@Override
-	public void open(ExecutionContext executionContext) {
-		super.open(executionContext);
 		this.digest = Utils.loadScript(client, FILENAME);
 	}
 

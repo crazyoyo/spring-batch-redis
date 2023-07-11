@@ -55,11 +55,15 @@ public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractItemStrea
 
 	@Override
 	public synchronized void close() {
-		if (operationProcessor != null) {
+		if (isOpen()) {
 			operationProcessor.close();
 			operationProcessor = null;
 		}
 		super.close();
+	}
+
+	public boolean isOpen() {
+		return operationProcessor != null;
 	}
 
 	@Override

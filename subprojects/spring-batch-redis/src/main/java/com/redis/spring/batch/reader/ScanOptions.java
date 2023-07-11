@@ -4,6 +4,8 @@ import java.util.Optional;
 
 import org.springframework.util.Assert;
 
+import io.lettuce.core.ReadFrom;
+
 public class ScanOptions {
 
 	public static final String MATCH_ALL = "*";
@@ -13,6 +15,7 @@ public class ScanOptions {
 	private String match = DEFAULT_MATCH;
 	private long count = DEFAULT_COUNT;
 	private Optional<String> type = Optional.empty();
+	private Optional<ReadFrom> readFrom = Optional.empty();
 
 	public ScanOptions() {
 
@@ -22,6 +25,7 @@ public class ScanOptions {
 		this.match = builder.match;
 		this.count = builder.count;
 		this.type = builder.type;
+		this.readFrom = builder.readFrom;
 	}
 
 	public String getMatch() {
@@ -52,6 +56,18 @@ public class ScanOptions {
 		this.type = type;
 	}
 
+	public Optional<ReadFrom> getReadFrom() {
+		return readFrom;
+	}
+
+	public void setReadFrom(ReadFrom readFrom) {
+		setReadFrom(Optional.of(readFrom));
+	}
+
+	public void setReadFrom(Optional<ReadFrom> readFrom) {
+		this.readFrom = readFrom;
+	}
+
 	public static Builder builder() {
 		return new Builder();
 	}
@@ -61,6 +77,7 @@ public class ScanOptions {
 		private String match = DEFAULT_MATCH;
 		private long count = DEFAULT_COUNT;
 		private Optional<String> type = Optional.empty();
+		private Optional<ReadFrom> readFrom = Optional.empty();
 
 		private Builder() {
 		}
@@ -77,8 +94,21 @@ public class ScanOptions {
 			return this;
 		}
 
+		public Builder type(String type) {
+			return type(Optional.of(type));
+		}
+
 		public Builder type(Optional<String> type) {
 			this.type = type;
+			return this;
+		}
+
+		public Builder readFrom(ReadFrom readFrom) {
+			return readFrom(Optional.of(readFrom));
+		}
+
+		public Builder readFrom(Optional<ReadFrom> readFrom) {
+			this.readFrom = readFrom;
 			return this;
 		}
 

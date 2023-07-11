@@ -6,13 +6,11 @@ import java.util.concurrent.Future;
 
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class SimpleBatchOperation<K, V, I, O> extends DelegatingItemStreamSupport
-		implements BatchOperation<K, V, I, O> {
+public class SimpleBatchOperation<K, V, I, O> implements BatchOperation<K, V, I, O> {
 
 	private final Operation<K, V, I, O> operation;
 
 	public SimpleBatchOperation(Operation<K, V, I, O> operation) {
-		super(operation);
 		this.operation = operation;
 	}
 

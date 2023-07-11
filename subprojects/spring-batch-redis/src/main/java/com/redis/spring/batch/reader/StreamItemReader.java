@@ -16,7 +16,6 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.common.Openable;
 import com.redis.spring.batch.common.Utils;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -31,7 +30,7 @@ import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
 public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamMessage<K, V>>
-		implements PollableItemReader<StreamMessage<K, V>>, Openable {
+		implements PollableItemReader<StreamMessage<K, V>> {
 
 	public static final String DEFAULT_CONSUMER_GROUP = ClassUtils.getShortName(StreamItemReader.class);
 	public static final String DEFAULT_CONSUMER = "consumer1";
@@ -96,9 +95,12 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		super.open(executionContext);
-		if (isOpen()) {
-			return;
+		if (!isOpen()) {
+			doOpen();
 		}
+	}
+
+	private void doOpen() {
 		connection = RedisModulesUtils.connection(client, codec);
 		commands = Utils.sync(connection);
 		StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
@@ -112,21 +114,24 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 		reader = reader();
 	}
 
-	@Override
 	public boolean isOpen() {
-		return connection != null;
+		return reader != null;
 	}
 
 	@Override
 	public synchronized void close() {
 		if (isOpen()) {
-			reader = null;
-			lastId = null;
-			connection.close();
-			connection = null;
-			commands = null;
+			doClose();
 		}
 		super.close();
+	}
+
+	private void doClose() {
+		reader = null;
+		lastId = null;
+		connection.close();
+		connection = null;
+		commands = null;
 	}
 
 	private MessageReader<K, V> reader() {

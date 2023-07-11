@@ -15,6 +15,7 @@ public class ReaderOptions {
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private PoolOptions poolOptions = PoolOptions.builder().build();
 	private Optional<ReadFrom> readFrom = Optional.empty();
+	private ScanOptions scanOptions = ScanOptions.builder().build();
 	private QueueOptions queueOptions = QueueOptions.builder().build();
 	private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
 
@@ -22,6 +23,7 @@ public class ReaderOptions {
 		this.threads = builder.threads;
 		this.chunkSize = builder.chunkSize;
 		this.poolOptions = builder.poolOptions;
+		this.scanOptions = builder.scanOptions;
 		this.readFrom = builder.readFrom;
 		this.queueOptions = builder.queueOptions;
 		this.memoryUsageOptions = builder.memoryUsageOptions;
@@ -59,6 +61,14 @@ public class ReaderOptions {
 		this.poolOptions = poolOptions;
 	}
 
+	public ScanOptions getScanOptions() {
+		return scanOptions;
+	}
+
+	public void setScanOptions(ScanOptions scanOptions) {
+		this.scanOptions = scanOptions;
+	}
+
 	public Optional<ReadFrom> getReadFrom() {
 		return readFrom;
 	}
@@ -89,6 +99,7 @@ public class ReaderOptions {
 		private int chunkSize = DEFAULT_CHUNK_SIZE;
 		private PoolOptions poolOptions = PoolOptions.builder().build();
 		private Optional<ReadFrom> readFrom = Optional.empty();
+		private ScanOptions scanOptions = ScanOptions.builder().build();
 		private QueueOptions queueOptions = QueueOptions.builder().build();
 		private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
 
@@ -110,8 +121,13 @@ public class ReaderOptions {
 			return this;
 		}
 
-		public Builder poolOptions(PoolOptions poolOptions) {
-			this.poolOptions = poolOptions;
+		public Builder scanOptions(ScanOptions options) {
+			this.scanOptions = options;
+			return this;
+		}
+
+		public Builder poolOptions(PoolOptions options) {
+			this.poolOptions = options;
 			return this;
 		}
 
@@ -124,8 +140,8 @@ public class ReaderOptions {
 			return this;
 		}
 
-		public Builder queueOptions(QueueOptions queueOptions) {
-			this.queueOptions = queueOptions;
+		public Builder queueOptions(QueueOptions options) {
+			this.queueOptions = options;
 			return this;
 		}
 

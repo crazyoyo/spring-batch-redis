@@ -13,6 +13,7 @@ import java.util.function.Supplier;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemStreamSupport;
@@ -30,13 +31,17 @@ import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.reader.AbstractRedisItemReader;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyComparisonItemReader;
+import com.redis.spring.batch.reader.KeyItemReader;
 import com.redis.spring.batch.reader.KeyValueReadOperation;
+import com.redis.spring.batch.reader.KeyspaceNotificationPublisher;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.ScanOptions;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
+import com.redis.spring.batch.writer.AbstractRedisItemWriter;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -175,7 +180,7 @@ public interface Utils {
 	static long getItemReaderSize(ItemReader<?> reader) {
 		if (reader instanceof RedisItemReader) {
 			RedisItemReader<?, ?> redisItemReader = (RedisItemReader<?, ?>) reader;
-			return scanSizeEstimate(redisItemReader.getClient(), redisItemReader.getScanOptions());
+			return scanSizeEstimate(redisItemReader.getClient(), redisItemReader.getOptions().getScanOptions());
 		}
 		if (reader instanceof KeyComparisonItemReader) {
 			return getItemReaderSize(((KeyComparisonItemReader) reader).getLeft());
@@ -189,15 +194,41 @@ public interface Utils {
 		}
 		if (reader instanceof ScanKeyItemReader) {
 			ScanKeyItemReader<?, ?> scanKeyReader = (ScanKeyItemReader<?, ?>) reader;
-			return scanSizeEstimate(scanKeyReader.getClient(), scanKeyReader.getOptions());
+			return scanSizeEstimate(scanKeyReader.getClient(), scanKeyReader.getScanOptions());
 		}
 		return -1;
 	}
 
+	@SuppressWarnings("rawtypes")
+	static boolean isOpen(ItemStream itemStream, boolean defaultValue) {
+		if (itemStream instanceof GeneratorItemReader) {
+			return ((GeneratorItemReader) itemStream).isOpen();
+		}
+		if (itemStream instanceof AbstractRedisItemReader) {
+			return ((AbstractRedisItemReader) itemStream).isOpen();
+		}
+		if (itemStream instanceof KeyItemReader) {
+			return ((KeyItemReader) itemStream).isOpen();
+		}
+		if (itemStream instanceof StreamItemReader) {
+			return ((StreamItemReader) itemStream).isOpen();
+		}
+		if (itemStream instanceof AbstractRedisItemWriter) {
+			return ((AbstractRedisItemWriter) itemStream).isOpen();
+		}
+		if (itemStream instanceof KeyspaceNotificationPublisher) {
+			return ((KeyspaceNotificationPublisher) itemStream).isOpen();
+		}
+		return defaultValue;
+	}
+
 	static long scanSizeEstimate(AbstractRedisClient client, ScanOptions scanOptions) {
 		ScanSizeEstimator estimator = new ScanSizeEstimator(client);
-		estimator.setOptions(scanOptions);
-		return estimator.getAsLong();
+		try {
+			return estimator.estimateSize(scanOptions);
+		} catch (Exception e) {
+			return ScanSizeEstimator.UNKNOWN_SIZE;
+		}
 	}
 
 }

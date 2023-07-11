@@ -2,20 +2,23 @@ package com.redis.spring.batch.reader;
 
 public class KeyspaceNotification {
 
-	private final String key;
-	private final KeyEventType eventType;
-
-	public KeyspaceNotification(String key, KeyEventType eventType) {
-		this.key = key;
-		this.eventType = eventType;
-	}
+	private String key;
+	private KeyEvent event;
 
 	public String getKey() {
 		return key;
 	}
 
-	public KeyEventType getEventType() {
-		return eventType;
+	public void setKey(String key) {
+		this.key = key;
+	}
+
+	public KeyEvent getEvent() {
+		return event;
+	}
+
+	public void setEvent(KeyEvent event) {
+		this.event = event;
 	}
 
 	@Override

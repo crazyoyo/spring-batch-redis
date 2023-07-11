@@ -2,15 +2,12 @@ package com.redis.spring.batch;
 
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemStreamReader;
 
 import com.redis.spring.batch.common.ValueType;
 import com.redis.spring.batch.reader.AbstractRedisItemReader;
-import com.redis.spring.batch.reader.KeyspaceNotificationOptions;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.ReaderOptions;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
-import com.redis.spring.batch.reader.ScanOptions;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
@@ -20,25 +17,20 @@ public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V> {
 
 	public static final ValueType DEFAULT_VALUE_TYPE = ValueType.DUMP;
 
-	private ScanOptions scanOptions = ScanOptions.builder().build();
-
 	public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, ValueType valueType) {
-		super(client, codec, valueType);
-	}
-
-	public ScanOptions getScanOptions() {
-		return scanOptions;
-	}
-
-	public void setScanOptions(ScanOptions scanOptions) {
-		this.scanOptions = scanOptions;
+		super(client, codec, new ScanKeyItemReader<>(client, codec), valueType);
 	}
 
 	@Override
-	protected ItemStreamReader<K> keyReader() {
-		ScanKeyItemReader<K, V> keyReader = new ScanKeyItemReader<>(client, codec, options.getReadFrom());
-		keyReader.setOptions(scanOptions);
-		return keyReader;
+	protected void doOpen() {
+		getKeyReader().setScanOptions(options.getScanOptions());
+		super.doOpen();
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public ScanKeyItemReader<K, V> getKeyReader() {
+		return (ScanKeyItemReader<K, V>) super.getKeyReader();
 	}
 
 	public static Builder<String, String> client(AbstractRedisClient client) {
@@ -89,28 +81,7 @@ public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V> {
 
 	}
 
-	public static class BaseScanBuilder<K, V, B extends BaseScanBuilder<K, V, B>> extends BaseBuilder<K, V, B> {
-
-		protected ScanOptions scanOptions = ScanOptions.builder().build();
-
-		protected BaseScanBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec);
-		}
-
-		@SuppressWarnings("unchecked")
-		public B scanOptions(ScanOptions options) {
-			this.scanOptions = options;
-			return (B) this;
-		}
-
-		protected void configure(RedisItemReader<K, V> reader) {
-			super.configure(reader);
-			reader.setScanOptions(scanOptions);
-		}
-
-	}
-
-	public static class Builder<K, V> extends BaseScanBuilder<K, V, Builder<K, V>> {
+	public static class Builder<K, V> extends BaseBuilder<K, V, Builder<K, V>> {
 
 		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			super(client, codec);
@@ -121,7 +92,6 @@ public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V> {
 			builder.jobRepository(jobRepository);
 			builder.options(options);
 			builder.keyProcessor(keyProcessor);
-			builder.keyspaceNotificationOptions(KeyspaceNotificationOptions.from(scanOptions));
 			return builder;
 		}
 

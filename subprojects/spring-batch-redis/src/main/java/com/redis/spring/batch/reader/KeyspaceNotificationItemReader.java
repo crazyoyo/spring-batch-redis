@@ -11,13 +11,14 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
-import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.common.SetBlockingQueue;
 import com.redis.spring.batch.common.Utils;
@@ -25,30 +26,26 @@ import com.redis.spring.batch.common.Utils;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.cluster.RedisClusterClient;
-import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
-import io.lettuce.core.cluster.pubsub.RedisClusterPubSubAdapter;
-import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
-import io.lettuce.core.pubsub.RedisPubSubAdapter;
-import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
 public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItemReader<K>
-		implements PollableItemReader<K> {
+		implements KeyItemReader<K>, PollableItemReader<K> {
 
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 
 	public static final String QUEUE_SIZE_GAUGE_NAME = "reader.notification.queue.size";
 	private static final String SEPARATOR = ":";
 	private static final KeyspaceNotificationComparator NOTIFICATION_COMPARATOR = new KeyspaceNotificationComparator();
-	private static final Map<String, KeyEventType> eventTypes = Stream.of(KeyEventType.values())
-			.collect(Collectors.toMap(KeyEventType::getString, Function.identity()));
+	private static final Map<String, KeyEvent> keyEvents = Stream.of(KeyEvent.values())
+			.collect(Collectors.toMap(KeyEvent::getString, Function.identity()));
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 	private final List<KeyspaceNotificationListener> listeners = new ArrayList<>();
 
-	private KeyspaceNotificationOptions options = KeyspaceNotificationOptions.builder().build();
+	private ScanOptions scanOptions = ScanOptions.builder().build();
+	private KeyspaceNotificationOptions keyspaceNotificationOptions = KeyspaceNotificationOptions.builder().build();
 
 	private BlockingQueue<KeyspaceNotification> queue;
 	private KeyspaceNotificationPublisher publisher;
@@ -56,7 +53,6 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 	private final Set<String> blockedKeys = new HashSet<>();
 
 	public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.codec = codec;
 	}
@@ -77,12 +73,20 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 		this.listeners.add(listener);
 	}
 
-	public KeyspaceNotificationOptions getOptions() {
-		return options;
+	public ScanOptions getScanOptions() {
+		return scanOptions;
 	}
 
-	public void setOptions(KeyspaceNotificationOptions options) {
-		this.options = options;
+	public void setScanOptions(ScanOptions scanOptions) {
+		this.scanOptions = scanOptions;
+	}
+
+	public KeyspaceNotificationOptions getKeyspaceNotificationOptions() {
+		return keyspaceNotificationOptions;
+	}
+
+	public void setKeyspaceNotificationOptions(KeyspaceNotificationOptions options) {
+		this.keyspaceNotificationOptions = options;
 	}
 
 	public BlockingQueue<KeyspaceNotification> getQueue() {
@@ -94,64 +98,84 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 	}
 
 	@Override
-	public synchronized void open(ExecutionContext executionContext) {
-		super.open(executionContext);
-		if (publisher == null) {
+	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
+		if (!isOpen()) {
 			queue = new SetBlockingQueue<>(notificationQueue());
 			Utils.createGaugeCollectionSize(QUEUE_SIZE_GAUGE_NAME, queue);
 			publisher = publisher();
+			publisher.open(executionContext);
 		}
-	}
-
-	private BlockingQueue<KeyspaceNotification> notificationQueue() {
-		if (options.getOrderingStrategy() == KeyspaceNotificationOrderingStrategy.PRIORITY) {
-			return new PriorityBlockingQueue<>(options.getQueueOptions().getCapacity(), NOTIFICATION_COMPARATOR);
-		}
-		return new LinkedBlockingQueue<>(options.getQueueOptions().getCapacity());
-	}
-
-	private KeyspaceNotificationPublisher publisher() {
-		String pattern = pattern(options.getDatabase(), options.getMatch());
-		if (client instanceof RedisClusterClient) {
-			return new RedisClusterKeyspaceNotificationPublisher(((RedisClusterClient) client).connectPubSub(),
-					pattern);
-		}
-		return new RedisKeyspaceNotificationPublisher(((RedisClient) client).connectPubSub(), pattern);
 	}
 
 	@Override
-	public void close() {
-		if (publisher != null) {
+	public boolean isOpen() {
+		return publisher != null;
+	}
+
+	private BlockingQueue<KeyspaceNotification> notificationQueue() {
+		if (keyspaceNotificationOptions.getOrderingStrategy() == KeyspaceNotificationOrderingStrategy.PRIORITY) {
+			return new PriorityBlockingQueue<>(keyspaceNotificationOptions.getQueueOptions().getCapacity(),
+					NOTIFICATION_COMPARATOR);
+		}
+		return new LinkedBlockingQueue<>(keyspaceNotificationOptions.getQueueOptions().getCapacity());
+	}
+
+	private KeyspaceNotificationPublisher publisher() {
+		String pattern = pattern(keyspaceNotificationOptions.getDatabase(), scanOptions.getMatch());
+		BiConsumer<String, String> consumer = this::notification;
+		if (client instanceof RedisClusterClient) {
+			return new RedisClusterKeyspaceNotificationPublisher((RedisClusterClient) client, pattern, consumer);
+		}
+		return new RedisKeyspaceNotificationPublisher((RedisClient) client, pattern, consumer);
+	}
+
+	private void notification(String channel, String message) {
+		String key = key(channel);
+		if (isBlocked(key)) {
+			return;
+		}
+		KeyEvent event = keyEvent(message);
+		if (!accept(event)) {
+			return;
+		}
+		KeyspaceNotification notification = new KeyspaceNotification();
+		notification.setKey(key);
+		notification.setEvent(event);
+		boolean added = queue.offer(notification);
+		if (!added) {
+			// could not add notification because the queue is full. Notify listeners.
+			listeners.forEach(l -> l.queueFull(notification));
+		}
+	}
+
+	private boolean isBlocked(String key) {
+		return blockedKeys.contains(key);
+	}
+
+	private boolean accept(KeyEvent event) {
+		Optional<String> type = scanOptions.getType();
+		if (type.isPresent()) {
+			return type.get().equals(event.getType());
+		}
+		return true;
+	}
+
+	private KeyEvent keyEvent(String event) {
+		return keyEvents.getOrDefault(event, KeyEvent.UNKNOWN);
+	}
+
+	@Override
+	public synchronized void close() {
+		if (isOpen()) {
 			publisher.close();
 			publisher = null;
 		}
 		super.close();
 	}
 
-	private void notification(String channel, String message) {
-		if (channel != null) {
-			String key = channel.substring(channel.indexOf(SEPARATOR) + 1);
-			if (blockedKeys.contains(key)) {
-				return;
-			}
-			KeyEventType eventType = eventType(message);
-			Optional<String> type = options.getType();
-			if (!type.isPresent() || type.get().equals(eventType.getType())) {
-				KeyspaceNotification notification = new KeyspaceNotification(key, eventType);
-				if (!queue.offer(notification)) {
-					listeners.forEach(l -> l.queueFull(notification));
-				}
-			}
-		}
-	}
-
-	private KeyEventType eventType(String message) {
-		return eventTypes.getOrDefault(message, KeyEventType.UNKNOWN);
-	}
-
 	@Override
 	public K read() throws Exception {
-		return poll(options.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+		return poll(keyspaceNotificationOptions.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
 	}
 
 	@Override
@@ -163,77 +187,43 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 		return codec.decodeKey(StringCodec.UTF8.encodeKey(notification.getKey()));
 	}
 
-	private interface KeyspaceNotificationPublisher extends AutoCloseable {
-
-		@Override
-		void close();
-
+	private static String key(String channel) {
+		if (channel == null) {
+			return null;
+		}
+		return channel.substring(channel.indexOf(SEPARATOR) + 1);
 	}
 
-	private class RedisKeyspaceNotificationPublisher extends RedisPubSubAdapter<String, String>
-			implements KeyspaceNotificationPublisher {
+	public static class Builder<K, V> {
 
-		private final StatefulRedisPubSubConnection<String, String> connection;
-		private final String pattern;
+		private final AbstractRedisClient client;
+		private final RedisCodec<K, V> codec;
 
-		public RedisKeyspaceNotificationPublisher(StatefulRedisPubSubConnection<String, String> connection,
-				String pattern) {
-			this.connection = connection;
-			this.pattern = pattern;
-			connection.addListener(this);
-			connection.sync().psubscribe(pattern);
+		private ScanOptions scanOptions = ScanOptions.builder().build();
+		private KeyspaceNotificationOptions keyspaceNotificationOptions = KeyspaceNotificationOptions.builder().build();
+
+		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+			this.client = client;
+			this.codec = codec;
 		}
 
-		@Override
-		public void close() {
-			connection.sync().punsubscribe(pattern);
-			connection.removeListener(this);
-			connection.close();
+		public Builder<K, V> scanOptions(ScanOptions options) {
+			this.scanOptions = options;
+			return this;
 		}
 
-		@Override
-		public void message(String channel, String message) {
-			notification(channel, message);
+		public Builder<K, V> keyspaceNotificationOptions(KeyspaceNotificationOptions options) {
+			this.keyspaceNotificationOptions = options;
+			return this;
 		}
 
-		@Override
-		public void message(String pattern, String channel, String message) {
-			notification(channel, message);
+		public KeyspaceNotificationItemReader<K, V> build() {
+			KeyspaceNotificationItemReader<K, V> reader = new KeyspaceNotificationItemReader<>(client, codec);
+			reader.setScanOptions(scanOptions);
+			reader.setKeyspaceNotificationOptions(keyspaceNotificationOptions);
+			return reader;
 		}
 
-	}
-
-	private class RedisClusterKeyspaceNotificationPublisher extends RedisClusterPubSubAdapter<String, String>
-			implements KeyspaceNotificationPublisher {
-
-		private final StatefulRedisClusterPubSubConnection<String, String> connection;
-		private final String pattern;
-
-		public RedisClusterKeyspaceNotificationPublisher(
-				StatefulRedisClusterPubSubConnection<String, String> connection, String pattern) {
-			this.connection = connection;
-			this.pattern = pattern;
-			connection.addListener(this);
-			connection.setNodeMessagePropagation(true);
-			connection.sync().upstream().commands().psubscribe(pattern);
-
-		}
-
-		@Override
-		public void close() {
-			connection.sync().upstream().commands().punsubscribe(pattern);
-			connection.removeListener(this);
-		}
-
-		@Override
-		public void message(RedisClusterNode node, String channel, String message) {
-			notification(channel, message);
-		}
-
-		@Override
-		public void message(RedisClusterNode node, String pattern, String channel, String message) {
-			notification(channel, message);
-		}
 	}
 
 }
