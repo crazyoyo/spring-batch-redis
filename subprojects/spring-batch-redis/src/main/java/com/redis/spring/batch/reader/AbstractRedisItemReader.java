@@ -174,7 +174,7 @@ public abstract class AbstractRedisItemReader<K, V> extends AbstractItemStreamIt
 		stepBuilder.repository(jobRepository());
 		stepBuilder.transactionManager(transactionManager());
 		SimpleStepBuilder<K, K> step = stepBuilder.chunk(options.getChunkSize());
-		step.reader(options.getThreads() > 1 ? Utils.synchronizedReader(keyReader) : keyReader);
+		step.reader(keyReader);
 		step.processor(processor);
 		operationProcessor = operationProcessor();
 		step.writer(new ProcessingItemWriter<>(operationProcessor, queueWriter()));

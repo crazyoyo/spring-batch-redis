@@ -67,7 +67,7 @@ public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractItemStrea
 	}
 
 	@Override
-	public synchronized void write(List<? extends T> items) throws Exception {
+	public void write(List<? extends T> items) throws Exception {
 		operationProcessor.process(items);
 	}
 

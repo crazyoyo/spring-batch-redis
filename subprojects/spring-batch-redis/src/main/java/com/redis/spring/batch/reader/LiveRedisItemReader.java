@@ -62,7 +62,7 @@ public class LiveRedisItemReader<K, V> extends AbstractRedisItemReader<K, V>
 	}
 
 	@Override
-	public synchronized KeyValue<K> poll(long timeout, TimeUnit unit) throws InterruptedException {
+	public KeyValue<K> poll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
 	}
 
