@@ -78,10 +78,10 @@ public abstract class AbstractOperationItemStreamSupport<K, V, I, O> extends Ite
 
 	protected List<O> execute(List<? extends I> items) throws Exception {
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-			connection.setAutoFlushCommands(false);
+			BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
+			List<RedisFuture<O>> futures = new ArrayList<>();
 			try {
-				BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
-				List<RedisFuture<O>> futures = new ArrayList<>();
+				connection.setAutoFlushCommands(false);
 				execute(commands, items, futures);
 				connection.flushCommands();
 				List<O> results = new ArrayList<>(futures.size());
