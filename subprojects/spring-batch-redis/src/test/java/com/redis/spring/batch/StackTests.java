@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -165,7 +163,7 @@ class StackTests extends AbstractModulesTests {
 	}
 
 	@Test
-	void luaHashMem() throws InterruptedException, ExecutionException {
+	void luaHashMem() throws Exception {
 		String key = "myhash";
 		Map<String, String> hash = new HashMap<>();
 		hash.put("field1", "value1");
@@ -175,8 +173,7 @@ class StackTests extends AbstractModulesTests {
 		sourceConnection.sync().pexpireat(key, ttl);
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
 		operation.setMemoryUsageOptions(MemoryUsageOptions.builder().limit(DataSize.ofBytes(-1)).build());
-		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
-		KeyValue<String> ds = future.get();
+		KeyValue<String> ds = structProcessor.process(operation.execute(sourceConnection.async(), key).get());
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(ttl, ds.getTtl());
 		Assertions.assertEquals(KeyValue.HASH, ds.getType());

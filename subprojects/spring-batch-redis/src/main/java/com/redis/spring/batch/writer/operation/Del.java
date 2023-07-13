@@ -12,7 +12,7 @@ public class Del<K, V, T> extends AbstractWriteOperation<K, V, T> {
 		super(key);
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({ "unchecked" })
 	@Override
 	protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		return ((RedisKeyAsyncCommands<K, V>) commands).del(key);

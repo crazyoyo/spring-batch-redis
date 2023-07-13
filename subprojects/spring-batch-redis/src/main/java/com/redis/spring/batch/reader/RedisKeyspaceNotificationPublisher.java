@@ -9,7 +9,7 @@ import io.lettuce.core.RedisClient;
 import io.lettuce.core.pubsub.RedisPubSubAdapter;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
-public class RedisKeyspaceNotificationPublisher extends ItemStreamSupport implements KeyspaceNotificationPublisher {
+public class RedisKeyspaceNotificationPublisher extends ItemStreamSupport {
 
 	private final RedisClient client;
 	private final String pattern;
@@ -38,7 +38,6 @@ public class RedisKeyspaceNotificationPublisher extends ItemStreamSupport implem
 		connection.addListener(listener);
 	}
 
-	@Override
 	public boolean isOpen() {
 		return connection != null;
 	}

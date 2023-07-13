@@ -15,8 +15,9 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemReader.BaseBuilder;
+import com.redis.spring.batch.common.ItemStreamProcessor;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationItemProcessor;
+import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -34,7 +35,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 	private int chunkSize = ReaderOptions.DEFAULT_CHUNK_SIZE;
 	private Iterator<KeyComparison> iterator = Collections.emptyIterator();
 
-	private OperationItemProcessor<String, String, String, KeyValue<String>> rightOperationProcessor;
+	private ItemStreamProcessor<List<String>, List<KeyValue<String>>> rightOperationProcessor;
 
 	public KeyComparisonItemReader(RedisItemReader<String, String> left, RedisItemReader<String, String> right) {
 		this.left = left;
@@ -73,7 +74,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 	}
 
 	public boolean isOpen() {
-		return rightOperationProcessor != null && rightOperationProcessor.isOpen() && left.isOpen();
+		return rightOperationProcessor != null && Utils.isOpen(rightOperationProcessor) && left.isOpen();
 	}
 
 	@Override
@@ -193,7 +194,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 		}
 
 		public KeyComparisonItemReader build() {
-			RedisItemReader<String, String> leftReader = reader(client).options(options).struct();
+			RedisItemReader<String, String> leftReader = reader(client).struct();
 			RedisItemReader<String, String> rightReader = reader(right).options(rightOptions).struct();
 			KeyComparisonItemReader reader = new KeyComparisonItemReader(leftReader, rightReader);
 			reader.setTtlTolerance(ttlTolerance);
@@ -201,10 +202,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 		}
 
 		private RedisItemReader.Builder<String, String> reader(AbstractRedisClient client) {
-			RedisItemReader.Builder<String, String> builder = new RedisItemReader.Builder<>(client, StringCodec.UTF8);
-			builder.jobRepository(jobRepository);
-			builder.keyProcessor(keyProcessor);
-			return builder;
+			return toBuilder(new RedisItemReader.Builder<>(client, StringCodec.UTF8));
 		}
 
 	}

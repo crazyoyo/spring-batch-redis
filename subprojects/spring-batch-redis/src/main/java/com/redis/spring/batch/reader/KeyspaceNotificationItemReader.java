@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 
@@ -48,7 +49,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 	private KeyspaceNotificationOptions keyspaceNotificationOptions = KeyspaceNotificationOptions.builder().build();
 
 	private BlockingQueue<KeyspaceNotification> queue;
-	private KeyspaceNotificationPublisher publisher;
+	private ItemStream publisher;
 	// Used to dynamically block problematic keys (e.g. big keys)
 	private final Set<String> blockedKeys = new HashSet<>();
 
@@ -107,7 +108,6 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 		}
 	}
 
-	@Override
 	public boolean isOpen() {
 		return publisher != null;
 	}
@@ -120,7 +120,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 		return new LinkedBlockingQueue<>(keyspaceNotificationOptions.getQueueOptions().getCapacity());
 	}
 
-	private KeyspaceNotificationPublisher publisher() {
+	private ItemStream publisher() {
 		String pattern = pattern(keyspaceNotificationOptions.getDatabase(), scanOptions.getMatch());
 		BiConsumer<String, String> consumer = this::notification;
 		if (client instanceof RedisClusterClient) {

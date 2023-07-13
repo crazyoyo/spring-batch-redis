@@ -10,8 +10,7 @@ import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubAdapter;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 
-public class RedisClusterKeyspaceNotificationPublisher extends ItemStreamSupport
-		implements KeyspaceNotificationPublisher {
+public class RedisClusterKeyspaceNotificationPublisher extends ItemStreamSupport {
 
 	private final RedisClusterClient client;
 	private final String pattern;
@@ -43,7 +42,6 @@ public class RedisClusterKeyspaceNotificationPublisher extends ItemStreamSupport
 
 	}
 
-	@Override
 	public boolean isOpen() {
 		return connection != null;
 	}

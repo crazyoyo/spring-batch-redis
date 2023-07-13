@@ -1,12 +1,11 @@
 package com.redis.spring.batch;
 
-import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.SimpleBatchOperation;
 import com.redis.spring.batch.common.ValueType;
 import com.redis.spring.batch.writer.AbstractRedisItemWriter;
 import com.redis.spring.batch.writer.StructOptions;
 import com.redis.spring.batch.writer.StructWriteOperation;
+import com.redis.spring.batch.writer.WriteOperation;
 import com.redis.spring.batch.writer.WriterOptions;
 import com.redis.spring.batch.writer.operation.RestoreReplace;
 
@@ -37,9 +36,9 @@ public class RedisItemWriter<K, V> extends AbstractRedisItemWriter<K, V, KeyValu
 	}
 
 	@Override
-	protected BatchOperation<K, V, KeyValue<K>, Object> operation() {
+	protected WriteOperation<K, V, KeyValue<K>> operation() {
 		if (valueType == ValueType.DUMP) {
-			return new SimpleBatchOperation<>(restoreOperation());
+			return restoreOperation();
 		}
 		StructWriteOperation<K, V> operation = new StructWriteOperation<>();
 		operation.setOptions(structWriteOptions);
@@ -63,7 +62,7 @@ public class RedisItemWriter<K, V> extends AbstractRedisItemWriter<K, V, KeyValu
 		protected final AbstractRedisClient client;
 		protected final RedisCodec<K, V> codec;
 
-		protected WriterOptions options = WriterOptions.builder().build();
+		private WriterOptions options = WriterOptions.builder().build();
 
 		protected BaseBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			this.client = client;

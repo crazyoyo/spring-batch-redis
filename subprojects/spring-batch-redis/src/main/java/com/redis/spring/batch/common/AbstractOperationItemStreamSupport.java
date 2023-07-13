@@ -3,32 +3,33 @@ package com.redis.spring.batch.common;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamSupport;
+import org.springframework.util.ClassUtils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
+import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public class OperationItemProcessor<K, V, I, O> extends ItemStreamSupport
-		implements ItemProcessor<List<? extends I>, List<O>> {
+public abstract class AbstractOperationItemStreamSupport<K, V, I, O> extends ItemStreamSupport {
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
-	private final BatchOperation<K, V, I, O> operation;
 	private PoolOptions poolOptions = PoolOptions.builder().build();
 	private Optional<ReadFrom> readFrom = Optional.empty();
 	private GenericObjectPool<StatefulConnection<K, V>> pool;
+	private Operation<K, V, I, O> operation;
 
-	public OperationItemProcessor(AbstractRedisClient client, RedisCodec<K, V> codec, Operation<K, V, I, O> operation) {
-		this(client, codec, new SimpleBatchOperation<>(operation));
+	protected AbstractOperationItemStreamSupport(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		setName(ClassUtils.getShortName(getClass()));
+		this.client = client;
+		this.codec = codec;
 	}
 
 	public PoolOptions getPoolOptions() {
@@ -47,13 +48,6 @@ public class OperationItemProcessor<K, V, I, O> extends ItemStreamSupport
 		this.readFrom = readFrom;
 	}
 
-	public OperationItemProcessor(AbstractRedisClient client, RedisCodec<K, V> codec,
-			BatchOperation<K, V, I, O> operation) {
-		this.client = client;
-		this.codec = codec;
-		this.operation = operation;
-	}
-
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		if (!isOpen()) {
@@ -61,9 +55,12 @@ public class OperationItemProcessor<K, V, I, O> extends ItemStreamSupport
 			poolFactory.withOptions(poolOptions);
 			poolFactory.withReadFrom(readFrom);
 			pool = poolFactory.build(codec);
+			operation = operation();
 		}
 		super.open(executionContext);
 	}
+
+	protected abstract Operation<K, V, I, O> operation();
 
 	public boolean isOpen() {
 		return pool != null;
@@ -73,28 +70,35 @@ public class OperationItemProcessor<K, V, I, O> extends ItemStreamSupport
 	public synchronized void close() {
 		super.close();
 		if (isOpen()) {
+			operation = null;
 			pool.close();
 			pool = null;
 		}
 	}
 
-	@Override
-	public List<O> process(List<? extends I> items) throws Exception {
+	protected List<O> execute(List<? extends I> items) throws Exception {
 		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-			long timeout = connection.getTimeout().toMillis();
 			connection.setAutoFlushCommands(false);
 			try {
 				BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
-				List<Future<O>> futures = operation.execute(commands, items);
+				List<RedisFuture<O>> futures = new ArrayList<>();
+				execute(commands, items, futures);
 				connection.flushCommands();
 				List<O> results = new ArrayList<>(futures.size());
-				for (Future<O> future : futures) {
-					results.add(future.get(timeout, TimeUnit.MILLISECONDS));
+				for (RedisFuture<O> future : futures) {
+					results.add(future.get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS));
 				}
 				return results;
 			} finally {
 				connection.setAutoFlushCommands(true);
 			}
+		}
+	}
+
+	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<? extends I> items,
+			List<RedisFuture<O>> futures) {
+		for (I item : items) {
+			operation.execute(commands, item, futures);
 		}
 	}
 

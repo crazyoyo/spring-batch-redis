@@ -13,7 +13,6 @@ import java.util.function.Supplier;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemStreamSupport;
@@ -34,14 +33,14 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.reader.AbstractRedisItemReader;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyComparisonItemReader;
-import com.redis.spring.batch.reader.KeyItemReader;
 import com.redis.spring.batch.reader.KeyValueReadOperation;
-import com.redis.spring.batch.reader.KeyspaceNotificationPublisher;
+import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
+import com.redis.spring.batch.reader.RedisClusterKeyspaceNotificationPublisher;
+import com.redis.spring.batch.reader.RedisKeyspaceNotificationPublisher;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.ScanOptions;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
-import com.redis.spring.batch.writer.AbstractRedisItemWriter;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -199,29 +198,6 @@ public interface Utils {
 		return -1;
 	}
 
-	@SuppressWarnings("rawtypes")
-	static boolean isOpen(ItemStream itemStream, boolean defaultValue) {
-		if (itemStream instanceof GeneratorItemReader) {
-			return ((GeneratorItemReader) itemStream).isOpen();
-		}
-		if (itemStream instanceof AbstractRedisItemReader) {
-			return ((AbstractRedisItemReader) itemStream).isOpen();
-		}
-		if (itemStream instanceof KeyItemReader) {
-			return ((KeyItemReader) itemStream).isOpen();
-		}
-		if (itemStream instanceof StreamItemReader) {
-			return ((StreamItemReader) itemStream).isOpen();
-		}
-		if (itemStream instanceof AbstractRedisItemWriter) {
-			return ((AbstractRedisItemWriter) itemStream).isOpen();
-		}
-		if (itemStream instanceof KeyspaceNotificationPublisher) {
-			return ((KeyspaceNotificationPublisher) itemStream).isOpen();
-		}
-		return defaultValue;
-	}
-
 	static long scanSizeEstimate(AbstractRedisClient client, ScanOptions scanOptions) {
 		ScanSizeEstimator estimator = new ScanSizeEstimator(client);
 		try {
@@ -229,6 +205,53 @@ public interface Utils {
 		} catch (Exception e) {
 			return ScanSizeEstimator.UNKNOWN_SIZE;
 		}
+	}
+
+	static boolean isOpen(Object object) {
+		return isOpen(object, true);
+	}
+
+	static boolean isOpen(Object object, boolean defaultValue) {
+		Boolean value = isNullableOpen(object);
+		if (value == null) {
+			return defaultValue;
+		}
+		return value;
+	}
+
+	@SuppressWarnings("rawtypes")
+	static Boolean isNullableOpen(Object object) {
+		if (object instanceof GeneratorItemReader) {
+			return ((GeneratorItemReader) object).isOpen();
+		}
+		if (object instanceof AbstractRedisItemReader) {
+			return ((AbstractRedisItemReader) object).isOpen();
+		}
+		if (object instanceof ScanKeyItemReader) {
+			return ((ScanKeyItemReader) object).isOpen();
+		}
+		if (object instanceof KeyspaceNotificationItemReader) {
+			return ((KeyspaceNotificationItemReader) object).isOpen();
+		}
+		if (object instanceof StreamItemReader) {
+			return ((StreamItemReader) object).isOpen();
+		}
+		if (object instanceof AbstractOperationItemStreamSupport) {
+			return ((AbstractOperationItemStreamSupport) object).isOpen();
+		}
+		if (object instanceof RedisKeyspaceNotificationPublisher) {
+			return ((RedisKeyspaceNotificationPublisher) object).isOpen();
+		}
+		if (object instanceof RedisClusterKeyspaceNotificationPublisher) {
+			return ((RedisClusterKeyspaceNotificationPublisher) object).isOpen();
+		}
+		if (object instanceof CompositeItemStreamProcessor) {
+			return ((CompositeItemStreamProcessor) object).isOpen();
+		}
+		if (object instanceof KeyComparisonItemReader) {
+			return ((KeyComparisonItemReader) object).isOpen();
+		}
+		return null;
 	}
 
 }

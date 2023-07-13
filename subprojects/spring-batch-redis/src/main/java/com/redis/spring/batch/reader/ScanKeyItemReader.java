@@ -61,7 +61,6 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> imp
 		iterator = ScanIterator.scan(Utils.sync(connection), args());
 	}
 
-	@Override
 	public boolean isOpen() {
 		return iterator != null;
 	}

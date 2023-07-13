@@ -24,8 +24,8 @@ public class Geoadd<K, V, T> extends AbstractWriteOperation<K, V, T> {
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
-	protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	protected RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args.apply(item), value.apply(item));
 	}
 

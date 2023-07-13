@@ -12,8 +12,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -219,7 +217,7 @@ abstract class AbstractModulesTests extends AbstractTests {
 	}
 
 	@Test
-	void testLuaTimeSeries() throws InterruptedException, ExecutionException {
+	void testLuaTimeSeries() throws Exception {
 		String key = "myts";
 		Sample[] samples = { Sample.of(System.currentTimeMillis(), 1.1),
 				Sample.of(System.currentTimeMillis() + 10, 2.2) };
@@ -227,15 +225,14 @@ abstract class AbstractModulesTests extends AbstractTests {
 			sourceConnection.sync().tsAdd(key, sample);
 		}
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
-		KeyValue<String> ds = future.get();
+		KeyValue<String> ds = structProcessor.process(operation.execute(sourceConnection.async(), key).get());
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
 		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
 	}
 
 	@Test
-	void testLuaTimeSeriesByteArray() throws InterruptedException, ExecutionException {
+	void testLuaTimeSeriesByteArray() throws Exception {
 		String key = "myts";
 		Sample[] samples = { Sample.of(System.currentTimeMillis(), 1.1),
 				Sample.of(System.currentTimeMillis() + 10, 2.2) };
@@ -246,8 +243,8 @@ abstract class AbstractModulesTests extends AbstractTests {
 				.builder(sourceClient, ByteArrayCodec.INSTANCE).struct();
 		StatefulRedisModulesConnection<byte[], byte[]> byteConnection = RedisModulesUtils.connection(sourceClient,
 				ByteArrayCodec.INSTANCE);
-		Future<KeyValue<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
-		KeyValue<byte[]> ds = future.get();
+		KeyValue<byte[]> ds = bytesStructProcessor
+				.process(operation.execute(byteConnection.async(), keyBytes(key)).get());
 		Assertions.assertArrayEquals(keyBytes(key), ds.getKey());
 		Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
 		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());

@@ -27,8 +27,10 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
 
+import com.redis.spring.batch.common.CompositeItemStreamProcessor;
+import com.redis.spring.batch.common.ItemStreamProcessor;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationItemProcessor;
+import com.redis.spring.batch.common.ListItemProcessor;
 import com.redis.spring.batch.common.ProcessingItemWriter;
 import com.redis.spring.batch.common.QueueItemWriter;
 import com.redis.spring.batch.common.Utils;
@@ -50,7 +52,6 @@ public abstract class AbstractRedisItemReader<K, V> extends AbstractItemStreamIt
 	private String name;
 	private JobExecution jobExecution;
 	protected BlockingQueue<KeyValue<K>> queue;
-	private OperationItemProcessor<K, V, K, KeyValue<K>> operationProcessor;
 
 	protected AbstractRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, KeyItemReader<K> keyReader,
 			ValueType valueType) {
@@ -113,7 +114,7 @@ public abstract class AbstractRedisItemReader<K, V> extends AbstractItemStreamIt
 		} catch (JobExecutionException e) {
 			throw new ItemStreamException("Job execution failed", e);
 		}
-		while (!(keyReader.isOpen() || jobExecution.getStatus().isUnsuccessful()
+		while (!(Utils.isOpen(keyReader) || jobExecution.getStatus().isUnsuccessful()
 				|| jobExecution.getStatus().isLessThanOrEqualTo(BatchStatus.COMPLETED))) {
 			sleep();
 		}
@@ -169,6 +170,7 @@ public abstract class AbstractRedisItemReader<K, V> extends AbstractItemStreamIt
 		return jobExecution;
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected SimpleStepBuilder<K, K> step() {
 		StepBuilder stepBuilder = new StepBuilder(name);
 		stepBuilder.repository(jobRepository());
@@ -176,8 +178,7 @@ public abstract class AbstractRedisItemReader<K, V> extends AbstractItemStreamIt
 		SimpleStepBuilder<K, K> step = stepBuilder.chunk(options.getChunkSize());
 		step.reader(keyReader);
 		step.processor(processor);
-		operationProcessor = operationProcessor();
-		step.writer(new ProcessingItemWriter<>(operationProcessor, queueWriter()));
+		step.writer(new ProcessingItemWriter<>((ItemProcessor) operationProcessor(), queueWriter()));
 		Utils.multiThread(step, options.getThreads());
 		return step;
 	}
@@ -188,14 +189,23 @@ public abstract class AbstractRedisItemReader<K, V> extends AbstractItemStreamIt
 		return new QueueItemWriter<>(queue);
 	}
 
-	public OperationItemProcessor<K, V, K, KeyValue<K>> operationProcessor() {
+	public ItemStreamProcessor<List<K>, List<KeyValue<K>>> operationProcessor() {
 		KeyValueReadOperation<K, V> op = new KeyValueReadOperation<>(client, codec);
 		op.setMemoryUsageOptions(options.getMemoryUsageOptions());
 		op.setValueType(valueType);
-		OperationItemProcessor<K, V, K, KeyValue<K>> opProcessor = new OperationItemProcessor<>(client, codec, op);
-		opProcessor.setPoolOptions(options.getPoolOptions());
-		opProcessor.setReadFrom(options.getReadFrom());
-		return opProcessor;
+		OperationItemProcessor<K, V, K, List<Object>> opProc = new OperationItemProcessor<>(client, codec, op);
+		opProc.setPoolOptions(options.getPoolOptions());
+		opProc.setReadFrom(options.getReadFrom());
+		return new CompositeItemStreamProcessor<>(opProc, keyValueListProcessor());
+	}
+
+	private ItemProcessor<List<List<Object>>, List<KeyValue<K>>> keyValueListProcessor() {
+		KeyValueProcessor<K, V> kvProc = new KeyValueProcessor<>(codec);
+		ItemProcessor<List<List<Object>>, List<KeyValue<K>>> listProc = new ListItemProcessor<>(kvProc);
+		if (valueType == ValueType.STRUCT) {
+			return new CompositeItemStreamProcessor<>(listProc, new ListItemProcessor<>(new StructProcessor<>(codec)));
+		}
+		return listProc;
 	}
 
 	@Override
@@ -208,10 +218,6 @@ public abstract class AbstractRedisItemReader<K, V> extends AbstractItemStreamIt
 
 	protected void doClose() {
 		queue = null;
-		if (operationProcessor != null) {
-			operationProcessor.close();
-			operationProcessor = null;
-		}
 		if (jobExecution.isRunning()) {
 			for (StepExecution stepExecution : jobExecution.getStepExecutions()) {
 				stepExecution.setTerminateOnly();

@@ -1,8 +1,8 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.concurrent.Future;
 import java.util.function.Function;
 
+import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 
@@ -17,10 +17,10 @@ public abstract class AbstractPushOperation<K, V, T> extends AbstractWriteOperat
 
 	@SuppressWarnings("unchecked")
 	@Override
-	protected Future<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+	protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
 		return doPush((RedisListAsyncCommands<K, V>) commands, key, value.apply(item));
 	}
 
-	protected abstract Future<Long> doPush(RedisListAsyncCommands<K, V> commands, K key, V value);
+	protected abstract RedisFuture<Long> doPush(RedisListAsyncCommands<K, V> commands, K key, V value);
 
 }

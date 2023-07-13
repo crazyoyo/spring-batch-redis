@@ -18,8 +18,6 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -66,6 +64,7 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
+import com.redis.spring.batch.common.CompositeItemStreamProcessor;
 import com.redis.spring.batch.common.KeyPredicateFactory;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.PredicateItemProcessor;
@@ -75,6 +74,7 @@ import com.redis.spring.batch.convert.ScoredValueConverter;
 import com.redis.spring.batch.reader.GeneratorItemReader;
 import com.redis.spring.batch.reader.GeneratorItemReader.StreamOptions;
 import com.redis.spring.batch.reader.GeneratorItemReader.Type;
+import com.redis.spring.batch.reader.KeyValueProcessor;
 import com.redis.spring.batch.reader.KeyValueReadOperation;
 import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
@@ -84,6 +84,7 @@ import com.redis.spring.batch.reader.ScanOptions;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StreamItemReader;
+import com.redis.spring.batch.reader.StructProcessor;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.step.FlushingStepOptions;
 import com.redis.spring.batch.writer.OperationItemWriter;
@@ -1062,8 +1063,11 @@ abstract class AbstractTests {
 		}
 	}
 
+	protected static final CompositeItemStreamProcessor<List<Object>, KeyValue<String>, KeyValue<String>> structProcessor = new CompositeItemStreamProcessor<>(
+			new KeyValueProcessor<>(StringCodec.UTF8), new StructProcessor<>(StringCodec.UTF8));
+
 	@Test
-	void luaHash() throws InterruptedException, ExecutionException {
+	void luaHash() throws Exception {
 		String key = "myhash";
 		Map<String, String> hash = new HashMap<>();
 		hash.put("field1", "value1");
@@ -1072,8 +1076,7 @@ abstract class AbstractTests {
 		long ttl = System.currentTimeMillis() + 123456;
 		sourceConnection.sync().pexpireat(key, ttl);
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
-		KeyValue<String> ds = future.get();
+		KeyValue<String> ds = structProcessor.process(operation.execute(sourceConnection.async(), key).get());
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(ttl, ds.getTtl());
 		Assertions.assertEquals(KeyValue.HASH, ds.getType());
@@ -1082,33 +1085,31 @@ abstract class AbstractTests {
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
-	void luaZset() throws InterruptedException, ExecutionException {
+	void luaZset() throws Exception {
 		String key = "myzset";
 		ScoredValue[] values = { ScoredValue.just(123.456, "value1"), ScoredValue.just(654.321, "value2") };
 		sourceConnection.sync().zadd(key, values);
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
-		KeyValue<String> ds = future.get();
+		KeyValue<String> ds = structProcessor.process(operation.execute(sourceConnection.async(), key).get());
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(KeyValue.ZSET, ds.getType());
 		Assertions.assertEquals(new HashSet<>(Arrays.asList(values)), ds.getValue());
 	}
 
 	@Test
-	void luaList() throws InterruptedException, ExecutionException {
+	void luaList() throws Exception {
 		String key = "mylist";
 		List<String> values = Arrays.asList("value1", "value2");
 		sourceConnection.sync().rpush(key, values.toArray(new String[0]));
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
-		KeyValue<String> ds = future.get();
+		KeyValue<String> ds = structProcessor.process(operation.execute(sourceConnection.async(), key).get());
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(KeyValue.LIST, ds.getType());
 		Assertions.assertEquals(values, ds.getValue());
 	}
 
 	@Test
-	void luaStream() throws InterruptedException, ExecutionException {
+	void luaStream() throws Exception {
 		String key = "mystream";
 		Map<String, String> body = new HashMap<>();
 		body.put("field1", "value1");
@@ -1116,8 +1117,7 @@ abstract class AbstractTests {
 		sourceConnection.sync().xadd(key, body);
 		sourceConnection.sync().xadd(key, body);
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key);
-		KeyValue<String> ds = future.get();
+		KeyValue<String> ds = structProcessor.process(operation.execute(sourceConnection.async(), key).get());
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(KeyValue.STREAM, ds.getType());
 		List<StreamMessage<String, String>> messages = ds.getValue();
@@ -1128,8 +1128,11 @@ abstract class AbstractTests {
 		}
 	}
 
+	protected static final KeyValueProcessor<byte[], byte[]> dumpProcessor = new KeyValueProcessor<>(
+			ByteArrayCodec.INSTANCE);
+
 	@Test
-	void luaStreamDump() throws InterruptedException, ExecutionException {
+	void luaStreamDump() throws Exception {
 		String key = "mystream";
 		Map<String, String> body = new HashMap<>();
 		body.put("field1", "value1");
@@ -1142,8 +1145,7 @@ abstract class AbstractTests {
 				ByteArrayCodec.INSTANCE);
 		KeyValueReadOperation<byte[], byte[]> operation = KeyValueReadOperation
 				.builder(sourceClient, ByteArrayCodec.INSTANCE).dump();
-		Future<KeyValue<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
-		KeyValue<byte[]> dump = future.get();
+		KeyValue<byte[]> dump = dumpProcessor.process(operation.execute(byteConnection.async(), keyBytes(key)).get());
 		Assertions.assertArrayEquals(keyBytes(key), dump.getKey());
 		Assertions.assertTrue(Math.abs(ttl - dump.getTtl()) <= 3);
 		sourceConnection.sync().del(key);
@@ -1155,8 +1157,11 @@ abstract class AbstractTests {
 		itemStream.open(new ExecutionContext());
 	}
 
+	protected static final CompositeItemStreamProcessor<List<Object>, KeyValue<byte[]>, KeyValue<byte[]>> bytesStructProcessor = new CompositeItemStreamProcessor<>(
+			new KeyValueProcessor<>(ByteArrayCodec.INSTANCE), new StructProcessor<>(ByteArrayCodec.INSTANCE));
+
 	@Test
-	void luaStreamByteArray() throws InterruptedException, ExecutionException {
+	void luaStreamByteArray() throws Exception {
 		String key = "mystream";
 		Map<String, String> body = new HashMap<>();
 		body.put("field1", "value1");
@@ -1167,8 +1172,8 @@ abstract class AbstractTests {
 				.builder(sourceClient, ByteArrayCodec.INSTANCE).struct();
 		StatefulRedisModulesConnection<byte[], byte[]> byteConnection = RedisModulesUtils.connection(sourceClient,
 				ByteArrayCodec.INSTANCE);
-		Future<KeyValue<byte[]>> future = operation.execute(byteConnection.async(), keyBytes(key));
-		KeyValue<byte[]> ds = future.get();
+		KeyValue<byte[]> ds = bytesStructProcessor
+				.process(operation.execute(byteConnection.async(), keyBytes(key)).get());
 		Assertions.assertArrayEquals(keyBytes(key), ds.getKey());
 		Assertions.assertEquals(KeyValue.STREAM, ds.getType());
 		List<StreamMessage<byte[], byte[]>> messages = ds.getValue();
@@ -1183,14 +1188,13 @@ abstract class AbstractTests {
 	}
 
 	@Test
-	void luaHLL() throws InterruptedException, ExecutionException {
+	void luaHLL() throws Exception {
 		String key1 = "hll:1";
 		sourceConnection.sync().pfadd(key1, "member:1", "member:2");
 		String key2 = "hll:2";
 		sourceConnection.sync().pfadd(key2, "member:1", "member:2", "member:3");
 		KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-		Future<KeyValue<String>> future = operation.execute(sourceConnection.async(), key1);
-		KeyValue<String> ds1 = future.get();
+		KeyValue<String> ds1 = structProcessor.process(operation.execute(sourceConnection.async(), key1).get());
 		Assertions.assertEquals(key1, ds1.getKey());
 		Assertions.assertEquals(KeyValue.STRING, ds1.getType());
 		Assertions.assertEquals(sourceConnection.sync().get(key1), ds1.getValue());

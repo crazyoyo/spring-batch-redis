@@ -46,9 +46,9 @@ public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V> {
 		protected final AbstractRedisClient client;
 		protected final RedisCodec<K, V> codec;
 
-		protected JobRepository jobRepository;
-		protected ReaderOptions options = ReaderOptions.builder().build();
-		protected ItemProcessor<K, K> keyProcessor;
+		private JobRepository jobRepository;
+		private ReaderOptions options = ReaderOptions.builder().build();
+		private ItemProcessor<K, K> keyProcessor;
 
 		protected BaseBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
 			this.client = client;
@@ -79,6 +79,14 @@ public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V> {
 			reader.setKeyProcessor(keyProcessor);
 		}
 
+		protected <B1 extends BaseBuilder<K, V, B1>> B1 toBuilder(B1 builder) {
+			builder.jobRepository(jobRepository);
+			builder.options(options);
+			builder.keyProcessor(keyProcessor);
+			return builder;
+
+		}
+
 	}
 
 	public static class Builder<K, V> extends BaseBuilder<K, V, Builder<K, V>> {
@@ -88,11 +96,7 @@ public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V> {
 		}
 
 		public LiveRedisItemReader.Builder<K, V> live() {
-			LiveRedisItemReader.Builder<K, V> builder = new LiveRedisItemReader.Builder<>(client, codec);
-			builder.jobRepository(jobRepository);
-			builder.options(options);
-			builder.keyProcessor(keyProcessor);
-			return builder;
+			return toBuilder(new LiveRedisItemReader.Builder<>(client, codec));
 		}
 
 		public RedisItemReader<K, V> struct() {
