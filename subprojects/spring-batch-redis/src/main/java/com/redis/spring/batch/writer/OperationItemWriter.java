@@ -1,7 +1,6 @@
 package com.redis.spring.batch.writer;
 
 import com.redis.spring.batch.RedisItemWriter;
-import com.redis.spring.batch.common.Operation;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
@@ -17,7 +16,7 @@ public class OperationItemWriter<K, V, T> extends AbstractRedisItemWriter<K, V, 
 	}
 
 	@Override
-	protected Operation<K, V, T, Object> operation() {
+	protected WriteOperation<K, V, T> operation() {
 		return operation;
 	}
 

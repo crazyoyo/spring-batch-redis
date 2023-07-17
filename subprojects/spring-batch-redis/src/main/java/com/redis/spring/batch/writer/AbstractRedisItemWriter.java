@@ -36,6 +36,9 @@ public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractOperation
 		execute(items);
 	}
 
+	@Override
+	protected abstract WriteOperation<K, V, T> operation();
+
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items,

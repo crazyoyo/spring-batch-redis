@@ -29,8 +29,7 @@ public class TsAddAll<K, V, T> implements WriteOperation<K, V, T> {
 	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
 		RedisTimeSeriesAsyncCommands<K, V> tsCommands = (RedisTimeSeriesAsyncCommands<K, V>) commands;
 		K key = keyFunction.apply(item);
-		Collection<Sample> samples = samplesFunction.apply(item);
-		for (Sample sample : samples) {
+		for (Sample sample : samplesFunction.apply(item)) {
 			futures.add((RedisFuture) tsCommands.tsAdd(key, sample, options));
 		}
 	}

@@ -19,6 +19,7 @@ import io.lettuce.core.codec.RedisCodec;
 
 public abstract class AbstractOperationItemStreamSupport<K, V, I, O> extends ItemStreamSupport {
 
+	private final Object synchronizationLock = new Object();
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 	private PoolOptions poolOptions = PoolOptions.builder().build();
@@ -49,13 +50,15 @@ public abstract class AbstractOperationItemStreamSupport<K, V, I, O> extends Ite
 	}
 
 	@Override
-	public synchronized void open(ExecutionContext executionContext) {
-		if (!isOpen()) {
-			ConnectionPoolFactory poolFactory = ConnectionPoolFactory.client(client);
-			poolFactory.withOptions(poolOptions);
-			poolFactory.withReadFrom(readFrom);
-			pool = poolFactory.build(codec);
-			operation = operation();
+	public void open(ExecutionContext executionContext) {
+		synchronized (synchronizationLock) {
+			if (!isOpen()) {
+				ConnectionPoolFactory poolFactory = ConnectionPoolFactory.client(client);
+				poolFactory.withOptions(poolOptions);
+				poolFactory.withReadFrom(readFrom);
+				pool = poolFactory.build(codec);
+				operation = operation();
+			}
 		}
 		super.open(executionContext);
 	}
@@ -67,12 +70,14 @@ public abstract class AbstractOperationItemStreamSupport<K, V, I, O> extends Ite
 	}
 
 	@Override
-	public synchronized void close() {
+	public void close() {
 		super.close();
-		if (isOpen()) {
-			operation = null;
-			pool.close();
-			pool = null;
+		synchronized (synchronizationLock) {
+			if (isOpen()) {
+				operation = null;
+				pool.close();
+				pool = null;
+			}
 		}
 	}
 

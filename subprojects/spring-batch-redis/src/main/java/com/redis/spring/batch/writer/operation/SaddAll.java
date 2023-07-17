@@ -23,9 +23,13 @@ public class SaddAll<K, V, T> implements WriteOperation<K, V, T> {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-		K key = keyFunction.apply(item);
 		Collection<V> values = valuesFunction.apply(item);
-		futures.add((RedisFuture) ((RedisSetAsyncCommands<K, V>) commands).sadd(key, (V[]) values.toArray()));
+		if (values.isEmpty()) {
+			return;
+		}
+		K key = keyFunction.apply(item);
+		RedisSetAsyncCommands<K, V> setCommands = (RedisSetAsyncCommands<K, V>) commands;
+		futures.add((RedisFuture) setCommands.sadd(key, (V[]) values.toArray()));
 	}
 
 }

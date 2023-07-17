@@ -25,9 +25,9 @@ public class Expire<K, V, T> implements WriteOperation<K, V, T> {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-		K key = keyFunction.apply(item);
 		Long millis = millisFunction.apply(item);
 		if (millis != null && millis > 0) {
+			K key = keyFunction.apply(item);
 			futures.add((RedisFuture) execute((RedisKeyAsyncCommands<K, V>) commands, key, millis));
 		}
 	}

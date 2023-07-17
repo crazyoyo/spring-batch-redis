@@ -78,6 +78,7 @@ abstract class AbstractTargetTests extends AbstractTests {
 			return major;
 		}
 
+		@SuppressWarnings("unused")
 		public int getMinor() {
 			return minor;
 		}
@@ -280,6 +281,19 @@ abstract class AbstractTargetTests extends AbstractTests {
 		gen.setMaxItemCount(10000);
 		gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET));
 		generate(testInfo, gen);
+		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).struct();
+		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).struct();
+		run(testInfo, reader, writer);
+		Assertions.assertTrue(isOk(compare(testInfo)));
+	}
+
+	@Test
+	void replicateDsEmptyCollections(TestInfo testInfo) throws Exception {
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(10000);
+		gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET));
+		generate(testInfo, gen);
+		
 		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).struct();
 		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).struct();
 		run(testInfo, reader, writer);

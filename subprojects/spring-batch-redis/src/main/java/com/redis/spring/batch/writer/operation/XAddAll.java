@@ -24,11 +24,8 @@ public class XAddAll<K, V, T> implements WriteOperation<K, V, T> {
 
 	@Override
 	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-		Collection<StreamMessage<K, V>> collection = messagesFunction.apply(item);
-		if (!collection.isEmpty()) {
-			for (StreamMessage<K, V> message : collection) {
-				xadd.execute(commands, message, futures);
-			}
+		for (StreamMessage<K, V> message : messagesFunction.apply(item)) {
+			xadd.execute(commands, message, futures);
 		}
 	}
 

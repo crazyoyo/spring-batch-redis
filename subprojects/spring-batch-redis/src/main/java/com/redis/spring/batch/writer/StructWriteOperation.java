@@ -6,6 +6,8 @@ import java.util.function.Function;
 import com.redis.lettucemod.timeseries.AddOptions;
 import com.redis.lettucemod.timeseries.AddOptions.Builder;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.writer.operation.Del;
+import com.redis.spring.batch.writer.operation.ExpireAt;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Noop;
@@ -21,13 +23,14 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
 public class StructWriteOperation<K, V> implements WriteOperation<K, V, KeyValue<K>> {
 
 	private static final XAddArgs EMPTY_XADD_ARGS = new XAddArgs();
 
-	private final WriteOperation<K, V, KeyValue<K>> noop = new Noop<>();
+	private final ExpireAt<K, V, KeyValue<K>> expire = new ExpireAt<>(key(), KeyValue::getTtl);
+	private final Noop<K, V, KeyValue<K>> noop = new Noop<>();
+	private final Del<K, V, KeyValue<K>> del = new Del<>(key());
 	private final Hset<K, V, KeyValue<K>> hset = new Hset<>(key(), value());
 	private final Set<K, V, KeyValue<K>> set = new Set<>(key(), value());
 	private final JsonSet<K, V, KeyValue<K>> jsonSet = new JsonSet<>(key(), value());
@@ -61,22 +64,20 @@ public class StructWriteOperation<K, V> implements WriteOperation<K, V, KeyValue
 		this.options = options;
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
 	public void execute(BaseRedisAsyncCommands<K, V> commands, KeyValue<K> item, List<RedisFuture<Object>> futures) {
 		if (shouldSkip(item)) {
 			return;
 		}
 		if (shouldDelete(item)) {
-			delete(commands, item, futures);
+			del.execute(commands, item, futures);
 		} else {
 			if (isOverwrite() && !KeyValue.isString(item)) {
-				delete(commands, item, futures);
+				del.execute(commands, item, futures);
 			}
 			operation(item).execute(commands, item, futures);
 			if (item.getTtl() > 0) {
-				RedisKeyAsyncCommands<K, V> keyCommands = (RedisKeyAsyncCommands<K, V>) commands;
-				futures.add((RedisFuture) keyCommands.pexpireat(item.getKey(), item.getTtl()));
+				expire.execute(commands, item, futures);
 			}
 		}
 	}
@@ -91,12 +92,6 @@ public class StructWriteOperation<K, V> implements WriteOperation<K, V, KeyValue
 
 	private boolean shouldDelete(KeyValue<K> item) {
 		return item.getValue() == null || Restore.TTL_KEY_DOES_NOT_EXIST.equals(item.getTtl()) || KeyValue.isNone(item);
-	}
-
-	@SuppressWarnings("unchecked")
-	protected RedisFuture<Long> delete(BaseRedisAsyncCommands<K, V> commands, KeyValue<K> item,
-			List<RedisFuture<Object>> futures) {
-		return ((RedisKeyAsyncCommands<K, V>) commands).del(item.getKey());
 	}
 
 	private WriteOperation<K, V, KeyValue<K>> operation(KeyValue<K> item) {

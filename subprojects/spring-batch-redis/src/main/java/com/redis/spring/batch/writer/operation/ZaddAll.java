@@ -28,13 +28,16 @@ public class ZaddAll<K, V, T> implements WriteOperation<K, V, T> {
 		this.args = args;
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings("unchecked")
 	@Override
 	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
+		Collection<ScoredValue<V>> members = membersFunction.apply(item);
+		if (members.isEmpty()) {
+			return;
+		}
 		K key = keyFunction.apply(item);
-		ScoredValue<V>[] members = membersFunction.apply(item).toArray(new ScoredValue[0]);
 		RedisSortedSetAsyncCommands<K, V> zset = (RedisSortedSetAsyncCommands<K, V>) commands;
-		futures.add((RedisFuture) zset.zadd(key, args, members));
+		futures.add(zset.zadd(key, args, members.toArray(new ScoredValue[0])));
 	}
 
 }
