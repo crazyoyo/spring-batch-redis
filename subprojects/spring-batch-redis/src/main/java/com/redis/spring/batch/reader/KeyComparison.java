@@ -68,4 +68,9 @@ public class KeyComparison {
 		return Objects.equals(source, other.source) && status == other.status && Objects.equals(target, other.target);
 	}
 
+	@Override
+	public String toString() {
+		return "KeyComparison [source=" + source + ", target=" + target + ", status=" + status + "]";
+	}
+
 }

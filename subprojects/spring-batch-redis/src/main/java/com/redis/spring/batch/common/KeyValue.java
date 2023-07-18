@@ -90,4 +90,9 @@ public class KeyValue<K> {
 		return isType(item, STRING);
 	}
 
+	@Override
+	public String toString() {
+		return "KeyValue [key=" + key + ", ttl=" + ttl + ", type=" + type + ", memoryUsage=" + memoryUsage + "]";
+	}
+
 }
