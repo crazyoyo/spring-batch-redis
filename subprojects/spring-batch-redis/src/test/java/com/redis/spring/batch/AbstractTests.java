@@ -19,6 +19,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import org.awaitility.Awaitility;
@@ -131,6 +132,8 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 @RunWith(SpringRunner.class)
 @TestInstance(Lifecycle.PER_CLASS)
 abstract class AbstractTests {
+
+	protected final Logger log = Logger.getLogger(getClass().getName());
 
 	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(1000);
 	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(300);

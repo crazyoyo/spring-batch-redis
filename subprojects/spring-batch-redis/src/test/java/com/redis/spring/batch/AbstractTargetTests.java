@@ -10,8 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.awaitility.core.ConditionTimeoutException;
@@ -60,42 +58,6 @@ import io.lettuce.core.codec.StringCodec;
 
 abstract class AbstractTargetTests extends AbstractTests {
 
-	private static class RedisVersion {
-
-		private static Pattern redisVersionPattern = Pattern.compile("redis_version:(\\d)\\.(\\d).*");
-
-		public static RedisVersion UNKNOWN = new RedisVersion(0, 0);
-
-		private final int major;
-		private final int minor;
-
-		public RedisVersion(int major, int minor) {
-			this.major = major;
-			this.minor = minor;
-		}
-
-		public int getMajor() {
-			return major;
-		}
-
-		@SuppressWarnings("unused")
-		public int getMinor() {
-			return minor;
-		}
-
-		public static RedisVersion of(StatefulRedisModulesConnection<String, String> connection) {
-			String info = connection.sync().info("SERVER");
-			Matcher matcher = redisVersionPattern.matcher(info);
-			if (matcher.find()) {
-				int major = Integer.parseInt(matcher.group(1));
-				int minor = Integer.parseInt(matcher.group(2));
-				return new RedisVersion(major, minor);
-			}
-			return UNKNOWN;
-		}
-
-	}
-
 	protected AbstractRedisClient targetClient;
 	protected StatefulRedisModulesConnection<String, String> targetConnection;
 
@@ -133,6 +95,7 @@ abstract class AbstractTargetTests extends AbstractTests {
 		TestInfo finalTestInfo = testInfo(testInfo, "compare", "reader");
 		List<KeyComparison> comparisons = readAll(finalTestInfo, comparisonReader());
 		Assertions.assertFalse(comparisons.isEmpty());
+		comparisons.stream().filter(c -> c.getStatus() != Status.OK).forEach(c -> log.severe(c.toString()));
 		return comparisons;
 	}
 
@@ -293,7 +256,6 @@ abstract class AbstractTargetTests extends AbstractTests {
 		gen.setMaxItemCount(10000);
 		gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET));
 		generate(testInfo, gen);
-		
 		RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE).struct();
 		RedisItemWriter<byte[], byte[]> writer = writer(targetClient, ByteArrayCodec.INSTANCE).struct();
 		run(testInfo, reader, writer);
@@ -346,6 +308,9 @@ abstract class AbstractTargetTests extends AbstractTests {
 		Set<String> ttlChanges = new HashSet<>();
 		for (int index = 0; index < 23; index++) {
 			String key = targetConnection.sync().randomkey();
+			if (key == null) {
+				continue;
+			}
 			long ttl = targetConnection.sync().ttl(key) + 12345;
 			if (targetConnection.sync().expire(key, ttl)) {
 				ttlChanges.add(key);
