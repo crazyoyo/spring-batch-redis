@@ -10,22 +10,22 @@ import com.redis.testcontainers.RedisStackContainer;
 
 public class RedisContainerFactory {
 
-	private RedisContainerFactory() {
-	}
+    private RedisContainerFactory() {
+    }
 
-	public static RedisStackContainer stack() {
-		return new RedisStackContainer(RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
-	}
+    public static RedisStackContainer stack() {
+        return new RedisStackContainer(RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
+    }
 
-	@SuppressWarnings("resource")
-	public static RedisEnterpriseContainer enterprise() {
-		return new RedisEnterpriseContainer(RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
-				.withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(50)).ossCluster(true)
-						.modules(RedisModule.JSON, RedisModule.TIMESERIES, RedisModule.SEARCH).build());
-	}
+    @SuppressWarnings("resource")
+    public static RedisEnterpriseContainer enterprise() {
+        return new RedisEnterpriseContainer(RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
+                .withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(50)).ossCluster(true)
+                        .modules(RedisModule.JSON, RedisModule.TIMESERIES, RedisModule.SEARCH).build());
+    }
 
-	public static RedisContainer redis(String tag) {
-		return new RedisContainer(RedisContainer.DEFAULT_IMAGE_NAME.withTag(tag));
-	}
+    public static RedisContainer redis(String tag) {
+        return new RedisContainer(RedisContainer.DEFAULT_IMAGE_NAME.withTag(tag));
+    }
 
 }

@@ -7,35 +7,36 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 
 public class RedisVersion {
 
-	private static Pattern redisVersionPattern = Pattern.compile("redis_version:(\\d)\\.(\\d).*");
+    private static Pattern redisVersionPattern = Pattern.compile("redis_version:(\\d)\\.(\\d).*");
 
-	public static RedisVersion UNKNOWN = new RedisVersion(0, 0);
+    public static RedisVersion UNKNOWN = new RedisVersion(0, 0);
 
-	private final int major;
-	private final int minor;
+    private final int major;
 
-	public RedisVersion(int major, int minor) {
-		this.major = major;
-		this.minor = minor;
-	}
+    private final int minor;
 
-	public int getMajor() {
-		return major;
-	}
+    public RedisVersion(int major, int minor) {
+        this.major = major;
+        this.minor = minor;
+    }
 
-	public int getMinor() {
-		return minor;
-	}
+    public int getMajor() {
+        return major;
+    }
 
-	public static RedisVersion of(StatefulRedisModulesConnection<String, String> connection) {
-		String info = connection.sync().info("SERVER");
-		Matcher matcher = redisVersionPattern.matcher(info);
-		if (matcher.find()) {
-			int major = Integer.parseInt(matcher.group(1));
-			int minor = Integer.parseInt(matcher.group(2));
-			return new RedisVersion(major, minor);
-		}
-		return UNKNOWN;
-	}
+    public int getMinor() {
+        return minor;
+    }
+
+    public static RedisVersion of(StatefulRedisModulesConnection<String, String> connection) {
+        String info = connection.sync().info("SERVER");
+        Matcher matcher = redisVersionPattern.matcher(info);
+        if (matcher.find()) {
+            int major = Integer.parseInt(matcher.group(1));
+            int minor = Integer.parseInt(matcher.group(2));
+            return new RedisVersion(major, minor);
+        }
+        return UNKNOWN;
+    }
 
 }

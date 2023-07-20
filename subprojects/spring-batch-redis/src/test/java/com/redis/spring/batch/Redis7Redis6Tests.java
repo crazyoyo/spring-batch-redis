@@ -5,17 +5,18 @@ import com.redis.testcontainers.RedisServer;
 
 class Redis7Redis6Tests extends AbstractTargetTests {
 
-	private static final RedisContainer SOURCE = RedisContainerFactory.redis("7.0");
-	private static final RedisContainer TARGET = RedisContainerFactory.redis("6.2.13");
+    private static final RedisContainer SOURCE = RedisContainerFactory.redis("7.0");
 
-	@Override
-	protected RedisServer getSourceServer() {
-		return SOURCE;
-	}
+    private static final RedisContainer TARGET = RedisContainerFactory.redis("6.2.13");
 
-	@Override
-	protected RedisServer getTargetServer() {
-		return TARGET;
-	}
+    @Override
+    protected RedisServer getSourceServer() {
+        return SOURCE;
+    }
+
+    @Override
+    protected RedisServer getTargetServer() {
+        return TARGET;
+    }
 
 }

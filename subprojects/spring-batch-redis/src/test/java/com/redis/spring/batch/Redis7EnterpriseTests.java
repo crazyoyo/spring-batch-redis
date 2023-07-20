@@ -10,17 +10,18 @@ import com.redis.testcontainers.RedisServer;
 @EnabledOnOs(OS.LINUX)
 class Redis7EnterpriseTests extends AbstractTargetTests {
 
-	private static final RedisContainer SOURCE = RedisContainerFactory.redis("7.0");
-	private static final RedisEnterpriseContainer TARGET = RedisContainerFactory.enterprise();
+    private static final RedisContainer SOURCE = RedisContainerFactory.redis("7.0");
 
-	@Override
-	protected RedisServer getSourceServer() {
-		return SOURCE;
-	}
+    private static final RedisEnterpriseContainer TARGET = RedisContainerFactory.enterprise();
 
-	@Override
-	protected RedisServer getTargetServer() {
-		return TARGET;
-	}
+    @Override
+    protected RedisServer getSourceServer() {
+        return SOURCE;
+    }
+
+    @Override
+    protected RedisServer getTargetServer() {
+        return TARGET;
+    }
 
 }
