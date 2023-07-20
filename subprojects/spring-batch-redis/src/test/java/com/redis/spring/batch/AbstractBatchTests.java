@@ -231,6 +231,17 @@ abstract class AbstractBatchTests {
 
     }
 
+    protected <T> List<T> readAllAndClose(TestInfo testInfo, ItemReader<T> reader)
+            throws UnexpectedInputException, ParseException, NonTransientResourceException, Exception {
+        try {
+            return readAll(testInfo, reader);
+        } finally {
+            if (reader instanceof ItemStream) {
+                ((ItemStream) reader).close();
+            }
+        }
+    }
+
     protected <T> List<T> readAll(TestInfo testInfo, ItemReader<T> reader)
             throws UnexpectedInputException, ParseException, NonTransientResourceException, Exception {
         if (reader instanceof ItemStream) {
@@ -239,13 +250,7 @@ abstract class AbstractBatchTests {
             }
             ((ItemStream) reader).open(new ExecutionContext());
         }
-        try {
-            return Utils.readAll(reader);
-        } finally {
-            if (reader instanceof ItemStream) {
-                ((ItemStream) reader).close();
-            }
-        }
+        return Utils.readAll(reader);
     }
 
     protected static void awaitClosed(Object object) {
@@ -379,8 +384,6 @@ abstract class AbstractBatchTests {
         awaitRunning(execution);
         return execution;
     }
-
-    protected static final int STREAM_MESSAGE_COUNT = 57;
 
     protected void enableKeyspaceNotifications(AbstractRedisClient client) {
         RedisModulesUtils.connection(client).sync().configSet("notify-keyspace-events", "AK");
@@ -695,7 +698,7 @@ abstract class AbstractBatchTests {
             throws UnexpectedInputException, ParseException, NonTransientResourceException, Exception {
         generate(testInfo);
         ScanKeyItemReader<String, String> reader = new ScanKeyItemReader<>(sourceClient, StringCodec.UTF8);
-        List<String> keys = readAll(testInfo, reader);
+        List<String> keys = readAllAndClose(testInfo, reader);
         Assertions.assertEquals(sourceConnection.sync().dbsize(), keys.size());
     }
 
@@ -703,7 +706,7 @@ abstract class AbstractBatchTests {
     void reader(TestInfo testInfo) throws Exception {
         generate(testInfo);
         RedisItemReader<String, String> reader = reader(sourceClient).struct();
-        List<KeyValue<String>> list = readAll(testInfo, reader);
+        List<KeyValue<String>> list = readAllAndClose(testInfo, reader);
         assertEquals(sourceConnection.sync().dbsize(), list.size());
     }
 
@@ -738,11 +741,11 @@ abstract class AbstractBatchTests {
                 expectedCount / 10);
     }
 
-    protected void generateStreams(TestInfo testInfo) throws JobExecutionException {
+    protected void generateStreams(TestInfo testInfo, int messageCount) throws JobExecutionException {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setTypes(Arrays.asList(Type.STREAM));
         gen.setMaxItemCount(3);
-        gen.setStreamOptions(StreamOptions.builder().messageCount(STREAM_MESSAGE_COUNT).build());
+        gen.setStreamOptions(StreamOptions.builder().messageCount(messageCount).build());
         generate(testInfo(testInfo, "streams"), gen);
     }
 
@@ -1014,18 +1017,15 @@ abstract class AbstractBatchTests {
 
     @Test
     void readMessages(TestInfo testInfo) throws Exception {
-        generateStreams(testInfo);
+        generateStreams(testInfo, 57);
         List<String> keys = ScanIterator.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(KeyValue.STREAM)).stream()
                 .collect(Collectors.toList());
+        Consumer<String> consumer = Consumer.from("batchtests-readmessages", "consumer1");
         for (String key : keys) {
             long count = sourceConnection.sync().xlen(key);
-            StreamItemReader<String, String> reader = streamReader(key, Consumer.from("batchtests-readmessages", "consumer1"));
-            open(reader);
-            List<StreamMessage<String, String>> messages = new ArrayList<>();
-            awaitUntil(() -> {
-                messages.addAll(reader.readMessages());
-                return messages.size() == count;
-            });
+            StreamItemReader<String, String> reader = streamReader(key, consumer);
+            List<StreamMessage<String, String>> messages = readAll(testInfo, reader);
+            assertEquals(count, messages.size());
             assertMessageBody(messages);
             awaitUntil(() -> reader.ack(reader.readMessages()) == 0);
             reader.close();
@@ -1034,14 +1034,14 @@ abstract class AbstractBatchTests {
 
     @Test
     void streamReaderJob(TestInfo testInfo) throws Exception {
-        generateStreams(testInfo);
+        generateStreams(testInfo, 277);
         List<String> keys = ScanIterator.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(KeyValue.STREAM)).stream()
                 .collect(Collectors.toList());
+        Consumer<String> consumer = Consumer.from("batchtests-readstreamjob", "consumer1");
         for (String key : keys) {
-            Consumer<String> consumer = Consumer.from("batchtests-readstreamjob", "consumer1");
-            StreamItemReader<String, String> reader = streamReader(key, consumer);
-            List<StreamMessage<String, String>> messages = readAll(testInfo, reader);
-            Assertions.assertEquals(STREAM_MESSAGE_COUNT, messages.size());
+            long count = sourceConnection.sync().xlen(key);
+            List<StreamMessage<String, String>> messages = readAllAndClose(testInfo, streamReader(key, consumer));
+            Assertions.assertEquals(count, messages.size());
             assertMessageBody(messages);
         }
     }

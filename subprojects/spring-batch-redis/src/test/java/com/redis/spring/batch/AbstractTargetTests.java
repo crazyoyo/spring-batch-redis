@@ -94,7 +94,7 @@ abstract class AbstractTargetTests extends AbstractBatchTests {
      */
     protected List<? extends KeyComparison> compare(TestInfo testInfo) throws Exception {
         TestInfo finalTestInfo = testInfo(testInfo, "compare", "reader");
-        List<KeyComparison> comparisons = readAll(finalTestInfo, comparisonReader());
+        List<KeyComparison> comparisons = readAllAndClose(finalTestInfo, comparisonReader());
         Assertions.assertFalse(comparisons.isEmpty());
         comparisons.stream().filter(c -> c.getStatus() != Status.OK).forEach(c -> log.severe(c.toString()));
         return comparisons;
@@ -153,7 +153,7 @@ abstract class AbstractTargetTests extends AbstractBatchTests {
         sourceConnection.sync().sadd("set:1", "value1", "value2");
         targetConnection.sync().sadd("set:1", "value2", "value1");
         KeyComparisonItemReader reader = comparisonReader();
-        List<KeyComparison> comparisons = readAll(testInfo, reader);
+        List<KeyComparison> comparisons = readAllAndClose(testInfo, reader);
         Assertions.assertEquals(KeyComparison.Status.OK, comparisons.get(0).getStatus());
     }
 

@@ -97,10 +97,11 @@ class StackTests extends AbstractModulesTests {
 
     @Test
     void readMultipleStreams(TestInfo testInfo) throws Exception {
-        generateStreams(testInfo(testInfo, "streams"));
+        generateStreams(testInfo(testInfo, "streams"), 277);
         final List<String> keys = ScanIterator.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(KeyValue.STREAM)).stream()
                 .collect(Collectors.toList());
         for (String key : keys) {
+            long count = sourceConnection.sync().xlen(key);
             StreamItemReader<String, String> reader1 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
             reader1.setAckPolicy(StreamAckPolicy.MANUAL);
             StreamItemReader<String, String> reader2 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"));
@@ -115,11 +116,11 @@ class StackTests extends AbstractModulesTests {
             awaitTermination(execution2);
             awaitClosed(reader2);
             awaitClosed(writer2);
-            Assertions.assertEquals(STREAM_MESSAGE_COUNT, writer1.getItems().size() + writer2.getItems().size());
+            Assertions.assertEquals(count, writer1.getItems().size() + writer2.getItems().size());
             assertMessageBody(writer1.getItems());
             assertMessageBody(writer2.getItems());
             RedisModulesCommands<String, String> sync = sourceConnection.sync();
-            Assertions.assertEquals(STREAM_MESSAGE_COUNT, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
+            Assertions.assertEquals(count, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
             reader1 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
             reader1.setAckPolicy(StreamAckPolicy.MANUAL);
             reader1.open(new ExecutionContext());
@@ -183,7 +184,7 @@ class StackTests extends AbstractModulesTests {
         long memLimit = 200;
         RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions(DataSize.ofBytes(memLimit)))
                 .struct();
-        List<KeyValue<String>> keyValues = readAll(testInfo, reader);
+        List<KeyValue<String>> keyValues = readAllAndClose(testInfo, reader);
         Assertions.assertFalse(keyValues.isEmpty());
         for (KeyValue<String> keyValue : keyValues) {
             Assertions.assertTrue(keyValue.getMemoryUsage() > 0);
@@ -228,7 +229,7 @@ class StackTests extends AbstractModulesTests {
         run(testInfo, reader, writer);
         RedisItemReader<String, String> fullReader = RedisItemReader.client(sourceClient, StringCodec.UTF8)
                 .jobRepository(jobRepository).options(readerOptions(DataSize.ofBytes(-1))).struct();
-        List<KeyValue<String>> items = readAll(testInfo, fullReader);
+        List<KeyValue<String>> items = readAllAndClose(testInfo, fullReader);
         List<KeyValue<String>> bigkeys = items.stream().filter(ds -> ds.getMemoryUsage() > memLimit)
                 .collect(Collectors.toList());
         Assertions.assertEquals(sourceConnection.sync().dbsize(), bigkeys.size() + targetConnection.sync().dbsize());
@@ -242,7 +243,7 @@ class StackTests extends AbstractModulesTests {
         String key2 = "key:2";
         sourceConnection.sync().set(key2, GeneratorItemReader.randomString(Math.toIntExact(limit.toBytes() * 2)));
         RedisItemReader<String, String> reader = reader(sourceClient).options(readerOptions(limit)).struct();
-        List<KeyValue<String>> keyValues = readAll(testInfo, reader);
+        List<KeyValue<String>> keyValues = readAllAndClose(testInfo, reader);
         Map<String, KeyValue<String>> map = keyValues.stream().collect(Collectors.toMap(s -> s.getKey(), s -> s));
         Assertions.assertNull(map.get(key2).getValue());
     }
