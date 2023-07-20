@@ -19,93 +19,92 @@ import io.lettuce.core.codec.RedisCodec;
 
 public abstract class AbstractOperationItemStreamSupport<K, V, I, O> extends ItemStreamSupport {
 
-	private final Object synchronizationLock = new Object();
-	private final AbstractRedisClient client;
-	private final RedisCodec<K, V> codec;
-	private PoolOptions poolOptions = PoolOptions.builder().build();
-	private Optional<ReadFrom> readFrom = Optional.empty();
-	private GenericObjectPool<StatefulConnection<K, V>> pool;
-	private Operation<K, V, I, O> operation;
+    private final AbstractRedisClient client;
 
-	protected AbstractOperationItemStreamSupport(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		setName(ClassUtils.getShortName(getClass()));
-		this.client = client;
-		this.codec = codec;
-	}
+    private final RedisCodec<K, V> codec;
 
-	public PoolOptions getPoolOptions() {
-		return poolOptions;
-	}
+    private PoolOptions poolOptions = PoolOptions.builder().build();
 
-	public void setPoolOptions(PoolOptions poolOptions) {
-		this.poolOptions = poolOptions;
-	}
+    private Optional<ReadFrom> readFrom = Optional.empty();
 
-	public Optional<ReadFrom> getReadFrom() {
-		return readFrom;
-	}
+    private GenericObjectPool<StatefulConnection<K, V>> pool;
 
-	public void setReadFrom(Optional<ReadFrom> readFrom) {
-		this.readFrom = readFrom;
-	}
+    private Operation<K, V, I, O> operation;
 
-	@Override
-	public void open(ExecutionContext executionContext) {
-		synchronized (synchronizationLock) {
-			if (!isOpen()) {
-				ConnectionPoolFactory poolFactory = ConnectionPoolFactory.client(client);
-				poolFactory.withOptions(poolOptions);
-				poolFactory.withReadFrom(readFrom);
-				pool = poolFactory.build(codec);
-				operation = operation();
-			}
-		}
-		super.open(executionContext);
-	}
+    protected AbstractOperationItemStreamSupport(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        setName(ClassUtils.getShortName(getClass()));
+        this.client = client;
+        this.codec = codec;
+    }
 
-	protected abstract Operation<K, V, I, O> operation();
+    public PoolOptions getPoolOptions() {
+        return poolOptions;
+    }
 
-	public boolean isOpen() {
-		return pool != null;
-	}
+    public void setPoolOptions(PoolOptions poolOptions) {
+        this.poolOptions = poolOptions;
+    }
 
-	@Override
-	public void close() {
-		super.close();
-		synchronized (synchronizationLock) {
-			if (isOpen()) {
-				operation = null;
-				pool.close();
-				pool = null;
-			}
-		}
-	}
+    public Optional<ReadFrom> getReadFrom() {
+        return readFrom;
+    }
 
-	protected List<O> execute(List<? extends I> items) throws Exception {
-		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-			long timeout = connection.getTimeout().toMillis();
-			BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
-			List<RedisFuture<O>> futures = new ArrayList<>();
-			try {
-				connection.setAutoFlushCommands(false);
-				execute(commands, items, futures);
-				connection.flushCommands();
-				List<O> results = new ArrayList<>(futures.size());
-				for (RedisFuture<O> future : futures) {
-					results.add(future.get(timeout, TimeUnit.MILLISECONDS));
-				}
-				return results;
-			} finally {
-				connection.setAutoFlushCommands(true);
-			}
-		}
-	}
+    public void setReadFrom(Optional<ReadFrom> readFrom) {
+        this.readFrom = readFrom;
+    }
 
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, List<? extends I> items,
-			List<RedisFuture<O>> futures) {
-		for (I item : items) {
-			operation.execute(commands, item, futures);
-		}
-	}
+    @Override
+    public synchronized void open(ExecutionContext executionContext) {
+        if (!isOpen()) {
+            ConnectionPoolFactory poolFactory = ConnectionPoolFactory.client(client);
+            poolFactory.withOptions(poolOptions);
+            poolFactory.withReadFrom(readFrom);
+            pool = poolFactory.build(codec);
+            operation = operation();
+        }
+        super.open(executionContext);
+    }
+
+    protected abstract Operation<K, V, I, O> operation();
+
+    public boolean isOpen() {
+        return pool != null;
+    }
+
+    @Override
+    public synchronized void close() {
+        super.close();
+        if (isOpen()) {
+            operation = null;
+            pool.close();
+            pool = null;
+        }
+    }
+
+    protected List<O> execute(List<? extends I> items) throws Exception {
+        try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+            long timeout = connection.getTimeout().toMillis();
+            BaseRedisAsyncCommands<K, V> commands = Utils.async(connection);
+            List<RedisFuture<O>> futures = new ArrayList<>();
+            try {
+                connection.setAutoFlushCommands(false);
+                execute(commands, items, futures);
+                connection.flushCommands();
+                List<O> results = new ArrayList<>(futures.size());
+                for (RedisFuture<O> future : futures) {
+                    results.add(future.get(timeout, TimeUnit.MILLISECONDS));
+                }
+                return results;
+            } finally {
+                connection.setAutoFlushCommands(true);
+            }
+        }
+    }
+
+    protected void execute(BaseRedisAsyncCommands<K, V> commands, List<? extends I> items, List<RedisFuture<O>> futures) {
+        for (I item : items) {
+            operation.execute(commands, item, futures);
+        }
+    }
 
 }
