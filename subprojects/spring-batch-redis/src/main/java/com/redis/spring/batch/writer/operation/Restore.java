@@ -12,35 +12,36 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
 public class Restore<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
-	public static final long TTL_KEY_DOES_NOT_EXIST = -2;
+    public static final long TTL_KEY_DOES_NOT_EXIST = -2;
 
-	private final Function<T, byte[]> bytes;
-	private final ToLongFunction<T> absoluteTtl;
+    private final Function<T, byte[]> bytes;
 
-	public Restore(Function<T, K> key, Function<T, byte[]> value, ToLongFunction<T> absoluteTTL) {
-		super(key);
-		Assert.notNull(value, "A value function is required");
-		Assert.notNull(absoluteTTL, "A TTL function is required");
-		this.bytes = value;
-		this.absoluteTtl = absoluteTTL;
-	}
+    private final ToLongFunction<T> absoluteTtl;
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Override
-	protected RedisFuture<Object> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		byte[] dump = bytes.apply(item);
-		long ttl = absoluteTtl.applyAsLong(item);
-		if (dump == null || ttl == TTL_KEY_DOES_NOT_EXIST) {
-			return (RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).del(key);
-		}
-		return (RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).restore(key, dump, args(ttl));
-	}
+    public Restore(Function<T, K> key, Function<T, byte[]> value, ToLongFunction<T> absoluteTTL) {
+        super(key);
+        Assert.notNull(value, "A value function is required");
+        Assert.notNull(absoluteTTL, "A TTL function is required");
+        this.bytes = value;
+        this.absoluteTtl = absoluteTTL;
+    }
 
-	protected RestoreArgs args(long ttl) {
-		if (ttl > 0) {
-			return RestoreArgs.Builder.ttl(ttl).absttl();
-		}
-		return new RestoreArgs();
-	}
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @Override
+    protected RedisFuture<Object> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        byte[] dump = bytes.apply(item);
+        long ttl = absoluteTtl.applyAsLong(item);
+        if (dump == null || ttl == TTL_KEY_DOES_NOT_EXIST) {
+            return (RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).del(key);
+        }
+        return (RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).restore(key, dump, args(ttl));
+    }
+
+    protected RestoreArgs args(long ttl) {
+        if (ttl > 0) {
+            return RestoreArgs.Builder.ttl(ttl).absttl();
+        }
+        return new RestoreArgs();
+    }
 
 }

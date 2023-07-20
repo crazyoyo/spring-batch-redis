@@ -13,36 +13,36 @@ import io.lettuce.core.codec.RedisCodec;
 
 public class KeyValueProcessor<K, V> implements ItemProcessor<List<Object>, KeyValue<K>> {
 
-	private final Function<V, String> toStringValueFunction;
+    private final Function<V, String> toStringValueFunction;
 
-	public KeyValueProcessor(RedisCodec<K, V> codec) {
-		this.toStringValueFunction = Utils.toStringValueFunction(codec);
-	}
+    public KeyValueProcessor(RedisCodec<K, V> codec) {
+        this.toStringValueFunction = Utils.toStringValueFunction(codec);
+    }
 
-	@SuppressWarnings("unchecked")
-	@Override
-	public KeyValue<K> process(List<Object> item) throws Exception {
-		if (item == null) {
-			return null;
-		}
-		KeyValue<K> keyValue = new KeyValue<>();
-		Iterator<Object> iterator = item.iterator();
-		if (iterator.hasNext()) {
-			keyValue.setKey((K) iterator.next());
-		}
-		if (iterator.hasNext()) {
-			keyValue.setType(toStringValueFunction.apply((V) iterator.next()));
-		}
-		if (iterator.hasNext()) {
-			keyValue.setTtl((Long) iterator.next());
-		}
-		if (iterator.hasNext()) {
-			keyValue.setMemoryUsage((Long) iterator.next());
-		}
-		if (iterator.hasNext()) {
-			keyValue.setValue(iterator.next());
-		}
-		return keyValue;
-	}
+    @SuppressWarnings("unchecked")
+    @Override
+    public KeyValue<K> process(List<Object> item) throws Exception {
+        if (item == null) {
+            return null;
+        }
+        KeyValue<K> keyValue = new KeyValue<>();
+        Iterator<Object> iterator = item.iterator();
+        if (iterator.hasNext()) {
+            keyValue.setKey((K) iterator.next());
+        }
+        if (iterator.hasNext()) {
+            keyValue.setType(toStringValueFunction.apply((V) iterator.next()));
+        }
+        if (iterator.hasNext()) {
+            keyValue.setTtl((Long) iterator.next());
+        }
+        if (iterator.hasNext()) {
+            keyValue.setMemoryUsage((Long) iterator.next());
+        }
+        if (iterator.hasNext()) {
+            keyValue.setValue(iterator.next());
+        }
+        return keyValue;
+    }
 
 }

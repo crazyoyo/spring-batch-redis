@@ -14,23 +14,24 @@ import io.lettuce.core.api.async.RedisHashAsyncCommands;
 
 public class Hset<K, V, T> implements WriteOperation<K, V, T> {
 
-	private final Function<T, K> keyFunction;
-	private final Function<T, Map<K, V>> map;
+    private final Function<T, K> keyFunction;
 
-	public Hset(Function<T, K> key, Function<T, Map<K, V>> map) {
-		this.keyFunction = key;
-		Assert.notNull(map, "A map function is required");
-		this.map = map;
-	}
+    private final Function<T, Map<K, V>> map;
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-		Map<K, V> value = map.apply(item);
-		if (value != null && !value.isEmpty()) {
-			K key = keyFunction.apply(item);
-			futures.add((RedisFuture) ((RedisHashAsyncCommands<K, V>) commands).hset(key, value));
-		}
-	}
+    public Hset(Function<T, K> key, Function<T, Map<K, V>> map) {
+        this.keyFunction = key;
+        Assert.notNull(map, "A map function is required");
+        this.map = map;
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @Override
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
+        Map<K, V> value = map.apply(item);
+        if (value != null && !value.isEmpty()) {
+            K key = keyFunction.apply(item);
+            futures.add((RedisFuture) ((RedisHashAsyncCommands<K, V>) commands).hset(key, value));
+        }
+    }
 
 }

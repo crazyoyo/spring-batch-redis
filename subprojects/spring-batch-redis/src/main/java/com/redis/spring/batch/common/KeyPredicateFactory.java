@@ -17,99 +17,100 @@ import io.lettuce.core.codec.StringCodec;
 
 public class KeyPredicateFactory {
 
-	private List<String> includes = new ArrayList<>();
-	private List<String> excludes = new ArrayList<>();
-	private List<IntRange> slotRanges = new ArrayList<>();
+    private List<String> includes = new ArrayList<>();
 
-	public KeyPredicateFactory include(String... regexes) {
-		return include(Arrays.asList(regexes));
-	}
+    private List<String> excludes = new ArrayList<>();
 
-	public KeyPredicateFactory include(Collection<String> regexes) {
-		includes.addAll(regexes);
-		return this;
-	}
+    private List<IntRange> slotRanges = new ArrayList<>();
 
-	public KeyPredicateFactory exclude(String... regexes) {
-		return exclude(Arrays.asList(regexes));
-	}
+    public KeyPredicateFactory include(String... regexes) {
+        return include(Arrays.asList(regexes));
+    }
 
-	public KeyPredicateFactory exclude(Collection<String> regexes) {
-		excludes.addAll(regexes);
-		return this;
-	}
+    public KeyPredicateFactory include(Collection<String> regexes) {
+        includes.addAll(regexes);
+        return this;
+    }
 
-	public KeyPredicateFactory slotRange(int min, int max) {
-		return slotRange(IntRange.between(min, max));
-	}
+    public KeyPredicateFactory exclude(String... regexes) {
+        return exclude(Arrays.asList(regexes));
+    }
 
-	public KeyPredicateFactory slotRange(IntRange... ranges) {
-		return slotRange(Arrays.asList(ranges));
-	}
+    public KeyPredicateFactory exclude(Collection<String> regexes) {
+        excludes.addAll(regexes);
+        return this;
+    }
 
-	public KeyPredicateFactory slotRange(Collection<IntRange> ranges) {
-		slotRanges.addAll(ranges);
-		return this;
-	}
+    public KeyPredicateFactory slotRange(int min, int max) {
+        return slotRange(IntRange.between(min, max));
+    }
 
-	public <K> Predicate<K> build(RedisCodec<K, ?> codec) {
-		List<Predicate<K>> predicates = new ArrayList<>();
-		if (!slotRanges.isEmpty()) {
-			predicates.add(slotRangePredicate(codec));
-		}
-		if (!includes.isEmpty() || !excludes.isEmpty()) {
-			predicates.add(regexPredicate(codec));
-		}
-		if (predicates.isEmpty()) {
-			return k -> true;
-		}
-		if (predicates.size() == 1) {
-			return predicates.get(0);
-		}
-		return predicates.stream().reduce(x -> true, Predicate::and);
-	}
+    public KeyPredicateFactory slotRange(IntRange... ranges) {
+        return slotRange(Arrays.asList(ranges));
+    }
 
-	private <K> Predicate<K> regexPredicate(RedisCodec<K, ?> codec) {
-		if (includes.isEmpty()) {
-			return regexPredicate(codec, excludes).negate();
-		}
-		return regexPredicate(codec, includes);
-	}
+    public KeyPredicateFactory slotRange(Collection<IntRange> ranges) {
+        slotRanges.addAll(ranges);
+        return this;
+    }
 
-	private <K> Predicate<K> slotRangePredicate(RedisCodec<K, ?> codec) {
-		ToIntFunction<K> slot = slotFunction(codec);
-		IntPredicate rangePredicate = slotRanges.stream().map(IntRange::asPredicate).reduce(x -> true,
-				IntPredicate::and);
-		return k -> rangePredicate.test(slot.applyAsInt(k));
-	}
+    public <K> Predicate<K> build(RedisCodec<K, ?> codec) {
+        List<Predicate<K>> predicates = new ArrayList<>();
+        if (!slotRanges.isEmpty()) {
+            predicates.add(slotRangePredicate(codec));
+        }
+        if (!includes.isEmpty() || !excludes.isEmpty()) {
+            predicates.add(regexPredicate(codec));
+        }
+        if (predicates.isEmpty()) {
+            return k -> true;
+        }
+        if (predicates.size() == 1) {
+            return predicates.get(0);
+        }
+        return predicates.stream().reduce(x -> true, Predicate::and);
+    }
 
-	private static <K> Predicate<K> regexPredicate(RedisCodec<K, ?> codec, Collection<String> regexes) {
-		Function<K, String> string = Utils.toStringKeyFunction(codec);
-		Predicate<String> predicate = regexes.stream().map(Pattern::compile).map(KeyPredicateFactory::matchPredicate)
-				.reduce(x -> false, Predicate::or);
-		return k -> predicate.test(string.apply(k));
-	}
+    private <K> Predicate<K> regexPredicate(RedisCodec<K, ?> codec) {
+        if (includes.isEmpty()) {
+            return regexPredicate(codec, excludes).negate();
+        }
+        return regexPredicate(codec, includes);
+    }
 
-	private static Predicate<String> matchPredicate(Pattern pattern) {
-		return s -> pattern.matcher(s).matches();
-	}
+    private <K> Predicate<K> slotRangePredicate(RedisCodec<K, ?> codec) {
+        ToIntFunction<K> slot = slotFunction(codec);
+        IntPredicate rangePredicate = slotRanges.stream().map(IntRange::asPredicate).reduce(x -> true, IntPredicate::and);
+        return k -> rangePredicate.test(slot.applyAsInt(k));
+    }
 
-	private static <K> ToIntFunction<K> slotFunction(RedisCodec<K, ?> codec) {
-		if (codec instanceof ByteArrayCodec) {
-			return k -> SlotHash.getSlot((byte[]) k);
-		}
-		if (codec instanceof StringCodec) {
-			return k -> SlotHash.getSlot((String) k);
-		}
-		return k -> SlotHash.getSlot(codec.encodeKey(k));
-	}
+    private static <K> Predicate<K> regexPredicate(RedisCodec<K, ?> codec, Collection<String> regexes) {
+        Function<K, String> string = Utils.toStringKeyFunction(codec);
+        Predicate<String> predicate = regexes.stream().map(Pattern::compile).map(KeyPredicateFactory::matchPredicate)
+                .reduce(x -> false, Predicate::or);
+        return k -> predicate.test(string.apply(k));
+    }
 
-	public static KeyPredicateFactory create() {
-		return new KeyPredicateFactory();
-	}
+    private static Predicate<String> matchPredicate(Pattern pattern) {
+        return s -> pattern.matcher(s).matches();
+    }
 
-	public Predicate<String> build() {
-		return build(StringCodec.UTF8);
-	}
+    private static <K> ToIntFunction<K> slotFunction(RedisCodec<K, ?> codec) {
+        if (codec instanceof ByteArrayCodec) {
+            return k -> SlotHash.getSlot((byte[]) k);
+        }
+        if (codec instanceof StringCodec) {
+            return k -> SlotHash.getSlot((String) k);
+        }
+        return k -> SlotHash.getSlot(codec.encodeKey(k));
+    }
+
+    public static KeyPredicateFactory create() {
+        return new KeyPredicateFactory();
+    }
+
+    public Predicate<String> build() {
+        return build(StringCodec.UTF8);
+    }
 
 }

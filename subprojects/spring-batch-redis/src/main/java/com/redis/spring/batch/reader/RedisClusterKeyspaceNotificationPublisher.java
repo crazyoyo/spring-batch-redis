@@ -12,72 +12,77 @@ import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 
 public class RedisClusterKeyspaceNotificationPublisher extends ItemStreamSupport {
 
-	private final RedisClusterClient client;
-	private final String pattern;
-	private final BiConsumer<String, String> consumer;
-	private StatefulRedisClusterPubSubConnection<String, String> connection;
-	private Listener<String, String> listener;
+    private final RedisClusterClient client;
 
-	public RedisClusterKeyspaceNotificationPublisher(RedisClusterClient client, String pattern,
-			BiConsumer<String, String> consumer) {
-		this.client = client;
-		this.pattern = pattern;
-		this.consumer = consumer;
-	}
+    private final String pattern;
 
-	@Override
-	public synchronized void open(ExecutionContext context) {
-		super.open(context);
-		if (!isOpen()) {
-			doOpen();
-		}
-	}
+    private final BiConsumer<String, String> consumer;
 
-	private void doOpen() {
-		connection = client.connectPubSub();
-		listener = new Listener<>(consumer);
-		connection.addListener(listener);
-		connection.setNodeMessagePropagation(true);
-		connection.sync().upstream().commands().psubscribe(pattern);
+    private StatefulRedisClusterPubSubConnection<String, String> connection;
 
-	}
+    private Listener<String, String> listener;
 
-	public boolean isOpen() {
-		return connection != null;
-	}
+    public RedisClusterKeyspaceNotificationPublisher(RedisClusterClient client, String pattern,
+            BiConsumer<String, String> consumer) {
+        this.client = client;
+        this.pattern = pattern;
+        this.consumer = consumer;
+    }
 
-	@Override
-	public synchronized void close() {
-		if (isOpen()) {
-			doClose();
-		}
-		super.close();
-	}
+    @Override
+    public synchronized void open(ExecutionContext context) {
+        super.open(context);
+        if (!isOpen()) {
+            doOpen();
+        }
+    }
 
-	private void doClose() {
-		connection.sync().upstream().commands().punsubscribe(pattern);
-		connection.removeListener(listener);
-		connection.close();
-		connection = null;
-	}
+    private void doOpen() {
+        connection = client.connectPubSub();
+        listener = new Listener<>(consumer);
+        connection.addListener(listener);
+        connection.setNodeMessagePropagation(true);
+        connection.sync().upstream().commands().psubscribe(pattern);
 
-	private static class Listener<K, V> extends RedisClusterPubSubAdapter<K, V> {
+    }
 
-		private final BiConsumer<K, V> consumer;
+    public boolean isOpen() {
+        return connection != null;
+    }
 
-		public Listener(BiConsumer<K, V> consumer) {
-			this.consumer = consumer;
-		}
+    @Override
+    public synchronized void close() {
+        if (isOpen()) {
+            doClose();
+        }
+        super.close();
+    }
 
-		@Override
-		public void message(RedisClusterNode node, K channel, V message) {
-			consumer.accept(channel, message);
-		}
+    private void doClose() {
+        connection.sync().upstream().commands().punsubscribe(pattern);
+        connection.removeListener(listener);
+        connection.close();
+        connection = null;
+    }
 
-		@Override
-		public void message(RedisClusterNode node, K pattern, K channel, V message) {
-			consumer.accept(channel, message);
-		}
-	}
+    private static class Listener<K, V> extends RedisClusterPubSubAdapter<K, V> {
+
+        private final BiConsumer<K, V> consumer;
+
+        public Listener(BiConsumer<K, V> consumer) {
+            this.consumer = consumer;
+        }
+
+        @Override
+        public void message(RedisClusterNode node, K channel, V message) {
+            consumer.accept(channel, message);
+        }
+
+        @Override
+        public void message(RedisClusterNode node, K pattern, K channel, V message) {
+            consumer.accept(channel, message);
+        }
+
+    }
 
 }

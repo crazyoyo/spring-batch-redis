@@ -62,262 +62,262 @@ import io.micrometer.core.instrument.Tag;
  */
 public interface Utils {
 
-	String METRICS_PREFIX = "spring.batch.redis.";
+    String METRICS_PREFIX = "spring.batch.redis.";
 
-	static <T extends Collection<?>> T createGaugeCollectionSize(String name, T collection, Tag... tags) {
-		return Metrics.globalRegistry.gaugeCollectionSize(METRICS_PREFIX + name, Arrays.asList(tags), collection);
-	}
+    static <T extends Collection<?>> T createGaugeCollectionSize(String name, T collection, Tag... tags) {
+        return Metrics.globalRegistry.gaugeCollectionSize(METRICS_PREFIX + name, Arrays.asList(tags), collection);
+    }
 
-	static void assertPositive(Duration duration, String name) {
-		Assert.notNull(duration, name + " must not be null");
-		Assert.isTrue(!duration.isZero(), name + " must not be zero");
-		Assert.isTrue(!duration.isNegative(), name + " must not be negative");
-	}
+    static void assertPositive(Duration duration, String name) {
+        Assert.notNull(duration, name + " must not be null");
+        Assert.isTrue(!duration.isZero(), name + " must not be zero");
+        Assert.isTrue(!duration.isNegative(), name + " must not be negative");
+    }
 
-	static void assertPositive(Number value, String name) {
-		Assert.notNull(value, name + " must not be null");
-		Assert.isTrue(value.doubleValue() > 0, name + " must be greater than zero");
-	}
+    static void assertPositive(Number value, String name) {
+        Assert.notNull(value, name + " must not be null");
+        Assert.isTrue(value.doubleValue() > 0, name + " must be greater than zero");
+    }
 
-	static Supplier<StatefulConnection<String, String>> connectionSupplier(AbstractRedisClient client) {
-		return connectionSupplier(client, Optional.empty());
-	}
+    static Supplier<StatefulConnection<String, String>> connectionSupplier(AbstractRedisClient client) {
+        return connectionSupplier(client, Optional.empty());
+    }
 
-	static Supplier<StatefulConnection<String, String>> connectionSupplier(AbstractRedisClient client,
-			Optional<ReadFrom> readFrom) {
-		return connectionSupplier(client, StringCodec.UTF8, readFrom);
-	}
+    static Supplier<StatefulConnection<String, String>> connectionSupplier(AbstractRedisClient client,
+            Optional<ReadFrom> readFrom) {
+        return connectionSupplier(client, StringCodec.UTF8, readFrom);
+    }
 
-	static <K, V> Supplier<StatefulConnection<K, V>> connectionSupplier(AbstractRedisClient client,
-			RedisCodec<K, V> codec, Optional<ReadFrom> readFrom) {
-		if (client instanceof RedisModulesClusterClient) {
-			return () -> {
-				StatefulRedisClusterConnection<K, V> connection = ((RedisModulesClusterClient) client).connect(codec);
-				readFrom.ifPresent(connection::setReadFrom);
-				return connection;
-			};
-		}
-		return () -> ((RedisModulesClient) client).connect(codec);
-	}
+    static <K, V> Supplier<StatefulConnection<K, V>> connectionSupplier(AbstractRedisClient client, RedisCodec<K, V> codec,
+            Optional<ReadFrom> readFrom) {
+        if (client instanceof RedisModulesClusterClient) {
+            return () -> {
+                StatefulRedisClusterConnection<K, V> connection = ((RedisModulesClusterClient) client).connect(codec);
+                readFrom.ifPresent(connection::setReadFrom);
+                return connection;
+            };
+        }
+        return () -> ((RedisModulesClient) client).connect(codec);
+    }
 
-	@SuppressWarnings("unchecked")
-	static <K, V, T> T sync(StatefulConnection<K, V> connection) {
-		if (connection instanceof StatefulRedisClusterConnection) {
-			return (T) ((StatefulRedisClusterConnection<K, V>) connection).sync();
-		}
-		return (T) ((StatefulRedisConnection<K, V>) connection).sync();
-	}
+    @SuppressWarnings("unchecked")
+    static <K, V, T> T sync(StatefulConnection<K, V> connection) {
+        if (connection instanceof StatefulRedisClusterConnection) {
+            return (T) ((StatefulRedisClusterConnection<K, V>) connection).sync();
+        }
+        return (T) ((StatefulRedisConnection<K, V>) connection).sync();
+    }
 
-	@SuppressWarnings("unchecked")
-	static <K, V, T> T async(StatefulConnection<K, V> connection) {
-		if (connection instanceof StatefulRedisClusterConnection) {
-			return (T) ((StatefulRedisClusterConnection<K, V>) connection).async();
-		}
-		return (T) ((StatefulRedisConnection<K, V>) connection).async();
-	}
+    @SuppressWarnings("unchecked")
+    static <K, V, T> T async(StatefulConnection<K, V> connection) {
+        if (connection instanceof StatefulRedisClusterConnection) {
+            return (T) ((StatefulRedisClusterConnection<K, V>) connection).async();
+        }
+        return (T) ((StatefulRedisConnection<K, V>) connection).async();
+    }
 
-	static <T> List<T> readAll(ItemReader<T> reader)
-			throws UnexpectedInputException, ParseException, NonTransientResourceException, Exception {
-		List<T> list = new ArrayList<>();
-		T element;
-		while ((element = reader.read()) != null) {
-			list.add(element);
-		}
-		return list;
-	}
+    static <T> List<T> readAll(ItemReader<T> reader)
+            throws UnexpectedInputException, ParseException, NonTransientResourceException, Exception {
+        List<T> list = new ArrayList<>();
+        T element;
+        while ((element = reader.read()) != null) {
+            list.add(element);
+        }
+        return list;
+    }
 
-	static <B extends SimpleStepBuilder<?, ?>> B multiThread(B builder, int threads) {
-		if (threads > 1) {
-			ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-			taskExecutor.setMaxPoolSize(threads);
-			taskExecutor.setCorePoolSize(threads);
-			taskExecutor.setQueueCapacity(threads);
-			taskExecutor.afterPropertiesSet();
-			builder.taskExecutor(taskExecutor);
-			builder.throttleLimit(threads);
-		}
-		return builder;
-	}
+    static <B extends SimpleStepBuilder<?, ?>> B multiThread(B builder, int threads) {
+        if (threads > 1) {
+            ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+            taskExecutor.setMaxPoolSize(threads);
+            taskExecutor.setCorePoolSize(threads);
+            taskExecutor.setQueueCapacity(threads);
+            taskExecutor.afterPropertiesSet();
+            builder.taskExecutor(taskExecutor);
+            builder.throttleLimit(threads);
+        }
+        return builder;
+    }
 
-	static void setName(Object object, String name) {
-		if (object instanceof ItemStreamSupport) {
-			((ItemStreamSupport) object).setName(name);
-		}
-	}
+    static void setName(Object object, String name) {
+        if (object instanceof ItemStreamSupport) {
+            ((ItemStreamSupport) object).setName(name);
+        }
+    }
 
-	public static JobRepository inMemoryJobRepository() throws Exception {
-		@SuppressWarnings("deprecation")
-		org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean bean = new org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean();
-		bean.afterPropertiesSet();
-		return bean.getObject();
-	}
+    public static JobRepository inMemoryJobRepository() throws Exception {
+        @SuppressWarnings("deprecation")
+        org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean bean = new org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean();
+        bean.afterPropertiesSet();
+        return bean.getObject();
+    }
 
-	public static PlatformTransactionManager inMemoryTransactionManager() {
-		return new ResourcelessTransactionManager();
-	}
+    public static PlatformTransactionManager inMemoryTransactionManager() {
+        return new ResourcelessTransactionManager();
+    }
 
-	static <K> ItemReader<K> synchronizedReader(ItemReader<K> reader) {
-		if (reader instanceof ItemStreamReader) {
-			SynchronizedItemStreamReader<K> synchronizedReader = new SynchronizedItemStreamReader<>();
-			synchronizedReader.setDelegate((ItemStreamReader<K>) reader);
-			return synchronizedReader;
-		}
-		return reader;
-	}
+    static <K> ItemReader<K> synchronizedReader(ItemReader<K> reader) {
+        if (reader instanceof ItemStreamReader) {
+            SynchronizedItemStreamReader<K> synchronizedReader = new SynchronizedItemStreamReader<>();
+            synchronizedReader.setDelegate((ItemStreamReader<K>) reader);
+            return synchronizedReader;
+        }
+        return reader;
+    }
 
-	@SuppressWarnings("unchecked")
-	static String loadScript(AbstractRedisClient client, String filename) {
-		byte[] bytes;
-		try (InputStream inputStream = KeyValueReadOperation.class.getClassLoader().getResourceAsStream(filename)) {
-			bytes = FileCopyUtils.copyToByteArray(inputStream);
-		} catch (IOException e) {
-			throw new ItemStreamException("Could not read LUA script file " + filename);
-		}
-		try (StatefulConnection<String, String> connection = RedisModulesUtils.connection(client)) {
-			return ((RedisScriptingCommands<String, String>) Utils.sync(connection)).scriptLoad(bytes);
-		}
-	}
+    @SuppressWarnings("unchecked")
+    static String loadScript(AbstractRedisClient client, String filename) {
+        byte[] bytes;
+        try (InputStream inputStream = KeyValueReadOperation.class.getClassLoader().getResourceAsStream(filename)) {
+            bytes = FileCopyUtils.copyToByteArray(inputStream);
+        } catch (IOException e) {
+            throw new ItemStreamException("Could not read LUA script file " + filename);
+        }
+        try (StatefulConnection<String, String> connection = RedisModulesUtils.connection(client)) {
+            return ((RedisScriptingCommands<String, String>) Utils.sync(connection)).scriptLoad(bytes);
+        }
+    }
 
-	static long getItemReaderSize(ItemReader<?> reader) {
-		if (reader instanceof RedisItemReader) {
-			RedisItemReader<?, ?> redisItemReader = (RedisItemReader<?, ?>) reader;
-			return scanSizeEstimate(redisItemReader.getClient(), redisItemReader.getOptions().getScanOptions());
-		}
-		if (reader instanceof KeyComparisonItemReader) {
-			return getItemReaderSize(((KeyComparisonItemReader) reader).getLeft());
-		}
-		if (reader instanceof StreamItemReader) {
-			StreamItemReader<?, ?> streamItemReader = (StreamItemReader<?, ?>) reader;
-			return streamItemReader.streamLength();
-		}
-		if (reader instanceof GeneratorItemReader) {
-			return ((GeneratorItemReader) reader).size();
-		}
-		if (reader instanceof ScanKeyItemReader) {
-			ScanKeyItemReader<?, ?> scanKeyReader = (ScanKeyItemReader<?, ?>) reader;
-			return scanSizeEstimate(scanKeyReader.getClient(), scanKeyReader.getScanOptions());
-		}
-		return -1;
-	}
+    static long getItemReaderSize(ItemReader<?> reader) {
+        if (reader instanceof RedisItemReader) {
+            RedisItemReader<?, ?> redisItemReader = (RedisItemReader<?, ?>) reader;
+            return scanSizeEstimate(redisItemReader.getClient(), redisItemReader.getOptions().getScanOptions());
+        }
+        if (reader instanceof KeyComparisonItemReader) {
+            return getItemReaderSize(((KeyComparisonItemReader) reader).getLeft());
+        }
+        if (reader instanceof StreamItemReader) {
+            StreamItemReader<?, ?> streamItemReader = (StreamItemReader<?, ?>) reader;
+            return streamItemReader.streamLength();
+        }
+        if (reader instanceof GeneratorItemReader) {
+            return ((GeneratorItemReader) reader).size();
+        }
+        if (reader instanceof ScanKeyItemReader) {
+            ScanKeyItemReader<?, ?> scanKeyReader = (ScanKeyItemReader<?, ?>) reader;
+            return scanSizeEstimate(scanKeyReader.getClient(), scanKeyReader.getScanOptions());
+        }
+        return -1;
+    }
 
-	static long scanSizeEstimate(AbstractRedisClient client, ScanOptions scanOptions) {
-		ScanSizeEstimator estimator = new ScanSizeEstimator(client);
-		try {
-			return estimator.estimateSize(scanOptions);
-		} catch (Exception e) {
-			return ScanSizeEstimator.UNKNOWN_SIZE;
-		}
-	}
+    static long scanSizeEstimate(AbstractRedisClient client, ScanOptions scanOptions) {
+        ScanSizeEstimator estimator = new ScanSizeEstimator(client);
+        try {
+            return estimator.estimateSize(scanOptions);
+        } catch (Exception e) {
+            return ScanSizeEstimator.UNKNOWN_SIZE;
+        }
+    }
 
-	static boolean isOpen(Object object) {
-		return isOpen(object, true);
-	}
+    static boolean isOpen(Object object) {
+        return isOpen(object, true);
+    }
 
-	static boolean isOpen(Object object, boolean defaultValue) {
-		Boolean value = isNullableOpen(object);
-		if (value == null) {
-			return defaultValue;
-		}
-		return value;
-	}
+    static boolean isOpen(Object object, boolean defaultValue) {
+        Boolean value = isNullableOpen(object);
+        if (value == null) {
+            return defaultValue;
+        }
+        return value;
+    }
 
-	@SuppressWarnings("rawtypes")
-	static Boolean isNullableOpen(Object object) {
-		if (object instanceof GeneratorItemReader) {
-			return ((GeneratorItemReader) object).isOpen();
-		}
-		if (object instanceof AbstractRedisItemReader) {
-			return ((AbstractRedisItemReader) object).isOpen();
-		}
-		if (object instanceof ScanKeyItemReader) {
-			return ((ScanKeyItemReader) object).isOpen();
-		}
-		if (object instanceof KeyspaceNotificationItemReader) {
-			return ((KeyspaceNotificationItemReader) object).isOpen();
-		}
-		if (object instanceof StreamItemReader) {
-			return ((StreamItemReader) object).isOpen();
-		}
-		if (object instanceof AbstractOperationItemStreamSupport) {
-			return ((AbstractOperationItemStreamSupport) object).isOpen();
-		}
-		if (object instanceof RedisKeyspaceNotificationPublisher) {
-			return ((RedisKeyspaceNotificationPublisher) object).isOpen();
-		}
-		if (object instanceof RedisClusterKeyspaceNotificationPublisher) {
-			return ((RedisClusterKeyspaceNotificationPublisher) object).isOpen();
-		}
-		if (object instanceof CompositeItemStreamProcessor) {
-			return ((CompositeItemStreamProcessor) object).isOpen();
-		}
-		if (object instanceof KeyComparisonItemReader) {
-			return ((KeyComparisonItemReader) object).isOpen();
-		}
-		return null;
-	}
+    @SuppressWarnings("rawtypes")
+    static Boolean isNullableOpen(Object object) {
+        if (object instanceof GeneratorItemReader) {
+            return ((GeneratorItemReader) object).isOpen();
+        }
+        if (object instanceof AbstractRedisItemReader) {
+            return ((AbstractRedisItemReader) object).isOpen();
+        }
+        if (object instanceof ScanKeyItemReader) {
+            return ((ScanKeyItemReader) object).isOpen();
+        }
+        if (object instanceof KeyspaceNotificationItemReader) {
+            return ((KeyspaceNotificationItemReader) object).isOpen();
+        }
+        if (object instanceof StreamItemReader) {
+            return ((StreamItemReader) object).isOpen();
+        }
+        if (object instanceof AbstractOperationItemStreamSupport) {
+            return ((AbstractOperationItemStreamSupport) object).isOpen();
+        }
+        if (object instanceof RedisKeyspaceNotificationPublisher) {
+            return ((RedisKeyspaceNotificationPublisher) object).isOpen();
+        }
+        if (object instanceof RedisClusterKeyspaceNotificationPublisher) {
+            return ((RedisClusterKeyspaceNotificationPublisher) object).isOpen();
+        }
+        if (object instanceof CompositeItemStreamProcessor) {
+            return ((CompositeItemStreamProcessor) object).isOpen();
+        }
+        if (object instanceof KeyComparisonItemReader) {
+            return ((KeyComparisonItemReader) object).isOpen();
+        }
+        return null;
+    }
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static <K> Function<String, K> stringKeyFunction(RedisCodec<K, ?> codec) {
-		if (codec instanceof StringCodec) {
-			return (Function) Function.identity();
-		}
-		return key -> codec.decodeKey(StringCodec.UTF8.encodeKey(key));
-	}
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    static <K> Function<String, K> stringKeyFunction(RedisCodec<K, ?> codec) {
+        if (codec instanceof StringCodec) {
+            return (Function) Function.identity();
+        }
+        return key -> codec.decodeKey(StringCodec.UTF8.encodeKey(key));
+    }
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static <K> Function<K, String> toStringKeyFunction(RedisCodec<K, ?> codec) {
-		if (codec instanceof StringCodec) {
-			return (Function) Function.identity();
-		}
-		return key -> StringCodec.UTF8.decodeKey(codec.encodeKey(key));
-	}
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    static <K> Function<K, String> toStringKeyFunction(RedisCodec<K, ?> codec) {
+        if (codec instanceof StringCodec) {
+            return (Function) Function.identity();
+        }
+        return key -> StringCodec.UTF8.decodeKey(codec.encodeKey(key));
+    }
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static <V> Function<String, V> stringValueFunction(RedisCodec<?, V> codec) {
-		if (codec instanceof StringCodec) {
-			return (Function) Function.identity();
-		}
-		return value -> codec.decodeValue(StringCodec.UTF8.encodeValue(value));
-	}
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    static <V> Function<String, V> stringValueFunction(RedisCodec<?, V> codec) {
+        if (codec instanceof StringCodec) {
+            return (Function) Function.identity();
+        }
+        return value -> codec.decodeValue(StringCodec.UTF8.encodeValue(value));
+    }
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static <V> Function<V, String> toStringValueFunction(RedisCodec<?, V> codec) {
-		if (codec instanceof StringCodec) {
-			return (Function) Function.identity();
-		}
-		return value -> StringCodec.UTF8.decodeValue(codec.encodeValue(value));
-	}
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    static <V> Function<V, String> toStringValueFunction(RedisCodec<?, V> codec) {
+        if (codec instanceof StringCodec) {
+            return (Function) Function.identity();
+        }
+        return value -> StringCodec.UTF8.decodeValue(codec.encodeValue(value));
+    }
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static <K> Function<byte[], K> byteArrayKeyFunction(RedisCodec<K, ?> codec) {
-		if (codec instanceof ByteArrayCodec) {
-			return (Function) Function.identity();
-		}
-		return key -> codec.decodeKey(ByteArrayCodec.INSTANCE.encodeKey(key));
-	}
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    static <K> Function<byte[], K> byteArrayKeyFunction(RedisCodec<K, ?> codec) {
+        if (codec instanceof ByteArrayCodec) {
+            return (Function) Function.identity();
+        }
+        return key -> codec.decodeKey(ByteArrayCodec.INSTANCE.encodeKey(key));
+    }
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static <K> Function<K, byte[]> toByteArrayKeyFunction(RedisCodec<K, ?> codec) {
-		if (codec instanceof ByteArrayCodec) {
-			return (Function) Function.identity();
-		}
-		return key -> ByteArrayCodec.INSTANCE.decodeKey(codec.encodeKey(key));
-	}
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    static <K> Function<K, byte[]> toByteArrayKeyFunction(RedisCodec<K, ?> codec) {
+        if (codec instanceof ByteArrayCodec) {
+            return (Function) Function.identity();
+        }
+        return key -> ByteArrayCodec.INSTANCE.decodeKey(codec.encodeKey(key));
+    }
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static <V> Function<byte[], V> byteArrayValueFunction(RedisCodec<?, V> codec) {
-		if (codec instanceof ByteArrayCodec) {
-			return (Function) Function.identity();
-		}
-		return value -> codec.decodeValue(ByteArrayCodec.INSTANCE.encodeValue(value));
-	}
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    static <V> Function<byte[], V> byteArrayValueFunction(RedisCodec<?, V> codec) {
+        if (codec instanceof ByteArrayCodec) {
+            return (Function) Function.identity();
+        }
+        return value -> codec.decodeValue(ByteArrayCodec.INSTANCE.encodeValue(value));
+    }
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static <V> Function<V, byte[]> toByteArrayValueFunction(RedisCodec<?, V> codec) {
-		if (codec instanceof ByteArrayCodec) {
-			return (Function) Function.identity();
-		}
-		return value -> ByteArrayCodec.INSTANCE.decodeValue(codec.encodeValue(value));
-	}
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    static <V> Function<V, byte[]> toByteArrayValueFunction(RedisCodec<?, V> codec) {
+        if (codec instanceof ByteArrayCodec) {
+            return (Function) Function.identity();
+        }
+        return value -> ByteArrayCodec.INSTANCE.decodeValue(codec.encodeValue(value));
+    }
 
 }

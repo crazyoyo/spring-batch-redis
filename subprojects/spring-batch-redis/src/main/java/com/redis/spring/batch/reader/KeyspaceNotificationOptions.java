@@ -2,74 +2,80 @@ package com.redis.spring.batch.reader;
 
 public class KeyspaceNotificationOptions {
 
-	public static final int DEFAULT_DATABASE = 0;
-	public static final KeyspaceNotificationOrderingStrategy DEFAULT_ORDERING = KeyspaceNotificationOrderingStrategy.PRIORITY;
+    public static final int DEFAULT_DATABASE = 0;
 
-	private int database = DEFAULT_DATABASE;
-	private KeyspaceNotificationOrderingStrategy orderingStrategy = DEFAULT_ORDERING;
-	private QueueOptions queueOptions = QueueOptions.builder().build();
+    public static final KeyspaceNotificationOrderingStrategy DEFAULT_ORDERING = KeyspaceNotificationOrderingStrategy.PRIORITY;
 
-	private KeyspaceNotificationOptions(Builder builder) {
-		this.database = builder.database;
-		this.orderingStrategy = builder.orderingStrategy;
-		this.queueOptions = builder.queueOptions;
-	}
+    private int database = DEFAULT_DATABASE;
 
-	public int getDatabase() {
-		return database;
-	}
+    private KeyspaceNotificationOrderingStrategy orderingStrategy = DEFAULT_ORDERING;
 
-	public void setDatabase(int database) {
-		this.database = database;
-	}
+    private QueueOptions queueOptions = QueueOptions.builder().build();
 
-	public KeyspaceNotificationOrderingStrategy getOrderingStrategy() {
-		return orderingStrategy;
-	}
+    private KeyspaceNotificationOptions(Builder builder) {
+        this.database = builder.database;
+        this.orderingStrategy = builder.orderingStrategy;
+        this.queueOptions = builder.queueOptions;
+    }
 
-	public void setOrderingStrategy(KeyspaceNotificationOrderingStrategy orderingStrategy) {
-		this.orderingStrategy = orderingStrategy;
-	}
+    public int getDatabase() {
+        return database;
+    }
 
-	public QueueOptions getQueueOptions() {
-		return queueOptions;
-	}
+    public void setDatabase(int database) {
+        this.database = database;
+    }
 
-	public void setQueueOptions(QueueOptions queueOptions) {
-		this.queueOptions = queueOptions;
-	}
+    public KeyspaceNotificationOrderingStrategy getOrderingStrategy() {
+        return orderingStrategy;
+    }
 
-	public static Builder builder() {
-		return new Builder();
-	}
+    public void setOrderingStrategy(KeyspaceNotificationOrderingStrategy orderingStrategy) {
+        this.orderingStrategy = orderingStrategy;
+    }
 
-	public static final class Builder {
+    public QueueOptions getQueueOptions() {
+        return queueOptions;
+    }
 
-		private int database = DEFAULT_DATABASE;
-		private KeyspaceNotificationOrderingStrategy orderingStrategy = DEFAULT_ORDERING;
-		private QueueOptions queueOptions = QueueOptions.builder().build();
+    public void setQueueOptions(QueueOptions queueOptions) {
+        this.queueOptions = queueOptions;
+    }
 
-		private Builder() {
-		}
+    public static Builder builder() {
+        return new Builder();
+    }
 
-		public Builder database(int database) {
-			this.database = database;
-			return this;
-		}
+    public static final class Builder {
 
-		public Builder orderingStrategy(KeyspaceNotificationOrderingStrategy orderingStrategy) {
-			this.orderingStrategy = orderingStrategy;
-			return this;
-		}
+        private int database = DEFAULT_DATABASE;
 
-		public Builder queueOptions(QueueOptions queueOptions) {
-			this.queueOptions = queueOptions;
-			return this;
-		}
+        private KeyspaceNotificationOrderingStrategy orderingStrategy = DEFAULT_ORDERING;
 
-		public KeyspaceNotificationOptions build() {
-			return new KeyspaceNotificationOptions(this);
-		}
-	}
+        private QueueOptions queueOptions = QueueOptions.builder().build();
+
+        private Builder() {
+        }
+
+        public Builder database(int database) {
+            this.database = database;
+            return this;
+        }
+
+        public Builder orderingStrategy(KeyspaceNotificationOrderingStrategy orderingStrategy) {
+            this.orderingStrategy = orderingStrategy;
+            return this;
+        }
+
+        public Builder queueOptions(QueueOptions queueOptions) {
+            this.queueOptions = queueOptions;
+            return this;
+        }
+
+        public KeyspaceNotificationOptions build() {
+            return new KeyspaceNotificationOptions(this);
+        }
+
+    }
 
 }

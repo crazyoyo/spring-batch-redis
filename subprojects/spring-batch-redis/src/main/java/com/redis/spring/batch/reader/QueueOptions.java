@@ -4,63 +4,68 @@ import java.time.Duration;
 
 public class QueueOptions {
 
-	public static final int DEFAULT_CAPACITY = 10000;
-	public static final long DEFAULT_POLL_TIMEOUT_MILLIS = 100;
-	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(DEFAULT_POLL_TIMEOUT_MILLIS);
+    public static final int DEFAULT_CAPACITY = 10000;
 
-	private int capacity = DEFAULT_CAPACITY;
-	private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
+    public static final long DEFAULT_POLL_TIMEOUT_MILLIS = 100;
 
-	private QueueOptions(Builder builder) {
-		this.capacity = builder.capacity;
-		this.pollTimeout = builder.pollTimeout;
-	}
+    public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(DEFAULT_POLL_TIMEOUT_MILLIS);
 
-	public int getCapacity() {
-		return capacity;
-	}
+    private int capacity = DEFAULT_CAPACITY;
 
-	public void setCapacity(int capacity) {
-		this.capacity = capacity;
-	}
+    private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
 
-	public Duration getPollTimeout() {
-		return pollTimeout;
-	}
+    private QueueOptions(Builder builder) {
+        this.capacity = builder.capacity;
+        this.pollTimeout = builder.pollTimeout;
+    }
 
-	public void setPollTimeout(Duration pollTimeout) {
-		this.pollTimeout = pollTimeout;
-	}
+    public int getCapacity() {
+        return capacity;
+    }
 
-	public static Builder builder() {
-		return new Builder();
-	}
+    public void setCapacity(int capacity) {
+        this.capacity = capacity;
+    }
 
-	public static final class Builder {
+    public Duration getPollTimeout() {
+        return pollTimeout;
+    }
 
-		private int capacity = DEFAULT_CAPACITY;
-		private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
+    public void setPollTimeout(Duration pollTimeout) {
+        this.pollTimeout = pollTimeout;
+    }
 
-		private Builder() {
-		}
+    public static Builder builder() {
+        return new Builder();
+    }
 
-		public Builder capacity(int capacity) {
-			this.capacity = capacity;
-			return this;
-		}
+    public static final class Builder {
 
-		public Builder pollTimeout(Duration timeout) {
-			this.pollTimeout = timeout;
-			return this;
-		}
+        private int capacity = DEFAULT_CAPACITY;
 
-		public Builder pollTimeoutInSeconds(long timeout) {
-			return pollTimeout(Duration.ofSeconds(timeout));
-		}
+        private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
 
-		public QueueOptions build() {
-			return new QueueOptions(this);
-		}
-	}
+        private Builder() {
+        }
+
+        public Builder capacity(int capacity) {
+            this.capacity = capacity;
+            return this;
+        }
+
+        public Builder pollTimeout(Duration timeout) {
+            this.pollTimeout = timeout;
+            return this;
+        }
+
+        public Builder pollTimeoutInSeconds(long timeout) {
+            return pollTimeout(Duration.ofSeconds(timeout));
+        }
+
+        public QueueOptions build() {
+            return new QueueOptions(this);
+        }
+
+    }
 
 }

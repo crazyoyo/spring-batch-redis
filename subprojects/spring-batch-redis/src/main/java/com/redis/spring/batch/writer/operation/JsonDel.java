@@ -9,21 +9,21 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public class JsonDel<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
-	private final Function<T, String> path;
+    private final Function<T, String> path;
 
-	public JsonDel(Function<T, K> key) {
-		this(key, JsonSet.rootPath());
-	}
+    public JsonDel(Function<T, K> key) {
+        this(key, JsonSet.rootPath());
+    }
 
-	public JsonDel(Function<T, K> key, Function<T, String> path) {
-		super(key);
-		this.path = path;
-	}
+    public JsonDel(Function<T, K> key, Function<T, String> path) {
+        super(key);
+        this.path = path;
+    }
 
-	@SuppressWarnings("unchecked")
-	@Override
-	protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		return ((RedisJSONAsyncCommands<K, V>) commands).jsonDel(key, path.apply(item));
-	}
+    @SuppressWarnings("unchecked")
+    @Override
+    protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        return ((RedisJSONAsyncCommands<K, V>) commands).jsonDel(key, path.apply(item));
+    }
 
 }

@@ -16,67 +16,68 @@ import io.lettuce.core.support.ConnectionPoolSupport;
 
 public class ConnectionPoolFactory {
 
-	private final AbstractRedisClient client;
-	private Optional<ReadFrom> readFrom = Optional.empty();
-	private PoolOptions options = PoolOptions.builder().build();
+    private final AbstractRedisClient client;
 
-	public ConnectionPoolFactory(AbstractRedisClient client) {
-		this.client = client;
-	}
+    private Optional<ReadFrom> readFrom = Optional.empty();
 
-	public ConnectionPoolFactory withReadFrom(ReadFrom readFrom) {
-		return withReadFrom(Optional.of(readFrom));
-	}
+    private PoolOptions options = PoolOptions.builder().build();
 
-	public ConnectionPoolFactory withReadFrom(Optional<ReadFrom> readFrom) {
-		this.readFrom = readFrom;
-		return this;
-	}
+    public ConnectionPoolFactory(AbstractRedisClient client) {
+        this.client = client;
+    }
 
-	public ConnectionPoolFactory withOptions(PoolOptions options) {
-		this.options = options;
-		return this;
-	}
+    public ConnectionPoolFactory withReadFrom(ReadFrom readFrom) {
+        return withReadFrom(Optional.of(readFrom));
+    }
 
-	@SuppressWarnings("unchecked")
-	public <K, V> GenericObjectPoolConfig<StatefulConnection<K, V>> config() {
-		GenericObjectPoolConfig<StatefulConnection<K, V>> config = new GenericObjectPoolConfig<>();
-		config.setBlockWhenExhausted(options.isBlockWhenExhausted());
-		options.getEvictionPolicy()
-				.ifPresent(p -> config.setEvictionPolicy((EvictionPolicy<StatefulConnection<K, V>>) p));
-		config.setEvictionPolicyClassName(options.getEvictionPolicyClassName());
-		config.setEvictorShutdownTimeout(options.getEvictorShutdownTimeoutDuration());
-		config.setFairness(options.isFairness());
-		config.setJmxEnabled(options.isJmxEnabled());
-		config.setJmxNameBase(options.getJmxNameBase());
-		config.setJmxNamePrefix(options.getJmxNamePrefix());
-		config.setLifo(options.isLifo());
-		config.setMaxIdle(options.getMaxIdle());
-		config.setMaxTotal(options.getMaxTotal());
-		config.setMaxWait(options.getMaxWaitDuration());
-		config.setMinEvictableIdleTime(options.getMinEvictableIdleDuration());
-		config.setMinIdle(options.getMinIdle());
-		config.setNumTestsPerEvictionRun(options.getNumTestsPerEvictionRun());
-		config.setSoftMinEvictableIdleTime(options.getSoftMinEvictableIdleDuration());
-		config.setTestOnBorrow(options.isTestOnBorrow());
-		config.setTestOnCreate(options.isTestOnCreate());
-		config.setTestOnReturn(options.isTestOnReturn());
-		config.setTestWhileIdle(options.isTestWhileIdle());
-		config.setTimeBetweenEvictionRuns(options.getDurationBetweenEvictionRuns());
-		return config;
-	}
+    public ConnectionPoolFactory withReadFrom(Optional<ReadFrom> readFrom) {
+        this.readFrom = readFrom;
+        return this;
+    }
 
-	public GenericObjectPool<StatefulConnection<String, String>> build() {
-		return build(StringCodec.UTF8);
-	}
+    public ConnectionPoolFactory withOptions(PoolOptions options) {
+        this.options = options;
+        return this;
+    }
 
-	public <K, V> GenericObjectPool<StatefulConnection<K, V>> build(RedisCodec<K, V> codec) {
-		Supplier<StatefulConnection<K, V>> connectionSupplier = Utils.connectionSupplier(client, codec, readFrom);
-		return ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config());
-	}
+    @SuppressWarnings("unchecked")
+    public <K, V> GenericObjectPoolConfig<StatefulConnection<K, V>> config() {
+        GenericObjectPoolConfig<StatefulConnection<K, V>> config = new GenericObjectPoolConfig<>();
+        config.setBlockWhenExhausted(options.isBlockWhenExhausted());
+        options.getEvictionPolicy().ifPresent(p -> config.setEvictionPolicy((EvictionPolicy<StatefulConnection<K, V>>) p));
+        config.setEvictionPolicyClassName(options.getEvictionPolicyClassName());
+        config.setEvictorShutdownTimeout(options.getEvictorShutdownTimeoutDuration());
+        config.setFairness(options.isFairness());
+        config.setJmxEnabled(options.isJmxEnabled());
+        config.setJmxNameBase(options.getJmxNameBase());
+        config.setJmxNamePrefix(options.getJmxNamePrefix());
+        config.setLifo(options.isLifo());
+        config.setMaxIdle(options.getMaxIdle());
+        config.setMaxTotal(options.getMaxTotal());
+        config.setMaxWait(options.getMaxWaitDuration());
+        config.setMinEvictableIdleTime(options.getMinEvictableIdleDuration());
+        config.setMinIdle(options.getMinIdle());
+        config.setNumTestsPerEvictionRun(options.getNumTestsPerEvictionRun());
+        config.setSoftMinEvictableIdleTime(options.getSoftMinEvictableIdleDuration());
+        config.setTestOnBorrow(options.isTestOnBorrow());
+        config.setTestOnCreate(options.isTestOnCreate());
+        config.setTestOnReturn(options.isTestOnReturn());
+        config.setTestWhileIdle(options.isTestWhileIdle());
+        config.setTimeBetweenEvictionRuns(options.getDurationBetweenEvictionRuns());
+        return config;
+    }
 
-	public static ConnectionPoolFactory client(AbstractRedisClient client) {
-		return new ConnectionPoolFactory(client);
-	}
+    public GenericObjectPool<StatefulConnection<String, String>> build() {
+        return build(StringCodec.UTF8);
+    }
+
+    public <K, V> GenericObjectPool<StatefulConnection<K, V>> build(RedisCodec<K, V> codec) {
+        Supplier<StatefulConnection<K, V>> connectionSupplier = Utils.connectionSupplier(client, codec, readFrom);
+        return ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config());
+    }
+
+    public static ConnectionPoolFactory client(AbstractRedisClient client) {
+        return new ConnectionPoolFactory(client);
+    }
 
 }

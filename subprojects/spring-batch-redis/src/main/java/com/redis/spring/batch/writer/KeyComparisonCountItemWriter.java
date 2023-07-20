@@ -13,36 +13,36 @@ import com.redis.spring.batch.reader.KeyComparison.Status;
 
 public class KeyComparisonCountItemWriter extends AbstractItemStreamItemWriter<KeyComparison> {
 
-	private final Results results = new Results();
+    private final Results results = new Results();
 
-	@Override
-	public void write(List<? extends KeyComparison> items) {
-		for (KeyComparison comparison : items) {
-			results.incrementAndGet(comparison.getStatus());
-		}
-	}
+    @Override
+    public void write(List<? extends KeyComparison> items) {
+        for (KeyComparison comparison : items) {
+            results.incrementAndGet(comparison.getStatus());
+        }
+    }
 
-	public Results getResults() {
-		return results;
-	}
+    public Results getResults() {
+        return results;
+    }
 
-	public static class Results {
+    public static class Results {
 
-		private final Map<Status, AtomicLong> counts = Stream.of(Status.values())
-				.collect(Collectors.toMap(s -> s, s -> new AtomicLong()));
+        private final Map<Status, AtomicLong> counts = Stream.of(Status.values())
+                .collect(Collectors.toMap(s -> s, s -> new AtomicLong()));
 
-		public long incrementAndGet(Status status) {
-			return counts.get(status).incrementAndGet();
-		}
+        public long incrementAndGet(Status status) {
+            return counts.get(status).incrementAndGet();
+        }
 
-		public long getCount(Status status) {
-			return counts.get(status).get();
-		}
+        public long getCount(Status status) {
+            return counts.get(status).get();
+        }
 
-		public long getTotalCount() {
-			return counts.values().stream().collect(Collectors.summingLong(AtomicLong::get));
-		}
+        public long getTotalCount() {
+            return counts.values().stream().collect(Collectors.summingLong(AtomicLong::get));
+        }
 
-	}
+    }
 
 }

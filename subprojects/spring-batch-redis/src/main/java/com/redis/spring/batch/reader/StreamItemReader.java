@@ -29,336 +29,352 @@ import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.codec.RedisCodec;
 
 public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamMessage<K, V>>
-		implements PollableItemReader<StreamMessage<K, V>> {
+        implements PollableItemReader<StreamMessage<K, V>> {
 
-	public static final Duration DEFAULT_POLL_DURATION = Duration.ofSeconds(1);
-	public static final String DEFAULT_OFFSET = "0-0";
-	public static final Duration DEFAULT_BLOCK = Duration.ofMillis(100);
-	public static final long DEFAULT_COUNT = 50;
-	public static final StreamAckPolicy DEFAULT_ACK_POLICY = StreamAckPolicy.AUTO;
+    public static final Duration DEFAULT_POLL_DURATION = Duration.ofSeconds(1);
 
-	private final AbstractRedisClient client;
-	private final RedisCodec<K, V> codec;
-	private final K stream;
-	private final Consumer<K> consumer;
+    public static final String DEFAULT_OFFSET = "0-0";
 
-	private String offset = DEFAULT_OFFSET;
-	private Duration block = DEFAULT_BLOCK;
-	private long count = DEFAULT_COUNT;
-	private StreamAckPolicy ackPolicy = DEFAULT_ACK_POLICY;
+    public static final Duration DEFAULT_BLOCK = Duration.ofMillis(100);
 
-	private StatefulRedisModulesConnection<K, V> connection;
-	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
-	private MessageReader<K, V> messageReader;
-	private String lastId;
-	private RedisStreamCommands<K, V> commands;
+    public static final long DEFAULT_COUNT = 50;
 
-	public StreamItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, K stream, Consumer<K> consumer) {
-		setName(ClassUtils.getShortName(getClass()));
-		this.client = client;
-		this.codec = codec;
-		this.stream = stream;
-		this.consumer = consumer;
-	}
+    public static final StreamAckPolicy DEFAULT_ACK_POLICY = StreamAckPolicy.AUTO;
 
-	public void setOffset(String offset) {
-		this.offset = offset;
-	}
+    private final AbstractRedisClient client;
 
-	public void setBlock(Duration block) {
-		this.block = block;
-	}
+    private final RedisCodec<K, V> codec;
 
-	public void setCount(long count) {
-		this.count = count;
-	}
+    private final K stream;
 
-	public void setAckPolicy(StreamAckPolicy policy) {
-		this.ackPolicy = policy;
-	}
+    private final Consumer<K> consumer;
 
-	private XReadArgs args(long blockMillis) {
-		return XReadArgs.Builder.count(count).block(blockMillis);
-	}
+    private String offset = DEFAULT_OFFSET;
 
-	@Override
-	public synchronized void open(ExecutionContext executionContext) {
-		super.open(executionContext);
-		if (!isOpen()) {
-			doOpen();
-		}
-	}
+    private Duration block = DEFAULT_BLOCK;
 
-	private void doOpen() {
-		connection = RedisModulesUtils.connection(client, codec);
-		commands = Utils.sync(connection);
-		StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
-		XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
-		try {
-			commands.xgroupCreate(streamOffset, consumer.getGroup(), args);
-		} catch (RedisBusyException e) {
-			// Consumer Group name already exists, ignore
-		}
-		lastId = offset;
-		messageReader = reader();
-	}
+    private long count = DEFAULT_COUNT;
 
-	public boolean isOpen() {
-		return messageReader != null;
-	}
+    private StreamAckPolicy ackPolicy = DEFAULT_ACK_POLICY;
 
-	@Override
-	public synchronized void close() {
-		if (isOpen()) {
-			doClose();
-		}
-		super.close();
-	}
+    private StatefulRedisModulesConnection<K, V> connection;
 
-	private void doClose() {
-		messageReader = null;
-		lastId = null;
-		connection.close();
-		connection = null;
-		commands = null;
-	}
+    private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
 
-	private MessageReader<K, V> reader() {
-		if (ackPolicy == StreamAckPolicy.MANUAL) {
-			return new ExplicitAckPendingMessageReader();
-		}
-		return new AutoAckPendingMessageReader();
-	}
+    private MessageReader<K, V> messageReader;
 
-	@Override
-	public void update(ExecutionContext executionContext) throws ItemStreamException {
-		// Do nothing
-	}
+    private String lastId;
 
-	@Override
-	public StreamMessage<K, V> read() throws Exception {
-		return poll(DEFAULT_POLL_DURATION.toMillis(), TimeUnit.MILLISECONDS);
-	}
+    private RedisStreamCommands<K, V> commands;
 
-	@Override
-	public synchronized StreamMessage<K, V> poll(long timeout, TimeUnit unit) throws PollingException {
-		if (!iterator.hasNext()) {
-			List<StreamMessage<K, V>> messages = messageReader.read(unit.toMillis(timeout));
-			if (messages == null || messages.isEmpty()) {
-				return null;
-			}
-			iterator = messages.iterator();
-		}
-		return iterator.next();
-	}
+    public StreamItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, K stream, Consumer<K> consumer) {
+        setName(ClassUtils.getShortName(getClass()));
+        this.client = client;
+        this.codec = codec;
+        this.stream = stream;
+        this.consumer = consumer;
+    }
 
-	public List<StreamMessage<K, V>> readMessages() {
-		return messageReader.read(block.toMillis());
-	}
+    public void setOffset(String offset) {
+        this.offset = offset;
+    }
 
-	/**
-	 * Acks given messages
-	 * 
-	 * @param messages to be acked
-	 */
-	public Long ack(Iterable<? extends StreamMessage<K, V>> messages) {
-		if (messages == null) {
-			return 0L;
-		}
-		Stream<String> ids = StreamSupport.stream(messages.spliterator(), false).map(StreamMessage::getId);
-		return doAck(ids.toArray(String[]::new));
-	}
+    public void setBlock(Duration block) {
+        this.block = block;
+    }
 
-	/**
-	 * Acks given message ids
-	 * 
-	 * @param ids message ids to be acked
-	 * @return
-	 */
-	public Long ack(String... ids) {
-		if (ids.length == 0) {
-			return 0L;
-		}
-		lastId = ids[ids.length - 1];
-		return doAck(ids);
-	}
+    public void setCount(long count) {
+        this.count = count;
+    }
 
-	private Long doAck(String... ids) {
-		if (ids.length == 0) {
-			return 0L;
-		}
-		return commands.xack(stream, consumer.getGroup(), ids);
-	}
+    public void setAckPolicy(StreamAckPolicy policy) {
+        this.ackPolicy = policy;
+    }
 
-	public static class StreamId implements Comparable<StreamId> {
+    private XReadArgs args(long blockMillis) {
+        return XReadArgs.Builder.count(count).block(blockMillis);
+    }
 
-		public static final StreamId ZERO = StreamId.of(0, 0);
+    @Override
+    public synchronized void open(ExecutionContext executionContext) {
+        super.open(executionContext);
+        if (!isOpen()) {
+            doOpen();
+        }
+    }
 
-		private final long millis;
-		private final long sequence;
+    private void doOpen() {
+        connection = RedisModulesUtils.connection(client, codec);
+        commands = Utils.sync(connection);
+        StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
+        XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
+        try {
+            commands.xgroupCreate(streamOffset, consumer.getGroup(), args);
+        } catch (RedisBusyException e) {
+            // Consumer Group name already exists, ignore
+        }
+        lastId = offset;
+        messageReader = reader();
+    }
 
-		public StreamId(long millis, long sequence) {
-			this.millis = millis;
-			this.sequence = sequence;
-		}
+    public boolean isOpen() {
+        return messageReader != null;
+    }
 
-		private static void checkPositive(String id, long number) {
-			if (number < 0) {
-				throw new IllegalArgumentException(String.format("not an id: %s", id));
-			}
-		}
+    @Override
+    public synchronized void close() {
+        if (isOpen()) {
+            doClose();
+        }
+        super.close();
+    }
 
-		public static StreamId parse(String id) {
-			int off = id.indexOf("-");
-			if (off == -1) {
-				long millis = Long.parseLong(id);
-				checkPositive(id, millis);
-				return StreamId.of(millis, 0L);
-			}
-			long millis = Long.parseLong(id.substring(0, off));
-			checkPositive(id, millis);
-			long sequence = Long.parseLong(id.substring(off + 1));
-			checkPositive(id, sequence);
-			return StreamId.of(millis, sequence);
-		}
+    private void doClose() {
+        messageReader = null;
+        lastId = null;
+        connection.close();
+        connection = null;
+        commands = null;
+    }
 
-		public static StreamId of(long millis, long sequence) {
-			return new StreamId(millis, sequence);
-		}
+    private MessageReader<K, V> reader() {
+        if (ackPolicy == StreamAckPolicy.MANUAL) {
+            return new ExplicitAckPendingMessageReader();
+        }
+        return new AutoAckPendingMessageReader();
+    }
 
-		public String toStreamId() {
-			return millis + "-" + sequence;
-		}
+    @Override
+    public void update(ExecutionContext executionContext) throws ItemStreamException {
+        // Do nothing
+    }
 
-		@Override
-		public String toString() {
-			return toStreamId();
-		}
+    @Override
+    public StreamMessage<K, V> read() throws Exception {
+        return poll(DEFAULT_POLL_DURATION.toMillis(), TimeUnit.MILLISECONDS);
+    }
 
-		@Override
-		public int compareTo(StreamId o) {
-			long diff = millis - o.millis;
-			if (diff != 0) {
-				return Long.signum(diff);
-			}
-			return Long.signum(sequence - o.sequence);
-		}
+    @Override
+    public synchronized StreamMessage<K, V> poll(long timeout, TimeUnit unit) throws PollingException {
+        if (!iterator.hasNext()) {
+            List<StreamMessage<K, V>> messages = messageReader.read(unit.toMillis(timeout));
+            if (messages == null || messages.isEmpty()) {
+                return null;
+            }
+            iterator = messages.iterator();
+        }
+        return iterator.next();
+    }
 
-		@Override
-		public boolean equals(Object obj) {
-			if (obj == this) {
-				return true;
-			}
-			if (!(obj instanceof StreamId)) {
-				return false;
-			}
-			StreamId o = (StreamId) obj;
-			return o.millis == millis && o.sequence == sequence;
-		}
+    public List<StreamMessage<K, V>> readMessages() {
+        return messageReader.read(block.toMillis());
+    }
 
-		@Override
-		public int hashCode() {
-			long val = millis * 31 * sequence;
-			return (int) (val ^ (val >> 32));
-		}
-	}
+    /**
+     * Acks given messages
+     * 
+     * @param messages to be acked
+     */
+    public Long ack(Iterable<? extends StreamMessage<K, V>> messages) {
+        if (messages == null) {
+            return 0L;
+        }
+        Stream<String> ids = StreamSupport.stream(messages.spliterator(), false).map(StreamMessage::getId);
+        return doAck(ids.toArray(String[]::new));
+    }
 
-	private interface MessageReader<K, V> {
+    /**
+     * Acks given message ids
+     * 
+     * @param ids message ids to be acked
+     * @return
+     */
+    public Long ack(String... ids) {
+        if (ids.length == 0) {
+            return 0L;
+        }
+        lastId = ids[ids.length - 1];
+        return doAck(ids);
+    }
 
-		/**
-		 * Reads messages from a stream
-		 * 
-		 * @param commands Synchronous executed commands for Streams
-		 * @param args     Stream read command args
-		 * @return list of messages retrieved from the stream or empty list if no
-		 *         messages available
-		 * @throws MessageReadException
-		 */
-		List<StreamMessage<K, V>> read(long blockMillis);
+    private Long doAck(String... ids) {
+        if (ids.length == 0) {
+            return 0L;
+        }
+        return commands.xack(stream, consumer.getGroup(), ids);
+    }
 
-	}
+    public static class StreamId implements Comparable<StreamId> {
 
-	private class ExplicitAckPendingMessageReader implements MessageReader<K, V> {
+        public static final StreamId ZERO = StreamId.of(0, 0);
 
-		@SuppressWarnings("unchecked")
-		protected List<StreamMessage<K, V>> readMessages(XReadArgs args) {
-			return recover(commands.xreadgroup(consumer, args, StreamOffset.from(stream, DEFAULT_OFFSET)));
-		}
+        private final long millis;
 
-		protected List<StreamMessage<K, V>> recover(List<StreamMessage<K, V>> messages) {
-			if (messages.isEmpty()) {
-				return messages;
-			}
-			List<StreamMessage<K, V>> recoveredMessages = new ArrayList<>();
-			List<StreamMessage<K, V>> messagesToAck = new ArrayList<>();
-			StreamId recoveryId = StreamId.parse(lastId);
-			for (StreamMessage<K, V> message : messages) {
-				StreamId messageId = StreamId.parse(message.getId());
-				if (messageId.compareTo(recoveryId) > 0) {
-					recoveredMessages.add(message);
-					lastId = message.getId();
-				} else {
-					messagesToAck.add(message);
-				}
-			}
-			ack(messagesToAck);
-			return recoveredMessages;
-		}
+        private final long sequence;
 
-		protected MessageReader<K, V> messageReader() {
-			return new ExplicitAckMessageReader();
-		}
+        public StreamId(long millis, long sequence) {
+            this.millis = millis;
+            this.sequence = sequence;
+        }
 
-		@Override
-		public List<StreamMessage<K, V>> read(long blockMillis) {
-			List<StreamMessage<K, V>> messages;
-			messages = readMessages(args(blockMillis));
-			if (messages.isEmpty()) {
-				messageReader = messageReader();
-				return messageReader.read(blockMillis);
-			}
-			return messages;
-		}
+        private static void checkPositive(String id, long number) {
+            if (number < 0) {
+                throw new IllegalArgumentException(String.format("not an id: %s", id));
+            }
+        }
 
-	}
+        public static StreamId parse(String id) {
+            int off = id.indexOf("-");
+            if (off == -1) {
+                long millis = Long.parseLong(id);
+                checkPositive(id, millis);
+                return StreamId.of(millis, 0L);
+            }
+            long millis = Long.parseLong(id.substring(0, off));
+            checkPositive(id, millis);
+            long sequence = Long.parseLong(id.substring(off + 1));
+            checkPositive(id, sequence);
+            return StreamId.of(millis, sequence);
+        }
 
-	private class ExplicitAckMessageReader implements MessageReader<K, V> {
+        public static StreamId of(long millis, long sequence) {
+            return new StreamId(millis, sequence);
+        }
 
-		@SuppressWarnings("unchecked")
-		@Override
-		public List<StreamMessage<K, V>> read(long blockMillis) {
-			return commands.xreadgroup(consumer, args(blockMillis), StreamOffset.lastConsumed(stream));
-		}
-	}
+        public String toStreamId() {
+            return millis + "-" + sequence;
+        }
 
-	private class AutoAckPendingMessageReader extends ExplicitAckPendingMessageReader {
+        @Override
+        public String toString() {
+            return toStreamId();
+        }
 
-		@Override
-		protected StreamItemReader.MessageReader<K, V> messageReader() {
-			return new AutoAckMessageReader();
-		}
+        @Override
+        public int compareTo(StreamId o) {
+            long diff = millis - o.millis;
+            if (diff != 0) {
+                return Long.signum(diff);
+            }
+            return Long.signum(sequence - o.sequence);
+        }
 
-		@Override
-		protected List<StreamMessage<K, V>> recover(List<StreamMessage<K, V>> messages) {
-			ack(messages);
-			return Collections.emptyList();
-		}
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            }
+            if (!(obj instanceof StreamId)) {
+                return false;
+            }
+            StreamId o = (StreamId) obj;
+            return o.millis == millis && o.sequence == sequence;
+        }
 
-	}
+        @Override
+        public int hashCode() {
+            long val = millis * 31 * sequence;
+            return (int) (val ^ (val >> 32));
+        }
 
-	private class AutoAckMessageReader extends ExplicitAckMessageReader {
+    }
 
-		@Override
-		public List<StreamMessage<K, V>> read(long blockMillis) {
-			List<StreamMessage<K, V>> messages = super.read(blockMillis);
-			ack(messages);
-			return messages;
-		}
+    private interface MessageReader<K, V> {
 
-	}
+        /**
+         * Reads messages from a stream
+         * 
+         * @param commands Synchronous executed commands for Streams
+         * @param args Stream read command args
+         * @return list of messages retrieved from the stream or empty list if no messages available
+         * @throws MessageReadException
+         */
+        List<StreamMessage<K, V>> read(long blockMillis);
 
-	public long streamLength() {
-		return commands.xlen(stream);
-	}
+    }
+
+    private class ExplicitAckPendingMessageReader implements MessageReader<K, V> {
+
+        @SuppressWarnings("unchecked")
+        protected List<StreamMessage<K, V>> readMessages(XReadArgs args) {
+            return recover(commands.xreadgroup(consumer, args, StreamOffset.from(stream, DEFAULT_OFFSET)));
+        }
+
+        protected List<StreamMessage<K, V>> recover(List<StreamMessage<K, V>> messages) {
+            if (messages.isEmpty()) {
+                return messages;
+            }
+            List<StreamMessage<K, V>> recoveredMessages = new ArrayList<>();
+            List<StreamMessage<K, V>> messagesToAck = new ArrayList<>();
+            StreamId recoveryId = StreamId.parse(lastId);
+            for (StreamMessage<K, V> message : messages) {
+                StreamId messageId = StreamId.parse(message.getId());
+                if (messageId.compareTo(recoveryId) > 0) {
+                    recoveredMessages.add(message);
+                    lastId = message.getId();
+                } else {
+                    messagesToAck.add(message);
+                }
+            }
+            ack(messagesToAck);
+            return recoveredMessages;
+        }
+
+        protected MessageReader<K, V> messageReader() {
+            return new ExplicitAckMessageReader();
+        }
+
+        @Override
+        public List<StreamMessage<K, V>> read(long blockMillis) {
+            List<StreamMessage<K, V>> messages;
+            messages = readMessages(args(blockMillis));
+            if (messages.isEmpty()) {
+                messageReader = messageReader();
+                return messageReader.read(blockMillis);
+            }
+            return messages;
+        }
+
+    }
+
+    private class ExplicitAckMessageReader implements MessageReader<K, V> {
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public List<StreamMessage<K, V>> read(long blockMillis) {
+            return commands.xreadgroup(consumer, args(blockMillis), StreamOffset.lastConsumed(stream));
+        }
+
+    }
+
+    private class AutoAckPendingMessageReader extends ExplicitAckPendingMessageReader {
+
+        @Override
+        protected StreamItemReader.MessageReader<K, V> messageReader() {
+            return new AutoAckMessageReader();
+        }
+
+        @Override
+        protected List<StreamMessage<K, V>> recover(List<StreamMessage<K, V>> messages) {
+            ack(messages);
+            return Collections.emptyList();
+        }
+
+    }
+
+    private class AutoAckMessageReader extends ExplicitAckMessageReader {
+
+        @Override
+        public List<StreamMessage<K, V>> read(long blockMillis) {
+            List<StreamMessage<K, V>> messages = super.read(blockMillis);
+            ack(messages);
+            return messages;
+        }
+
+    }
+
+    public long streamLength() {
+        return commands.xlen(stream);
+    }
 
 }

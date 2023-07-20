@@ -5,65 +5,70 @@ import java.util.Optional;
 
 public class FlushingStepOptions {
 
-	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
-	public static final long NO_IDLE_TIMEOUT = -1;
+    public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
 
-	private Duration interval = DEFAULT_FLUSHING_INTERVAL;
-	private Optional<Duration> idleTimeout = Optional.empty(); // no idle stream detection by default
+    public static final long NO_IDLE_TIMEOUT = -1;
 
-	private FlushingStepOptions(Builder builder) {
-		this.interval = builder.interval;
-		this.idleTimeout = builder.idleTimeout;
-	}
+    private Duration interval = DEFAULT_FLUSHING_INTERVAL;
 
-	public Duration getInterval() {
-		return interval;
-	}
+    private Optional<Duration> idleTimeout = Optional.empty(); // no idle stream detection by default
 
-	public void setInterval(Duration interval) {
-		this.interval = interval;
-	}
+    private FlushingStepOptions(Builder builder) {
+        this.interval = builder.interval;
+        this.idleTimeout = builder.idleTimeout;
+    }
 
-	public Optional<Duration> getIdleTimeout() {
-		return idleTimeout;
-	}
+    public Duration getInterval() {
+        return interval;
+    }
 
-	public void setIdleTimeout(Duration timeout) {
-		setIdleTimeout(Optional.of(timeout));
-	}
+    public void setInterval(Duration interval) {
+        this.interval = interval;
+    }
 
-	public void setIdleTimeout(Optional<Duration> timeout) {
-		this.idleTimeout = timeout;
-	}
+    public Optional<Duration> getIdleTimeout() {
+        return idleTimeout;
+    }
 
-	public static Builder builder() {
-		return new Builder();
-	}
+    public void setIdleTimeout(Duration timeout) {
+        setIdleTimeout(Optional.of(timeout));
+    }
 
-	public static final class Builder {
-		private Duration interval = DEFAULT_FLUSHING_INTERVAL;
-		private Optional<Duration> idleTimeout = Optional.empty();
+    public void setIdleTimeout(Optional<Duration> timeout) {
+        this.idleTimeout = timeout;
+    }
 
-		private Builder() {
-		}
+    public static Builder builder() {
+        return new Builder();
+    }
 
-		public Builder interval(Duration interval) {
-			this.interval = interval;
-			return this;
-		}
+    public static final class Builder {
 
-		public Builder idleTimeout(Duration idleTimeout) {
-			return idleTimeout(Optional.of(idleTimeout));
-		}
+        private Duration interval = DEFAULT_FLUSHING_INTERVAL;
 
-		public Builder idleTimeout(Optional<Duration> idleTimeout) {
-			this.idleTimeout = idleTimeout;
-			return this;
-		}
+        private Optional<Duration> idleTimeout = Optional.empty();
 
-		public FlushingStepOptions build() {
-			return new FlushingStepOptions(this);
-		}
-	}
+        private Builder() {
+        }
+
+        public Builder interval(Duration interval) {
+            this.interval = interval;
+            return this;
+        }
+
+        public Builder idleTimeout(Duration idleTimeout) {
+            return idleTimeout(Optional.of(idleTimeout));
+        }
+
+        public Builder idleTimeout(Optional<Duration> idleTimeout) {
+            this.idleTimeout = idleTimeout;
+            return this;
+        }
+
+        public FlushingStepOptions build() {
+            return new FlushingStepOptions(this);
+        }
+
+    }
 
 }

@@ -7,17 +7,18 @@ import io.lettuce.core.ScoredValue;
 
 public class ScoredValueConverter<V, T> implements Function<T, ScoredValue<V>> {
 
-	private final Function<T, V> member;
-	private final ToDoubleFunction<T> score;
+    private final Function<T, V> member;
 
-	public ScoredValueConverter(Function<T, V> member, ToDoubleFunction<T> score) {
-		this.member = member;
-		this.score = score;
-	}
+    private final ToDoubleFunction<T> score;
 
-	@Override
-	public ScoredValue<V> apply(T source) {
-		return ScoredValue.just(score.applyAsDouble(source), member.apply(source));
-	}
+    public ScoredValueConverter(Function<T, V> member, ToDoubleFunction<T> score) {
+        this.member = member;
+        this.score = score;
+    }
+
+    @Override
+    public ScoredValue<V> apply(T source) {
+        return ScoredValue.just(score.applyAsDouble(source), member.apply(source));
+    }
 
 }

@@ -14,28 +14,29 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
 public class Expire<K, V, T> implements WriteOperation<K, V, T> {
 
-	private final Function<T, K> keyFunction;
-	private final ToLongFunction<T> millisFunction;
+    private final Function<T, K> keyFunction;
 
-	public Expire(Function<T, K> key, ToLongFunction<T> millis) {
-		this.keyFunction = key;
-		Assert.notNull(millis, "A millisFunction function is required");
-		this.millisFunction = millis;
-	}
+    private final ToLongFunction<T> millisFunction;
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-		long millis = millisFunction.applyAsLong(item);
-		if (millis > 0) {
-			RedisKeyAsyncCommands<K, V> keyCommands = (RedisKeyAsyncCommands<K, V>) commands;
-			K key = keyFunction.apply(item);
-			futures.add((RedisFuture) execute(keyCommands, key, millis));
-		}
-	}
+    public Expire(Function<T, K> key, ToLongFunction<T> millis) {
+        this.keyFunction = key;
+        Assert.notNull(millis, "A millisFunction function is required");
+        this.millisFunction = millis;
+    }
 
-	protected RedisFuture<Boolean> execute(RedisKeyAsyncCommands<K, V> commands, K key, long millis) {
-		return commands.pexpire(key, millis);
-	}
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @Override
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
+        long millis = millisFunction.applyAsLong(item);
+        if (millis > 0) {
+            RedisKeyAsyncCommands<K, V> keyCommands = (RedisKeyAsyncCommands<K, V>) commands;
+            K key = keyFunction.apply(item);
+            futures.add((RedisFuture) execute(keyCommands, key, millis));
+        }
+    }
+
+    protected RedisFuture<Boolean> execute(RedisKeyAsyncCommands<K, V> commands, K key, long millis) {
+        return commands.pexpire(key, millis);
+    }
 
 }

@@ -9,71 +9,73 @@ import org.springframework.util.StringUtils;
 
 public class KeyBuilder {
 
-	public static final String EMPTY_STRING = "";
-	public static final String DEFAULT_SEPARATOR = ":";
+    public static final String EMPTY_STRING = "";
 
-	private String prefix = EMPTY_STRING;
-	private String separator = DEFAULT_SEPARATOR;
-	private String keyspace = EMPTY_STRING;
+    public static final String DEFAULT_SEPARATOR = ":";
 
-	public String keyspace() {
-		return keyspace;
-	}
+    private String prefix = EMPTY_STRING;
 
-	public String prefix() {
-		return prefix;
-	}
+    private String separator = DEFAULT_SEPARATOR;
 
-	public String separator() {
-		return separator;
-	}
+    private String keyspace = EMPTY_STRING;
 
-	public static KeyBuilder of(String keyspace) {
-		return new KeyBuilder().withKeyspace(keyspace);
-	}
+    public String keyspace() {
+        return keyspace;
+    }
 
-	public KeyBuilder noKeyspace() {
-		return withKeyspace(null);
-	}
+    public String prefix() {
+        return prefix;
+    }
 
-	public KeyBuilder withSeparator(String separator) {
-		this.separator = separator;
-		updatePrefix();
-		return this;
-	}
+    public String separator() {
+        return separator;
+    }
 
-	public KeyBuilder withKeyspace(String keyspace) {
-		this.keyspace = keyspace;
-		updatePrefix();
-		return this;
-	}
+    public static KeyBuilder of(String keyspace) {
+        return new KeyBuilder().withKeyspace(keyspace);
+    }
 
-	private void updatePrefix() {
-		this.prefix = StringUtils.hasLength(keyspace) ? keyspace + separator : EMPTY_STRING;
-	}
+    public KeyBuilder noKeyspace() {
+        return withKeyspace(null);
+    }
 
-	public String build(Iterable<String> ids) {
-		return prefix + String.join(separator, ids);
-	}
+    public KeyBuilder withSeparator(String separator) {
+        this.separator = separator;
+        updatePrefix();
+        return this;
+    }
 
-	public String build(Object... ids) {
-		return build(Stream.of(ids).filter(Objects::nonNull).map(String::valueOf).collect(Collectors.toList()));
-	}
+    public KeyBuilder withKeyspace(String keyspace) {
+        this.keyspace = keyspace;
+        updatePrefix();
+        return this;
+    }
 
-	public String build(String... ids) {
-		return build(Arrays.asList(ids));
-	}
+    private void updatePrefix() {
+        this.prefix = StringUtils.hasLength(keyspace) ? keyspace + separator : EMPTY_STRING;
+    }
 
-	/**
-	 * Creates a KeyBuilder for keys under the given sub-id string. For example if
-	 * this KeyBuilder is in keyspace "root" and the given id is "sub" then the
-	 * returned KeyBuilder will create keys under "root:sub:"
-	 * 
-	 * @param keyspace sub-keyspace element
-	 * @return KeyBuilder for sub-keyspace "id"
-	 */
-	public KeyBuilder sub(String keyspace) {
-		return new KeyBuilder().withKeyspace(build(keyspace)).withSeparator(separator);
-	}
+    public String build(Iterable<String> ids) {
+        return prefix + String.join(separator, ids);
+    }
+
+    public String build(Object... ids) {
+        return build(Stream.of(ids).filter(Objects::nonNull).map(String::valueOf).collect(Collectors.toList()));
+    }
+
+    public String build(String... ids) {
+        return build(Arrays.asList(ids));
+    }
+
+    /**
+     * Creates a KeyBuilder for keys under the given sub-id string. For example if this KeyBuilder is in keyspace "root" and the
+     * given id is "sub" then the returned KeyBuilder will create keys under "root:sub:"
+     * 
+     * @param keyspace sub-keyspace element
+     * @return KeyBuilder for sub-keyspace "id"
+     */
+    public KeyBuilder sub(String keyspace) {
+        return new KeyBuilder().withKeyspace(build(keyspace)).withSeparator(separator);
+    }
 
 }

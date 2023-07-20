@@ -62,44 +62,42 @@ import java.util.Map;
 
 public class KeyspaceNotificationComparator implements Comparator<KeyspaceNotification> {
 
-	private static final KeyEvent[] EVENT_TYPES = {
-			// Delete
-			DEL, EXPIRED, EVICTED, EXPIRE,
-			// Create
-			PERSIST, NEW_KEY, RESTORE, RENAME_FROM, RENAME_TO, MOVE_FROM, MOVE_TO, COPY_TO,
-			// String
-			SET, SETRANGE, INCRBY, INCRBYFLOAT, APPEND,
-			// Hash
-			HSET, HINCRBY, HINCRBYFLOAT, HDEL,
-			// JSON
-			JSON_SET,
-			// List
-			LPUSH, RPUSH, RPOP, LPOP, LINSERT, LSET, LREM, LTRIM, SORTSTORE,
-			// Set
-			SADD, SPOP, SINTERSTORE, SUNIONSTORE, SDIFFSTORE,
-			// Sorted Set
-			ZINCR, ZADD, ZREM, ZREMBYSCORE, ZREMBYRANK, ZDIFFSTORE, ZINTERSTORE, ZUNIONSTORE,
-			// Stream
-			XADD, XTRIM, XDEL, XGROUP_CREATE, XGROUP_CREATECONSUMER, XGROUP_DELCONSUMER, XGROUP_DESTROY, XGROUP_SETID,
-			XSETID,
-			// TimeSeries
-			TS_ADD,
-			// Other
-			UNKNOWN };
+    private static final KeyEvent[] EVENT_TYPES = {
+            // Delete
+            DEL, EXPIRED, EVICTED, EXPIRE,
+            // Create
+            PERSIST, NEW_KEY, RESTORE, RENAME_FROM, RENAME_TO, MOVE_FROM, MOVE_TO, COPY_TO,
+            // String
+            SET, SETRANGE, INCRBY, INCRBYFLOAT, APPEND,
+            // Hash
+            HSET, HINCRBY, HINCRBYFLOAT, HDEL,
+            // JSON
+            JSON_SET,
+            // List
+            LPUSH, RPUSH, RPOP, LPOP, LINSERT, LSET, LREM, LTRIM, SORTSTORE,
+            // Set
+            SADD, SPOP, SINTERSTORE, SUNIONSTORE, SDIFFSTORE,
+            // Sorted Set
+            ZINCR, ZADD, ZREM, ZREMBYSCORE, ZREMBYRANK, ZDIFFSTORE, ZINTERSTORE, ZUNIONSTORE,
+            // Stream
+            XADD, XTRIM, XDEL, XGROUP_CREATE, XGROUP_CREATECONSUMER, XGROUP_DELCONSUMER, XGROUP_DESTROY, XGROUP_SETID, XSETID,
+            // TimeSeries
+            TS_ADD,
+            // Other
+            UNKNOWN };
 
-	private final Map<KeyEvent, Integer> ranking;
+    private final Map<KeyEvent, Integer> ranking;
 
-	public KeyspaceNotificationComparator() {
-		this.ranking = new EnumMap<>(KeyEvent.class);
-		for (int index = 0; index < EVENT_TYPES.length; index++) {
-			ranking.put(EVENT_TYPES[index], index);
-		}
-	}
+    public KeyspaceNotificationComparator() {
+        this.ranking = new EnumMap<>(KeyEvent.class);
+        for (int index = 0; index < EVENT_TYPES.length; index++) {
+            ranking.put(EVENT_TYPES[index], index);
+        }
+    }
 
-	@Override
-	public int compare(KeyspaceNotification o1, KeyspaceNotification o2) {
-		return ranking.getOrDefault(o1.getEvent(), Integer.MAX_VALUE)
-				- ranking.getOrDefault(o2.getEvent(), Integer.MAX_VALUE);
-	}
+    @Override
+    public int compare(KeyspaceNotification o1, KeyspaceNotification o2) {
+        return ranking.getOrDefault(o1.getEvent(), Integer.MAX_VALUE) - ranking.getOrDefault(o2.getEvent(), Integer.MAX_VALUE);
+    }
 
 }

@@ -8,113 +8,122 @@ import io.lettuce.core.ReadFrom;
 
 public class ScanOptions {
 
-	public static final String MATCH_ALL = "*";
-	public static final String DEFAULT_MATCH = MATCH_ALL;
-	public static final long DEFAULT_COUNT = 1000;
+    public static final String MATCH_ALL = "*";
 
-	private String match = DEFAULT_MATCH;
-	private long count = DEFAULT_COUNT;
-	private Optional<String> type = Optional.empty();
-	private Optional<ReadFrom> readFrom = Optional.empty();
+    public static final String DEFAULT_MATCH = MATCH_ALL;
 
-	public ScanOptions() {
+    public static final long DEFAULT_COUNT = 1000;
 
-	}
+    private String match = DEFAULT_MATCH;
 
-	private ScanOptions(Builder builder) {
-		this.match = builder.match;
-		this.count = builder.count;
-		this.type = builder.type;
-		this.readFrom = builder.readFrom;
-	}
+    private long count = DEFAULT_COUNT;
 
-	public String getMatch() {
-		return match;
-	}
+    private Optional<String> type = Optional.empty();
 
-	public void setMatch(String match) {
-		this.match = match;
-	}
+    private Optional<ReadFrom> readFrom = Optional.empty();
 
-	public long getCount() {
-		return count;
-	}
+    public ScanOptions() {
 
-	public void setCount(long count) {
-		this.count = count;
-	}
+    }
 
-	public Optional<String> getType() {
-		return type;
-	}
+    private ScanOptions(Builder builder) {
+        this.match = builder.match;
+        this.count = builder.count;
+        this.type = builder.type;
+        this.readFrom = builder.readFrom;
+    }
 
-	public void setType(String type) {
-		setType(Optional.of(type));
-	}
+    public String getMatch() {
+        return match;
+    }
 
-	public void setType(Optional<String> type) {
-		this.type = type;
-	}
+    public void setMatch(String match) {
+        this.match = match;
+    }
 
-	public Optional<ReadFrom> getReadFrom() {
-		return readFrom;
-	}
+    public long getCount() {
+        return count;
+    }
 
-	public void setReadFrom(ReadFrom readFrom) {
-		setReadFrom(Optional.of(readFrom));
-	}
+    public void setCount(long count) {
+        this.count = count;
+    }
 
-	public void setReadFrom(Optional<ReadFrom> readFrom) {
-		this.readFrom = readFrom;
-	}
+    public Optional<String> getType() {
+        return type;
+    }
 
-	public static Builder builder() {
-		return new Builder();
-	}
+    public void setType(String type) {
+        setType(Optional.of(type));
+    }
 
-	public static final class Builder {
+    public void setType(Optional<String> type) {
+        this.type = type;
+    }
 
-		private String match = DEFAULT_MATCH;
-		private long count = DEFAULT_COUNT;
-		private Optional<String> type = Optional.empty();
-		private Optional<ReadFrom> readFrom = Optional.empty();
+    public Optional<ReadFrom> getReadFrom() {
+        return readFrom;
+    }
 
-		private Builder() {
-		}
+    public void setReadFrom(ReadFrom readFrom) {
+        setReadFrom(Optional.of(readFrom));
+    }
 
-		public Builder match(String match) {
-			Assert.notNull(match, "Match must be null");
-			Assert.isTrue(!match.trim().isEmpty(), "Match must not be empty");
-			this.match = match;
-			return this;
-		}
+    public void setReadFrom(Optional<ReadFrom> readFrom) {
+        this.readFrom = readFrom;
+    }
 
-		public Builder count(long count) {
-			this.count = count;
-			return this;
-		}
+    public static Builder builder() {
+        return new Builder();
+    }
 
-		public Builder type(String type) {
-			return type(Optional.of(type));
-		}
+    public static final class Builder {
 
-		public Builder type(Optional<String> type) {
-			this.type = type;
-			return this;
-		}
+        private String match = DEFAULT_MATCH;
 
-		public Builder readFrom(ReadFrom readFrom) {
-			return readFrom(Optional.of(readFrom));
-		}
+        private long count = DEFAULT_COUNT;
 
-		public Builder readFrom(Optional<ReadFrom> readFrom) {
-			this.readFrom = readFrom;
-			return this;
-		}
+        private Optional<String> type = Optional.empty();
 
-		public ScanOptions build() {
-			return new ScanOptions(this);
-		}
-	}
+        private Optional<ReadFrom> readFrom = Optional.empty();
+
+        private Builder() {
+        }
+
+        public Builder match(String match) {
+            Assert.notNull(match, "Match must be null");
+            Assert.isTrue(!match.trim().isEmpty(), "Match must not be empty");
+            this.match = match;
+            return this;
+        }
+
+        public Builder count(long count) {
+            this.count = count;
+            return this;
+        }
+
+        public Builder type(String type) {
+            return type(Optional.of(type));
+        }
+
+        public Builder type(Optional<String> type) {
+            this.type = type;
+            return this;
+        }
+
+        public Builder readFrom(ReadFrom readFrom) {
+            return readFrom(Optional.of(readFrom));
+        }
+
+        public Builder readFrom(Optional<ReadFrom> readFrom) {
+            this.readFrom = readFrom;
+            return this;
+        }
+
+        public ScanOptions build() {
+            return new ScanOptions(this);
+        }
+
+    }
 
 }

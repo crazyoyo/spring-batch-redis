@@ -41,212 +41,221 @@ import io.lettuce.core.codec.RedisCodec;
 
 public abstract class AbstractRedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue<K>> {
 
-	protected final AbstractRedisClient client;
-	protected final RedisCodec<K, V> codec;
-	protected final KeyItemReader<K> keyReader;
-	private final ValueType valueType;
-	private ItemProcessor<K, K> processor;
-	private JobRepository jobRepository;
-	private JobBuilderFactory jobBuilderFactory;
-	protected ReaderOptions options = ReaderOptions.builder().build();
-	private String name;
-	private JobExecution jobExecution;
-	protected BlockingQueue<KeyValue<K>> queue;
+    protected final AbstractRedisClient client;
 
-	protected AbstractRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, KeyItemReader<K> keyReader,
-			ValueType valueType) {
-		setName(ClassUtils.getShortName(getClass()));
-		this.client = client;
-		this.codec = codec;
-		this.keyReader = keyReader;
-		this.valueType = valueType;
-	}
+    protected final RedisCodec<K, V> codec;
 
-	public KeyItemReader<K> getKeyReader() {
-		return keyReader;
-	}
+    protected final KeyItemReader<K> keyReader;
 
-	public AbstractRedisClient getClient() {
-		return client;
-	}
+    private final ValueType valueType;
 
-	public ValueType getValueType() {
-		return valueType;
-	}
+    private ItemProcessor<K, K> processor;
 
-	public ReaderOptions getOptions() {
-		return options;
-	}
+    private JobRepository jobRepository;
 
-	public void setOptions(ReaderOptions options) {
-		this.options = options;
-	}
+    private JobBuilderFactory jobBuilderFactory;
 
-	public JobRepository getJobRepository() {
-		return jobRepository;
-	}
+    protected ReaderOptions options = ReaderOptions.builder().build();
 
-	public void setJobRepository(JobRepository jobRepository) {
-		this.jobRepository = jobRepository;
-	}
+    private String name;
 
-	public void setKeyProcessor(ItemProcessor<K, K> processor) {
-		this.processor = processor;
-	}
+    private JobExecution jobExecution;
 
-	@Override
-	public void setName(String name) {
-		super.setName(name);
-		this.name = name;
-	}
+    protected BlockingQueue<KeyValue<K>> queue;
 
-	@Override
-	public synchronized void open(ExecutionContext executionContext) {
-		super.open(executionContext);
-		if (!isOpen()) {
-			doOpen();
-		}
-	}
+    protected AbstractRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, KeyItemReader<K> keyReader,
+            ValueType valueType) {
+        setName(ClassUtils.getShortName(getClass()));
+        this.client = client;
+        this.codec = codec;
+        this.keyReader = keyReader;
+        this.valueType = valueType;
+    }
 
-	protected void doOpen() {
-		try {
-			jobExecution = jobLauncher().run(job(), new JobParameters());
-		} catch (JobExecutionException e) {
-			throw new ItemStreamException("Job execution failed", e);
-		}
-		while (!(Utils.isOpen(keyReader) || jobExecution.getStatus().isUnsuccessful()
-				|| jobExecution.getStatus().isLessThanOrEqualTo(BatchStatus.COMPLETED))) {
-			sleep();
-		}
-		if (jobExecution.getStatus().isUnsuccessful()) {
-			throw new ItemStreamException("Could not run job",
-					jobExecution.getAllFailureExceptions().iterator().next());
-		}
-	}
+    public KeyItemReader<K> getKeyReader() {
+        return keyReader;
+    }
 
-	private Job job() {
-		return jobBuilderFactory().get(name).start(step().build()).build();
-	}
+    public AbstractRedisClient getClient() {
+        return client;
+    }
 
-	private JobBuilderFactory jobBuilderFactory() {
-		if (jobBuilderFactory == null) {
-			jobBuilderFactory = new JobBuilderFactory(jobRepository());
-		}
-		return jobBuilderFactory;
-	}
+    public ValueType getValueType() {
+        return valueType;
+    }
 
-	private JobRepository jobRepository() {
-		if (jobRepository == null) {
-			try {
-				jobRepository = Utils.inMemoryJobRepository();
-			} catch (Exception e) {
-				throw new ItemStreamException("Could not initialize job repository", e);
-			}
-		}
-		return jobRepository;
-	}
+    public ReaderOptions getOptions() {
+        return options;
+    }
 
-	private SimpleJobLauncher jobLauncher() {
-		SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
-		jobLauncher.setJobRepository(jobRepository());
-		jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-		return jobLauncher;
-	}
+    public void setOptions(ReaderOptions options) {
+        this.options = options;
+    }
 
-	private void sleep() {
-		try {
-			Thread.sleep(options.getQueueOptions().getPollTimeout().toMillis());
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new ItemStreamException("Interrupted during initialization", e);
-		}
-	}
+    public JobRepository getJobRepository() {
+        return jobRepository;
+    }
 
-	private PlatformTransactionManager transactionManager() {
-		return new ResourcelessTransactionManager();
-	}
+    public void setJobRepository(JobRepository jobRepository) {
+        this.jobRepository = jobRepository;
+    }
 
-	public JobExecution getJobExecution() {
-		return jobExecution;
-	}
+    public void setKeyProcessor(ItemProcessor<K, K> processor) {
+        this.processor = processor;
+    }
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	protected SimpleStepBuilder<K, K> step() {
-		StepBuilder stepBuilder = new StepBuilder(name);
-		stepBuilder.repository(jobRepository());
-		stepBuilder.transactionManager(transactionManager());
-		SimpleStepBuilder<K, K> step = stepBuilder.chunk(options.getChunkSize());
-		step.reader(keyReader);
-		step.processor(processor);
-		step.writer(new ProcessingItemWriter<>((ItemProcessor) operationProcessor(), queueWriter()));
-		Utils.multiThread(step, options.getThreads());
-		return step;
-	}
+    @Override
+    public void setName(String name) {
+        super.setName(name);
+        this.name = name;
+    }
 
-	protected ItemWriter<KeyValue<K>> queueWriter() {
-		queue = new LinkedBlockingQueue<>(options.getQueueOptions().getCapacity());
-		Utils.createGaugeCollectionSize("reader.queue.size", queue);
-		return new QueueItemWriter<>(queue);
-	}
+    @Override
+    public synchronized void open(ExecutionContext executionContext) {
+        super.open(executionContext);
+        if (!isOpen()) {
+            doOpen();
+        }
+    }
 
-	public ItemStreamProcessor<List<K>, List<KeyValue<K>>> operationProcessor() {
-		KeyValueReadOperation<K, V> op = new KeyValueReadOperation<>(client, codec);
-		op.setMemoryUsageOptions(options.getMemoryUsageOptions());
-		op.setValueType(valueType);
-		OperationItemProcessor<K, V, K, List<Object>> opProc = new OperationItemProcessor<>(client, codec, op);
-		opProc.setPoolOptions(options.getPoolOptions());
-		opProc.setReadFrom(options.getReadFrom());
-		return new CompositeItemStreamProcessor<>(opProc, keyValueListProcessor());
-	}
+    protected void doOpen() {
+        try {
+            jobExecution = jobLauncher().run(job(), new JobParameters());
+        } catch (JobExecutionException e) {
+            throw new ItemStreamException("Job execution failed", e);
+        }
+        while (!(Utils.isOpen(keyReader) || jobExecution.getStatus().isUnsuccessful()
+                || jobExecution.getStatus().isLessThanOrEqualTo(BatchStatus.COMPLETED))) {
+            sleep();
+        }
+        if (jobExecution.getStatus().isUnsuccessful()) {
+            throw new ItemStreamException("Could not run job", jobExecution.getAllFailureExceptions().iterator().next());
+        }
+    }
 
-	private ItemProcessor<List<List<Object>>, List<KeyValue<K>>> keyValueListProcessor() {
-		KeyValueProcessor<K, V> kvProc = new KeyValueProcessor<>(codec);
-		ItemProcessor<List<List<Object>>, List<KeyValue<K>>> listProc = new ListItemProcessor<>(kvProc);
-		if (valueType == ValueType.STRUCT) {
-			return new CompositeItemStreamProcessor<>(listProc, new ListItemProcessor<>(new StructProcessor<>(codec)));
-		}
-		return listProc;
-	}
+    private Job job() {
+        return jobBuilderFactory().get(name).start(step().build()).build();
+    }
 
-	@Override
-	public synchronized void close() {
-		if (isOpen()) {
-			doClose();
-		}
-		super.close();
-	}
+    private JobBuilderFactory jobBuilderFactory() {
+        if (jobBuilderFactory == null) {
+            jobBuilderFactory = new JobBuilderFactory(jobRepository());
+        }
+        return jobBuilderFactory;
+    }
 
-	protected void doClose() {
-		queue = null;
-		if (jobExecution.isRunning()) {
-			for (StepExecution stepExecution : jobExecution.getStepExecutions()) {
-				stepExecution.setTerminateOnly();
-			}
-			jobExecution.setStatus(BatchStatus.STOPPING);
-		}
-		jobExecution = null;
-	}
+    private JobRepository jobRepository() {
+        if (jobRepository == null) {
+            try {
+                jobRepository = Utils.inMemoryJobRepository();
+            } catch (Exception e) {
+                throw new ItemStreamException("Could not initialize job repository", e);
+            }
+        }
+        return jobRepository;
+    }
 
-	public boolean isOpen() {
-		return jobExecution != null;
-	}
+    private SimpleJobLauncher jobLauncher() {
+        SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
+        jobLauncher.setJobRepository(jobRepository());
+        jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+        return jobLauncher;
+    }
 
-	@Override
-	public synchronized KeyValue<K> read() throws Exception {
-		KeyValue<K> item;
-		do {
-			item = queue.poll(options.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
-		} while (item == null && jobExecution != null && jobExecution.isRunning());
-		if (jobExecution != null && jobExecution.getStatus().isUnsuccessful()) {
-			throw new ItemStreamException("Reader job failed");
-		}
-		return item;
-	}
+    private void sleep() {
+        try {
+            Thread.sleep(options.getQueueOptions().getPollTimeout().toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ItemStreamException("Interrupted during initialization", e);
+        }
+    }
 
-	public synchronized List<KeyValue<K>> read(int maxElements) {
-		List<KeyValue<K>> items = new ArrayList<>(maxElements);
-		queue.drainTo(items, maxElements);
-		return items;
-	}
+    private PlatformTransactionManager transactionManager() {
+        return new ResourcelessTransactionManager();
+    }
+
+    public JobExecution getJobExecution() {
+        return jobExecution;
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    protected SimpleStepBuilder<K, K> step() {
+        StepBuilder stepBuilder = new StepBuilder(name);
+        stepBuilder.repository(jobRepository());
+        stepBuilder.transactionManager(transactionManager());
+        SimpleStepBuilder<K, K> step = stepBuilder.chunk(options.getChunkSize());
+        step.reader(keyReader);
+        step.processor(processor);
+        step.writer(new ProcessingItemWriter<>((ItemProcessor) operationProcessor(), queueWriter()));
+        Utils.multiThread(step, options.getThreads());
+        return step;
+    }
+
+    protected ItemWriter<KeyValue<K>> queueWriter() {
+        queue = new LinkedBlockingQueue<>(options.getQueueOptions().getCapacity());
+        Utils.createGaugeCollectionSize("reader.queue.size", queue);
+        return new QueueItemWriter<>(queue);
+    }
+
+    public ItemStreamProcessor<List<K>, List<KeyValue<K>>> operationProcessor() {
+        KeyValueReadOperation<K, V> op = new KeyValueReadOperation<>(client, codec);
+        op.setMemoryUsageOptions(options.getMemoryUsageOptions());
+        op.setValueType(valueType);
+        OperationItemProcessor<K, V, K, List<Object>> opProc = new OperationItemProcessor<>(client, codec, op);
+        opProc.setPoolOptions(options.getPoolOptions());
+        opProc.setReadFrom(options.getReadFrom());
+        return new CompositeItemStreamProcessor<>(opProc, keyValueListProcessor());
+    }
+
+    private ItemProcessor<List<List<Object>>, List<KeyValue<K>>> keyValueListProcessor() {
+        KeyValueProcessor<K, V> kvProc = new KeyValueProcessor<>(codec);
+        ItemProcessor<List<List<Object>>, List<KeyValue<K>>> listProc = new ListItemProcessor<>(kvProc);
+        if (valueType == ValueType.STRUCT) {
+            return new CompositeItemStreamProcessor<>(listProc, new ListItemProcessor<>(new StructProcessor<>(codec)));
+        }
+        return listProc;
+    }
+
+    @Override
+    public synchronized void close() {
+        if (isOpen()) {
+            doClose();
+        }
+        super.close();
+    }
+
+    protected void doClose() {
+        queue = null;
+        if (jobExecution.isRunning()) {
+            for (StepExecution stepExecution : jobExecution.getStepExecutions()) {
+                stepExecution.setTerminateOnly();
+            }
+            jobExecution.setStatus(BatchStatus.STOPPING);
+        }
+        jobExecution = null;
+    }
+
+    public boolean isOpen() {
+        return jobExecution != null;
+    }
+
+    @Override
+    public synchronized KeyValue<K> read() throws Exception {
+        KeyValue<K> item;
+        do {
+            item = queue.poll(options.getQueueOptions().getPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        } while (item == null && jobExecution != null && jobExecution.isRunning());
+        if (jobExecution != null && jobExecution.getStatus().isUnsuccessful()) {
+            throw new ItemStreamException("Reader job failed");
+        }
+        return item;
+    }
+
+    public synchronized List<KeyValue<K>> read(int maxElements) {
+        List<KeyValue<K>> items = new ArrayList<>(maxElements);
+        queue.drainTo(items, maxElements);
+        return items;
+    }
 
 }

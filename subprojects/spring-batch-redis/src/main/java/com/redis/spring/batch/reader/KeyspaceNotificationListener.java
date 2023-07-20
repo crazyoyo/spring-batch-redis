@@ -2,6 +2,6 @@ package com.redis.spring.batch.reader;
 
 public interface KeyspaceNotificationListener {
 
-	void queueFull(KeyspaceNotification notitication);
+    void queueFull(KeyspaceNotification notitication);
 
 }

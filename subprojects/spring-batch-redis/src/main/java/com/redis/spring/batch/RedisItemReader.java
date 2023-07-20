@@ -15,104 +15,107 @@ import io.lettuce.core.codec.StringCodec;
 
 public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V> {
 
-	public static final ValueType DEFAULT_VALUE_TYPE = ValueType.DUMP;
+    public static final ValueType DEFAULT_VALUE_TYPE = ValueType.DUMP;
 
-	public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, ValueType valueType) {
-		super(client, codec, new ScanKeyItemReader<>(client, codec), valueType);
-	}
+    public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, ValueType valueType) {
+        super(client, codec, new ScanKeyItemReader<>(client, codec), valueType);
+    }
 
-	@Override
-	protected void doOpen() {
-		getKeyReader().setScanOptions(options.getScanOptions());
-		super.doOpen();
-	}
+    @Override
+    protected void doOpen() {
+        getKeyReader().setScanOptions(options.getScanOptions());
+        super.doOpen();
+    }
 
-	@SuppressWarnings("unchecked")
-	@Override
-	public ScanKeyItemReader<K, V> getKeyReader() {
-		return (ScanKeyItemReader<K, V>) super.getKeyReader();
-	}
+    @SuppressWarnings("unchecked")
+    @Override
+    public ScanKeyItemReader<K, V> getKeyReader() {
+        return (ScanKeyItemReader<K, V>) super.getKeyReader();
+    }
 
-	public static Builder<String, String> client(AbstractRedisClient client) {
-		return client(client, StringCodec.UTF8);
-	}
+    public static Builder<String, String> client(AbstractRedisClient client) {
+        return client(client, StringCodec.UTF8);
+    }
 
-	public static <K, V> Builder<K, V> client(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec);
-	}
+    public static <K, V> Builder<K, V> client(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        return new Builder<>(client, codec);
+    }
 
-	public static class BaseBuilder<K, V, B extends BaseBuilder<K, V, B>> {
+    public static class BaseBuilder<K, V, B extends BaseBuilder<K, V, B>> {
 
-		protected final AbstractRedisClient client;
-		protected final RedisCodec<K, V> codec;
+        protected final AbstractRedisClient client;
 
-		private JobRepository jobRepository;
-		private ReaderOptions options = ReaderOptions.builder().build();
-		private ItemProcessor<K, K> keyProcessor;
+        protected final RedisCodec<K, V> codec;
 
-		protected BaseBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			this.client = client;
-			this.codec = codec;
-		}
+        private JobRepository jobRepository;
 
-		@SuppressWarnings("unchecked")
-		public B jobRepository(JobRepository jobRepository) {
-			this.jobRepository = jobRepository;
-			return (B) this;
-		}
+        private ReaderOptions options = ReaderOptions.builder().build();
 
-		@SuppressWarnings("unchecked")
-		public B options(ReaderOptions options) {
-			this.options = options;
-			return (B) this;
-		}
+        private ItemProcessor<K, K> keyProcessor;
 
-		@SuppressWarnings("unchecked")
-		public B keyProcessor(ItemProcessor<K, K> processor) {
-			this.keyProcessor = processor;
-			return (B) this;
-		}
+        protected BaseBuilder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+            this.client = client;
+            this.codec = codec;
+        }
 
-		protected void configure(AbstractRedisItemReader<K, V> reader) {
-			reader.setJobRepository(jobRepository);
-			reader.setOptions(options);
-			reader.setKeyProcessor(keyProcessor);
-		}
+        @SuppressWarnings("unchecked")
+        public B jobRepository(JobRepository jobRepository) {
+            this.jobRepository = jobRepository;
+            return (B) this;
+        }
 
-		protected <B1 extends BaseBuilder<K, V, B1>> B1 toBuilder(B1 builder) {
-			builder.jobRepository(jobRepository);
-			builder.options(options);
-			builder.keyProcessor(keyProcessor);
-			return builder;
+        @SuppressWarnings("unchecked")
+        public B options(ReaderOptions options) {
+            this.options = options;
+            return (B) this;
+        }
 
-		}
+        @SuppressWarnings("unchecked")
+        public B keyProcessor(ItemProcessor<K, K> processor) {
+            this.keyProcessor = processor;
+            return (B) this;
+        }
 
-	}
+        protected void configure(AbstractRedisItemReader<K, V> reader) {
+            reader.setJobRepository(jobRepository);
+            reader.setOptions(options);
+            reader.setKeyProcessor(keyProcessor);
+        }
 
-	public static class Builder<K, V> extends BaseBuilder<K, V, Builder<K, V>> {
+        protected <B1 extends BaseBuilder<K, V, B1>> B1 toBuilder(B1 builder) {
+            builder.jobRepository(jobRepository);
+            builder.options(options);
+            builder.keyProcessor(keyProcessor);
+            return builder;
 
-		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec);
-		}
+        }
 
-		public LiveRedisItemReader.Builder<K, V> live() {
-			return toBuilder(new LiveRedisItemReader.Builder<>(client, codec));
-		}
+    }
 
-		public RedisItemReader<K, V> struct() {
-			return build(ValueType.STRUCT);
-		}
+    public static class Builder<K, V> extends BaseBuilder<K, V, Builder<K, V>> {
 
-		public RedisItemReader<K, V> dump() {
-			return build(ValueType.DUMP);
-		}
+        public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+            super(client, codec);
+        }
 
-		public RedisItemReader<K, V> build(ValueType valueType) {
-			RedisItemReader<K, V> reader = new RedisItemReader<>(client, codec, valueType);
-			configure(reader);
-			return reader;
-		}
+        public LiveRedisItemReader.Builder<K, V> live() {
+            return toBuilder(new LiveRedisItemReader.Builder<>(client, codec));
+        }
 
-	}
+        public RedisItemReader<K, V> struct() {
+            return build(ValueType.STRUCT);
+        }
+
+        public RedisItemReader<K, V> dump() {
+            return build(ValueType.DUMP);
+        }
+
+        public RedisItemReader<K, V> build(ValueType valueType) {
+            RedisItemReader<K, V> reader = new RedisItemReader<>(client, codec, valueType);
+            configure(reader);
+            return reader;
+        }
+
+    }
 
 }

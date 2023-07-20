@@ -4,71 +4,76 @@ import com.redis.spring.batch.common.PoolOptions;
 
 public class WriteOperationOptions {
 
-	private PoolOptions poolOptions = PoolOptions.builder().build();
-	private ReplicaWaitOptions replicaWaitOptions = ReplicaWaitOptions.builder().build();
-	private boolean multiExec;
+    private PoolOptions poolOptions = PoolOptions.builder().build();
 
-	private WriteOperationOptions(Builder builder) {
-		this.poolOptions = builder.poolOptions;
-		this.replicaWaitOptions = builder.replicaWaitOptions;
-		this.multiExec = builder.multiExec;
-	}
+    private ReplicaWaitOptions replicaWaitOptions = ReplicaWaitOptions.builder().build();
 
-	public PoolOptions getPoolOptions() {
-		return poolOptions;
-	}
+    private boolean multiExec;
 
-	public void setPoolOptions(PoolOptions poolOptions) {
-		this.poolOptions = poolOptions;
-	}
+    private WriteOperationOptions(Builder builder) {
+        this.poolOptions = builder.poolOptions;
+        this.replicaWaitOptions = builder.replicaWaitOptions;
+        this.multiExec = builder.multiExec;
+    }
 
-	public ReplicaWaitOptions getReplicaWaitOptions() {
-		return replicaWaitOptions;
-	}
+    public PoolOptions getPoolOptions() {
+        return poolOptions;
+    }
 
-	public void setReplicaWaitOptions(ReplicaWaitOptions replicaWaitOptions) {
-		this.replicaWaitOptions = replicaWaitOptions;
-	}
+    public void setPoolOptions(PoolOptions poolOptions) {
+        this.poolOptions = poolOptions;
+    }
 
-	public boolean isMultiExec() {
-		return multiExec;
-	}
+    public ReplicaWaitOptions getReplicaWaitOptions() {
+        return replicaWaitOptions;
+    }
 
-	public void setMultiExec(boolean multiExec) {
-		this.multiExec = multiExec;
-	}
+    public void setReplicaWaitOptions(ReplicaWaitOptions replicaWaitOptions) {
+        this.replicaWaitOptions = replicaWaitOptions;
+    }
 
-	public static Builder builder() {
-		return new Builder();
-	}
+    public boolean isMultiExec() {
+        return multiExec;
+    }
 
-	public static final class Builder {
+    public void setMultiExec(boolean multiExec) {
+        this.multiExec = multiExec;
+    }
 
-		private PoolOptions poolOptions = PoolOptions.builder().build();
-		private ReplicaWaitOptions replicaWaitOptions = ReplicaWaitOptions.builder().build();
-		private boolean multiExec;
+    public static Builder builder() {
+        return new Builder();
+    }
 
-		private Builder() {
-		}
+    public static final class Builder {
 
-		public Builder poolOptions(PoolOptions options) {
-			this.poolOptions = options;
-			return this;
-		}
+        private PoolOptions poolOptions = PoolOptions.builder().build();
 
-		public Builder replicaWaitOptions(ReplicaWaitOptions replicaWaitOptions) {
-			this.replicaWaitOptions = replicaWaitOptions;
-			return this;
-		}
+        private ReplicaWaitOptions replicaWaitOptions = ReplicaWaitOptions.builder().build();
 
-		public Builder multiExec(boolean multiExec) {
-			this.multiExec = multiExec;
-			return this;
-		}
+        private boolean multiExec;
 
-		public WriteOperationOptions build() {
-			return new WriteOperationOptions(this);
-		}
-	}
+        private Builder() {
+        }
+
+        public Builder poolOptions(PoolOptions options) {
+            this.poolOptions = options;
+            return this;
+        }
+
+        public Builder replicaWaitOptions(ReplicaWaitOptions replicaWaitOptions) {
+            this.replicaWaitOptions = replicaWaitOptions;
+            return this;
+        }
+
+        public Builder multiExec(boolean multiExec) {
+            this.multiExec = multiExec;
+            return this;
+        }
+
+        public WriteOperationOptions build() {
+            return new WriteOperationOptions(this);
+        }
+
+    }
 
 }

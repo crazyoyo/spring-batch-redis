@@ -7,14 +7,14 @@ import io.lettuce.core.api.async.RedisListAsyncCommands;
 
 public class Lpush<K, V, T> extends AbstractPushOperation<K, V, T> {
 
-	public Lpush(Function<T, K> key, Function<T, V> member) {
-		super(key, member);
-	}
+    public Lpush(Function<T, K> key, Function<T, V> member) {
+        super(key, member);
+    }
 
-	@SuppressWarnings("unchecked")
-	@Override
-	protected RedisFuture<Long> doPush(RedisListAsyncCommands<K, V> commands, K key, V value) {
-		return commands.lpush(key, value);
-	}
+    @SuppressWarnings("unchecked")
+    @Override
+    protected RedisFuture<Long> doPush(RedisListAsyncCommands<K, V> commands, K key, V value) {
+        return commands.lpush(key, value);
+    }
 
 }

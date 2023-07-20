@@ -8,19 +8,20 @@ import com.redis.lettucemod.timeseries.Sample;
 
 public class SampleConverter<T> implements Function<T, Sample> {
 
-	private final ToLongFunction<T> timestampConverter;
-	private final ToDoubleFunction<T> valueConverter;
+    private final ToLongFunction<T> timestampConverter;
 
-	public SampleConverter(ToLongFunction<T> timestamp, ToDoubleFunction<T> value) {
-		this.timestampConverter = timestamp;
-		this.valueConverter = value;
-	}
+    private final ToDoubleFunction<T> valueConverter;
 
-	@Override
-	public Sample apply(T source) {
-		double value = this.valueConverter.applyAsDouble(source);
-		long timestamp = this.timestampConverter.applyAsLong(source);
-		return Sample.of(timestamp, value);
-	}
+    public SampleConverter(ToLongFunction<T> timestamp, ToDoubleFunction<T> value) {
+        this.timestampConverter = timestamp;
+        this.valueConverter = value;
+    }
+
+    @Override
+    public Sample apply(T source) {
+        double value = this.valueConverter.applyAsDouble(source);
+        long timestamp = this.timestampConverter.applyAsLong(source);
+        return Sample.of(timestamp, value);
+    }
 
 }

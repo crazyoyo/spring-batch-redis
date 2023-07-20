@@ -4,57 +4,62 @@ import java.time.Duration;
 
 public class ReplicaWaitOptions {
 
-	public static final int DEFAULT_REPLICAS = 0;
-	public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(1);
+    public static final int DEFAULT_REPLICAS = 0;
 
-	private int replicas = DEFAULT_REPLICAS;
-	private Duration timeout = DEFAULT_TIMEOUT;
+    public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(1);
 
-	private ReplicaWaitOptions(Builder builder) {
-		this.replicas = builder.replicas;
-		this.timeout = builder.timeout;
-	}
+    private int replicas = DEFAULT_REPLICAS;
 
-	public int getReplicas() {
-		return replicas;
-	}
+    private Duration timeout = DEFAULT_TIMEOUT;
 
-	public void setReplicas(int replicas) {
-		this.replicas = replicas;
-	}
+    private ReplicaWaitOptions(Builder builder) {
+        this.replicas = builder.replicas;
+        this.timeout = builder.timeout;
+    }
 
-	public Duration getTimeout() {
-		return timeout;
-	}
+    public int getReplicas() {
+        return replicas;
+    }
 
-	public void setTimeout(Duration timeout) {
-		this.timeout = timeout;
-	}
+    public void setReplicas(int replicas) {
+        this.replicas = replicas;
+    }
 
-	public static Builder builder() {
-		return new Builder();
-	}
+    public Duration getTimeout() {
+        return timeout;
+    }
 
-	public static final class Builder {
-		private int replicas = DEFAULT_REPLICAS;
-		private Duration timeout = DEFAULT_TIMEOUT;
+    public void setTimeout(Duration timeout) {
+        this.timeout = timeout;
+    }
 
-		private Builder() {
-		}
+    public static Builder builder() {
+        return new Builder();
+    }
 
-		public Builder replicas(int replicas) {
-			this.replicas = replicas;
-			return this;
-		}
+    public static final class Builder {
 
-		public Builder timeout(Duration timeout) {
-			this.timeout = timeout;
-			return this;
-		}
+        private int replicas = DEFAULT_REPLICAS;
 
-		public ReplicaWaitOptions build() {
-			return new ReplicaWaitOptions(this);
-		}
-	}
+        private Duration timeout = DEFAULT_TIMEOUT;
+
+        private Builder() {
+        }
+
+        public Builder replicas(int replicas) {
+            this.replicas = replicas;
+            return this;
+        }
+
+        public Builder timeout(Duration timeout) {
+            this.timeout = timeout;
+            return this;
+        }
+
+        public ReplicaWaitOptions build() {
+            return new ReplicaWaitOptions(this);
+        }
+
+    }
 
 }

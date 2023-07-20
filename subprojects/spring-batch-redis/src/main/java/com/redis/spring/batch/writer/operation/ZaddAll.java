@@ -14,30 +14,32 @@ import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 
 public class ZaddAll<K, V, T> implements WriteOperation<K, V, T> {
 
-	private final Function<T, K> keyFunction;
-	private final Function<T, Collection<ScoredValue<V>>> membersFunction;
-	private final ZAddArgs args;
+    private final Function<T, K> keyFunction;
 
-	public ZaddAll(Function<T, K> key, Function<T, Collection<ScoredValue<V>>> members) {
-		this(key, members, null);
-	}
+    private final Function<T, Collection<ScoredValue<V>>> membersFunction;
 
-	public ZaddAll(Function<T, K> key, Function<T, Collection<ScoredValue<V>>> members, ZAddArgs args) {
-		this.keyFunction = key;
-		this.membersFunction = members;
-		this.args = args;
-	}
+    private final ZAddArgs args;
 
-	@SuppressWarnings("unchecked")
-	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-		Collection<ScoredValue<V>> members = membersFunction.apply(item);
-		if (members.isEmpty()) {
-			return;
-		}
-		K key = keyFunction.apply(item);
-		RedisSortedSetAsyncCommands<K, V> zset = (RedisSortedSetAsyncCommands<K, V>) commands;
-		futures.add(zset.zadd(key, args, members.toArray(new ScoredValue[0])));
-	}
+    public ZaddAll(Function<T, K> key, Function<T, Collection<ScoredValue<V>>> members) {
+        this(key, members, null);
+    }
+
+    public ZaddAll(Function<T, K> key, Function<T, Collection<ScoredValue<V>>> members, ZAddArgs args) {
+        this.keyFunction = key;
+        this.membersFunction = members;
+        this.args = args;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
+        Collection<ScoredValue<V>> members = membersFunction.apply(item);
+        if (members.isEmpty()) {
+            return;
+        }
+        K key = keyFunction.apply(item);
+        RedisSortedSetAsyncCommands<K, V> zset = (RedisSortedSetAsyncCommands<K, V>) commands;
+        futures.add(zset.zadd(key, args, members.toArray(new ScoredValue[0])));
+    }
 
 }

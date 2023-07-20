@@ -2,16 +2,16 @@ package com.redis.spring.batch.reader;
 
 public interface ItemStreamListener {
 
-	void beforeOpen();
+    void beforeOpen();
 
-	void afterOpen();
+    void afterOpen();
 
-	void beforeClose();
+    void beforeClose();
 
-	void afterClose();
+    void afterClose();
 
-	void beforeUpdate();
+    void beforeUpdate();
 
-	void afterUpdate();
+    void afterUpdate();
 
 }

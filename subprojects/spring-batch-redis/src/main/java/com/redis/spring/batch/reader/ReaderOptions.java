@@ -8,146 +8,160 @@ import io.lettuce.core.ReadFrom;
 
 public class ReaderOptions {
 
-	public static final int DEFAULT_THREADS = 1;
-	public static final int DEFAULT_CHUNK_SIZE = 50;
+    public static final int DEFAULT_THREADS = 1;
 
-	private int threads = DEFAULT_THREADS;
-	private int chunkSize = DEFAULT_CHUNK_SIZE;
-	private PoolOptions poolOptions = PoolOptions.builder().build();
-	private Optional<ReadFrom> readFrom = Optional.empty();
-	private ScanOptions scanOptions = ScanOptions.builder().build();
-	private QueueOptions queueOptions = QueueOptions.builder().build();
-	private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
+    public static final int DEFAULT_CHUNK_SIZE = 50;
 
-	private ReaderOptions(Builder builder) {
-		this.threads = builder.threads;
-		this.chunkSize = builder.chunkSize;
-		this.poolOptions = builder.poolOptions;
-		this.scanOptions = builder.scanOptions;
-		this.readFrom = builder.readFrom;
-		this.queueOptions = builder.queueOptions;
-		this.memoryUsageOptions = builder.memoryUsageOptions;
-	}
+    private int threads = DEFAULT_THREADS;
 
-	public MemoryUsageOptions getMemoryUsageOptions() {
-		return memoryUsageOptions;
-	}
+    private int chunkSize = DEFAULT_CHUNK_SIZE;
 
-	public void setMemoryUsageOptions(MemoryUsageOptions memoryUsageOptions) {
-		this.memoryUsageOptions = memoryUsageOptions;
-	}
+    private PoolOptions poolOptions = PoolOptions.builder().build();
 
-	public int getThreads() {
-		return threads;
-	}
+    private Optional<ReadFrom> readFrom = Optional.empty();
 
-	public void setThreads(int threads) {
-		this.threads = threads;
-	}
+    private ScanOptions scanOptions = ScanOptions.builder().build();
 
-	public int getChunkSize() {
-		return chunkSize;
-	}
+    private QueueOptions queueOptions = QueueOptions.builder().build();
 
-	public void setChunkSize(int chunkSize) {
-		this.chunkSize = chunkSize;
-	}
+    private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
 
-	public PoolOptions getPoolOptions() {
-		return poolOptions;
-	}
+    private ReaderOptions(Builder builder) {
+        this.threads = builder.threads;
+        this.chunkSize = builder.chunkSize;
+        this.poolOptions = builder.poolOptions;
+        this.scanOptions = builder.scanOptions;
+        this.readFrom = builder.readFrom;
+        this.queueOptions = builder.queueOptions;
+        this.memoryUsageOptions = builder.memoryUsageOptions;
+    }
 
-	public void setPoolOptions(PoolOptions poolOptions) {
-		this.poolOptions = poolOptions;
-	}
+    public MemoryUsageOptions getMemoryUsageOptions() {
+        return memoryUsageOptions;
+    }
 
-	public ScanOptions getScanOptions() {
-		return scanOptions;
-	}
+    public void setMemoryUsageOptions(MemoryUsageOptions memoryUsageOptions) {
+        this.memoryUsageOptions = memoryUsageOptions;
+    }
 
-	public void setScanOptions(ScanOptions scanOptions) {
-		this.scanOptions = scanOptions;
-	}
+    public int getThreads() {
+        return threads;
+    }
 
-	public Optional<ReadFrom> getReadFrom() {
-		return readFrom;
-	}
+    public void setThreads(int threads) {
+        this.threads = threads;
+    }
 
-	public void setReadFrom(ReadFrom readFrom) {
-		setReadFrom(Optional.of(readFrom));
-	}
+    public int getChunkSize() {
+        return chunkSize;
+    }
 
-	public void setReadFrom(Optional<ReadFrom> readFrom) {
-		this.readFrom = readFrom;
-	}
+    public void setChunkSize(int chunkSize) {
+        this.chunkSize = chunkSize;
+    }
 
-	public QueueOptions getQueueOptions() {
-		return queueOptions;
-	}
+    public PoolOptions getPoolOptions() {
+        return poolOptions;
+    }
 
-	public void setQueueOptions(QueueOptions queueOptions) {
-		this.queueOptions = queueOptions;
-	}
+    public void setPoolOptions(PoolOptions poolOptions) {
+        this.poolOptions = poolOptions;
+    }
 
-	public static Builder builder() {
-		return new Builder();
-	}
+    public ScanOptions getScanOptions() {
+        return scanOptions;
+    }
 
-	public static final class Builder {
+    public void setScanOptions(ScanOptions scanOptions) {
+        this.scanOptions = scanOptions;
+    }
 
-		private int threads = DEFAULT_THREADS;
-		private int chunkSize = DEFAULT_CHUNK_SIZE;
-		private PoolOptions poolOptions = PoolOptions.builder().build();
-		private Optional<ReadFrom> readFrom = Optional.empty();
-		private ScanOptions scanOptions = ScanOptions.builder().build();
-		private QueueOptions queueOptions = QueueOptions.builder().build();
-		private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
+    public Optional<ReadFrom> getReadFrom() {
+        return readFrom;
+    }
 
-		private Builder() {
-		}
+    public void setReadFrom(ReadFrom readFrom) {
+        setReadFrom(Optional.of(readFrom));
+    }
 
-		public Builder memoryUsageOptions(MemoryUsageOptions options) {
-			this.memoryUsageOptions = options;
-			return this;
-		}
+    public void setReadFrom(Optional<ReadFrom> readFrom) {
+        this.readFrom = readFrom;
+    }
 
-		public Builder threads(int threads) {
-			this.threads = threads;
-			return this;
-		}
+    public QueueOptions getQueueOptions() {
+        return queueOptions;
+    }
 
-		public Builder chunkSize(int chunkSize) {
-			this.chunkSize = chunkSize;
-			return this;
-		}
+    public void setQueueOptions(QueueOptions queueOptions) {
+        this.queueOptions = queueOptions;
+    }
 
-		public Builder scanOptions(ScanOptions options) {
-			this.scanOptions = options;
-			return this;
-		}
+    public static Builder builder() {
+        return new Builder();
+    }
 
-		public Builder poolOptions(PoolOptions options) {
-			this.poolOptions = options;
-			return this;
-		}
+    public static final class Builder {
 
-		public Builder readFrom(ReadFrom readFrom) {
-			return readFrom(Optional.of(readFrom));
-		}
+        private int threads = DEFAULT_THREADS;
 
-		public Builder readFrom(Optional<ReadFrom> readFrom) {
-			this.readFrom = readFrom;
-			return this;
-		}
+        private int chunkSize = DEFAULT_CHUNK_SIZE;
 
-		public Builder queueOptions(QueueOptions options) {
-			this.queueOptions = options;
-			return this;
-		}
+        private PoolOptions poolOptions = PoolOptions.builder().build();
 
-		public ReaderOptions build() {
-			return new ReaderOptions(this);
-		}
-	}
+        private Optional<ReadFrom> readFrom = Optional.empty();
+
+        private ScanOptions scanOptions = ScanOptions.builder().build();
+
+        private QueueOptions queueOptions = QueueOptions.builder().build();
+
+        private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
+
+        private Builder() {
+        }
+
+        public Builder memoryUsageOptions(MemoryUsageOptions options) {
+            this.memoryUsageOptions = options;
+            return this;
+        }
+
+        public Builder threads(int threads) {
+            this.threads = threads;
+            return this;
+        }
+
+        public Builder chunkSize(int chunkSize) {
+            this.chunkSize = chunkSize;
+            return this;
+        }
+
+        public Builder scanOptions(ScanOptions options) {
+            this.scanOptions = options;
+            return this;
+        }
+
+        public Builder poolOptions(PoolOptions options) {
+            this.poolOptions = options;
+            return this;
+        }
+
+        public Builder readFrom(ReadFrom readFrom) {
+            return readFrom(Optional.of(readFrom));
+        }
+
+        public Builder readFrom(Optional<ReadFrom> readFrom) {
+            this.readFrom = readFrom;
+            return this;
+        }
+
+        public Builder queueOptions(QueueOptions options) {
+            this.queueOptions = options;
+            return this;
+        }
+
+        public ReaderOptions build() {
+            return new ReaderOptions(this);
+        }
+
+    }
 
 }

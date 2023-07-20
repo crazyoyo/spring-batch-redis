@@ -8,13 +8,13 @@ import io.lettuce.core.api.async.RedisListAsyncCommands;
 
 public class LpushAll<K, V, T> extends AbstractPushAllOperation<K, V, T> {
 
-	public LpushAll(Function<T, K> key, Function<T, Collection<V>> values) {
-		super(key, values);
-	}
+    public LpushAll(Function<T, K> key, Function<T, Collection<V>> values) {
+        super(key, values);
+    }
 
-	@Override
-	protected RedisFuture<Long> doPush(RedisListAsyncCommands<K, V> commands, K key, V[] values) {
-		return commands.lpush(key, values);
-	}
+    @Override
+    protected RedisFuture<Long> doPush(RedisListAsyncCommands<K, V> commands, K key, V[] values) {
+        return commands.lpush(key, values);
+    }
 
 }

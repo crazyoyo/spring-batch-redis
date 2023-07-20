@@ -2,75 +2,82 @@ package com.redis.spring.batch.writer;
 
 public class WriterOptions {
 
-	public static final MergePolicy DEFAULT_MERGE_POLICY = MergePolicy.OVERWRITE;
-	public static final StreamIdPolicy DEFAULT_STREAM_ID_POLICY = StreamIdPolicy.PROPAGATE;
-	public static final TtlPolicy DEFAULT_TTL_POLICY = TtlPolicy.PROPAGATE;
+    public static final MergePolicy DEFAULT_MERGE_POLICY = MergePolicy.OVERWRITE;
 
-	private TtlPolicy ttlPolicy = DEFAULT_TTL_POLICY;
-	private MergePolicy mergePolicy = DEFAULT_MERGE_POLICY;
-	private StreamIdPolicy streamIdPolicy = DEFAULT_STREAM_ID_POLICY;
+    public static final StreamIdPolicy DEFAULT_STREAM_ID_POLICY = StreamIdPolicy.PROPAGATE;
 
-	private WriterOptions(Builder builder) {
-		this.mergePolicy = builder.mergePolicy;
-		this.streamIdPolicy = builder.streamIdPolicy;
-		this.ttlPolicy = builder.ttlPolicy;
-	}
+    public static final TtlPolicy DEFAULT_TTL_POLICY = TtlPolicy.PROPAGATE;
 
-	public TtlPolicy getTtlPolicy() {
-		return ttlPolicy;
-	}
+    private TtlPolicy ttlPolicy = DEFAULT_TTL_POLICY;
 
-	public void setTtlPolicy(TtlPolicy policy) {
-		this.ttlPolicy = policy;
-	}
+    private MergePolicy mergePolicy = DEFAULT_MERGE_POLICY;
 
-	public MergePolicy getMergePolicy() {
-		return mergePolicy;
-	}
+    private StreamIdPolicy streamIdPolicy = DEFAULT_STREAM_ID_POLICY;
 
-	public void setMergePolicy(MergePolicy policy) {
-		this.mergePolicy = policy;
-	}
+    private WriterOptions(Builder builder) {
+        this.mergePolicy = builder.mergePolicy;
+        this.streamIdPolicy = builder.streamIdPolicy;
+        this.ttlPolicy = builder.ttlPolicy;
+    }
 
-	public StreamIdPolicy getStreamIdPolicy() {
-		return streamIdPolicy;
-	}
+    public TtlPolicy getTtlPolicy() {
+        return ttlPolicy;
+    }
 
-	public void setStreamIdPolicy(StreamIdPolicy policy) {
-		this.streamIdPolicy = policy;
-	}
+    public void setTtlPolicy(TtlPolicy policy) {
+        this.ttlPolicy = policy;
+    }
 
-	public static Builder builder() {
-		return new Builder();
-	}
+    public MergePolicy getMergePolicy() {
+        return mergePolicy;
+    }
 
-	public static final class Builder {
+    public void setMergePolicy(MergePolicy policy) {
+        this.mergePolicy = policy;
+    }
 
-		private TtlPolicy ttlPolicy = DEFAULT_TTL_POLICY;
-		private MergePolicy mergePolicy = DEFAULT_MERGE_POLICY;
-		private StreamIdPolicy streamIdPolicy = DEFAULT_STREAM_ID_POLICY;
+    public StreamIdPolicy getStreamIdPolicy() {
+        return streamIdPolicy;
+    }
 
-		private Builder() {
-		}
+    public void setStreamIdPolicy(StreamIdPolicy policy) {
+        this.streamIdPolicy = policy;
+    }
 
-		public Builder ttlPolicy(TtlPolicy policy) {
-			this.ttlPolicy = policy;
-			return this;
-		}
+    public static Builder builder() {
+        return new Builder();
+    }
 
-		public Builder mergePolicy(MergePolicy policy) {
-			this.mergePolicy = policy;
-			return this;
-		}
+    public static final class Builder {
 
-		public Builder streamIdPolicy(StreamIdPolicy policy) {
-			this.streamIdPolicy = policy;
-			return this;
-		}
+        private TtlPolicy ttlPolicy = DEFAULT_TTL_POLICY;
 
-		public WriterOptions build() {
-			return new WriterOptions(this);
-		}
-	}
+        private MergePolicy mergePolicy = DEFAULT_MERGE_POLICY;
+
+        private StreamIdPolicy streamIdPolicy = DEFAULT_STREAM_ID_POLICY;
+
+        private Builder() {
+        }
+
+        public Builder ttlPolicy(TtlPolicy policy) {
+            this.ttlPolicy = policy;
+            return this;
+        }
+
+        public Builder mergePolicy(MergePolicy policy) {
+            this.mergePolicy = policy;
+            return this;
+        }
+
+        public Builder streamIdPolicy(StreamIdPolicy policy) {
+            this.streamIdPolicy = policy;
+            return this;
+        }
+
+        public WriterOptions build() {
+            return new WriterOptions(this);
+        }
+
+    }
 
 }

@@ -21,121 +21,123 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class LiveRedisItemReader<K, V> extends AbstractRedisItemReader<K, V>
-		implements PollableItemReader<KeyValue<K>> {
+public class LiveRedisItemReader<K, V> extends AbstractRedisItemReader<K, V> implements PollableItemReader<KeyValue<K>> {
 
-	private final Function<K, String> keyEncoder;
-	private KeyspaceNotificationOptions keyspaceNotificationOptions = KeyspaceNotificationOptions.builder().build();
-	private FlushingStepOptions flushingOptions = FlushingStepOptions.builder().build();
+    private final Function<K, String> keyEncoder;
 
-	public LiveRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, ValueType valueType) {
-		super(client, codec, new KeyspaceNotificationItemReader<>(client, codec), valueType);
-		this.keyEncoder = Utils.toStringKeyFunction(codec);
-	}
+    private KeyspaceNotificationOptions keyspaceNotificationOptions = KeyspaceNotificationOptions.builder().build();
 
-	@SuppressWarnings("unchecked")
-	@Override
-	public KeyspaceNotificationItemReader<K, V> getKeyReader() {
-		return (KeyspaceNotificationItemReader<K, V>) super.getKeyReader();
-	}
+    private FlushingStepOptions flushingOptions = FlushingStepOptions.builder().build();
 
-	@Override
-	protected void doOpen() {
-		getKeyReader().setKeyspaceNotificationOptions(keyspaceNotificationOptions);
-		getKeyReader().setScanOptions(options.getScanOptions());
-		super.doOpen();
-	}
+    public LiveRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, ValueType valueType) {
+        super(client, codec, new KeyspaceNotificationItemReader<>(client, codec), valueType);
+        this.keyEncoder = Utils.toStringKeyFunction(codec);
+    }
 
-	@Override
-	public KeyValue<K> poll(long timeout, TimeUnit unit) throws InterruptedException {
-		return queue.poll(timeout, unit);
-	}
+    @SuppressWarnings("unchecked")
+    @Override
+    public KeyspaceNotificationItemReader<K, V> getKeyReader() {
+        return (KeyspaceNotificationItemReader<K, V>) super.getKeyReader();
+    }
 
-	public KeyspaceNotificationOptions getKeyspaceNotificationOptions() {
-		return keyspaceNotificationOptions;
-	}
+    @Override
+    protected void doOpen() {
+        getKeyReader().setKeyspaceNotificationOptions(keyspaceNotificationOptions);
+        getKeyReader().setScanOptions(options.getScanOptions());
+        super.doOpen();
+    }
 
-	public void setKeyspaceNotificationOptions(KeyspaceNotificationOptions keyspaceNotificationOptions) {
-		this.keyspaceNotificationOptions = keyspaceNotificationOptions;
-	}
+    @Override
+    public KeyValue<K> poll(long timeout, TimeUnit unit) throws InterruptedException {
+        return queue.poll(timeout, unit);
+    }
 
-	public FlushingStepOptions getFlushingOptions() {
-		return flushingOptions;
-	}
+    public KeyspaceNotificationOptions getKeyspaceNotificationOptions() {
+        return keyspaceNotificationOptions;
+    }
 
-	public void setFlushingOptions(FlushingStepOptions options) {
-		this.flushingOptions = options;
-	}
+    public void setKeyspaceNotificationOptions(KeyspaceNotificationOptions keyspaceNotificationOptions) {
+        this.keyspaceNotificationOptions = keyspaceNotificationOptions;
+    }
 
-	@Override
-	protected SimpleStepBuilder<K, K> step() {
-		return new FlushingStepBuilder<>(super.step()).options(flushingOptions);
-	}
+    public FlushingStepOptions getFlushingOptions() {
+        return flushingOptions;
+    }
 
-	@Override
-	protected ItemWriter<KeyValue<K>> queueWriter() {
-		ItemWriter<KeyValue<K>> queueWriter = super.queueWriter();
-		CompositeItemWriter<KeyValue<K>> compositeWriter = new CompositeItemWriter<>();
-		compositeWriter.setDelegates(Arrays.asList(queueWriter, new BigKeyItemWriter()));
-		return compositeWriter;
-	}
+    public void setFlushingOptions(FlushingStepOptions options) {
+        this.flushingOptions = options;
+    }
 
-	private class BigKeyItemWriter implements ItemWriter<KeyValue<K>> {
+    @Override
+    protected SimpleStepBuilder<K, K> step() {
+        return new FlushingStepBuilder<>(super.step()).options(flushingOptions);
+    }
 
-		private final long memLimit = options.getMemoryUsageOptions().getLimit().toBytes();
+    @Override
+    protected ItemWriter<KeyValue<K>> queueWriter() {
+        ItemWriter<KeyValue<K>> queueWriter = super.queueWriter();
+        CompositeItemWriter<KeyValue<K>> compositeWriter = new CompositeItemWriter<>();
+        compositeWriter.setDelegates(Arrays.asList(queueWriter, new BigKeyItemWriter()));
+        return compositeWriter;
+    }
 
-		@Override
-		public void write(List<? extends KeyValue<K>> items) throws Exception {
-			List<String> bigKeys = items.stream().filter(v -> v.getMemoryUsage() > memLimit).map(KeyValue::getKey)
-					.map(keyEncoder).collect(Collectors.toList());
-			getKeyReader().blockKeys(bigKeys);
-		}
+    private class BigKeyItemWriter implements ItemWriter<KeyValue<K>> {
 
-	}
+        private final long memLimit = options.getMemoryUsageOptions().getLimit().toBytes();
 
-	public static Builder<String, String> client(AbstractRedisClient client) {
-		return new Builder<>(client, StringCodec.UTF8);
-	}
+        @Override
+        public void write(List<? extends KeyValue<K>> items) throws Exception {
+            List<String> bigKeys = items.stream().filter(v -> v.getMemoryUsage() > memLimit).map(KeyValue::getKey)
+                    .map(keyEncoder).collect(Collectors.toList());
+            getKeyReader().blockKeys(bigKeys);
+        }
 
-	public static <K, V> Builder<K, V> client(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec);
-	}
+    }
 
-	public static class Builder<K, V> extends BaseBuilder<K, V, Builder<K, V>> {
+    public static Builder<String, String> client(AbstractRedisClient client) {
+        return new Builder<>(client, StringCodec.UTF8);
+    }
 
-		private KeyspaceNotificationOptions keyspaceNotificationOptions = KeyspaceNotificationOptions.builder().build();
-		private FlushingStepOptions flushingOptions = FlushingStepOptions.builder().build();
+    public static <K, V> Builder<K, V> client(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        return new Builder<>(client, codec);
+    }
 
-		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec);
-		}
+    public static class Builder<K, V> extends BaseBuilder<K, V, Builder<K, V>> {
 
-		public Builder<K, V> keyspaceNotificationOptions(KeyspaceNotificationOptions options) {
-			this.keyspaceNotificationOptions = options;
-			return this;
-		}
+        private KeyspaceNotificationOptions keyspaceNotificationOptions = KeyspaceNotificationOptions.builder().build();
 
-		public Builder<K, V> flushingOptions(FlushingStepOptions options) {
-			this.flushingOptions = options;
-			return this;
-		}
+        private FlushingStepOptions flushingOptions = FlushingStepOptions.builder().build();
 
-		public LiveRedisItemReader<K, V> dump() {
-			return build(ValueType.DUMP);
-		}
+        public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+            super(client, codec);
+        }
 
-		public LiveRedisItemReader<K, V> struct() {
-			return build(ValueType.STRUCT);
-		}
+        public Builder<K, V> keyspaceNotificationOptions(KeyspaceNotificationOptions options) {
+            this.keyspaceNotificationOptions = options;
+            return this;
+        }
 
-		public LiveRedisItemReader<K, V> build(ValueType valueType) {
-			LiveRedisItemReader<K, V> reader = new LiveRedisItemReader<>(client, codec, valueType);
-			configure(reader);
-			reader.setFlushingOptions(flushingOptions);
-			reader.setKeyspaceNotificationOptions(keyspaceNotificationOptions);
-			return reader;
-		}
+        public Builder<K, V> flushingOptions(FlushingStepOptions options) {
+            this.flushingOptions = options;
+            return this;
+        }
 
-	}
+        public LiveRedisItemReader<K, V> dump() {
+            return build(ValueType.DUMP);
+        }
+
+        public LiveRedisItemReader<K, V> struct() {
+            return build(ValueType.STRUCT);
+        }
+
+        public LiveRedisItemReader<K, V> build(ValueType valueType) {
+            LiveRedisItemReader<K, V> reader = new LiveRedisItemReader<>(client, codec, valueType);
+            configure(reader);
+            reader.setFlushingOptions(flushingOptions);
+            reader.setKeyspaceNotificationOptions(keyspaceNotificationOptions);
+            return reader;
+        }
+
+    }
 
 }

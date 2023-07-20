@@ -7,6 +7,6 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public interface Operation<K, V, I, O> {
 
-	void execute(BaseRedisAsyncCommands<K, V> commands, I item, List<RedisFuture<O>> futures);
+    void execute(BaseRedisAsyncCommands<K, V> commands, I item, List<RedisFuture<O>> futures);
 
 }

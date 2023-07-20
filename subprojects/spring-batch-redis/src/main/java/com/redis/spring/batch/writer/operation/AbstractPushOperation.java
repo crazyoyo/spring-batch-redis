@@ -8,19 +8,19 @@ import io.lettuce.core.api.async.RedisListAsyncCommands;
 
 public abstract class AbstractPushOperation<K, V, T> extends AbstractWriteOperation<K, V, T> {
 
-	private final Function<T, V> value;
+    private final Function<T, V> value;
 
-	protected AbstractPushOperation(Function<T, K> key, Function<T, V> value) {
-		super(key);
-		this.value = value;
-	}
+    protected AbstractPushOperation(Function<T, K> key, Function<T, V> value) {
+        super(key);
+        this.value = value;
+    }
 
-	@SuppressWarnings("unchecked")
-	@Override
-	protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-		return doPush((RedisListAsyncCommands<K, V>) commands, key, value.apply(item));
-	}
+    @SuppressWarnings("unchecked")
+    @Override
+    protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        return doPush((RedisListAsyncCommands<K, V>) commands, key, value.apply(item));
+    }
 
-	protected abstract RedisFuture<Long> doPush(RedisListAsyncCommands<K, V> commands, K key, V value);
+    protected abstract RedisFuture<Long> doPush(RedisListAsyncCommands<K, V> commands, K key, V value);
 
 }

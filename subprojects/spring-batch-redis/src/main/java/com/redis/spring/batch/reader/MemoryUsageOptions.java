@@ -4,63 +4,66 @@ import org.springframework.util.unit.DataSize;
 
 public class MemoryUsageOptions {
 
-	public static final DataSize DEFAULT_LIMIT = DataSize.ofBytes(0);
-	public static final int DEFAULT_SAMPLES = 5;
+    public static final DataSize DEFAULT_LIMIT = DataSize.ofBytes(0);
 
-	private DataSize limit = DEFAULT_LIMIT;
-	private int samples = DEFAULT_SAMPLES;
+    public static final int DEFAULT_SAMPLES = 5;
 
-	private MemoryUsageOptions(Builder builder) {
-		this.limit = builder.limit;
-		this.samples = builder.samples;
-	}
+    private DataSize limit = DEFAULT_LIMIT;
 
-	public DataSize getLimit() {
-		return limit;
-	}
+    private int samples = DEFAULT_SAMPLES;
 
-	/**
-	 * 
-	 * @param limit maximum memory usage for a given key. Use 0 to disable memory
-	 *              usage checks, -1 for no limit.
-	 */
-	public void setLimit(DataSize limit) {
-		this.limit = limit;
-	}
+    private MemoryUsageOptions(Builder builder) {
+        this.limit = builder.limit;
+        this.samples = builder.samples;
+    }
 
-	public int getSamples() {
-		return samples;
-	}
+    public DataSize getLimit() {
+        return limit;
+    }
 
-	public void setSamples(int samples) {
-		this.samples = samples;
-	}
+    /**
+     * 
+     * @param limit maximum memory usage for a given key. Use 0 to disable memory usage checks, -1 for no limit.
+     */
+    public void setLimit(DataSize limit) {
+        this.limit = limit;
+    }
 
-	public static Builder builder() {
-		return new Builder();
-	}
+    public int getSamples() {
+        return samples;
+    }
 
-	public static final class Builder {
+    public void setSamples(int samples) {
+        this.samples = samples;
+    }
 
-		private DataSize limit = DEFAULT_LIMIT;
-		private int samples = DEFAULT_SAMPLES;
+    public static Builder builder() {
+        return new Builder();
+    }
 
-		private Builder() {
-		}
+    public static final class Builder {
 
-		public Builder limit(DataSize limit) {
-			this.limit = limit;
-			return this;
-		}
+        private DataSize limit = DEFAULT_LIMIT;
 
-		public Builder samples(int samples) {
-			this.samples = samples;
-			return this;
-		}
+        private int samples = DEFAULT_SAMPLES;
 
-		public MemoryUsageOptions build() {
-			return new MemoryUsageOptions(this);
-		}
-	}
+        private Builder() {
+        }
+
+        public Builder limit(DataSize limit) {
+            this.limit = limit;
+            return this;
+        }
+
+        public Builder samples(int samples) {
+            this.samples = samples;
+            return this;
+        }
+
+        public MemoryUsageOptions build() {
+            return new MemoryUsageOptions(this);
+        }
+
+    }
 
 }

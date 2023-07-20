@@ -12,20 +12,20 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public abstract class AbstractWriteOperation<K, V, T> implements WriteOperation<K, V, T> {
 
-	private final Function<T, K> keyFunction;
+    private final Function<T, K> keyFunction;
 
-	protected AbstractWriteOperation(Function<T, K> key) {
-		Assert.notNull(key, "A key function is required");
-		this.keyFunction = key;
-	}
+    protected AbstractWriteOperation(Function<T, K> key) {
+        Assert.notNull(key, "A key function is required");
+        this.keyFunction = key;
+    }
 
-	@SuppressWarnings("unchecked")
-	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-		futures.add(execute(commands, item, keyFunction.apply(item)));
-	}
+    @SuppressWarnings("unchecked")
+    @Override
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
+        futures.add(execute(commands, item, keyFunction.apply(item)));
+    }
 
-	@SuppressWarnings("rawtypes")
-	protected abstract RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item, K key);
+    @SuppressWarnings("rawtypes")
+    protected abstract RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item, K key);
 
 }

@@ -13,20 +13,20 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public class XAddAll<K, V, T> implements WriteOperation<K, V, T> {
 
-	private final Function<T, Collection<StreamMessage<K, V>>> messagesFunction;
-	private final Xadd<K, V, StreamMessage<K, V>> xadd;
+    private final Function<T, Collection<StreamMessage<K, V>>> messagesFunction;
 
-	public XAddAll(Function<T, Collection<StreamMessage<K, V>>> messages,
-			Function<StreamMessage<K, V>, XAddArgs> args) {
-		this.messagesFunction = messages;
-		this.xadd = new Xadd<>(StreamMessage::getStream, StreamMessage::getBody, args);
-	}
+    private final Xadd<K, V, StreamMessage<K, V>> xadd;
 
-	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-		for (StreamMessage<K, V> message : messagesFunction.apply(item)) {
-			xadd.execute(commands, message, futures);
-		}
-	}
+    public XAddAll(Function<T, Collection<StreamMessage<K, V>>> messages, Function<StreamMessage<K, V>, XAddArgs> args) {
+        this.messagesFunction = messages;
+        this.xadd = new Xadd<>(StreamMessage::getStream, StreamMessage::getBody, args);
+    }
+
+    @Override
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
+        for (StreamMessage<K, V> message : messagesFunction.apply(item)) {
+            xadd.execute(commands, message, futures);
+        }
+    }
 
 }

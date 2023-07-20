@@ -8,33 +8,34 @@ import io.lettuce.core.codec.StringCodec;
 
 public class OperationItemWriter<K, V, T> extends AbstractOperationItemWriter<K, V, T> {
 
-	private final WriteOperation<K, V, T> operation;
+    private final WriteOperation<K, V, T> operation;
 
-	public OperationItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec, WriteOperation<K, V, T> operation) {
-		super(client, codec);
-		this.operation = operation;
-	}
+    public OperationItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec, WriteOperation<K, V, T> operation) {
+        super(client, codec);
+        this.operation = operation;
+    }
 
-	@Override
-	protected WriteOperation<K, V, T> operation() {
-		return operation;
-	}
+    @Override
+    protected WriteOperation<K, V, T> operation() {
+        return operation;
+    }
 
-	public static Builder<String, String> builder(AbstractRedisClient client) {
-		return new Builder<>(client, StringCodec.UTF8);
-	}
+    public static Builder<String, String> builder(AbstractRedisClient client) {
+        return new Builder<>(client, StringCodec.UTF8);
+    }
 
-	public static class Builder<K, V> extends RedisItemWriter.BaseBuilder<K, V, Builder<K, V>> {
+    public static class Builder<K, V> extends RedisItemWriter.BaseBuilder<K, V, Builder<K, V>> {
 
-		protected Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			super(client, codec);
-		}
+        protected Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+            super(client, codec);
+        }
 
-		public <T> OperationItemWriter<K, V, T> build(WriteOperation<K, V, T> operation) {
-			OperationItemWriter<K, V, T> writer = new OperationItemWriter<>(client, codec, operation);
-			configure(writer);
-			return writer;
-		}
+        public <T> OperationItemWriter<K, V, T> build(WriteOperation<K, V, T> operation) {
+            OperationItemWriter<K, V, T> writer = new OperationItemWriter<>(client, codec, operation);
+            configure(writer);
+            return writer;
+        }
 
-	}
+    }
+
 }

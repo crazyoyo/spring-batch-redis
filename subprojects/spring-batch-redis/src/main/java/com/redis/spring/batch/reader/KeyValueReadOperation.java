@@ -17,88 +17,92 @@ import io.lettuce.core.codec.StringCodec;
 
 public class KeyValueReadOperation<K, V> implements Operation<K, V, K, List<Object>> {
 
-	private static final String FILENAME = "keyvalue.lua";
+    private static final String FILENAME = "keyvalue.lua";
 
-	private final String digest;
-	private final Function<String, V> stringValueFunction;
+    private final String digest;
 
-	private ValueType valueType = ValueType.DUMP;
-	private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
+    private final Function<String, V> stringValueFunction;
 
-	public KeyValueReadOperation(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		this.digest = Utils.loadScript(client, FILENAME);
-		this.stringValueFunction = Utils.stringValueFunction(codec);
-	}
+    private ValueType valueType = ValueType.DUMP;
 
-	public ValueType getValueType() {
-		return valueType;
-	}
+    private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
 
-	public void setValueType(ValueType valueType) {
-		this.valueType = valueType;
-	}
+    public KeyValueReadOperation(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        this.digest = Utils.loadScript(client, FILENAME);
+        this.stringValueFunction = Utils.stringValueFunction(codec);
+    }
 
-	public MemoryUsageOptions getMemoryUsageOptions() {
-		return memoryUsageOptions;
-	}
+    public ValueType getValueType() {
+        return valueType;
+    }
 
-	public void setMemoryUsageOptions(MemoryUsageOptions options) {
-		this.memoryUsageOptions = options;
-	}
+    public void setValueType(ValueType valueType) {
+        this.valueType = valueType;
+    }
 
-	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, K key, List<RedisFuture<List<Object>>> futures) {
-		futures.add(execute(commands, key));
-	}
+    public MemoryUsageOptions getMemoryUsageOptions() {
+        return memoryUsageOptions;
+    }
 
-	@SuppressWarnings("unchecked")
-	public RedisFuture<List<Object>> execute(BaseRedisAsyncCommands<K, V> commands, K key) {
-		RedisScriptingAsyncCommands<K, V> scripting = (RedisScriptingAsyncCommands<K, V>) commands;
-		Object[] keys = { key };
-		V[] args = encode(memoryUsageOptions.getLimit().toBytes(), memoryUsageOptions.getSamples(), valueType.name());
-		return scripting.evalsha(digest, ScriptOutputType.MULTI, (K[]) keys, args);
-	}
+    public void setMemoryUsageOptions(MemoryUsageOptions options) {
+        this.memoryUsageOptions = options;
+    }
 
-	@SuppressWarnings("unchecked")
-	private V[] encode(Object... values) {
-		Object[] encodedValues = new Object[values.length];
-		for (int index = 0; index < values.length; index++) {
-			encodedValues[index] = stringValueFunction.apply(String.valueOf(values[index]));
-		}
-		return (V[]) encodedValues;
-	}
+    @Override
+    public void execute(BaseRedisAsyncCommands<K, V> commands, K key, List<RedisFuture<List<Object>>> futures) {
+        futures.add(execute(commands, key));
+    }
 
-	public static Builder<String, String> builder(AbstractRedisClient client) {
-		return new Builder<>(client, StringCodec.UTF8);
-	}
+    @SuppressWarnings("unchecked")
+    public RedisFuture<List<Object>> execute(BaseRedisAsyncCommands<K, V> commands, K key) {
+        RedisScriptingAsyncCommands<K, V> scripting = (RedisScriptingAsyncCommands<K, V>) commands;
+        Object[] keys = { key };
+        V[] args = encode(memoryUsageOptions.getLimit().toBytes(), memoryUsageOptions.getSamples(), valueType.name());
+        return scripting.evalsha(digest, ScriptOutputType.MULTI, (K[]) keys, args);
+    }
 
-	public static <K, V> Builder<K, V> builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		return new Builder<>(client, codec);
-	}
+    @SuppressWarnings("unchecked")
+    private V[] encode(Object... values) {
+        Object[] encodedValues = new Object[values.length];
+        for (int index = 0; index < values.length; index++) {
+            encodedValues[index] = stringValueFunction.apply(String.valueOf(values[index]));
+        }
+        return (V[]) encodedValues;
+    }
 
-	public static class Builder<K, V> {
+    public static Builder<String, String> builder(AbstractRedisClient client) {
+        return new Builder<>(client, StringCodec.UTF8);
+    }
 
-		private final AbstractRedisClient client;
-		private final RedisCodec<K, V> codec;
+    public static <K, V> Builder<K, V> builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        return new Builder<>(client, codec);
+    }
 
-		public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
-			this.client = client;
-			this.codec = codec;
-		}
+    public static class Builder<K, V> {
 
-		public KeyValueReadOperation<K, V> struct() {
-			return build(ValueType.STRUCT);
-		}
+        private final AbstractRedisClient client;
 
-		public KeyValueReadOperation<K, V> dump() {
-			return build(ValueType.DUMP);
-		}
+        private final RedisCodec<K, V> codec;
 
-		public KeyValueReadOperation<K, V> build(ValueType valueType) {
-			KeyValueReadOperation<K, V> operation = new KeyValueReadOperation<>(client, codec);
-			operation.setValueType(valueType);
-			return operation;
-		}
-	}
+        public Builder(AbstractRedisClient client, RedisCodec<K, V> codec) {
+            this.client = client;
+            this.codec = codec;
+        }
+
+        public KeyValueReadOperation<K, V> struct() {
+            return build(ValueType.STRUCT);
+        }
+
+        public KeyValueReadOperation<K, V> dump() {
+            return build(ValueType.DUMP);
+        }
+
+        public KeyValueReadOperation<K, V> build(ValueType valueType) {
+            KeyValueReadOperation<K, V> operation = new KeyValueReadOperation<>(client, codec);
+            operation.setValueType(valueType);
+            return operation;
+        }
+
+    }
 
 }

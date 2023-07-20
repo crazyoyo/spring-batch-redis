@@ -7,21 +7,23 @@ import io.lettuce.core.GeoValue;
 
 public class GeoValueConverter<V, T> implements Function<T, GeoValue<V>> {
 
-	private final Function<T, V> memberConverter;
-	private final ToDoubleFunction<T> longitudeConverter;
-	private final ToDoubleFunction<T> latitudeConverter;
+    private final Function<T, V> memberConverter;
 
-	public GeoValueConverter(Function<T, V> member, ToDoubleFunction<T> longitude, ToDoubleFunction<T> latitude) {
-		this.memberConverter = member;
-		this.longitudeConverter = longitude;
-		this.latitudeConverter = latitude;
-	}
+    private final ToDoubleFunction<T> longitudeConverter;
 
-	@Override
-	public GeoValue<V> apply(T t) {
-		double longitude = this.longitudeConverter.applyAsDouble(t);
-		double latitude = this.latitudeConverter.applyAsDouble(t);
-		return GeoValue.just(longitude, latitude, memberConverter.apply(t));
-	}
+    private final ToDoubleFunction<T> latitudeConverter;
+
+    public GeoValueConverter(Function<T, V> member, ToDoubleFunction<T> longitude, ToDoubleFunction<T> latitude) {
+        this.memberConverter = member;
+        this.longitudeConverter = longitude;
+        this.latitudeConverter = latitude;
+    }
+
+    @Override
+    public GeoValue<V> apply(T t) {
+        double longitude = this.longitudeConverter.applyAsDouble(t);
+        double latitude = this.latitudeConverter.applyAsDouble(t);
+        return GeoValue.just(longitude, latitude, memberConverter.apply(t));
+    }
 
 }

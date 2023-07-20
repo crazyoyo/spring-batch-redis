@@ -14,24 +14,26 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public class TsAddAll<K, V, T> implements WriteOperation<K, V, T> {
 
-	private final Function<T, K> keyFunction;
-	private final Function<T, Collection<Sample>> samplesFunction;
-	private final AddOptions<K, V> options;
+    private final Function<T, K> keyFunction;
 
-	public TsAddAll(Function<T, K> key, Function<T, Collection<Sample>> samples, AddOptions<K, V> options) {
-		this.keyFunction = key;
-		this.samplesFunction = samples;
-		this.options = options;
-	}
+    private final Function<T, Collection<Sample>> samplesFunction;
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-		RedisTimeSeriesAsyncCommands<K, V> tsCommands = (RedisTimeSeriesAsyncCommands<K, V>) commands;
-		K key = keyFunction.apply(item);
-		for (Sample sample : samplesFunction.apply(item)) {
-			futures.add((RedisFuture) tsCommands.tsAdd(key, sample, options));
-		}
-	}
+    private final AddOptions<K, V> options;
+
+    public TsAddAll(Function<T, K> key, Function<T, Collection<Sample>> samples, AddOptions<K, V> options) {
+        this.keyFunction = key;
+        this.samplesFunction = samples;
+        this.options = options;
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @Override
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
+        RedisTimeSeriesAsyncCommands<K, V> tsCommands = (RedisTimeSeriesAsyncCommands<K, V>) commands;
+        K key = keyFunction.apply(item);
+        for (Sample sample : samplesFunction.apply(item)) {
+            futures.add((RedisFuture) tsCommands.tsAdd(key, sample, options));
+        }
+    }
 
 }
