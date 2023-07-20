@@ -443,7 +443,7 @@ abstract class AbstractBatchTests {
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         Del<String, String, KeyValue<String>> del = new Del<>(KeyValue::getKey);
         run(testInfo, gen, new OperationItemWriter<>(sourceClient, StringCodec.UTF8, del));
-        assertEquals(0, sourceConnection.sync().dbsize());
+        assertEquals(0, sourceConnection.sync().keys(GeneratorItemReader.DEFAULT_KEYSPACE + "*").size());
     }
 
     @Test
