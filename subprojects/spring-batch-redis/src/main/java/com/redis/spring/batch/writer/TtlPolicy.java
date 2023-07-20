@@ -1,6 +1,6 @@
 package com.redis.spring.batch.writer;
 
-public enum StreamIdPolicy {
+public enum TtlPolicy {
 
 	PROPAGATE, DROP
 

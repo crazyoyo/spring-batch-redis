@@ -1,16 +1,17 @@
 package com.redis.spring.batch.convert;
 
 import java.util.function.Function;
+import java.util.function.ToDoubleFunction;
 
 import io.lettuce.core.GeoValue;
 
 public class GeoValueConverter<V, T> implements Function<T, GeoValue<V>> {
 
 	private final Function<T, V> memberConverter;
-	private final Function<T, Double> longitudeConverter;
-	private final Function<T, Double> latitudeConverter;
+	private final ToDoubleFunction<T> longitudeConverter;
+	private final ToDoubleFunction<T> latitudeConverter;
 
-	public GeoValueConverter(Function<T, V> member, Function<T, Double> longitude, Function<T, Double> latitude) {
+	public GeoValueConverter(Function<T, V> member, ToDoubleFunction<T> longitude, ToDoubleFunction<T> latitude) {
 		this.memberConverter = member;
 		this.longitudeConverter = longitude;
 		this.latitudeConverter = latitude;
@@ -18,14 +19,8 @@ public class GeoValueConverter<V, T> implements Function<T, GeoValue<V>> {
 
 	@Override
 	public GeoValue<V> apply(T t) {
-		Double longitude = this.longitudeConverter.apply(t);
-		if (longitude == null) {
-			return null;
-		}
-		Double latitude = this.latitudeConverter.apply(t);
-		if (latitude == null) {
-			return null;
-		}
+		double longitude = this.longitudeConverter.applyAsDouble(t);
+		double latitude = this.latitudeConverter.applyAsDouble(t);
 		return GeoValue.just(longitude, latitude, memberConverter.apply(t));
 	}
 

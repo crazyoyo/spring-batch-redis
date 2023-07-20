@@ -28,7 +28,6 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 
 public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItemReader<K>
 		implements KeyItemReader<K>, PollableItemReader<K> {
@@ -42,7 +41,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 			.collect(Collectors.toMap(KeyEvent::getString, Function.identity()));
 
 	private final AbstractRedisClient client;
-	private final RedisCodec<K, V> codec;
+	private final Function<String, K> keyDecoder;
 	private final List<KeyspaceNotificationListener> listeners = new ArrayList<>();
 
 	private ScanOptions scanOptions = ScanOptions.builder().build();
@@ -55,7 +54,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
 	public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		this.client = client;
-		this.codec = codec;
+		this.keyDecoder = Utils.stringKeyFunction(codec);
 	}
 
 	public Set<String> getBlockedKeys() {
@@ -184,7 +183,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 		if (notification == null) {
 			return null;
 		}
-		return codec.decodeKey(StringCodec.UTF8.encodeKey(notification.getKey()));
+		return keyDecoder.apply(notification.getKey());
 	}
 
 	private static String key(String channel) {

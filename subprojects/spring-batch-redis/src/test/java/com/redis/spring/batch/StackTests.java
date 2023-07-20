@@ -100,11 +100,11 @@ class StackTests extends AbstractModulesTests {
 		final List<String> keys = ScanIterator.scan(sourceConnection.sync(), KeyScanArgs.Builder.type(KeyValue.STREAM))
 				.stream().collect(Collectors.toList());
 		for (String key : keys) {
-			StreamItemReader<String, String> reader1 = streamReader(key);
-			reader1.setConsumer(Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
+			StreamItemReader<String, String> reader1 = streamReader(key,
+					Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
 			reader1.setAckPolicy(StreamAckPolicy.MANUAL);
-			StreamItemReader<String, String> reader2 = streamReader(key);
-			reader2.setConsumer(Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"));
+			StreamItemReader<String, String> reader2 = streamReader(key,
+					Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"));
 			reader2.setAckPolicy(StreamAckPolicy.MANUAL);
 			SynchronizedListItemWriter<StreamMessage<String, String>> writer1 = new SynchronizedListItemWriter<>();
 			JobExecution execution1 = runAsync(job(testInfo(testInfo, key, "1"), reader1, writer1));
@@ -121,14 +121,12 @@ class StackTests extends AbstractModulesTests {
 			assertMessageBody(writer2.getItems());
 			RedisModulesCommands<String, String> sync = sourceConnection.sync();
 			Assertions.assertEquals(STREAM_MESSAGE_COUNT, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
-			reader1 = streamReader(key);
-			reader1.setConsumer(Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
+			reader1 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
 			reader1.setAckPolicy(StreamAckPolicy.MANUAL);
 			reader1.open(new ExecutionContext());
 			reader1.ack(writer1.getItems());
 			reader1.close();
-			reader2 = streamReader(key);
-			reader2.setConsumer(Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"));
+			reader2 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"));
 			reader2.setAckPolicy(StreamAckPolicy.MANUAL);
 			reader2.open(new ExecutionContext());
 			reader2.ack(writer2.getItems());

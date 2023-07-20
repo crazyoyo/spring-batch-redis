@@ -1,5 +1,6 @@
 package com.redis.spring.batch.writer;
 
+import java.text.MessageFormat;
 import java.util.List;
 
 import org.springframework.batch.item.ItemStreamWriter;
@@ -14,20 +15,20 @@ import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 import io.lettuce.core.cluster.PipelinedRedisFuture;
 import io.lettuce.core.codec.RedisCodec;
 
-public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractOperationItemStreamSupport<K, V, T, Object>
+public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOperationItemStreamSupport<K, V, T, Object>
 		implements ItemStreamWriter<T> {
 
-	private WriterOptions options = WriterOptions.builder().build();
+	private WriteOperationOptions options = WriteOperationOptions.builder().build();
 
-	protected AbstractRedisItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
+	protected AbstractOperationItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		super(client, codec);
 	}
 
-	public WriterOptions getOptions() {
+	public WriteOperationOptions getOptions() {
 		return options;
 	}
 
-	public void setOptions(WriterOptions options) {
+	public void setOptions(WriteOperationOptions options) {
 		this.options = options;
 	}
 
@@ -65,19 +66,9 @@ public abstract class AbstractRedisItemWriter<K, V, T> extends AbstractOperation
 
 	private void checkReplicas(Long actual) {
 		if (actual == null || actual < options.getReplicaWaitOptions().getReplicas()) {
-			throw new InsufficientReplicasException(options.getReplicaWaitOptions().getReplicas(), actual);
+			throw new RedisCommandExecutionException(MessageFormat.format("Insufficient replication level ({0}/{1})",
+					actual, options.getReplicaWaitOptions().getReplicas()));
 		}
-	}
-
-	private static class InsufficientReplicasException extends RedisCommandExecutionException {
-
-		private static final long serialVersionUID = 1L;
-		private static final String MESSAGE = "Insufficient replication level - expected: %s, actual: %s";
-
-		public InsufficientReplicasException(long expected, long actual) {
-			super(String.format(MESSAGE, expected, actual));
-		}
-
 	}
 
 }

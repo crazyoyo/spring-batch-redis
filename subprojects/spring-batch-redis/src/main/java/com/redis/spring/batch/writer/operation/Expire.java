@@ -2,6 +2,7 @@ package com.redis.spring.batch.writer.operation;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import org.springframework.util.Assert;
 
@@ -14,9 +15,9 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 public class Expire<K, V, T> implements WriteOperation<K, V, T> {
 
 	private final Function<T, K> keyFunction;
-	private final Function<T, Long> millisFunction;
+	private final ToLongFunction<T> millisFunction;
 
-	public Expire(Function<T, K> key, Function<T, Long> millis) {
+	public Expire(Function<T, K> key, ToLongFunction<T> millis) {
 		this.keyFunction = key;
 		Assert.notNull(millis, "A millisFunction function is required");
 		this.millisFunction = millis;
@@ -25,10 +26,11 @@ public class Expire<K, V, T> implements WriteOperation<K, V, T> {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-		Long millis = millisFunction.apply(item);
-		if (millis != null && millis > 0) {
+		long millis = millisFunction.applyAsLong(item);
+		if (millis > 0) {
+			RedisKeyAsyncCommands<K, V> keyCommands = (RedisKeyAsyncCommands<K, V>) commands;
 			K key = keyFunction.apply(item);
-			futures.add((RedisFuture) execute((RedisKeyAsyncCommands<K, V>) commands, key, millis));
+			futures.add((RedisFuture) execute(keyCommands, key, millis));
 		}
 	}
 

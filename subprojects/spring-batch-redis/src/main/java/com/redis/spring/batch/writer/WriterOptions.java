@@ -1,41 +1,43 @@
 package com.redis.spring.batch.writer;
 
-import com.redis.spring.batch.common.PoolOptions;
-
 public class WriterOptions {
 
-	private PoolOptions poolOptions = PoolOptions.builder().build();
-	private ReplicaWaitOptions replicaWaitOptions = ReplicaWaitOptions.builder().build();
-	private boolean multiExec;
+	public static final MergePolicy DEFAULT_MERGE_POLICY = MergePolicy.OVERWRITE;
+	public static final StreamIdPolicy DEFAULT_STREAM_ID_POLICY = StreamIdPolicy.PROPAGATE;
+	public static final TtlPolicy DEFAULT_TTL_POLICY = TtlPolicy.PROPAGATE;
+
+	private TtlPolicy ttlPolicy = DEFAULT_TTL_POLICY;
+	private MergePolicy mergePolicy = DEFAULT_MERGE_POLICY;
+	private StreamIdPolicy streamIdPolicy = DEFAULT_STREAM_ID_POLICY;
 
 	private WriterOptions(Builder builder) {
-		this.poolOptions = builder.poolOptions;
-		this.replicaWaitOptions = builder.replicaWaitOptions;
-		this.multiExec = builder.multiExec;
+		this.mergePolicy = builder.mergePolicy;
+		this.streamIdPolicy = builder.streamIdPolicy;
+		this.ttlPolicy = builder.ttlPolicy;
 	}
 
-	public PoolOptions getPoolOptions() {
-		return poolOptions;
+	public TtlPolicy getTtlPolicy() {
+		return ttlPolicy;
 	}
 
-	public void setPoolOptions(PoolOptions poolOptions) {
-		this.poolOptions = poolOptions;
+	public void setTtlPolicy(TtlPolicy policy) {
+		this.ttlPolicy = policy;
 	}
 
-	public ReplicaWaitOptions getReplicaWaitOptions() {
-		return replicaWaitOptions;
+	public MergePolicy getMergePolicy() {
+		return mergePolicy;
 	}
 
-	public void setReplicaWaitOptions(ReplicaWaitOptions replicaWaitOptions) {
-		this.replicaWaitOptions = replicaWaitOptions;
+	public void setMergePolicy(MergePolicy policy) {
+		this.mergePolicy = policy;
 	}
 
-	public boolean isMultiExec() {
-		return multiExec;
+	public StreamIdPolicy getStreamIdPolicy() {
+		return streamIdPolicy;
 	}
 
-	public void setMultiExec(boolean multiExec) {
-		this.multiExec = multiExec;
+	public void setStreamIdPolicy(StreamIdPolicy policy) {
+		this.streamIdPolicy = policy;
 	}
 
 	public static Builder builder() {
@@ -44,25 +46,25 @@ public class WriterOptions {
 
 	public static final class Builder {
 
-		private PoolOptions poolOptions = PoolOptions.builder().build();
-		private ReplicaWaitOptions replicaWaitOptions = ReplicaWaitOptions.builder().build();
-		private boolean multiExec;
+		private TtlPolicy ttlPolicy = DEFAULT_TTL_POLICY;
+		private MergePolicy mergePolicy = DEFAULT_MERGE_POLICY;
+		private StreamIdPolicy streamIdPolicy = DEFAULT_STREAM_ID_POLICY;
 
 		private Builder() {
 		}
 
-		public Builder poolOptions(PoolOptions options) {
-			this.poolOptions = options;
+		public Builder ttlPolicy(TtlPolicy policy) {
+			this.ttlPolicy = policy;
 			return this;
 		}
 
-		public Builder replicaWaitOptions(ReplicaWaitOptions replicaWaitOptions) {
-			this.replicaWaitOptions = replicaWaitOptions;
+		public Builder mergePolicy(MergePolicy policy) {
+			this.mergePolicy = policy;
 			return this;
 		}
 
-		public Builder multiExec(boolean multiExec) {
-			this.multiExec = multiExec;
+		public Builder streamIdPolicy(StreamIdPolicy policy) {
+			this.streamIdPolicy = policy;
 			return this;
 		}
 

@@ -91,7 +91,7 @@ import com.redis.spring.batch.step.FlushingStepOptions;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.ReplicaWaitOptions;
 import com.redis.spring.batch.writer.StreamIdPolicy;
-import com.redis.spring.batch.writer.StructOptions;
+import com.redis.spring.batch.writer.WriteOperationOptions;
 import com.redis.spring.batch.writer.WriterOptions;
 import com.redis.spring.batch.writer.operation.Del;
 import com.redis.spring.batch.writer.operation.Expire;
@@ -131,7 +131,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
 @TestInstance(Lifecycle.PER_CLASS)
-abstract class AbstractTests {
+abstract class AbstractBatchTests {
 
 	protected final Logger log = Logger.getLogger(getClass().getName());
 
@@ -319,7 +319,7 @@ abstract class AbstractTests {
 			throws JobExecutionException {
 		TestInfo finalTestInfo = testInfo(testInfo, "generate", String.valueOf(client.hashCode()));
 		RedisItemWriter<String, String> writer = writer(client)
-				.structOptions(StructOptions.builder().streamIdPolicy(StreamIdPolicy.DROP).build()).struct();
+				.writerOptions(WriterOptions.builder().streamIdPolicy(StreamIdPolicy.DROP).build()).struct();
 		run(finalTestInfo, reader, writer);
 	}
 
@@ -392,10 +392,10 @@ abstract class AbstractTests {
 				StringCodec.UTF8, hset);
 		ReplicaWaitOptions waitOptions = ReplicaWaitOptions.builder().replicas(1).timeout(Duration.ofMillis(300))
 				.build();
-		writer.setOptions(WriterOptions.builder().replicaWaitOptions(waitOptions).build());
+		writer.setOptions(WriteOperationOptions.builder().replicaWaitOptions(waitOptions).build());
 		JobExecution execution = run(testInfo, reader, writer);
 		List<Throwable> exceptions = execution.getAllFailureExceptions();
-		assertEquals("Insufficient replication level - expected: 1, actual: 0",
+		assertEquals("Insufficient replication level (0/1)",
 				exceptions.get(0).getCause().getMessage());
 	}
 
@@ -744,8 +744,8 @@ abstract class AbstractTests {
 		generate(testInfo(testInfo, "streams"), gen);
 	}
 
-	protected StreamItemReader<String, String> streamReader(String stream) {
-		return new StreamItemReader<>(sourceClient, StringCodec.UTF8, stream);
+	protected StreamItemReader<String, String> streamReader(String stream, Consumer<String> consumer) {
+		return new StreamItemReader<>(sourceClient, StringCodec.UTF8, stream, consumer);
 	}
 
 	protected void assertMessageBody(List<? extends StreamMessage<String, String>> items) {
@@ -801,8 +801,7 @@ abstract class AbstractTests {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamAutoAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream);
-		reader.setConsumer(consumer);
+		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(StreamAckPolicy.AUTO);
 		open(reader);
 		String field1 = "field1";
@@ -829,8 +828,7 @@ abstract class AbstractTests {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamManualAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream);
-		reader.setConsumer(consumer);
+		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(StreamAckPolicy.MANUAL);
 		open(reader);
 		String field1 = "field1";
@@ -860,8 +858,7 @@ abstract class AbstractTests {
 	void readStreamManualAckRecover() throws InterruptedException {
 		String stream = "stream1";
 		Consumer<String> consumer = Consumer.from("batchtests-readStreamManualAckRecover", "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream);
-		reader.setConsumer(consumer);
+		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(StreamAckPolicy.MANUAL);
 		open(reader);
 		String field1 = "field1";
@@ -883,8 +880,7 @@ abstract class AbstractTests {
 
 		reader.close();
 
-		final StreamItemReader<String, String> reader2 = streamReader(stream);
-		reader2.setConsumer(consumer);
+		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
 		reader2.setAckPolicy(StreamAckPolicy.MANUAL);
 		open(reader2);
 
@@ -899,8 +895,7 @@ abstract class AbstractTests {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamManualAckRecoverUncommitted";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream);
-		reader.setConsumer(consumer);
+		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(StreamAckPolicy.MANUAL);
 		open(reader);
 		String field1 = "field1";
@@ -922,8 +917,7 @@ abstract class AbstractTests {
 		String id6 = sourceConnection.sync().xadd(stream, body);
 		reader.close();
 
-		final StreamItemReader<String, String> reader2 = streamReader(stream);
-		reader2.setConsumer(consumer);
+		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
 		reader2.setAckPolicy(StreamAckPolicy.MANUAL);
 		reader2.setOffset(messages.get(1).getId());
 		open(reader2);
@@ -941,8 +935,7 @@ abstract class AbstractTests {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamManualAckRecoverFromOffset";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream);
-		reader.setConsumer(consumer);
+		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(StreamAckPolicy.MANUAL);
 		open(reader);
 		String field1 = "field1";
@@ -964,8 +957,7 @@ abstract class AbstractTests {
 
 		reader.close();
 
-		final StreamItemReader<String, String> reader2 = streamReader(stream);
-		reader2.setConsumer(consumer);
+		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
 		reader2.setAckPolicy(StreamAckPolicy.MANUAL);
 		reader2.setOffset(id3);
 		open(reader2);
@@ -983,8 +975,7 @@ abstract class AbstractTests {
 		String stream = "stream1";
 		String consumerGroup = "readStreamRecoverManualAckToAutoAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream);
-		reader.setConsumer(consumer);
+		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(StreamAckPolicy.MANUAL);
 		open(reader);
 		String field1 = "field1";
@@ -1005,8 +996,7 @@ abstract class AbstractTests {
 		String id6 = sourceConnection.sync().xadd(stream, body);
 		reader.close();
 
-		final StreamItemReader<String, String> reader2 = streamReader(stream);
-		reader2.setConsumer(consumer);
+		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
 		reader2.setAckPolicy(StreamAckPolicy.AUTO);
 		open(reader2);
 
@@ -1028,8 +1018,8 @@ abstract class AbstractTests {
 				.stream().collect(Collectors.toList());
 		for (String key : keys) {
 			long count = sourceConnection.sync().xlen(key);
-			StreamItemReader<String, String> reader = streamReader(key);
-			reader.setConsumer(Consumer.from("batchtests-readmessages", "consumer1"));
+			StreamItemReader<String, String> reader = streamReader(key,
+					Consumer.from("batchtests-readmessages", "consumer1"));
 			open(reader);
 			List<StreamMessage<String, String>> messages = new ArrayList<>();
 			awaitUntil(() -> {
@@ -1049,8 +1039,7 @@ abstract class AbstractTests {
 				.stream().collect(Collectors.toList());
 		for (String key : keys) {
 			Consumer<String> consumer = Consumer.from("batchtests-readstreamjob", "consumer1");
-			StreamItemReader<String, String> reader = streamReader(key);
-			reader.setConsumer(consumer);
+			StreamItemReader<String, String> reader = streamReader(key, consumer);
 			List<StreamMessage<String, String>> messages = readAll(testInfo, reader);
 			Assertions.assertEquals(STREAM_MESSAGE_COUNT, messages.size());
 			assertMessageBody(messages);
@@ -1148,12 +1137,21 @@ abstract class AbstractTests {
 				ByteArrayCodec.INSTANCE);
 		KeyValueReadOperation<byte[], byte[]> operation = KeyValueReadOperation
 				.builder(sourceClient, ByteArrayCodec.INSTANCE).dump();
-		KeyValue<byte[]> dump = dumpProcessor.process(operation.execute(byteConnection.async(), keyBytes(key)).get());
-		Assertions.assertArrayEquals(keyBytes(key), dump.getKey());
+		KeyValue<byte[]> dump = dumpProcessor
+				.process(operation.execute(byteConnection.async(), toByteArray(key)).get());
+		Assertions.assertArrayEquals(toByteArray(key), dump.getKey());
 		Assertions.assertTrue(Math.abs(ttl - dump.getTtl()) <= 3);
 		sourceConnection.sync().del(key);
 		sourceConnection.sync().restore(key, dump.getValue(), RestoreArgs.Builder.ttl(ttl).absttl());
 		Assertions.assertEquals(KeyValue.STREAM, sourceConnection.sync().type(key));
+	}
+
+	private byte[] toByteArray(String key) {
+		return Utils.toByteArrayKeyFunction(StringCodec.UTF8).apply(key);
+	}
+
+	private String toString(byte[] key) {
+		return Utils.toStringKeyFunction(ByteArrayCodec.INSTANCE).apply(key);
 	}
 
 	protected void open(ItemStream itemStream) {
@@ -1176,8 +1174,8 @@ abstract class AbstractTests {
 		StatefulRedisModulesConnection<byte[], byte[]> byteConnection = RedisModulesUtils.connection(sourceClient,
 				ByteArrayCodec.INSTANCE);
 		KeyValue<byte[]> ds = bytesStructProcessor
-				.process(operation.execute(byteConnection.async(), keyBytes(key)).get());
-		Assertions.assertArrayEquals(keyBytes(key), ds.getKey());
+				.process(operation.execute(byteConnection.async(), toByteArray(key)).get());
+		Assertions.assertArrayEquals(toByteArray(key), ds.getKey());
 		Assertions.assertEquals(KeyValue.STREAM, ds.getType());
 		List<StreamMessage<byte[], byte[]>> messages = ds.getValue();
 		Assertions.assertEquals(2, messages.size());
@@ -1185,7 +1183,7 @@ abstract class AbstractTests {
 			Map<byte[], byte[]> actual = message.getBody();
 			Assertions.assertEquals(2, actual.size());
 			Map<String, String> actualString = new HashMap<>();
-			actual.forEach((k, v) -> actualString.put(keyString(k), valueString(v)));
+			actual.forEach((k, v) -> actualString.put(toString(k), toString(v)));
 			Assertions.assertEquals(body, actualString);
 		}
 	}
@@ -1201,18 +1199,6 @@ abstract class AbstractTests {
 		Assertions.assertEquals(key1, ds1.getKey());
 		Assertions.assertEquals(KeyValue.STRING, ds1.getType());
 		Assertions.assertEquals(sourceConnection.sync().get(key1), ds1.getValue());
-	}
-
-	private String keyString(byte[] bytes) {
-		return StringCodec.UTF8.decodeKey(ByteArrayCodec.INSTANCE.encodeKey(bytes));
-	}
-
-	private String valueString(byte[] bytes) {
-		return StringCodec.UTF8.decodeValue(ByteArrayCodec.INSTANCE.encodeValue(bytes));
-	}
-
-	protected byte[] keyBytes(String string) {
-		return ByteArrayCodec.INSTANCE.decodeKey(StringCodec.UTF8.encodeKey(string));
 	}
 
 }

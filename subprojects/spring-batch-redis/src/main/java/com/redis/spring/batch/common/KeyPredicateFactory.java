@@ -1,6 +1,5 @@
 package com.redis.spring.batch.common;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -85,7 +84,7 @@ public class KeyPredicateFactory {
 	}
 
 	private static <K> Predicate<K> regexPredicate(RedisCodec<K, ?> codec, Collection<String> regexes) {
-		Function<K, String> string = stringFunction(codec);
+		Function<K, String> string = Utils.toStringKeyFunction(codec);
 		Predicate<String> predicate = regexes.stream().map(Pattern::compile).map(KeyPredicateFactory::matchPredicate)
 				.reduce(x -> false, Predicate::or);
 		return k -> predicate.test(string.apply(k));
@@ -93,15 +92,6 @@ public class KeyPredicateFactory {
 
 	private static Predicate<String> matchPredicate(Pattern pattern) {
 		return s -> pattern.matcher(s).matches();
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private static <K> Function<K, String> stringFunction(RedisCodec<K, ?> codec) {
-		if (codec instanceof StringCodec) {
-			return (Function) Function.identity();
-		}
-		Function<K, ByteBuffer> buffer = codec::encodeKey;
-		return buffer.andThen(StringCodec.UTF8::decodeKey);
 	}
 
 	private static <K> ToIntFunction<K> slotFunction(RedisCodec<K, ?> codec) {

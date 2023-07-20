@@ -6,7 +6,7 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class OperationItemWriter<K, V, T> extends AbstractRedisItemWriter<K, V, T> {
+public class OperationItemWriter<K, V, T> extends AbstractOperationItemWriter<K, V, T> {
 
 	private final WriteOperation<K, V, T> operation;
 

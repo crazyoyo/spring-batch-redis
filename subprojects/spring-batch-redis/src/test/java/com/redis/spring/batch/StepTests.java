@@ -125,7 +125,7 @@ class StepTests {
 		for (int index = 1; index <= count; index++) {
 			queue.offer("key" + index);
 		}
-		AbstractTests.awaitTermination(execution);
+		AbstractBatchTests.awaitTermination(execution);
 		assertEquals(count, writer.getItems().size());
 	}
 

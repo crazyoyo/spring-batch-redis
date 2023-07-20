@@ -1,39 +1,36 @@
 package com.redis.spring.batch.reader;
 
-import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.CompositeItemWriter;
 
-import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader.BaseBuilder;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.common.ValueType;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.step.FlushingStepOptions;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisException;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
 public class LiveRedisItemReader<K, V> extends AbstractRedisItemReader<K, V>
 		implements PollableItemReader<KeyValue<K>> {
 
-	public static final String CONFIG_NOTIFY_KEYSPACE_EVENTS = "notify-keyspace-events";
-
+	private final Function<K, String> keyEncoder;
 	private KeyspaceNotificationOptions keyspaceNotificationOptions = KeyspaceNotificationOptions.builder().build();
 	private FlushingStepOptions flushingOptions = FlushingStepOptions.builder().build();
 
 	public LiveRedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, ValueType valueType) {
 		super(client, codec, new KeyspaceNotificationItemReader<>(client, codec), valueType);
+		this.keyEncoder = Utils.toStringKeyFunction(codec);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -44,18 +41,6 @@ public class LiveRedisItemReader<K, V> extends AbstractRedisItemReader<K, V>
 
 	@Override
 	protected void doOpen() {
-		StatefulRedisModulesConnection<String, String> connection = RedisModulesUtils.connection(client);
-		try {
-			String config = connection.sync().configGet(CONFIG_NOTIFY_KEYSPACE_EVENTS)
-					.getOrDefault(CONFIG_NOTIFY_KEYSPACE_EVENTS, "");
-			if (!config.contains("K")) {
-				throw new ItemStreamException(MessageFormat.format(
-						"Keyspace notifications not property configured: {0}={1}. Make sure it contains at least \"K\".",
-						CONFIG_NOTIFY_KEYSPACE_EVENTS, config));
-			}
-		} catch (RedisException e) {
-			// CONFIG command might not be available. Ignore.
-		}
 		getKeyReader().setKeyspaceNotificationOptions(keyspaceNotificationOptions);
 		getKeyReader().setScanOptions(options.getScanOptions());
 		super.doOpen();
@@ -102,12 +87,8 @@ public class LiveRedisItemReader<K, V> extends AbstractRedisItemReader<K, V>
 		@Override
 		public void write(List<? extends KeyValue<K>> items) throws Exception {
 			List<String> bigKeys = items.stream().filter(v -> v.getMemoryUsage() > memLimit).map(KeyValue::getKey)
-					.map(this::toString).collect(Collectors.toList());
+					.map(keyEncoder).collect(Collectors.toList());
 			getKeyReader().blockKeys(bigKeys);
-		}
-
-		private String toString(K key) {
-			return StringCodec.UTF8.decodeKey(codec.encodeKey(key));
 		}
 
 	}

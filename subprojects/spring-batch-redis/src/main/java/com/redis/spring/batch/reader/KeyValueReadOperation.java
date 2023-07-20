@@ -1,6 +1,7 @@
 package com.redis.spring.batch.reader;
 
 import java.util.List;
+import java.util.function.Function;
 
 import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.Utils;
@@ -18,14 +19,15 @@ public class KeyValueReadOperation<K, V> implements Operation<K, V, K, List<Obje
 
 	private static final String FILENAME = "keyvalue.lua";
 
-	private final RedisCodec<K, V> codec;
-	private String digest;
+	private final String digest;
+	private final Function<String, V> stringValueFunction;
+
 	private ValueType valueType = ValueType.DUMP;
 	private MemoryUsageOptions memoryUsageOptions = MemoryUsageOptions.builder().build();
 
 	public KeyValueReadOperation(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		this.codec = codec;
 		this.digest = Utils.loadScript(client, FILENAME);
+		this.stringValueFunction = Utils.stringValueFunction(codec);
 	}
 
 	public ValueType getValueType() {
@@ -53,17 +55,17 @@ public class KeyValueReadOperation<K, V> implements Operation<K, V, K, List<Obje
 	public RedisFuture<List<Object>> execute(BaseRedisAsyncCommands<K, V> commands, K key) {
 		RedisScriptingAsyncCommands<K, V> scripting = (RedisScriptingAsyncCommands<K, V>) commands;
 		Object[] keys = { key };
-		V[] args = (V[]) new Object[] { encodeValue(String.valueOf(memoryUsageOptions.getLimit().toBytes())),
-				encodeValue(String.valueOf(memoryUsageOptions.getSamples())), encodeValue(valueType.name()) };
+		V[] args = encode(memoryUsageOptions.getLimit().toBytes(), memoryUsageOptions.getSamples(), valueType.name());
 		return scripting.evalsha(digest, ScriptOutputType.MULTI, (K[]) keys, args);
 	}
 
 	@SuppressWarnings("unchecked")
-	private V encodeValue(String value) {
-		if (codec instanceof StringCodec) {
-			return (V) value;
+	private V[] encode(Object... values) {
+		Object[] encodedValues = new Object[values.length];
+		for (int index = 0; index < values.length; index++) {
+			encodedValues[index] = stringValueFunction.apply(String.valueOf(values[index]));
 		}
-		return codec.decodeValue(StringCodec.UTF8.encodeValue(value));
+		return (V[]) encodedValues;
 	}
 
 	public static Builder<String, String> builder(AbstractRedisClient client) {

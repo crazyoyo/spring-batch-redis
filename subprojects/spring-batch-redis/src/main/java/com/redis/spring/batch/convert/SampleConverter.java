@@ -1,29 +1,25 @@
 package com.redis.spring.batch.convert;
 
 import java.util.function.Function;
+import java.util.function.ToDoubleFunction;
+import java.util.function.ToLongFunction;
 
 import com.redis.lettucemod.timeseries.Sample;
 
 public class SampleConverter<T> implements Function<T, Sample> {
 
-	private final Function<T, Long> timestampConverter;
-	private final Function<T, Double> valueConverter;
+	private final ToLongFunction<T> timestampConverter;
+	private final ToDoubleFunction<T> valueConverter;
 
-	public SampleConverter(Function<T, Long> timestamp, Function<T, Double> value) {
+	public SampleConverter(ToLongFunction<T> timestamp, ToDoubleFunction<T> value) {
 		this.timestampConverter = timestamp;
 		this.valueConverter = value;
 	}
 
 	@Override
 	public Sample apply(T source) {
-		Double value = this.valueConverter.apply(source);
-		if (value == null) {
-			return null;
-		}
-		Long timestamp = this.timestampConverter.apply(source);
-		if (timestamp == null) {
-			timestamp = 0L;
-		}
+		double value = this.valueConverter.applyAsDouble(source);
+		long timestamp = this.timestampConverter.applyAsLong(source);
 		return Sample.of(timestamp, value);
 	}
 

@@ -6,24 +6,25 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import org.springframework.batch.item.ItemProcessor;
 
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Utils;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.internal.LettuceAssert;
 
 public class StructProcessor<K, V> implements ItemProcessor<KeyValue<K>, KeyValue<K>> {
 
-	private final RedisCodec<K, V> codec;
+	private final Function<V, String> toStringValueFunction;
 
 	public StructProcessor(RedisCodec<K, V> codec) {
-		this.codec = codec;
+		this.toStringValueFunction = Utils.toStringValueFunction(codec);
 	}
 
 	@Override
@@ -65,7 +66,7 @@ public class StructProcessor<K, V> implements ItemProcessor<KeyValue<K>, KeyValu
 	}
 
 	private double toDouble(V value) {
-		return Double.parseDouble(decodeValue(value));
+		return Double.parseDouble(toStringValueFunction.apply(value));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -94,16 +95,10 @@ public class StructProcessor<K, V> implements ItemProcessor<KeyValue<K>, KeyValu
 		for (Object object : list) {
 			List<Object> entry = (List<Object>) object;
 			LettuceAssert.isTrue(entry.size() == 2, "Invalid list size: " + entry.size());
-			messages.add(new StreamMessage<>(key, decodeValue((V) entry.get(0)), map((List<Object>) entry.get(1))));
+			messages.add(
+					new StreamMessage<>(key, toStringValueFunction.apply((V) entry.get(0)), map((List<Object>) entry.get(1))));
 		}
 		return messages;
-	}
-
-	private String decodeValue(V value) {
-		if (codec instanceof StringCodec) {
-			return (String) value;
-		}
-		return StringCodec.UTF8.decodeValue(codec.encodeValue(value));
 	}
 
 }

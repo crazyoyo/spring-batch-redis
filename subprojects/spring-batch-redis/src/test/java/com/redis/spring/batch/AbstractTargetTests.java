@@ -45,7 +45,7 @@ import com.redis.spring.batch.reader.QueueOptions;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter;
 import com.redis.spring.batch.writer.KeyComparisonCountItemWriter.Results;
 import com.redis.spring.batch.writer.MergePolicy;
-import com.redis.spring.batch.writer.StructOptions;
+import com.redis.spring.batch.writer.WriterOptions;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -56,7 +56,7 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.StringCodec;
 
-abstract class AbstractTargetTests extends AbstractTests {
+abstract class AbstractTargetTests extends AbstractBatchTests {
 
 	protected AbstractRedisClient targetClient;
 	protected StatefulRedisModulesConnection<String, String> targetConnection;
@@ -122,7 +122,7 @@ abstract class AbstractTargetTests extends AbstractTests {
 		generate(testInfo, targetClient, gen2);
 		RedisItemReader<String, String> reader = reader(sourceClient).struct();
 		RedisItemWriter<String, String> writer = writer(targetClient)
-				.structOptions(StructOptions.builder().mergePolicy(MergePolicy.OVERWRITE).build()).struct();
+				.writerOptions(WriterOptions.builder().mergePolicy(MergePolicy.OVERWRITE).build()).struct();
 		run(testInfo, reader, writer);
 		assertEquals(sourceConnection.sync().hgetall("gen:1"), targetConnection.sync().hgetall("gen:1"));
 	}
@@ -141,7 +141,7 @@ abstract class AbstractTargetTests extends AbstractTests {
 		generate(testInfo, targetClient, gen2);
 		RedisItemReader<String, String> reader = reader(sourceClient).struct();
 		RedisItemWriter<String, String> writer = writer(targetClient)
-				.structOptions(StructOptions.builder().mergePolicy(MergePolicy.MERGE).build()).struct();
+				.writerOptions(WriterOptions.builder().mergePolicy(MergePolicy.MERGE).build()).struct();
 		run(testInfo, reader, writer);
 		Map<String, String> actual = targetConnection.sync().hgetall("gen:1");
 		assertEquals(10, actual.size());

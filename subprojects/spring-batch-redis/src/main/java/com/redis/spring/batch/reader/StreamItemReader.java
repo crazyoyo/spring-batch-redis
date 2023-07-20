@@ -27,13 +27,10 @@ import io.lettuce.core.XReadArgs;
 import io.lettuce.core.XReadArgs.StreamOffset;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 
 public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamMessage<K, V>>
 		implements PollableItemReader<StreamMessage<K, V>> {
 
-	public static final String DEFAULT_CONSUMER_GROUP = ClassUtils.getShortName(StreamItemReader.class);
-	public static final String DEFAULT_CONSUMER = "consumer1";
 	public static final Duration DEFAULT_POLL_DURATION = Duration.ofSeconds(1);
 	public static final String DEFAULT_OFFSET = "0-0";
 	public static final Duration DEFAULT_BLOCK = Duration.ofMillis(100);
@@ -43,8 +40,8 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 	private final K stream;
+	private final Consumer<K> consumer;
 
-	private Consumer<K> consumer;
 	private String offset = DEFAULT_OFFSET;
 	private Duration block = DEFAULT_BLOCK;
 	private long count = DEFAULT_COUNT;
@@ -56,19 +53,11 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 	private String lastId;
 	private RedisStreamCommands<K, V> commands;
 
-	public StreamItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, K stream) {
+	public StreamItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, K stream, Consumer<K> consumer) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.codec = codec;
 		this.stream = stream;
-		this.consumer = Consumer.from(toKey(codec, DEFAULT_CONSUMER_GROUP), toKey(codec, DEFAULT_CONSUMER));
-	}
-
-	private static <K, V> K toKey(RedisCodec<K, V> codec, String key) {
-		return codec.decodeKey(StringCodec.UTF8.encodeKey(key));
-	}
-
-	public void setConsumer(Consumer<K> consumer) {
 		this.consumer = consumer;
 	}
 

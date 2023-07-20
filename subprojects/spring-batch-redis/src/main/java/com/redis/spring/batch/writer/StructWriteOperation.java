@@ -40,7 +40,7 @@ public class StructWriteOperation<K, V> implements WriteOperation<K, V, KeyValue
 	private final TsAddAll<K, V, KeyValue<K>> tsAdd = new TsAddAll<>(key(), value(), tsAddOptions());
 	private final XAddAll<K, V, KeyValue<K>> xadd = new XAddAll<>(value(), this::xaddArgs);
 
-	private StructOptions options = StructOptions.builder().build();
+	private WriterOptions options = WriterOptions.builder().build();
 
 	private static <K, V> AddOptions<K, V> tsAddOptions() {
 		Builder<K, V> builder = AddOptions.builder();
@@ -56,11 +56,11 @@ public class StructWriteOperation<K, V> implements WriteOperation<K, V, KeyValue
 		return kv -> (T) kv.getValue();
 	}
 
-	public StructOptions getOptions() {
+	public WriterOptions getOptions() {
 		return options;
 	}
 
-	public void setOptions(StructOptions options) {
+	public void setOptions(WriterOptions options) {
 		this.options = options;
 	}
 
@@ -71,14 +71,14 @@ public class StructWriteOperation<K, V> implements WriteOperation<K, V, KeyValue
 		}
 		if (shouldDelete(item)) {
 			del.execute(commands, item, futures);
-		} else {
-			if (isOverwrite() && !KeyValue.isString(item)) {
-				del.execute(commands, item, futures);
-			}
-			operation(item).execute(commands, item, futures);
-			if (item.getTtl() > 0) {
-				expire.execute(commands, item, futures);
-			}
+			return;
+		}
+		if (isOverwrite() && !KeyValue.isString(item)) {
+			del.execute(commands, item, futures);
+		}
+		operation(item).execute(commands, item, futures);
+		if (options.getTtlPolicy() == TtlPolicy.PROPAGATE && item.getTtl() > 0) {
+			expire.execute(commands, item, futures);
 		}
 	}
 
@@ -91,7 +91,7 @@ public class StructWriteOperation<K, V> implements WriteOperation<K, V, KeyValue
 	}
 
 	private boolean shouldDelete(KeyValue<K> item) {
-		return item.getValue() == null || Restore.TTL_KEY_DOES_NOT_EXIST.equals(item.getTtl()) || KeyValue.isNone(item);
+		return item.getValue() == null || Restore.TTL_KEY_DOES_NOT_EXIST == item.getTtl() || KeyValue.isNone(item);
 	}
 
 	private WriteOperation<K, V, KeyValue<K>> operation(KeyValue<K> item) {

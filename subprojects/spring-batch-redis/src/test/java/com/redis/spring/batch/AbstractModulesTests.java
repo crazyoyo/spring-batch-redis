@@ -32,6 +32,7 @@ import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Utils;
 import com.redis.spring.batch.convert.SampleConverter;
 import com.redis.spring.batch.convert.SuggestionConverter;
 import com.redis.spring.batch.reader.GeneratorItemReader;
@@ -190,9 +191,10 @@ abstract class AbstractModulesTests extends AbstractTargetTests {
 				.builder(sourceClient, ByteArrayCodec.INSTANCE).struct();
 		StatefulRedisModulesConnection<byte[], byte[]> byteConnection = RedisModulesUtils.connection(sourceClient,
 				ByteArrayCodec.INSTANCE);
+		Function<String, byte[]> toByteArrayKeyFunction = Utils.toByteArrayKeyFunction(StringCodec.UTF8);
 		KeyValue<byte[]> ds = bytesStructProcessor
-				.process(operation.execute(byteConnection.async(), keyBytes(key)).get());
-		Assertions.assertArrayEquals(keyBytes(key), ds.getKey());
+				.process(operation.execute(byteConnection.async(), toByteArrayKeyFunction.apply(key)).get());
+		Assertions.assertArrayEquals(toByteArrayKeyFunction.apply(key), ds.getKey());
 		Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
 		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
 	}
