@@ -9,9 +9,9 @@ project:
   license: Apache-2.0
   java:
     groupId: com.redis
-    version: 8
+    version: '8'
     multiProject: true
-  inceptionYear: 2020
+  inceptionYear: '2020'
   tags:
     - 'spring'
     - 'batch'
@@ -53,12 +53,11 @@ signing:
 
 deploy:
   maven:
-    pomchecker:
-      version: 1.7.0
     nexus2:
       maven-central:
-        active: RELEASE
+        active: ALWAYS
         url: https://s01.oss.sonatype.org/service/local
+        snapshotUrl: https://s01.oss.sonatype.org/content/repositories/snapshots/
         closeRepository: true
         releaseRepository: true
         stagingRepositories:
@@ -68,5 +67,5 @@ files:
   artifacts:
     - path: VERSION
       extraProperties:
-        skipChecksum: true
-        skipSigning: true
+        skipChecksum: 'true'
+        skipSigning: 'true'
