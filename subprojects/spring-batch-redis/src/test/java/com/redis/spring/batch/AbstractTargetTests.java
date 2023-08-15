@@ -34,12 +34,12 @@ import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemWriter.MergePolicy;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.util.GeneratorItemReader;
-import com.redis.spring.batch.util.IntRange;
-import com.redis.spring.batch.util.KeyComparison;
-import com.redis.spring.batch.util.KeyComparisonItemReader;
 import com.redis.spring.batch.util.GeneratorItemReader.HashOptions;
 import com.redis.spring.batch.util.GeneratorItemReader.Type;
+import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.KeyComparison;
 import com.redis.spring.batch.util.KeyComparison.Status;
+import com.redis.spring.batch.util.KeyComparisonItemReader;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -86,9 +86,9 @@ abstract class AbstractTargetTests extends AbstractBatchTests {
      * @return list of differences
      * @throws Exception
      */
-    protected List<? extends KeyComparison> compare(TestInfo testInfo) throws Exception {
-        TestInfo finalTestInfo = testInfo(testInfo, "compare", "reader");
-        List<KeyComparison> comparisons = readAllAndClose(finalTestInfo, comparisonReader());
+    protected List<? extends KeyComparison> compare(TestInfo info) throws Exception {
+        TestInfo finalTestInfo = testInfo(info, "compare", "reader");
+        List<KeyComparison> comparisons = readAllAndClose(finalTestInfo, comparisonReader(info));
         Assertions.assertFalse(comparisons.isEmpty());
         comparisons.stream().filter(c -> c.getStatus() != Status.OK).forEach(c -> log.severe(c.toString()));
         return comparisons;
@@ -98,62 +98,64 @@ abstract class AbstractTargetTests extends AbstractBatchTests {
         return comparisons.stream().allMatch(c -> c.getStatus() == Status.OK);
     }
 
-    protected KeyComparisonItemReader comparisonReader() throws Exception {
-        KeyComparisonItemReader reader = new KeyComparisonItemReader(structReader(sourceClient), structReader(targetClient));
+    protected KeyComparisonItemReader comparisonReader(TestInfo info) throws Exception {
+        KeyComparisonItemReader reader = new KeyComparisonItemReader(structReader(info, sourceClient),
+                structReader(info, targetClient));
+        reader.setName(name(info));
         reader.setTtlTolerance(Duration.ofMillis(100));
         return reader;
     }
 
     @Test
-    void writeStructsOverwrite(TestInfo testInfo) throws Exception {
+    void writeStructsOverwrite(TestInfo info) throws Exception {
         GeneratorItemReader gen1 = new GeneratorItemReader();
         gen1.setMaxItemCount(100);
         gen1.setTypes(Arrays.asList(Type.HASH));
         gen1.setHashOptions(HashOptions.builder().fieldCount(IntRange.is(5)).build());
-        generate(testInfo, sourceClient, gen1);
+        generate(info, sourceClient, gen1);
         GeneratorItemReader gen2 = new GeneratorItemReader();
         gen2.setMaxItemCount(100);
         gen2.setTypes(Arrays.asList(Type.HASH));
         gen2.setHashOptions(HashOptions.builder().fieldCount(IntRange.is(10)).build());
-        generate(testInfo, targetClient, gen2);
-        RedisItemReader<String, String> reader = structReader(sourceClient);
+        generate(info, targetClient, gen2);
+        RedisItemReader<String, String> reader = structReader(info, sourceClient);
         RedisItemWriter<String, String> writer = structWriter(targetClient);
         writer.setMergePolicy(MergePolicy.OVERWRITE);
-        run(testInfo, reader, writer);
+        run(info, reader, writer);
         assertEquals(sourceConnection.sync().hgetall("gen:1"), targetConnection.sync().hgetall("gen:1"));
     }
 
     @Test
-    void writeStructsMerge(TestInfo testInfo) throws Exception {
+    void writeStructsMerge(TestInfo info) throws Exception {
         GeneratorItemReader gen1 = new GeneratorItemReader();
         gen1.setMaxItemCount(100);
         gen1.setTypes(Arrays.asList(Type.HASH));
         gen1.setHashOptions(HashOptions.builder().fieldCount(IntRange.is(5)).build());
-        generate(testInfo, sourceClient, gen1);
+        generate(info, sourceClient, gen1);
         GeneratorItemReader gen2 = new GeneratorItemReader();
         gen2.setMaxItemCount(100);
         gen2.setTypes(Arrays.asList(Type.HASH));
         gen2.setHashOptions(HashOptions.builder().fieldCount(IntRange.is(10)).build());
-        generate(testInfo, targetClient, gen2);
-        RedisItemReader<String, String> reader = structReader(sourceClient);
+        generate(info, targetClient, gen2);
+        RedisItemReader<String, String> reader = structReader(info, sourceClient);
         RedisItemWriter<String, String> writer = structWriter(targetClient);
         writer.setMergePolicy(MergePolicy.MERGE);
-        run(testInfo, reader, writer);
+        run(info, reader, writer);
         Map<String, String> actual = targetConnection.sync().hgetall("gen:1");
         assertEquals(10, actual.size());
     }
 
     @Test
-    void setComparator(TestInfo testInfo) throws Exception {
+    void setComparator(TestInfo info) throws Exception {
         sourceConnection.sync().sadd("set:1", "value1", "value2");
         targetConnection.sync().sadd("set:1", "value2", "value1");
-        KeyComparisonItemReader reader = comparisonReader();
-        List<KeyComparison> comparisons = readAllAndClose(testInfo, reader);
+        KeyComparisonItemReader reader = comparisonReader(info);
+        List<KeyComparison> comparisons = readAllAndClose(info, reader);
         Assertions.assertEquals(KeyComparison.Status.OK, comparisons.get(0).getStatus());
     }
 
     @Test
-    void byteArrayCodec(TestInfo testInfo) throws Exception {
+    void byteArrayCodec(TestInfo info) throws Exception {
         Assumptions.assumeFalse(RedisVersion.of(sourceConnection).getMajor() == 7);
         try (StatefulRedisConnection<byte[], byte[]> connection = RedisModulesUtils.connection(sourceClient,
                 ByteArrayCodec.INSTANCE)) {
@@ -171,93 +173,93 @@ abstract class AbstractTargetTests extends AbstractBatchTests {
             LettuceFutures.awaitAll(connection.getTimeout(), futures.toArray(new RedisFuture[0]));
             connection.setAutoFlushCommands(true);
         }
-        RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE);
+        RedisItemReader<byte[], byte[]> reader = reader(info, sourceClient, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[]> writer = new RedisItemWriter<>(targetClient, ByteArrayCodec.INSTANCE);
-        run(testInfo, reader, writer);
+        run(info, reader, writer);
         Assertions.assertEquals(sourceConnection.sync().dbsize(), targetConnection.sync().dbsize());
     }
 
     @Test
-    void liveOnlyReplication(TestInfo testInfo) throws Exception {
+    void liveOnlyReplication(TestInfo info) throws Exception {
         Assumptions.assumeFalse(RedisVersion.of(sourceConnection).getMajor() == 7);
         enableKeyspaceNotifications(sourceClient);
-        RedisItemReader<byte[], byte[]> reader = liveReader(sourceClient, ByteArrayCodec.INSTANCE);
+        RedisItemReader<byte[], byte[]> reader = liveReader(info, sourceClient, ByteArrayCodec.INSTANCE);
         reader.setNotificationQueueCapacity(100000);
         reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
         RedisItemWriter<byte[], byte[]> writer = new RedisItemWriter<>(targetClient, ByteArrayCodec.INSTANCE);
-        JobExecution execution = runAsync(job(testInfo).start(flushingStep(testInfo, reader, writer).build()).build());
+        JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
         gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET));
-        generate(testInfo, gen);
+        generate(info, gen);
         awaitTermination(execution);
-        Assertions.assertTrue(isOk(compare(testInfo)));
+        Assertions.assertTrue(isOk(compare(info)));
     }
 
     @Test
-    void liveDumpAndRestoreReplication(TestInfo testInfo) throws Exception {
+    void liveDumpAndRestoreReplication(TestInfo info) throws Exception {
         Assumptions.assumeFalse(RedisVersion.of(sourceConnection).getMajor() == 7);
         enableKeyspaceNotifications(sourceClient);
-        RedisItemReader<byte[], byte[]> reader = reader(sourceClient, ByteArrayCodec.INSTANCE);
+        RedisItemReader<byte[], byte[]> reader = reader(info, sourceClient, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[]> writer = new RedisItemWriter<>(targetClient, ByteArrayCodec.INSTANCE);
-        RedisItemReader<byte[], byte[]> liveReader = liveReader(sourceClient, ByteArrayCodec.INSTANCE);
+        RedisItemReader<byte[], byte[]> liveReader = liveReader(info, sourceClient, ByteArrayCodec.INSTANCE);
         configure(liveReader);
         RedisItemWriter<byte[], byte[]> liveWriter = new RedisItemWriter<>(targetClient, ByteArrayCodec.INSTANCE);
-        Assertions.assertTrue(liveReplication(testInfo, reader, writer, liveReader, liveWriter));
+        Assertions.assertTrue(liveReplication(info, reader, writer, liveReader, liveWriter));
     }
 
     @Test
-    void liveSetReplication(TestInfo testInfo) throws Exception {
+    void liveSetReplication(TestInfo info) throws Exception {
         enableKeyspaceNotifications(sourceClient);
         String key = "myset";
         sourceConnection.sync().sadd(key, "1", "2", "3", "4", "5");
-        RedisItemReader<String, String> reader = liveReader(sourceClient);
+        RedisItemReader<String, String> reader = liveReader(info, sourceClient);
         reader.setValueType(ValueType.STRUCT);
         reader.setNotificationQueueCapacity(100);
         RedisItemWriter<String, String> writer = structWriter(targetClient);
-        JobExecution execution = runAsync(job(testInfo).start(flushingStep(testInfo, reader, writer).build()).build());
+        JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
         sourceConnection.sync().srem(key, "5");
         awaitTermination(execution);
         assertEquals(sourceConnection.sync().smembers(key), targetConnection.sync().smembers(key));
     }
 
     @Test
-    void replicateHLL(TestInfo testInfo) throws Exception {
+    void replicateHLL(TestInfo info) throws Exception {
         String key1 = "hll:1";
         sourceConnection.sync().pfadd(key1, "member:1", "member:2");
         String key2 = "hll:2";
         sourceConnection.sync().pfadd(key2, "member:1", "member:2", "member:3");
-        RedisItemReader<byte[], byte[]> reader = structReader(sourceClient, ByteArrayCodec.INSTANCE);
+        RedisItemReader<byte[], byte[]> reader = structReader(info, sourceClient, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[]> writer = new RedisItemWriter<>(targetClient, ByteArrayCodec.INSTANCE);
         writer.setValueType(ValueType.STRUCT);
-        run(testInfo, reader, writer);
+        run(info, reader, writer);
         RedisModulesCommands<String, String> sourceSync = sourceConnection.sync();
         RedisModulesCommands<String, String> targetSync = targetConnection.sync();
         assertEquals(sourceSync.pfcount(key1), targetSync.pfcount(key1));
     }
 
     @Test
-    void replicateDs(TestInfo testInfo) throws Exception {
+    void replicateDs(TestInfo info) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(10000);
         gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET));
-        generate(testInfo, gen);
-        RedisItemReader<byte[], byte[]> reader = structReader(sourceClient, ByteArrayCodec.INSTANCE);
+        generate(info, gen);
+        RedisItemReader<byte[], byte[]> reader = structReader(info, sourceClient, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[]> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
-        run(testInfo, reader, writer);
-        Assertions.assertTrue(isOk(compare(testInfo)));
+        run(info, reader, writer);
+        Assertions.assertTrue(isOk(compare(info)));
     }
 
     @Test
-    void replicateDsEmptyCollections(TestInfo testInfo) throws Exception {
+    void replicateDsEmptyCollections(TestInfo info) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(10000);
         gen.setTypes(Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET));
-        generate(testInfo, gen);
-        RedisItemReader<byte[], byte[]> reader = structReader(sourceClient, ByteArrayCodec.INSTANCE);
+        generate(info, gen);
+        RedisItemReader<byte[], byte[]> reader = structReader(info, sourceClient, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[]> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
-        run(testInfo, reader, writer);
-        Assertions.assertTrue(isOk(compare(testInfo)));
+        run(info, reader, writer);
+        Assertions.assertTrue(isOk(compare(info)));
     }
 
     protected <K, V> boolean liveReplication(TestInfo testInfo, RedisItemReader<K, V> reader, RedisItemWriter<K, V> writer,
@@ -292,12 +294,12 @@ abstract class AbstractTargetTests extends AbstractBatchTests {
     }
 
     @Test
-    void comparator(TestInfo testInfo) throws Exception {
+    void comparator(TestInfo info) throws Exception {
         Assumptions.assumeFalse(RedisVersion.of(sourceConnection).getMajor() == 7);
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(120);
-        generate(testInfo, gen);
-        run(testInfo(testInfo, "replicate"), reader(sourceClient, ByteArrayCodec.INSTANCE),
+        generate(info, gen);
+        run(testInfo(info, "replicate"), reader(info, sourceClient, ByteArrayCodec.INSTANCE),
                 writer(targetClient, ByteArrayCodec.INSTANCE));
         long deleted = 0;
         for (int index = 0; index < 13; index++) {
@@ -331,9 +333,9 @@ abstract class AbstractTargetTests extends AbstractBatchTests {
             }
             targetConnection.sync().set(key, "blah");
         }
-        KeyComparisonItemReader reader = comparisonReader();
+        KeyComparisonItemReader reader = comparisonReader(info);
         long sourceCount = sourceConnection.sync().dbsize();
-        List<KeyComparison> comparisons = readAll(testInfo, reader);
+        List<KeyComparison> comparisons = readAll(info, reader);
         sourceCount = sourceConnection.sync().dbsize();
         assertEquals(sourceCount, comparisons.size());
         assertEquals(sourceCount, targetConnection.sync().dbsize() + deleted);
@@ -344,17 +346,17 @@ abstract class AbstractTargetTests extends AbstractBatchTests {
     }
 
     @Test
-    void readLive(TestInfo testInfo) throws Exception {
+    void readLive(TestInfo info) throws Exception {
         enableKeyspaceNotifications(sourceClient);
-        RedisItemReader<byte[], byte[]> reader = liveReader(sourceClient, ByteArrayCodec.INSTANCE);
+        RedisItemReader<byte[], byte[]> reader = liveReader(info, sourceClient, ByteArrayCodec.INSTANCE);
         reader.setNotificationQueueCapacity(10000);
         SynchronizedListItemWriter<KeyValue<byte[]>> writer = new SynchronizedListItemWriter<>();
-        JobExecution execution = runAsync(job(testInfo).start(flushingStep(testInfo, reader, writer).build()).build());
+        JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
         GeneratorItemReader gen = new GeneratorItemReader();
         int count = 123;
         gen.setMaxItemCount(count);
         gen.setTypes(Arrays.asList(Type.HASH, Type.STRING));
-        generate(testInfo, gen);
+        generate(info, gen);
         awaitTermination(execution);
         awaitClosed(reader);
         awaitClosed(writer);

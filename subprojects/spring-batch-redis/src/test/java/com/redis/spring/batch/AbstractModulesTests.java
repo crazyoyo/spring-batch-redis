@@ -80,16 +80,16 @@ abstract class AbstractModulesTests extends AbstractTargetTests {
     }
 
     @Test
-    void liveReaderWithType(TestInfo testInfo) throws Exception {
+    void liveReaderWithType(TestInfo info) throws Exception {
         enableKeyspaceNotifications(sourceClient);
-        RedisItemReader<String, String> reader = liveReader(sourceClient);
+        RedisItemReader<String, String> reader = liveReader(info, sourceClient);
         reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
         reader.setScanType(KeyValue.HASH);
         reader.open(new ExecutionContext());
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
-        generate(testInfo, gen);
-        List<KeyValue<String>> keyValues = readAllAndClose(testInfo, reader);
+        generate(info, gen);
+        List<KeyValue<String>> keyValues = readAllAndClose(info, reader);
         Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType().equalsIgnoreCase(KeyValue.HASH)));
     }
 
@@ -144,10 +144,10 @@ abstract class AbstractModulesTests extends AbstractTargetTests {
     }
 
     @Test
-    void tsComparator(TestInfo testInfo) throws Exception {
+    void tsComparator(TestInfo info) throws Exception {
         sourceConnection.sync().tsAdd("ts:1", Sample.of(123));
-        KeyComparisonItemReader reader = comparisonReader();
-        List<KeyComparison> comparisons = readAll(testInfo, reader);
+        KeyComparisonItemReader reader = comparisonReader(info);
+        List<KeyComparison> comparisons = readAll(info, reader);
         Assertions.assertEquals(1, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());
     }
 
