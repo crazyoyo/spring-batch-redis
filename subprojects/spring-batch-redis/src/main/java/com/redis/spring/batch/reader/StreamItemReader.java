@@ -16,7 +16,7 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.common.Utils;
+import com.redis.spring.batch.util.Helper;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
@@ -30,6 +30,10 @@ import io.lettuce.core.codec.RedisCodec;
 
 public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamMessage<K, V>>
         implements PollableItemReader<StreamMessage<K, V>> {
+
+    public enum StreamAckPolicy {
+        AUTO, MANUAL
+    }
 
     public static final Duration DEFAULT_POLL_DURATION = Duration.ofSeconds(1);
 
@@ -105,7 +109,7 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 
     private void doOpen() {
         connection = RedisModulesUtils.connection(client, codec);
-        commands = Utils.sync(connection);
+        commands = Helper.sync(connection);
         StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
         XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
         try {

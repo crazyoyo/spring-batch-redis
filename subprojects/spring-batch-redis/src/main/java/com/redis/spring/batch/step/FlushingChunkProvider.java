@@ -29,11 +29,15 @@ import io.micrometer.core.instrument.Timer.Sample;
  */
 public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 
+    public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
+
+    public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ZERO; // no idle stream detection by default
+
     private final RepeatOperations repeatOperations;
 
-    private Duration interval = FlushingStepOptions.DEFAULT_FLUSHING_INTERVAL;
+    private Duration interval = DEFAULT_FLUSHING_INTERVAL;
 
-    private Duration idleTimeout;
+    private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
 
     private long lastActivity = 0;
 
@@ -94,7 +98,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
     }
 
     private boolean isTimeout() {
-        if (idleTimeout == null || idleTimeout.isNegative() || idleTimeout.isZero()) {
+        if (idleTimeout.isZero() || idleTimeout.isNegative()) {
             return false;
         }
         return millisSinceLastActivity() > idleTimeout.toMillis();

@@ -10,7 +10,7 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Restore<K, V, T> extends AbstractWriteOperation<K, V, T> {
+public class Restore<K, V, T> extends AbstractOperation<K, V, T> {
 
     public static final long TTL_KEY_DOES_NOT_EXIST = -2;
 

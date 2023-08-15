@@ -1,11 +1,13 @@
 package com.redis.spring.batch.writer;
 
 import java.text.MessageFormat;
+import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.batch.item.ItemStreamWriter;
 
-import com.redis.spring.batch.common.AbstractOperationItemStreamSupport;
+import com.redis.spring.batch.AbstractRedisItemStreamSupport;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisCommandExecutionException;
@@ -15,21 +17,47 @@ import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 import io.lettuce.core.cluster.PipelinedRedisFuture;
 import io.lettuce.core.codec.RedisCodec;
 
-public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOperationItemStreamSupport<K, V, T, Object>
+public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractRedisItemStreamSupport<K, V, T, Object>
         implements ItemStreamWriter<T> {
 
-    private WriteOperationOptions options = WriteOperationOptions.builder().build();
+    public static final int DEFAULT_WAIT_REPLICAS = 0;
+
+    public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
+
+    private int waitReplicas = DEFAULT_WAIT_REPLICAS;
+
+    private Duration waitTimeout = DEFAULT_WAIT_TIMEOUT;
+
+    private boolean multiExec;
+
+    private Operation<K, V, T> operation;
 
     protected AbstractOperationItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
         super(client, codec);
     }
 
-    public WriteOperationOptions getOptions() {
-        return options;
+    public int getWaitReplicas() {
+        return waitReplicas;
     }
 
-    public void setOptions(WriteOperationOptions options) {
-        this.options = options;
+    public void setWaitReplicas(int replicas) {
+        this.waitReplicas = replicas;
+    }
+
+    public Duration getWaitTimeout() {
+        return waitTimeout;
+    }
+
+    public void setWaitTimeout(Duration timeout) {
+        this.waitTimeout = timeout;
+    }
+
+    public boolean isMultiExec() {
+        return multiExec;
+    }
+
+    public void setMultiExec(boolean multiExec) {
+        this.multiExec = multiExec;
     }
 
     @Override
@@ -38,35 +66,46 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOpera
     }
 
     @Override
-    protected abstract WriteOperation<K, V, T> operation();
+    protected void doOpen() {
+        operation = operation();
+        super.doOpen();
+    }
+
+    @Override
+    protected void doClose() {
+        super.doClose();
+        operation = null;
+    }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    protected void execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items, List<RedisFuture<Object>> futures) {
-        if (options.isMultiExec()) {
+    protected void execute(BaseRedisAsyncCommands<K, V> commands, Collection<? extends T> items,
+            List<RedisFuture<Object>> futures) {
+        if (multiExec) {
             futures.add((RedisFuture) ((RedisTransactionalAsyncCommands<K, V>) commands).multi());
         }
         super.execute(commands, items, futures);
-        if (options.getReplicaWaitOptions().getReplicas() > 0) {
-            RedisFuture<Long> waitFuture = commands.waitForReplication(options.getReplicaWaitOptions().getReplicas(),
-                    waitTimeout());
-            PipelinedRedisFuture replicaWaitFuture = new PipelinedRedisFuture(waitFuture.thenAccept(this::checkReplicas));
-            futures.add(replicaWaitFuture);
+        if (waitReplicas > 0) {
+            RedisFuture<Long> waitFuture = commands.waitForReplication(waitReplicas, waitTimeout.toMillis());
+            futures.add((RedisFuture) new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));
         }
-        if (options.isMultiExec()) {
+        if (multiExec) {
             futures.add((RedisFuture) ((RedisTransactionalAsyncCommands<K, V>) commands).exec());
         }
     }
 
-    private long waitTimeout() {
-        return options.getReplicaWaitOptions().getTimeout().toMillis();
+    @Override
+    protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
+        operation.execute(commands, item, futures);
     }
 
     private void checkReplicas(Long actual) {
-        if (actual == null || actual < options.getReplicaWaitOptions().getReplicas()) {
-            throw new RedisCommandExecutionException(MessageFormat.format("Insufficient replication level ({0}/{1})", actual,
-                    options.getReplicaWaitOptions().getReplicas()));
+        if (actual == null || actual < waitReplicas) {
+            throw new RedisCommandExecutionException(
+                    MessageFormat.format("Insufficient replication level ({0}/{1})", actual, waitReplicas));
         }
     }
+
+    protected abstract Operation<K, V, T> operation();
 
 }

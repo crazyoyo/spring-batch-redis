@@ -11,7 +11,7 @@ import com.redis.lettucemod.timeseries.Sample;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class TsAdd<K, V, T> extends AbstractWriteOperation<K, V, T> {
+public class TsAdd<K, V, T> extends AbstractOperation<K, V, T> {
 
     private final Function<T, Sample> sample;
 

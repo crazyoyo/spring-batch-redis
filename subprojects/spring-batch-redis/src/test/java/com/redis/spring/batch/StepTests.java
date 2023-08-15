@@ -35,13 +35,11 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.reader.GeneratorItemReader;
-import com.redis.spring.batch.reader.GeneratorItemReader.Type;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.step.FlushingFaultTolerantStepBuilder;
 import com.redis.spring.batch.step.FlushingStepBuilder;
-import com.redis.spring.batch.step.FlushingStepOptions;
+import com.redis.spring.batch.util.GeneratorItemReader;
+import com.redis.spring.batch.util.GeneratorItemReader.Type;
 
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
@@ -85,7 +83,7 @@ class StepTests {
         step.chunk(1);
         step.reader(reader);
         step.writer(writer);
-        step.options(FlushingStepOptions.builder().idleTimeout(Duration.ofMillis(300)).build());
+        step.idleTimeout(Duration.ofMillis(300));
         FlushingFaultTolerantStepBuilder<KeyValue<String>, KeyValue<String>> ftStep = step.faultTolerant();
         ftStep.skip(TimeoutException.class);
         ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
@@ -104,7 +102,7 @@ class StepTests {
         step.reader(reader);
         step.writer(writer);
         FlushingFaultTolerantStepBuilder<Integer, Integer> ftStep = new FlushingFaultTolerantStepBuilder<>(step);
-        ftStep.options(FlushingStepOptions.builder().idleTimeout(Duration.ofMillis(300)).build());
+        ftStep.idleTimeout(Duration.ofMillis(300));
         ftStep.skip(TimeoutException.class);
         ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
         Job job = jobBuilderFactory.get(name).start(ftStep.build()).build();
@@ -123,7 +121,7 @@ class StepTests {
         step.reader(reader);
         step.writer(writer);
         FlushingStepBuilder<String, String> flushingStep = new FlushingStepBuilder<>(step);
-        flushingStep.options(FlushingStepOptions.builder().idleTimeout(Duration.ofMillis(500)).build());
+        flushingStep.idleTimeout(Duration.ofMillis(500));
         Job job = jobBuilderFactory.get(name).start(flushingStep.build()).build();
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         for (int index = 1; index <= count; index++) {

@@ -10,7 +10,7 @@ import com.redis.lettucemod.search.Suggestion;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class Sugadd<K, V, T> extends AbstractWriteOperation<K, V, T> {
+public class Sugadd<K, V, T> extends AbstractOperation<K, V, T> {
 
     protected final Function<T, Suggestion<V>> suggestion;
 

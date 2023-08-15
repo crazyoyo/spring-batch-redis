@@ -5,8 +5,8 @@ import java.util.function.Predicate;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import com.redis.spring.batch.common.IntRange;
-import com.redis.spring.batch.common.KeyPredicateFactory;
+import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.KeyPredicateFactory;
 
 class KeyPredicateTests {
 

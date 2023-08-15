@@ -3,7 +3,7 @@ package com.redis.spring.batch;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import com.redis.spring.batch.common.KeyBuilder;
+import com.redis.spring.batch.util.KeyBuilder;
 
 class KeyBuilderTests {
 

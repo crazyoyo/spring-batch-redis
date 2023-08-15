@@ -8,7 +8,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 import java.util.function.Function;
 
 import org.junit.jupiter.api.Assertions;
@@ -21,7 +20,6 @@ import org.springframework.batch.item.support.ListItemReader;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.Beers;
-import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.search.IndexInfo;
 import com.redis.lettucemod.search.Suggestion;
@@ -31,25 +29,24 @@ import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.Utils;
-import com.redis.spring.batch.convert.SampleConverter;
-import com.redis.spring.batch.convert.SuggestionConverter;
-import com.redis.spring.batch.reader.GeneratorItemReader;
-import com.redis.spring.batch.reader.GeneratorItemReader.Type;
-import com.redis.spring.batch.reader.KeyComparison.Status;
-import com.redis.spring.batch.reader.KeyComparisonItemReader;
-import com.redis.spring.batch.reader.KeyEvent;
-import com.redis.spring.batch.reader.KeyValueReadOperation;
-import com.redis.spring.batch.reader.KeyspaceNotification;
-import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
-import com.redis.spring.batch.writer.KeyComparisonCountItemWriter;
+import com.redis.spring.batch.util.ToSampleFunction;
+import com.redis.spring.batch.util.ToSuggestionFunction;
+import com.redis.spring.batch.util.GeneratorItemReader.Type;
+import com.redis.spring.batch.util.KeyComparison.Status;
+import com.redis.spring.batch.util.GeneratorItemReader;
+import com.redis.spring.batch.util.Helper;
+import com.redis.spring.batch.util.KeyComparison;
+import com.redis.spring.batch.util.KeyComparisonItemReader;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.operation.JsonDel;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Sugadd;
 import com.redis.spring.batch.writer.operation.SugaddIncr;
 import com.redis.spring.batch.writer.operation.TsAdd;
+import com.redis.spring.batch.reader.KeyEvent;
+import com.redis.spring.batch.reader.KeyValueItemProcessor;
+import com.redis.spring.batch.reader.KeyspaceNotification;
+import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.StringCodec;
@@ -83,24 +80,17 @@ abstract class AbstractModulesTests extends AbstractTargetTests {
     }
 
     @Test
-    void readKeyspaceNotificationsWithType(TestInfo testInfo) throws Exception {
+    void liveReaderWithType(TestInfo testInfo) throws Exception {
         enableKeyspaceNotifications(sourceClient);
-        KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(sourceClient,
-                StringCodec.UTF8);
-        reader.getScanOptions().setType(KeyValue.HASH);
+        RedisItemReader<String, String> reader = liveReader(sourceClient);
+        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+        reader.setScanType(KeyValue.HASH);
         reader.open(new ExecutionContext());
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
-        gen.setTypes(
-                Arrays.asList(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET, Type.TIMESERIES, Type.JSON));
         generate(testInfo, gen);
-        BlockingQueue<KeyspaceNotification> queue = reader.getQueue();
-        awaitUntil(() -> reader.getQueue().size() > 0);
-        KeyspaceNotification notification;
-        while ((notification = queue.poll()) != null) {
-            Assertions.assertEquals(KeyValue.HASH, notification.getEvent().getType());
-        }
-        reader.close();
+        List<KeyValue<String>> keyValues = readAllAndClose(testInfo, reader);
+        Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType().equalsIgnoreCase(KeyValue.HASH)));
     }
 
     @Test
@@ -157,9 +147,8 @@ abstract class AbstractModulesTests extends AbstractTargetTests {
     void tsComparator(TestInfo testInfo) throws Exception {
         sourceConnection.sync().tsAdd("ts:1", Sample.of(123));
         KeyComparisonItemReader reader = comparisonReader();
-        KeyComparisonCountItemWriter writer = new KeyComparisonCountItemWriter();
-        run(testInfo, reader, writer);
-        Assertions.assertEquals(1, writer.getResults().getCount(Status.MISSING));
+        List<KeyComparison> comparisons = readAll(testInfo, reader);
+        Assertions.assertEquals(1, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());
     }
 
     @Test
@@ -169,11 +158,14 @@ abstract class AbstractModulesTests extends AbstractTargetTests {
         for (Sample sample : samples) {
             sourceConnection.sync().tsAdd(key, sample);
         }
-        KeyValueReadOperation<String, String> operation = KeyValueReadOperation.builder(sourceClient).struct();
-        KeyValue<String> ds = structProcessor.process(operation.execute(sourceConnection.async(), key).get());
+        KeyValueItemProcessor<String, String> reader = new KeyValueItemProcessor<>(sourceClient, StringCodec.UTF8);
+        reader.setValueType(ValueType.STRUCT);
+        reader.open(new ExecutionContext());
+        KeyValue<String> ds = reader.process(key).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
         Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
+        reader.close();
     }
 
     @Test
@@ -183,16 +175,15 @@ abstract class AbstractModulesTests extends AbstractTargetTests {
         for (Sample sample : samples) {
             sourceConnection.sync().tsAdd(key, sample);
         }
-        KeyValueReadOperation<byte[], byte[]> operation = KeyValueReadOperation.builder(sourceClient, ByteArrayCodec.INSTANCE)
-                .struct();
-        StatefulRedisModulesConnection<byte[], byte[]> byteConnection = RedisModulesUtils.connection(sourceClient,
-                ByteArrayCodec.INSTANCE);
-        Function<String, byte[]> toByteArrayKeyFunction = Utils.toByteArrayKeyFunction(StringCodec.UTF8);
-        KeyValue<byte[]> ds = bytesStructProcessor
-                .process(operation.execute(byteConnection.async(), toByteArrayKeyFunction.apply(key)).get());
+        KeyValueItemProcessor<byte[], byte[]> reader = new KeyValueItemProcessor<>(sourceClient, ByteArrayCodec.INSTANCE);
+        reader.setValueType(ValueType.STRUCT);
+        reader.open(new ExecutionContext());
+        Function<String, byte[]> toByteArrayKeyFunction = Helper.toByteArrayKeyFunction(StringCodec.UTF8);
+        KeyValue<byte[]> ds = reader.process(toByteArrayKeyFunction.apply(key)).get(0);
         Assertions.assertArrayEquals(toByteArrayKeyFunction.apply(key), ds.getKey());
         Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
         Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
+        reader.close();
     }
 
     @Test
@@ -203,7 +194,7 @@ abstract class AbstractModulesTests extends AbstractTargetTests {
             values.add(Sample.of(System.currentTimeMillis() - 1000 + index, index));
         }
         ListItemReader<Sample> reader = new ListItemReader<>(values);
-        SampleConverter<Sample> converter = new SampleConverter<>(Sample::getTimestamp, Sample::getValue);
+        ToSampleFunction<Sample> converter = new ToSampleFunction<>(Sample::getTimestamp, Sample::getValue);
         TsAdd<String, String, Sample> tsAdd = new TsAdd<>(t -> key, converter);
         OperationItemWriter<String, String, Sample> writer = new OperationItemWriter<>(sourceClient, StringCodec.UTF8, tsAdd);
         run(testInfo, reader, writer);
@@ -220,7 +211,7 @@ abstract class AbstractModulesTests extends AbstractTargetTests {
             values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
         }
         ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
-        SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
+        ToSuggestionFunction<String, Suggestion<String>> converter = new ToSuggestionFunction<>(Suggestion::getString,
                 Suggestion::getScore, Suggestion::getPayload);
         Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(t -> key, converter);
         OperationItemWriter<String, String, Suggestion<String>> writer = new OperationItemWriter<>(sourceClient,
@@ -239,7 +230,7 @@ abstract class AbstractModulesTests extends AbstractTargetTests {
             values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
         }
         ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
-        SuggestionConverter<String, Suggestion<String>> converter = new SuggestionConverter<>(Suggestion::getString,
+        ToSuggestionFunction<String, Suggestion<String>> converter = new ToSuggestionFunction<>(Suggestion::getString,
                 Suggestion::getScore, Suggestion::getPayload);
         SugaddIncr<String, String, Suggestion<String>> sugadd = new SugaddIncr<>(t -> key, converter);
         OperationItemWriter<String, String, Suggestion<String>> writer = new OperationItemWriter<>(sourceClient,

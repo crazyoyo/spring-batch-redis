@@ -4,13 +4,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
-import com.redis.spring.batch.writer.WriteOperation;
+import com.redis.spring.batch.writer.Operation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 
-public abstract class AbstractPushAllOperation<K, V, T> implements WriteOperation<K, V, T> {
+public abstract class AbstractPushAllOperation<K, V, T> implements Operation<K, V, T> {
 
     private final Function<T, K> keyFunction;
 

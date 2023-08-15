@@ -9,7 +9,7 @@ import io.lettuce.core.SetArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
-public class Set<K, V, T> extends AbstractWriteOperation<K, V, T> {
+public class Set<K, V, T> extends AbstractOperation<K, V, T> {
 
     private static final SetArgs DEFAULT_ARGS = new SetArgs();
 

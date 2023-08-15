@@ -1,5 +1,6 @@
 package com.redis.spring.batch.step;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.function.Function;
 
@@ -24,7 +25,9 @@ import com.redis.spring.batch.reader.PollableItemReader;
 
 public class FlushingFaultTolerantStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 
-    private FlushingStepOptions options = FlushingStepOptions.builder().build();
+    private Duration interval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
+
+    private Duration idleTimeout = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
 
     public FlushingFaultTolerantStepBuilder(StepBuilderHelper<?> parent) {
         super(parent);
@@ -36,7 +39,8 @@ public class FlushingFaultTolerantStepBuilder<I, O> extends FaultTolerantStepBui
 
     public FlushingFaultTolerantStepBuilder(FlushingStepBuilder<I, O> parent) {
         super(parent);
-        this.options = parent.getOptions();
+        this.interval = parent.getInterval();
+        this.idleTimeout = parent.getIdleTimeout();
     }
 
     @Override
@@ -49,8 +53,8 @@ public class FlushingFaultTolerantStepBuilder<I, O> extends FaultTolerantStepBui
         chunkProvider.setMaxSkipsOnRead(maxSkipsOnRead);
         chunkProvider.setSkipPolicy(readSkipPolicy);
         chunkProvider.setRollbackClassifier(getRollbackClassifier());
-        chunkProvider.setInterval(options.getInterval());
-        chunkProvider.setIdleTimeout(options.getIdleTimeout().orElse(null));
+        chunkProvider.setInterval(interval);
+        chunkProvider.setIdleTimeout(idleTimeout);
         ArrayList<StepListener> listeners = new ArrayList<>(getItemListeners());
         listeners.addAll(getSkipListeners());
         chunkProvider.setListeners(listeners);
@@ -67,8 +71,13 @@ public class FlushingFaultTolerantStepBuilder<I, O> extends FaultTolerantStepBui
         return (FlushingFaultTolerantStepBuilder<I, O>) super.chunk(completionPolicy);
     }
 
-    public FlushingFaultTolerantStepBuilder<I, O> options(FlushingStepOptions options) {
-        this.options = options;
+    public FlushingFaultTolerantStepBuilder<I, O> interval(Duration interval) {
+        this.interval = interval;
+        return this;
+    }
+
+    public FlushingFaultTolerantStepBuilder<I, O> idleTimeout(Duration timeout) {
+        this.idleTimeout = timeout;
         return this;
     }
 

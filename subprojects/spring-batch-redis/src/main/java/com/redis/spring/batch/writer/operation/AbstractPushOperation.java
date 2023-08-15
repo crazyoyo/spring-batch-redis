@@ -6,7 +6,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 
-public abstract class AbstractPushOperation<K, V, T> extends AbstractWriteOperation<K, V, T> {
+public abstract class AbstractPushOperation<K, V, T> extends AbstractOperation<K, V, T> {
 
     private final Function<T, V> value;
 
