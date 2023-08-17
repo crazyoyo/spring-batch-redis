@@ -90,7 +90,7 @@ abstract class AbstractReplicationTests extends AbstractBatchTests {
         TestInfo finalTestInfo = testInfo(info, "compare", "reader");
         List<KeyComparison> comparisons = readAllAndClose(finalTestInfo, comparisonReader(info));
         Assertions.assertFalse(comparisons.isEmpty());
-        comparisons.stream().filter(c -> c.getStatus() != Status.OK).forEach(c -> log.severe(c.toString()));
+        comparisons.stream().filter(c -> c.getStatus() != Status.OK).forEach(this::logComparison);
         return comparisons;
     }
 
@@ -380,6 +380,13 @@ abstract class AbstractReplicationTests extends AbstractBatchTests {
         awaitUntil(() -> reader.getQueue().size() == 1);
         Assertions.assertEquals(key, reader.read());
         reader.close();
+    }
+
+    private void logComparison(KeyComparison comparison) {
+        log.severe(comparison.toString());
+        if (comparison.getStatus() == Status.VALUE) {
+            log.severe("Expected: " + comparison.getSource().getValue() + " but was " + comparison.getTarget().getValue());
+        }
     }
 
 }
