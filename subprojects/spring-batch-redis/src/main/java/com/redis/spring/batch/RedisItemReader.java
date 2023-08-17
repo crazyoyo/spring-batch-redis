@@ -77,6 +77,8 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     public static final int DEFAULT_CHUNK_SIZE = 50;
 
+    public static final int DEFAULT_SCAN_COUNT = DEFAULT_CHUNK_SIZE;
+
     public static final String MATCH_ALL = "*";
 
     public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
@@ -131,7 +133,7 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     private String scanType;
 
-    private Long scanCount;
+    private long scanCount = DEFAULT_SCAN_COUNT;
 
     private int database = DEFAULT_DATABASE;
 
@@ -278,11 +280,11 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
         this.scanType = scanType;
     }
 
-    public void setScanCount(Long count) {
+    public void setScanCount(long count) {
         this.scanCount = count;
     }
 
-    public Long getScanCount() {
+    public long getScanCount() {
         return scanCount;
     }
 
@@ -400,18 +402,20 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
         if (readFrom != null && connection instanceof StatefulRedisClusterConnection) {
             ((StatefulRedisClusterConnection<K, V>) connection).setReadFrom(readFrom);
         }
+        ScanIterator<K> iterator = ScanIterator.scan(Helper.sync(connection), scanArgs());
+        return new IteratorItemReader<>(iterator);
+    }
+
+    private KeyScanArgs scanArgs() {
         KeyScanArgs args = new KeyScanArgs();
-        if (scanCount != null) {
-            args.limit(scanCount);
-        }
+        args.limit(scanCount);
         if (scanMatch != null) {
             args.match(scanMatch);
         }
         if (scanType != null) {
             args.type(scanType);
         }
-        ScanIterator<K> iterator = ScanIterator.scan(Helper.sync(connection), args);
-        return new IteratorItemReader<>(iterator);
+        return args;
     }
 
     public Set<String> getBlockedKeys() {
@@ -538,12 +542,6 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
         return queue.poll(timeout, unit);
     }
 
-    public synchronized List<KeyValue<K>> read(int maxElements) {
-        List<KeyValue<K>> items = new ArrayList<>(maxElements);
-        queue.drainTo(items, maxElements);
-        return items;
-    }
-
     private class BlockedKeyItemWriter extends AbstractItemStreamItemWriter<KeyValue<K>> {
 
         private final Set<String> blockedKeys = new HashSet<>();
@@ -565,6 +563,15 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
             return blockedKeys;
         }
 
+    }
+
+    public List<KeyValue<K>> readChunk() throws Exception {
+        List<KeyValue<K>> items = new ArrayList<>();
+        KeyValue<K> item;
+        while (items.size() < chunkSize && (item = read()) != null) {
+            items.add(item);
+        }
+        return items;
     }
 
 }

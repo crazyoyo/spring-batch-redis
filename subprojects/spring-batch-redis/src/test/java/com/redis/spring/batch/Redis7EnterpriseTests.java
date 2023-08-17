@@ -8,7 +8,7 @@ import com.redis.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisServer;
 
 @EnabledOnOs(OS.LINUX)
-class Redis7EnterpriseTests extends AbstractTargetTests {
+class Redis7EnterpriseTests extends AbstractReplicationTests {
 
     private static final RedisContainer SOURCE = RedisContainerFactory.redis("7.0");
 

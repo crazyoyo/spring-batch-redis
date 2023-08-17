@@ -50,7 +50,7 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.StringCodec;
 
-abstract class AbstractTargetTests extends AbstractBatchTests {
+abstract class AbstractReplicationTests extends AbstractBatchTests {
 
     protected AbstractRedisClient targetClient;
 

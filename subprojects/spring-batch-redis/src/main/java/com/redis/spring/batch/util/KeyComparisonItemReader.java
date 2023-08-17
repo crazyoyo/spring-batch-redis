@@ -33,8 +33,6 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 
     private final RedisItemReader<String, String> right;
 
-    private int chunkSize = RedisItemReader.DEFAULT_CHUNK_SIZE;
-
     private Iterator<KeyComparison> iterator = Collections.emptyIterator();
 
     private KeyValueItemProcessor<String, String> rightKeyValueReader;
@@ -109,7 +107,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
         if (iterator.hasNext()) {
             return iterator.next();
         }
-        List<KeyValue<String>> leftItems = readChunk();
+        List<KeyValue<String>> leftItems = left.readChunk();
         List<String> keys = leftItems.stream().map(KeyValue::getKey).collect(Collectors.toList());
         List<KeyValue<String>> rightItems = rightKeyValueReader.process(keys);
         List<KeyComparison> results = new ArrayList<>();
@@ -131,15 +129,6 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
             return null;
         }
         return list.get(index);
-    }
-
-    private List<KeyValue<String>> readChunk() throws Exception {
-        List<KeyValue<String>> items = new ArrayList<>();
-        KeyValue<String> item;
-        while (items.size() < chunkSize && (item = left.read()) != null) {
-            items.add(item);
-        }
-        return items;
     }
 
     private Status compare(KeyValue<String> left, KeyValue<String> right) {

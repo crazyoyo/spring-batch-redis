@@ -22,7 +22,7 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractRedis
 
     public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
 
-    private Integer waitReplicas;
+    private int waitReplicas;
 
     private Duration waitTimeout = DEFAULT_WAIT_TIMEOUT;
 
@@ -34,11 +34,11 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractRedis
         super(client, codec);
     }
 
-    public Integer getWaitReplicas() {
+    public int getWaitReplicas() {
         return waitReplicas;
     }
 
-    public void setWaitReplicas(Integer replicas) {
+    public void setWaitReplicas(int replicas) {
         this.waitReplicas = replicas;
     }
 
@@ -83,7 +83,7 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractRedis
             futures.add((RedisFuture) ((RedisTransactionalAsyncCommands<K, V>) commands).multi());
         }
         super.execute(commands, items, futures);
-        if (waitReplicas != null) {
+        if (waitReplicas > 0) {
             RedisFuture<Long> waitFuture = commands.waitForReplication(waitReplicas, waitTimeout.toMillis());
             futures.add((RedisFuture) new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));
         }
