@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -63,7 +62,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     private IntRange keyRange = DEFAULT_KEY_RANGE;
 
-    private Optional<IntRange> expiration = Optional.empty();
+    private IntRange expiration;
 
     private HashOptions hashOptions = DEFAULT_HASH_OPTIONS;
 
@@ -115,10 +114,6 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
     }
 
     public void setExpiration(IntRange expiration) {
-        setExpiration(Optional.of(expiration));
-    }
-
-    public void setExpiration(Optional<IntRange> expiration) {
         this.expiration = expiration;
     }
 
@@ -705,7 +700,9 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
             throw new ItemStreamException("Could not read value", e);
         }
         ds.setValue(value);
-        expiration.ifPresent(e -> ds.setTtl(System.currentTimeMillis() + randomInt(e)));
+        if (expiration != null) {
+            ds.setTtl(System.currentTimeMillis() + randomInt(expiration));
+        }
         return ds;
     }
 

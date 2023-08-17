@@ -5,13 +5,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
@@ -47,6 +48,7 @@ import com.redis.spring.batch.reader.KeyspaceNotificationItemReader.OrderingStra
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
+import com.redis.spring.batch.util.FilteringItemProcessor;
 import com.redis.spring.batch.util.Helper;
 import com.redis.spring.batch.writer.ProcessingItemWriter;
 import com.redis.spring.batch.writer.QueueItemWriter;
@@ -69,8 +71,6 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 
-    public static final long DEFAULT_SCAN_COUNT = 1000;
-
     public static final ValueType DEFAULT_VALUE_TYPE = ValueType.DUMP;
 
     public static final int DEFAULT_THREADS = 1;
@@ -91,13 +91,23 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
 
+    public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
+
+    public static final Duration DEFAULT_FLUSHING_INTERVAL = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
+
+    public static final Duration DEFAULT_IDLE_TIMEOUT = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
+
     private final AbstractRedisClient client;
 
     private final RedisCodec<K, V> codec;
 
-    private final Function<K, String> toStringKeyEncoder;
+    private final BlockedKeyItemWriter blockedKeyWriter;
+
+    private final FilteringItemProcessor<K> blockedKeyFilter;
 
     private ValueType valueType = DEFAULT_VALUE_TYPE;
+
+    private Mode mode = Mode.SCAN;
 
     private ItemProcessor<K, K> keyProcessor;
 
@@ -105,9 +115,9 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     private int chunkSize = DEFAULT_CHUNK_SIZE;
 
-    private int poolSize = AbstractRedisItemStreamSupport.DEFAULT_POOL_SIZE;
+    private int poolSize = DEFAULT_POOL_SIZE;
 
-    private Optional<ReadFrom> readFrom = Optional.empty();
+    private ReadFrom readFrom;
 
     private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
@@ -121,7 +131,17 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     private String scanType;
 
-    private long scanCount = DEFAULT_SCAN_COUNT;
+    private Long scanCount;
+
+    private int database = DEFAULT_DATABASE;
+
+    private OrderingStrategy orderingStrategy = DEFAULT_ORDERING;
+
+    private int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
+
+    private Duration flushingInterval = DEFAULT_FLUSHING_INTERVAL;
+
+    private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
 
     private JobRepository jobRepository;
 
@@ -133,29 +153,21 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     private BlockingQueue<KeyValue<K>> queue;
 
-    private Mode mode = Mode.SCAN;
-
-    private static String pattern(int database, String match) {
-        return String.format(PUBSUB_PATTERN_FORMAT, database, match == null ? MATCH_ALL : match);
-    }
-
-    private int database = DEFAULT_DATABASE;
-
-    private OrderingStrategy orderingStrategy = DEFAULT_ORDERING;
-
-    private int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
-
-    private Duration interval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
-
-    private Duration idleTimeout = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
-
-    private final Set<String> blockedKeys = new HashSet<>();
-
     public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
         setName(ClassUtils.getShortName(getClass()));
         this.client = client;
         this.codec = codec;
-        this.toStringKeyEncoder = Helper.toStringKeyFunction(codec);
+        this.blockedKeyWriter = new BlockedKeyItemWriter(codec);
+        this.blockedKeyFilter = new FilteringItemProcessor<>(compose(Helper.toStringKeyFunction(codec),
+                ((Predicate<String>) blockedKeyWriter.getBlockedKeys()::contains).negate()));
+    }
+
+    private static <S, T> Predicate<S> compose(Function<S, T> function, Predicate<T> predicate) {
+        return s -> predicate.test(function.apply(s));
+    }
+
+    private static String pattern(int database, String match) {
+        return String.format(PUBSUB_PATTERN_FORMAT, database, match == null ? MATCH_ALL : match);
     }
 
     public void setValueType(ValueType valueType) {
@@ -202,11 +214,11 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
         this.chunkSize = chunkSize;
     }
 
-    public Optional<ReadFrom> getReadFrom() {
+    public ReadFrom getReadFrom() {
         return readFrom;
     }
 
-    public void setReadFrom(Optional<ReadFrom> readFrom) {
+    public void setReadFrom(ReadFrom readFrom) {
         this.readFrom = readFrom;
     }
 
@@ -266,11 +278,11 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
         this.scanType = scanType;
     }
 
-    public void setScanCount(long count) {
+    public void setScanCount(Long count) {
         this.scanCount = count;
     }
 
-    public long getScanCount() {
+    public Long getScanCount() {
         return scanCount;
     }
 
@@ -282,12 +294,12 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
         this.idleTimeout = idleTimeout;
     }
 
-    public Duration getInterval() {
-        return interval;
+    public Duration getFlushingInterval() {
+        return flushingInterval;
     }
 
-    public void setInterval(Duration interval) {
-        this.interval = interval;
+    public void setFlushingInterval(Duration interval) {
+        this.flushingInterval = interval;
     }
 
     public Mode getMode() {
@@ -296,6 +308,30 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     public void setMode(Mode mode) {
         this.mode = mode;
+    }
+
+    public int getPoolSize() {
+        return poolSize;
+    }
+
+    public void setPoolSize(int poolSize) {
+        this.poolSize = poolSize;
+    }
+
+    public int getDatabase() {
+        return database;
+    }
+
+    public void setDatabase(int database) {
+        this.database = database;
+    }
+
+    public OrderingStrategy getOrderingStrategy() {
+        return orderingStrategy;
+    }
+
+    public void setOrderingStrategy(OrderingStrategy orderingStrategy) {
+        this.orderingStrategy = orderingStrategy;
     }
 
     @Override
@@ -324,7 +360,7 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
             step.throttleLimit(threads);
         }
         if (mode == Mode.LIVE) {
-            step = new FlushingStepBuilder<>(step).interval(interval).idleTimeout(idleTimeout);
+            step = new FlushingStepBuilder<>(step).interval(flushingInterval).idleTimeout(idleTimeout);
         }
         Job job = jobBuilderFactory().get(name).start(step.build()).build();
         try {
@@ -361,10 +397,13 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
     @SuppressWarnings("unchecked")
     private ItemReader<K> scanKeyReader() {
         StatefulRedisModulesConnection<K, V> connection = RedisModulesUtils.connection(client, codec);
-        if (connection instanceof StatefulRedisClusterConnection) {
-            readFrom.ifPresent(((StatefulRedisClusterConnection<K, V>) connection)::setReadFrom);
+        if (readFrom != null && connection instanceof StatefulRedisClusterConnection) {
+            ((StatefulRedisClusterConnection<K, V>) connection).setReadFrom(readFrom);
         }
-        KeyScanArgs args = KeyScanArgs.Builder.limit(scanCount);
+        KeyScanArgs args = new KeyScanArgs();
+        if (scanCount != null) {
+            args.limit(scanCount);
+        }
         if (scanMatch != null) {
             args.match(scanMatch);
         }
@@ -376,7 +415,7 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
     }
 
     public Set<String> getBlockedKeys() {
-        return blockedKeys;
+        return blockedKeyWriter.getBlockedKeys();
     }
 
     private JobBuilderFactory jobBuilderFactory() {
@@ -424,10 +463,10 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
     private ItemProcessor<? super K, ? extends K> processor() {
         if (shouldBlockKeys()) {
             if (keyProcessor == null) {
-                return new KeyBlocker();
+                return blockedKeyFilter;
             }
             CompositeItemProcessor<K, K> processor = new CompositeItemProcessor<>();
-            processor.setDelegates(Arrays.asList(new KeyBlocker(), keyProcessor));
+            processor.setDelegates(Arrays.asList(blockedKeyFilter, keyProcessor));
             return processor;
         }
         return keyProcessor;
@@ -453,7 +492,7 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
         QueueItemWriter<KeyValue<K>> writer = new QueueItemWriter<>(queue);
         if (shouldBlockKeys()) {
             CompositeItemWriter<KeyValue<K>> composite = new CompositeItemWriter<>();
-            composite.setDelegates(Arrays.asList(writer, new BlockedKeyItemWriter()));
+            composite.setDelegates(Arrays.asList(writer, blockedKeyWriter));
             return composite;
         }
         return writer;
@@ -507,31 +546,23 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     private class BlockedKeyItemWriter extends AbstractItemStreamItemWriter<KeyValue<K>> {
 
-        private final long memLimit;
+        private final Set<String> blockedKeys = new HashSet<>();
 
-        public BlockedKeyItemWriter() {
-            memLimit = memoryUsageLimit.toBytes();
+        private final Function<K, String> toStringKeyFunction;
+
+        private final Predicate<KeyValue<K>> predicate = v -> v.getMemoryUsage() > memoryUsageLimit.toBytes();
+
+        public BlockedKeyItemWriter(RedisCodec<K, ?> codec) {
+            this.toStringKeyFunction = Helper.toStringKeyFunction(codec);
         }
 
         @Override
         public void write(List<? extends KeyValue<K>> items) throws Exception {
-            for (KeyValue<K> item : items) {
-                if (item.getMemoryUsage() > memLimit) {
-                    blockedKeys.add(toStringKeyEncoder.apply(item.getKey()));
-                }
-            }
+            items.stream().filter(predicate).map(KeyValue::getKey).map(toStringKeyFunction).forEach(blockedKeys::add);
         }
 
-    }
-
-    private class KeyBlocker implements ItemProcessor<K, K> {
-
-        @Override
-        public K process(K item) throws Exception {
-            if (blockedKeys.contains(toStringKeyEncoder.apply(item))) {
-                return null;
-            }
-            return item;
+        public Set<String> getBlockedKeys() {
+            return blockedKeys;
         }
 
     }

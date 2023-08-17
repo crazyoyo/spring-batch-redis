@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -53,11 +52,13 @@ public interface Helper {
     }
 
     static <K, V> Supplier<StatefulConnection<K, V>> connectionSupplier(AbstractRedisClient client, RedisCodec<K, V> codec,
-            Optional<ReadFrom> readFrom) {
+            ReadFrom readFrom) {
         if (client instanceof RedisModulesClusterClient) {
             return () -> {
                 StatefulRedisClusterConnection<K, V> connection = ((RedisModulesClusterClient) client).connect(codec);
-                readFrom.ifPresent(connection::setReadFrom);
+                if (readFrom != null) {
+                    connection.setReadFrom(readFrom);
+                }
                 return connection;
             };
         }

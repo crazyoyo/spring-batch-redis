@@ -15,8 +15,13 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemReader.Mode;
+import com.redis.spring.batch.ValueType;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.util.KeyComparison.Status;
+
+import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.codec.StringCodec;
 
 public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyComparison> {
 
@@ -33,6 +38,10 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
     private Iterator<KeyComparison> iterator = Collections.emptyIterator();
 
     private KeyValueItemProcessor<String, String> rightKeyValueReader;
+
+    public KeyComparisonItemReader(AbstractRedisClient left, AbstractRedisClient right) {
+        this(new RedisItemReader<>(left, StringCodec.UTF8), new RedisItemReader<>(right, StringCodec.UTF8));
+    }
 
     public KeyComparisonItemReader(RedisItemReader<String, String> left, RedisItemReader<String, String> right) {
         this.left = left;
@@ -64,6 +73,10 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
         if (!isOpen()) {
+            left.setValueType(ValueType.STRUCT);
+            left.setMode(Mode.SCAN);
+            right.setValueType(ValueType.STRUCT);
+            right.setMode(Mode.SCAN);
             rightKeyValueReader = right.keyValueProcessor();
             rightKeyValueReader.open(executionContext);
             left.open(executionContext);

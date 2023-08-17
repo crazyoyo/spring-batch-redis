@@ -3,7 +3,6 @@ package com.redis.spring.batch;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -33,7 +32,7 @@ public abstract class AbstractRedisItemStreamSupport<K, V, I, O> extends ItemStr
 
     private int poolSize = DEFAULT_POOL_SIZE;
 
-    private Optional<ReadFrom> readFrom = Optional.empty();
+    private ReadFrom readFrom;
 
     private GenericObjectPool<StatefulConnection<K, V>> pool;
 
@@ -51,11 +50,11 @@ public abstract class AbstractRedisItemStreamSupport<K, V, I, O> extends ItemStr
         this.poolSize = poolSize;
     }
 
-    public Optional<ReadFrom> getReadFrom() {
+    public ReadFrom getReadFrom() {
         return readFrom;
     }
 
-    public void setReadFrom(Optional<ReadFrom> readFrom) {
+    public void setReadFrom(ReadFrom readFrom) {
         this.readFrom = readFrom;
     }
 

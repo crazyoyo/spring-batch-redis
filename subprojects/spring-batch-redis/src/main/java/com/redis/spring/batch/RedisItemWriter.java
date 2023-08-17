@@ -30,13 +30,15 @@ public class RedisItemWriter<K, V> extends AbstractOperationItemWriter<K, V, Key
 
     public static final TtlPolicy DEFAULT_TTL_POLICY = TtlPolicy.PROPAGATE;
 
+    public static final ValueType DEFAULT_VALUE_TYPE = ValueType.DUMP;
+
     private TtlPolicy ttlPolicy = DEFAULT_TTL_POLICY;
 
     private MergePolicy mergePolicy = DEFAULT_MERGE_POLICY;
 
     private StreamIdPolicy streamIdPolicy = DEFAULT_STREAM_ID_POLICY;
 
-    private ValueType valueType = ValueType.DUMP;
+    private ValueType valueType = DEFAULT_VALUE_TYPE;
 
     public RedisItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
         super(client, codec);

@@ -20,11 +20,9 @@ import io.lettuce.core.codec.RedisCodec;
 public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractRedisItemStreamSupport<K, V, T, Object>
         implements ItemStreamWriter<T> {
 
-    public static final int DEFAULT_WAIT_REPLICAS = 0;
-
     public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
 
-    private int waitReplicas = DEFAULT_WAIT_REPLICAS;
+    private Integer waitReplicas;
 
     private Duration waitTimeout = DEFAULT_WAIT_TIMEOUT;
 
@@ -36,11 +34,11 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractRedis
         super(client, codec);
     }
 
-    public int getWaitReplicas() {
+    public Integer getWaitReplicas() {
         return waitReplicas;
     }
 
-    public void setWaitReplicas(int replicas) {
+    public void setWaitReplicas(Integer replicas) {
         this.waitReplicas = replicas;
     }
 
@@ -85,7 +83,7 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractRedis
             futures.add((RedisFuture) ((RedisTransactionalAsyncCommands<K, V>) commands).multi());
         }
         super.execute(commands, items, futures);
-        if (waitReplicas > 0) {
+        if (waitReplicas != null) {
             RedisFuture<Long> waitFuture = commands.waitForReplication(waitReplicas, waitTimeout.toMillis());
             futures.add((RedisFuture) new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));
         }
