@@ -25,11 +25,9 @@ public class ScanSizeEstimator implements LongSupplier {
 
     public static final long UNKNOWN_SIZE = -1;
 
-    public static final long DEFAULT_SAMPLE_SIZE = 100;
-
-    private static final String FILENAME = "randomkeytype.lua";
-
     public static final int DEFAULT_SAMPLES = 100;
+
+    private static final String LUA_FILE = "randomkeytype.lua";
 
     private final AbstractRedisClient client;
 
@@ -87,7 +85,7 @@ public class ScanSizeEstimator implements LongSupplier {
         if (scanMatch == null && scanType == null) {
             return dbsize;
         }
-        String digest = Helper.loadScript(client, FILENAME);
+        String digest = Helper.loadScript(client, LUA_FILE);
         RedisScriptingAsyncCommands<String, String> commands = Helper.async(connection);
         try {
             connection.setAutoFlushCommands(false);

@@ -565,7 +565,7 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     }
 
-    public List<KeyValue<K>> readChunk() throws Exception {
+    public synchronized List<KeyValue<K>> readChunk() throws Exception {
         List<KeyValue<K>> items = new ArrayList<>();
         KeyValue<K> item;
         while (items.size() < chunkSize && (item = read()) != null) {

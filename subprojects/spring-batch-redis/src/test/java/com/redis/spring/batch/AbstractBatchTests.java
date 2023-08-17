@@ -756,7 +756,7 @@ abstract class AbstractBatchTests {
     @Test
     void scanSizeEstimator(TestInfo testInfo) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setMaxItemCount(100000);
+        gen.setMaxItemCount(10000);
         gen.setTypes(Type.HASH, Type.STRING);
         generate(testInfo, gen);
         long expectedCount = sourceConnection.sync().dbsize();
