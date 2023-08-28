@@ -15,11 +15,12 @@ import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
 
-public interface BatchUtils {
+public abstract class BatchUtils {
 
-    Boolean NULL_BOOLEAN = null;
+    private BatchUtils() {
+    }
 
-    static AsyncTaskExecutor threadPoolTaskExecutor(int threads) {
+    public static AsyncTaskExecutor threadPoolTaskExecutor(int threads) {
         ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
         taskExecutor.setMaxPoolSize(threads);
         taskExecutor.setCorePoolSize(threads);
@@ -35,7 +36,7 @@ public interface BatchUtils {
         return bean.getObject();
     }
 
-    static long size(ItemReader<?> reader) {
+    public static long size(ItemReader<?> reader) {
         if (reader instanceof RedisItemReader) {
             RedisItemReader<?, ?> redisItemReader = (RedisItemReader<?, ?>) reader;
             ScanSizeEstimator estimator = new ScanSizeEstimator(redisItemReader.getClient());
@@ -56,11 +57,15 @@ public interface BatchUtils {
         return -1;
     }
 
-    static boolean isOpen(Object object) {
+    public static boolean isOpen(Object object) {
         return isOpen(object, true);
     }
 
-    static boolean isOpen(Object object, boolean defaultValue) {
+    public static boolean isClosed(Object object) {
+        return !isOpen(object, false);
+    }
+
+    private static boolean isOpen(Object object, boolean defaultValue) {
         Boolean value = isNullableOpen(object);
         if (value == null) {
             return defaultValue;
@@ -69,7 +74,7 @@ public interface BatchUtils {
     }
 
     @SuppressWarnings("rawtypes")
-    static Boolean isNullableOpen(Object object) {
+    private static Boolean isNullableOpen(Object object) {
         if (object instanceof GeneratorItemReader) {
             return ((GeneratorItemReader) object).isOpen();
         }
@@ -91,14 +96,14 @@ public interface BatchUtils {
         if (object instanceof KeyComparisonItemReader) {
             return ((KeyComparisonItemReader) object).isOpen();
         }
-        return NULL_BOOLEAN;
+        return null;
     }
 
-    static boolean isPositive(Duration duration) {
+    public static boolean isPositive(Duration duration) {
         return duration != null && !duration.isNegative() && !duration.isZero();
     }
 
-    static <T> List<T> readAll(ItemReader<T> reader) throws Exception {
+    public static <T> List<T> readAll(ItemReader<T> reader) throws Exception {
         List<T> list = new ArrayList<>();
         T element;
         while ((element = reader.read()) != null) {
