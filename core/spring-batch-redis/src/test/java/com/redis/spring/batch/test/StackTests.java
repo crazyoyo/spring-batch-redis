@@ -269,8 +269,7 @@ class StackTests extends ModulesTests {
     void blockBigKeys(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
         RedisItemReader<String, String> reader = structReader(info, client);
-        reader.setMode(Mode.LIVE);
-        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+        setLive(reader);
         reader.setMemoryUsageLimit(DataSize.ofBytes(300));
         reader.setName("blockBigKeys");
         reader.open(new ExecutionContext());

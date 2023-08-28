@@ -129,8 +129,7 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         enableKeyspaceNotifications(client);
         RedisItemReader<byte[], byte[]> reader = reader(info, client, ByteArrayCodec.INSTANCE);
         reader.setNotificationQueueCapacity(100000);
-        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-        reader.setMode(Mode.LIVE);
+        setLive(reader);
         RedisItemWriter<byte[], byte[]> writer = new RedisItemWriter<>(targetClient, ByteArrayCodec.INSTANCE);
         JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
         awaitOpen(reader);
@@ -161,10 +160,11 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         RedisItemReader<String, String> reader = reader(info, client);
         reader.setValueType(ValueType.STRUCT);
         reader.setNotificationQueueCapacity(100);
-        reader.setMode(Mode.LIVE);
+        setLive(reader);
         RedisItemWriter<String, String> writer = structWriter(targetClient);
         JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
         awaitOpen(reader);
+        awaitOpen(writer);
         connection.sync().srem(key, "5");
         awaitTermination(execution);
         assertEquals(connection.sync().smembers(key), targetConnection.sync().smembers(key));

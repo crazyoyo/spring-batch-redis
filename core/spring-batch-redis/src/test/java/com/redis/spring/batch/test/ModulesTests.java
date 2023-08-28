@@ -87,8 +87,7 @@ abstract class ModulesTests extends ReplicationTests {
     void liveReaderWithType(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
         RedisItemReader<String, String> reader = reader(info, client);
-        reader.setMode(Mode.LIVE);
-        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+        setLive(reader);
         reader.setScanType(KeyValue.HASH);
         reader.open(new ExecutionContext());
         GeneratorItemReader gen = new GeneratorItemReader();

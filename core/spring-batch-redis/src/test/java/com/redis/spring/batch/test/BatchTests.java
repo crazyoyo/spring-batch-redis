@@ -371,7 +371,7 @@ abstract class BatchTests extends AbstractTestBase {
     void filterKeySlot(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
         RedisItemReader<String, String> reader = reader(info, client);
-        reader.setMode(Mode.LIVE);
+        setLive(reader);
         IntRange range = IntRange.between(0, 8000);
         reader.setKeyProcessor(new PredicateItemProcessor<>(k -> range.contains(SlotHash.getSlot(k))));
         ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
@@ -472,9 +472,8 @@ abstract class BatchTests extends AbstractTestBase {
     void readLive(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
         RedisItemReader<byte[], byte[]> reader = reader(info, client, ByteArrayCodec.INSTANCE);
-        reader.setMode(Mode.LIVE);
         reader.setNotificationQueueCapacity(10000);
-        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+        setLive(reader);
         GeneratorItemReader gen = new GeneratorItemReader();
         int count = 123;
         gen.setMaxItemCount(count);

@@ -58,6 +58,7 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.StreamIdPolicy;
 import com.redis.spring.batch.ValueType;
+import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
@@ -358,6 +359,11 @@ public abstract class AbstractTestBase {
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         awaitRunning(execution);
         return execution;
+    }
+
+    protected void setLive(RedisItemReader<?, ?> reader) {
+        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+        reader.setMode(Mode.LIVE);
     }
 
     protected void enableKeyspaceNotifications(AbstractRedisClient client) {
