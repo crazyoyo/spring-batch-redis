@@ -23,6 +23,7 @@ import org.junit.jupiter.api.TestInfo;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.ListItemReader;
+import org.springframework.batch.item.support.ListItemWriter;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
@@ -31,11 +32,13 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.ValueType;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
+import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.GeneratorItemReader;
 import com.redis.spring.batch.util.GeneratorOptions;
 import com.redis.spring.batch.util.GeneratorOptions.Type;
@@ -369,7 +372,7 @@ abstract class BatchTests extends AbstractTestBase {
         RedisItemReader<String, String> reader = liveReader(info, client);
         IntRange range = IntRange.between(0, 8000);
         reader.setKeyProcessor(new PredicateItemProcessor<>(k -> range.contains(SlotHash.getSlot(k))));
-        SynchronizedListItemWriter<KeyValue<String>> writer = new SynchronizedListItemWriter<>();
+        ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
         FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = flushingStep(info, reader, writer);
         JobExecution execution = runAsync(job(info).start(step.build()).build());
         int count = 100;
@@ -377,8 +380,23 @@ abstract class BatchTests extends AbstractTestBase {
         gen.setMaxItemCount(count);
         generate(info, gen);
         awaitTermination(execution);
-        Assertions.assertFalse(
-                writer.getItems().stream().map(KeyValue::getKey).map(SlotHash::getSlot).anyMatch(s -> s < 0 || s > 8000));
+        Assertions.assertFalse(writer.getWrittenItems().stream().map(KeyValue::getKey).map(SlotHash::getSlot)
+                .anyMatch(s -> s < 0 || s > 8000));
+    }
+
+    @Test
+    void dedupeKeyspaceNotifications() throws Exception {
+        enableKeyspaceNotifications(client);
+        KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
+        reader.open(new ExecutionContext());
+        RedisModulesCommands<String, String> commands = connection.sync();
+        String key = "key1";
+        commands.zadd(key, 1, "member1");
+        commands.zadd(key, 2, "member2");
+        commands.zadd(key, 3, "member3");
+        awaitUntil(() -> reader.getQueue().size() == 1);
+        Assertions.assertEquals(key, reader.read());
+        reader.close();
     }
 
     @Test
@@ -445,6 +463,23 @@ abstract class BatchTests extends AbstractTestBase {
             StreamMessage<String, String> message = xrange.get(index);
             Assertions.assertEquals(messages.get(index), message.getBody());
         }
+    }
+
+    @Test
+    void readLive(TestInfo info) throws Exception {
+        enableKeyspaceNotifications(client);
+        RedisItemReader<byte[], byte[]> reader = liveReader(info, client, ByteArrayCodec.INSTANCE);
+        reader.setNotificationQueueCapacity(10000);
+        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+        GeneratorItemReader gen = new GeneratorItemReader();
+        int count = 123;
+        gen.setMaxItemCount(count);
+        gen.getOptions().setTypes(Type.HASH, Type.STRING);
+        generate(info, gen);
+        List<KeyValue<byte[]>> list = BatchUtils.readAll(reader);
+        Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
+        Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
+        Assertions.assertEquals(connection.sync().dbsize(), keys.size());
     }
 
     @Test

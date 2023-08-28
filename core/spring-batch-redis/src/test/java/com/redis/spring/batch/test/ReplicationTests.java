@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
@@ -24,7 +23,6 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.MergePolicy;
 import com.redis.spring.batch.ValueType;
-import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.GeneratorItemReader;
 import com.redis.spring.batch.util.GeneratorOptions.MapOptions;
@@ -39,7 +37,6 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
-import io.lettuce.core.codec.StringCodec;
 
 abstract class ReplicationTests extends AbstractTargetTestBase {
 
@@ -260,42 +257,6 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         assertEquals(valueChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.VALUE).count());
         assertEquals(ttlChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.TTL).count());
         assertEquals(deleted, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());
-    }
-
-    @Test
-    void readLive(TestInfo info) throws Exception {
-        enableKeyspaceNotifications(client);
-        RedisItemReader<byte[], byte[]> reader = liveReader(info, client, ByteArrayCodec.INSTANCE);
-        reader.setNotificationQueueCapacity(10000);
-        SynchronizedListItemWriter<KeyValue<byte[]>> writer = new SynchronizedListItemWriter<>();
-        JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
-        GeneratorItemReader gen = new GeneratorItemReader();
-        int count = 123;
-        gen.setMaxItemCount(count);
-        gen.getOptions().setTypes(Type.HASH, Type.STRING);
-        generate(info, gen);
-        awaitTermination(execution);
-        awaitClosed(reader);
-        awaitClosed(writer);
-        Set<String> keys = writer.getItems().stream()
-                .map(d -> StringCodec.UTF8.decodeKey(ByteArrayCodec.INSTANCE.encodeKey(d.getKey())))
-                .collect(Collectors.toSet());
-        Assertions.assertEquals(connection.sync().dbsize(), keys.size());
-    }
-
-    @Test
-    void dedupeKeyspaceNotifications() throws Exception {
-        enableKeyspaceNotifications(client);
-        KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
-        reader.open(new ExecutionContext());
-        RedisModulesCommands<String, String> commands = connection.sync();
-        String key = "key1";
-        commands.zadd(key, 1, "member1");
-        commands.zadd(key, 2, "member2");
-        commands.zadd(key, 3, "member3");
-        awaitUntil(() -> reader.getQueue().size() == 1);
-        Assertions.assertEquals(key, reader.read());
-        reader.close();
     }
 
 }

@@ -28,6 +28,7 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.batch.item.support.ListItemReader;
+import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -77,7 +78,7 @@ class StepTests {
         gen.setMaxItemCount(count);
         gen.getOptions().setTypes(Type.STRING);
         ErrorItemReader<KeyValue<String>> reader = new ErrorItemReader<>(gen);
-        SynchronizedListItemWriter<KeyValue<String>> writer = new SynchronizedListItemWriter<>();
+        ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
         String name = "readKeyValueFaultTolerance";
         FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = new FlushingStepBuilder<>(stepBuilderFactory.get(name));
         step.chunk(1);
@@ -89,7 +90,7 @@ class StepTests {
         ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
         Job job = jobBuilderFactory.get(name).start(ftStep.build()).build();
         jobLauncher.run(job, new JobParameters());
-        assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getItems().size());
+        assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getWrittenItems().size());
     }
 
     @Test
@@ -97,7 +98,7 @@ class StepTests {
         String name = "skip-policy";
         List<Integer> items = IntStream.range(0, 100).boxed().collect(Collectors.toList());
         ErrorItemReader<Integer> reader = new ErrorItemReader<>(new ListItemReader<>(items));
-        SynchronizedListItemWriter<Integer> writer = new SynchronizedListItemWriter<>();
+        ListItemWriter<Integer> writer = new ListItemWriter<>();
         SimpleStepBuilder<Integer, Integer> step = stepBuilderFactory.get(name).chunk(1);
         step.reader(reader);
         step.writer(writer);
@@ -107,7 +108,7 @@ class StepTests {
         ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
         Job job = jobBuilderFactory.get(name).start(ftStep.build()).build();
         jobLauncher.run(job, new JobParameters());
-        assertEquals(items.size(), writer.getItems().size() * 2);
+        assertEquals(items.size(), writer.getWrittenItems().size() * 2);
     }
 
     @Test
@@ -116,7 +117,7 @@ class StepTests {
         int count = 100;
         BlockingQueue<String> queue = new LinkedBlockingDeque<>(count);
         QueueItemReader<String> reader = new QueueItemReader<>(queue, Duration.ofMillis(10));
-        SynchronizedListItemWriter<String> writer = new SynchronizedListItemWriter<>();
+        ListItemWriter<String> writer = new ListItemWriter<>();
         SimpleStepBuilder<String, String> step = stepBuilderFactory.get(name).chunk(50);
         step.reader(reader);
         step.writer(writer);
@@ -128,7 +129,7 @@ class StepTests {
             queue.offer("key" + index);
         }
         BatchTests.awaitTermination(execution);
-        assertEquals(count, writer.getItems().size());
+        assertEquals(count, writer.getWrittenItems().size());
     }
 
     private static class QueueItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
