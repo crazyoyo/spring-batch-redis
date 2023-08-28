@@ -1,0 +1,28 @@
+config {
+    testing {
+        jar = true
+    }
+}
+
+dependencies {
+    implementation group: 'com.redis', name: 'lettucemod', version: lettucemodVersion
+    implementation 'org.apache.commons:commons-pool2'
+    api 'org.springframework.batch:spring-batch-core'
+    implementation group: 'com.hrakaroo', name: 'glob', version: globVersion
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine'
+    testImplementation group: 'org.testcontainers', name: 'junit-jupiter', version: testcontainersVersion
+    testImplementation(group: 'com.redis.testcontainers', name: 'testcontainers-redis', version: testcontainersRedisVersion) {
+        exclude group: 'com.redis', module: 'lettucemod'
+    }    
+    testImplementation group: 'com.redis', name: 'lettucemod', version: lettucemodVersion, classifier: 'tests'
+    testImplementation group: 'org.awaitility', name: 'awaitility', version: awaitilityVersion
+    testImplementation 'io.micrometer:micrometer-core'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.batch:spring-batch-test'
+}
+
+eclipse {
+    project {
+        name = 'spring-batch-redis-core'
+    }
+}
