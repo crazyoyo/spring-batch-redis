@@ -55,7 +55,6 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.StreamIdPolicy;
 import com.redis.spring.batch.ValueType;
@@ -197,10 +196,12 @@ public abstract class AbstractTestBase {
         return UUID.randomUUID().toString();
     }
 
+    protected static void awaitOpen(Object object) {
+        awaitUntil(() -> BatchUtils.isOpen(object));
+    }
+
     protected static void awaitClosed(Object object) {
-        if (object instanceof ItemStream) {
-            awaitUntilFalse(() -> BatchUtils.isOpen(object, false));
-        }
+        awaitUntil(() -> BatchUtils.isClosed(object));
     }
 
     protected <I, O> SimpleStepBuilder<I, O> step(TestInfo testInfo, ItemReader<I> reader, ItemWriter<O> writer) {
@@ -321,10 +322,6 @@ public abstract class AbstractTestBase {
         return reader;
     }
 
-    protected <K, V> void configure(RedisItemReader<K, V> reader) {
-        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-    }
-
     protected RedisItemReader<String, String> reader(TestInfo info, AbstractRedisClient client) {
         return reader(info, client, StringCodec.UTF8);
     }
@@ -333,26 +330,6 @@ public abstract class AbstractTestBase {
         RedisItemReader<K, V> reader = new RedisItemReader<>(client, codec);
         reader.setJobRepository(jobRepository);
         reader.setName(name(info));
-        return reader;
-    }
-
-    protected RedisItemReader<String, String> liveReader(TestInfo info, AbstractRedisClient client) {
-        return liveReader(info, client, StringCodec.UTF8);
-    }
-
-    protected <K, V> RedisItemReader<K, V> liveReader(TestInfo info, AbstractRedisClient client, RedisCodec<K, V> codec) {
-        RedisItemReader<K, V> reader = reader(info, client, codec);
-        reader.setMode(Mode.LIVE);
-        return reader;
-    }
-
-    protected RedisItemReader<String, String> liveStructReader(TestInfo info, AbstractRedisClient client) {
-        return liveStructReader(info, client, StringCodec.UTF8);
-    }
-
-    protected <K, V> RedisItemReader<K, V> liveStructReader(TestInfo info, AbstractRedisClient client, RedisCodec<K, V> codec) {
-        RedisItemReader<K, V> reader = structReader(info, client, codec);
-        reader.setMode(Mode.LIVE);
         return reader;
     }
 

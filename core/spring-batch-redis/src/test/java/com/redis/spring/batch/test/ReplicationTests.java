@@ -23,6 +23,7 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.MergePolicy;
 import com.redis.spring.batch.ValueType;
+import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.GeneratorItemReader;
 import com.redis.spring.batch.util.GeneratorOptions.MapOptions;
@@ -126,11 +127,13 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
     void liveOnlyReplication(TestInfo info) throws Exception {
         Assumptions.assumeFalse(RedisVersion.of(connection).getMajor() == 7);
         enableKeyspaceNotifications(client);
-        RedisItemReader<byte[], byte[]> reader = liveReader(info, client, ByteArrayCodec.INSTANCE);
+        RedisItemReader<byte[], byte[]> reader = reader(info, client, ByteArrayCodec.INSTANCE);
         reader.setNotificationQueueCapacity(100000);
         reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+        reader.setMode(Mode.LIVE);
         RedisItemWriter<byte[], byte[]> writer = new RedisItemWriter<>(targetClient, ByteArrayCodec.INSTANCE);
         JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
+        awaitOpen(reader);
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
         gen.getOptions().setTypes(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET);
@@ -145,8 +148,7 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         enableKeyspaceNotifications(client);
         RedisItemReader<byte[], byte[]> reader = reader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[]> writer = new RedisItemWriter<>(targetClient, ByteArrayCodec.INSTANCE);
-        RedisItemReader<byte[], byte[]> liveReader = liveReader(info, client, ByteArrayCodec.INSTANCE);
-        configure(liveReader);
+        RedisItemReader<byte[], byte[]> liveReader = reader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[]> liveWriter = new RedisItemWriter<>(targetClient, ByteArrayCodec.INSTANCE);
         Assertions.assertTrue(liveReplication(info, reader, writer, liveReader, liveWriter));
     }
@@ -156,11 +158,13 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         enableKeyspaceNotifications(client);
         String key = "myset";
         connection.sync().sadd(key, "1", "2", "3", "4", "5");
-        RedisItemReader<String, String> reader = liveReader(info, client);
+        RedisItemReader<String, String> reader = reader(info, client);
         reader.setValueType(ValueType.STRUCT);
         reader.setNotificationQueueCapacity(100);
+        reader.setMode(Mode.LIVE);
         RedisItemWriter<String, String> writer = structWriter(targetClient);
         JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
+        awaitOpen(reader);
         connection.sync().srem(key, "5");
         awaitTermination(execution);
         assertEquals(connection.sync().smembers(key), targetConnection.sync().smembers(key));

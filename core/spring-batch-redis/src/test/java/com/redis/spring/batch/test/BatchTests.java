@@ -31,6 +31,7 @@ import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.ValueType;
+import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
@@ -369,12 +370,14 @@ abstract class BatchTests extends AbstractTestBase {
     @Test
     void filterKeySlot(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
-        RedisItemReader<String, String> reader = liveReader(info, client);
+        RedisItemReader<String, String> reader = reader(info, client);
+        reader.setMode(Mode.LIVE);
         IntRange range = IntRange.between(0, 8000);
         reader.setKeyProcessor(new PredicateItemProcessor<>(k -> range.contains(SlotHash.getSlot(k))));
         ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
         FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = flushingStep(info, reader, writer);
         JobExecution execution = runAsync(job(info).start(step.build()).build());
+        awaitOpen(reader);
         int count = 100;
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(count);
@@ -468,7 +471,8 @@ abstract class BatchTests extends AbstractTestBase {
     @Test
     void readLive(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
-        RedisItemReader<byte[], byte[]> reader = liveReader(info, client, ByteArrayCodec.INSTANCE);
+        RedisItemReader<byte[], byte[]> reader = reader(info, client, ByteArrayCodec.INSTANCE);
+        reader.setMode(Mode.LIVE);
         reader.setNotificationQueueCapacity(10000);
         reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
         GeneratorItemReader gen = new GeneratorItemReader();

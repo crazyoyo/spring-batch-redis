@@ -24,6 +24,7 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.GeneratorItemReader;
 import com.redis.spring.batch.util.GeneratorOptions.Type;
@@ -116,6 +117,8 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         generate(testInfo(testInfo, "generate"), gen);
         TaskletStep step = step(testInfo(testInfo, "step"), reader, writer).build();
         SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "snapshotFlow"))).start(step).build();
+        liveReader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+        liveReader.setMode(Mode.LIVE);
         TaskletStep liveStep = flushingStep(testInfo(testInfo, "liveStep"), liveReader, liveWriter).build();
         SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "liveFlow"))).start(liveStep).build();
         Job job = job(testInfo).start(new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "flow")))

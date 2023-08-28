@@ -31,6 +31,7 @@ import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.ValueType;
 import com.redis.spring.batch.reader.KeyEvent;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
@@ -85,7 +86,8 @@ abstract class ModulesTests extends ReplicationTests {
     @Test
     void liveReaderWithType(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
-        RedisItemReader<String, String> reader = liveReader(info, client);
+        RedisItemReader<String, String> reader = reader(info, client);
+        reader.setMode(Mode.LIVE);
         reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
         reader.setScanType(KeyValue.HASH);
         reader.open(new ExecutionContext());

@@ -23,6 +23,7 @@ import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.ValueType;
+import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
@@ -92,7 +93,7 @@ class StackTests extends ModulesTests {
         enableKeyspaceNotifications(client);
         RedisItemReader<String, String> reader = structSourceReader(info);
         RedisItemWriter<String, String> writer = structTargetWriter();
-        RedisItemReader<String, String> liveReader = liveStructReader(info, client);
+        RedisItemReader<String, String> liveReader = structReader(info, client);
         RedisItemWriter<String, String> liveWriter = structTargetWriter();
         Assertions.assertTrue(liveReplication(info, reader, writer, liveReader, liveWriter));
     }
@@ -267,7 +268,9 @@ class StackTests extends ModulesTests {
     @Test
     void blockBigKeys(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
-        RedisItemReader<String, String> reader = liveStructReader(info, client);
+        RedisItemReader<String, String> reader = structReader(info, client);
+        reader.setMode(Mode.LIVE);
+        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
         reader.setMemoryUsageLimit(DataSize.ofBytes(300));
         reader.setName("blockBigKeys");
         reader.open(new ExecutionContext());
