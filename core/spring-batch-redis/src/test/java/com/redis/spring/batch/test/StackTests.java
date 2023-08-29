@@ -28,6 +28,7 @@ import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.GeneratorItemReader;
+import com.redis.spring.batch.util.GeneratorOptions.Type;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.testcontainers.RedisServer;
@@ -283,6 +284,18 @@ class StackTests extends ModulesTests {
             return reader.getBlockedKeys().contains(key);
         });
         reader.close();
+    }
+
+    @Test
+    void replicateDs(TestInfo info) throws Exception {
+        GeneratorItemReader gen = new GeneratorItemReader();
+        gen.setMaxItemCount(10000);
+        gen.getOptions().setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);
+        generate(info, gen);
+        RedisItemReader<byte[], byte[]> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
+        RedisItemWriter<byte[], byte[]> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
+        run(info, reader, writer);
+        Assertions.assertTrue(compare(info));
     }
 
 }

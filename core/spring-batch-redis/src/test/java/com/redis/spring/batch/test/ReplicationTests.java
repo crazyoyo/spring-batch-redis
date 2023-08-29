@@ -185,18 +185,6 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
     }
 
     @Test
-    void replicateDs(TestInfo info) throws Exception {
-        GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setMaxItemCount(10000);
-        gen.getOptions().setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);
-        generate(info, gen);
-        RedisItemReader<byte[], byte[]> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
-        RedisItemWriter<byte[], byte[]> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
-        run(info, reader, writer);
-        Assertions.assertTrue(compare(info));
-    }
-
-    @Test
     void replicateDsEmptyCollections(TestInfo info) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(10000);
