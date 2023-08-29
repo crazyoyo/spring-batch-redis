@@ -9,7 +9,7 @@ import com.redis.spring.batch.util.CodecUtils;
 
 import io.lettuce.core.codec.RedisCodec;
 
-public class ListToKeyValue<K, V> implements Function<List<Object>, KeyValue<K>> {
+public class ListToKeyValue<K, V> implements Function<Object, KeyValue<K>> {
 
     private final Function<V, String> toStringValueFunction;
 
@@ -19,12 +19,12 @@ public class ListToKeyValue<K, V> implements Function<List<Object>, KeyValue<K>>
 
     @SuppressWarnings("unchecked")
     @Override
-    public KeyValue<K> apply(List<Object> item) {
+    public KeyValue<K> apply(Object item) {
         if (item == null) {
             return null;
         }
         KeyValue<K> keyValue = new KeyValue<>();
-        Iterator<Object> iterator = item.iterator();
+        Iterator<Object> iterator = ((List<Object>) item).iterator();
         if (iterator.hasNext()) {
             keyValue.setKey((K) iterator.next());
         }

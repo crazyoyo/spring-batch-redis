@@ -4,33 +4,30 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
-import com.redis.spring.batch.writer.Operation;
-
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisSetAsyncCommands;
 
-public class SaddAll<K, V, T> implements Operation<K, V, T> {
+public class SaddAll<K, V, T> extends AbstractOperation<K, V, T, SaddAll<K, V, T>> {
 
-    private final Function<T, K> keyFunction;
+    private Function<T, Collection<V>> values;
 
-    private final Function<T, Collection<V>> valuesFunction;
-
-    public SaddAll(Function<T, K> key, Function<T, Collection<V>> values) {
-        this.keyFunction = key;
-        this.valuesFunction = values;
+    public SaddAll<K, V, T> values(Function<T, Collection<V>> values) {
+        this.values = values;
+        return this;
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-        Collection<V> values = valuesFunction.apply(item);
-        if (values.isEmpty()) {
-            return;
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
+        Collection<V> collection = values(item);
+        if (!collection.isEmpty()) {
+            futures.add(((RedisSetAsyncCommands<K, V>) commands).sadd(key(item), (V[]) collection.toArray()));
         }
-        K key = keyFunction.apply(item);
-        RedisSetAsyncCommands<K, V> setCommands = (RedisSetAsyncCommands<K, V>) commands;
-        futures.add((RedisFuture) setCommands.sadd(key, (V[]) values.toArray()));
+    }
+
+    private Collection<V> values(T item) {
+        return values.apply(item);
     }
 
 }

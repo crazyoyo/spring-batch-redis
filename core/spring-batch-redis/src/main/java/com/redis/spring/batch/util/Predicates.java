@@ -132,11 +132,11 @@ public interface Predicates {
      * @return a {@link Predicate} that yields always {@code true}.
      */
     static <T> Predicate<T> isTrue() {
-        return t -> true;
+        return is(true);
     }
 
     static IntPredicate intIsTrue() {
-        return t -> true;
+        return intIs(true);
     }
 
     /**
@@ -145,11 +145,11 @@ public interface Predicates {
      * @return a {@link Predicate} that yields always {@code false}.
      */
     static <T> Predicate<T> isFalse() {
-        return t -> false;
+        return is(false);
     }
 
     static IntPredicate intIsFalse() {
-        return t -> false;
+        return intIs(false);
     }
 
     /**
@@ -174,6 +174,14 @@ public interface Predicates {
             return isTrue();
         }
         return GlobPattern.compile(match)::matches;
+    }
+
+    static <T> Predicate<T> is(boolean value) {
+        return t -> value;
+    }
+
+    static IntPredicate intIs(boolean value) {
+        return t -> value;
     }
 
 }

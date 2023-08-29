@@ -5,7 +5,7 @@ import java.util.function.ToLongFunction;
 import com.redis.spring.batch.writer.AbstractOperationItemWriter;
 import com.redis.spring.batch.writer.Operation;
 import com.redis.spring.batch.writer.StructOperation;
-import com.redis.spring.batch.writer.operation.RestoreReplace;
+import com.redis.spring.batch.writer.operation.Restore;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
@@ -79,13 +79,18 @@ public class RedisItemWriter<K, V> extends AbstractOperationItemWriter<K, V, Key
     @Override
     protected Operation<K, V, KeyValue<K>> operation() {
         if (valueType == ValueType.DUMP) {
-            return new RestoreReplace<>(KeyValue::getKey, v -> (byte[]) v.getValue(), keyValueTtl());
+            Restore<K, V, KeyValue<K>> restore = new Restore<>();
+            restore.key(KeyValue::getKey);
+            restore.bytes(v -> (byte[]) v.getValue());
+            restore.ttl(keyValueTtl());
+            restore.replace(true);
+            return restore;
         }
-        StructOperation<K, V> operation = new StructOperation<>();
-        operation.setMergePolicy(mergePolicy);
-        operation.setStreamIdPolicy(streamIdPolicy);
-        operation.setTtlPolicy(ttlPolicy);
-        return operation;
+        StructOperation<K, V> structOperation = new StructOperation<>();
+        structOperation.mergePolicy(mergePolicy);
+        structOperation.streamIdPolicy(streamIdPolicy);
+        structOperation.ttlPolicy(ttlPolicy);
+        return structOperation;
     }
 
     private ToLongFunction<KeyValue<K>> keyValueTtl() {

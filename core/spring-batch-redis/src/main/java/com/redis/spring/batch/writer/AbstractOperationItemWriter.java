@@ -17,7 +17,7 @@ import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 import io.lettuce.core.cluster.PipelinedRedisFuture;
 import io.lettuce.core.codec.RedisCodec;
 
-public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractRedisItemStreamSupport<K, V, T, Object>
+public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractRedisItemStreamSupport<K, V, T>
         implements ItemStreamWriter<T> {
 
     public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
@@ -75,25 +75,24 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractRedis
         operation = null;
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     @Override
-    protected void execute(BaseRedisAsyncCommands<K, V> commands, Collection<? extends T> items,
-            List<RedisFuture<Object>> futures) {
+    protected void execute(BaseRedisAsyncCommands<K, V> commands, Collection<? extends T> items, List<RedisFuture<?>> futures) {
         if (multiExec) {
-            futures.add((RedisFuture) ((RedisTransactionalAsyncCommands<K, V>) commands).multi());
+            futures.add(((RedisTransactionalAsyncCommands<K, V>) commands).multi());
         }
         super.execute(commands, items, futures);
         if (waitReplicas > 0) {
             RedisFuture<Long> waitFuture = commands.waitForReplication(waitReplicas, waitTimeout.toMillis());
-            futures.add((RedisFuture) new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));
+            futures.add(new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));
         }
         if (multiExec) {
-            futures.add((RedisFuture) ((RedisTransactionalAsyncCommands<K, V>) commands).exec());
+            futures.add(((RedisTransactionalAsyncCommands<K, V>) commands).exec());
         }
     }
 
     @Override
-    protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
+    protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
         operation.execute(commands, item, futures);
     }
 

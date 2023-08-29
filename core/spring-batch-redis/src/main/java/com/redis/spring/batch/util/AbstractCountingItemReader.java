@@ -19,4 +19,8 @@ public abstract class AbstractCountingItemReader<T> extends AbstractItemCounting
         return maxItemCount - getCurrentItemCount();
     }
 
+    public int getCurrentItemIndex() {
+        return getCurrentItemCount();
+    }
+
 }

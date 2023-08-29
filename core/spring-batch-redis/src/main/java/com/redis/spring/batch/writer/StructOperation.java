@@ -3,7 +3,6 @@ package com.redis.spring.batch.writer;
 import java.util.List;
 import java.util.function.Function;
 
-import com.redis.lettucemod.timeseries.AddOptions;
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.MergePolicy;
@@ -31,27 +30,29 @@ public class StructOperation<K, V> implements Operation<K, V, KeyValue<K>> {
 
     private static final XAddArgs EMPTY_XADD_ARGS = new XAddArgs();
 
-    private final ExpireAt<K, V, KeyValue<K>> expire = new ExpireAt<>(key(), KeyValue::getTtl);
+    private final ExpireAt<K, V, KeyValue<K>> expire = new ExpireAt<K, V, KeyValue<K>>().key(key())
+            .epoch(KeyValue::getTtl);
 
     private final Noop<K, V, KeyValue<K>> noop = new Noop<>();
 
-    private final Del<K, V, KeyValue<K>> del = new Del<>(key());
+    private final Del<K, V, KeyValue<K>> del = new Del<K, V, KeyValue<K>>().key(key());
 
-    private final Hset<K, V, KeyValue<K>> hset = new Hset<>(key(), value());
+    private final Hset<K, V, KeyValue<K>> hset = new Hset<K, V, KeyValue<K>>().key(key()).map(value());
 
-    private final Set<K, V, KeyValue<K>> set = new Set<>(key(), value());
+    private final Set<K, V, KeyValue<K>> set = new Set<K, V, KeyValue<K>>().key(key()).value(value());
 
-    private final JsonSet<K, V, KeyValue<K>> jsonSet = new JsonSet<>(key(), value());
+    private final JsonSet<K, V, KeyValue<K>> jsonSet = new JsonSet<K, V, KeyValue<K>>().key(key()).value(value());
 
-    private final RpushAll<K, V, KeyValue<K>> rpush = new RpushAll<>(key(), value());
+    private final RpushAll<K, V, KeyValue<K>> rpush = new RpushAll<K, V, KeyValue<K>>().key(key()).values(value());
 
-    private final SaddAll<K, V, KeyValue<K>> sadd = new SaddAll<>(key(), value());
+    private final SaddAll<K, V, KeyValue<K>> sadd = new SaddAll<K, V, KeyValue<K>>().key(key()).values(value());
 
-    private final ZaddAll<K, V, KeyValue<K>> zadd = new ZaddAll<>(key(), value());
+    private final ZaddAll<K, V, KeyValue<K>> zadd = new ZaddAll<K, V, KeyValue<K>>().key(key()).values(value());
 
-    private final TsAddAll<K, V, KeyValue<K>> tsAdd = new TsAddAll<>(key(), value(), tsAddOptions());
+    private final TsAddAll<K, V, KeyValue<K>> tsAdd = new TsAddAll<K, V, KeyValue<K>>().key(key()).samples(value());
 
-    private final XAddAll<K, V, KeyValue<K>> xadd = new XAddAll<>(value(), this::xaddArgs);
+    private final XAddAll<K, V, KeyValue<K>> xadd = new XAddAll<K, V, KeyValue<K>>().messages(value())
+            .args(this::xaddArgs);
 
     private TtlPolicy ttlPolicy = RedisItemWriter.DEFAULT_TTL_POLICY;
 
@@ -59,33 +60,19 @@ public class StructOperation<K, V> implements Operation<K, V, KeyValue<K>> {
 
     private StreamIdPolicy streamIdPolicy = RedisItemWriter.DEFAULT_STREAM_ID_POLICY;
 
-    public TtlPolicy getTtlPolicy() {
-        return ttlPolicy;
-    }
-
-    public void setTtlPolicy(TtlPolicy ttlPolicy) {
+    public StructOperation<K, V> ttlPolicy(TtlPolicy ttlPolicy) {
         this.ttlPolicy = ttlPolicy;
+        return this;
     }
 
-    public MergePolicy getMergePolicy() {
-        return mergePolicy;
-    }
-
-    public void setMergePolicy(MergePolicy mergePolicy) {
+    public StructOperation<K, V> mergePolicy(MergePolicy mergePolicy) {
         this.mergePolicy = mergePolicy;
+        return this;
     }
 
-    public StreamIdPolicy getStreamIdPolicy() {
-        return streamIdPolicy;
-    }
-
-    public void setStreamIdPolicy(StreamIdPolicy streamIdPolicy) {
+    public StructOperation<K, V> streamIdPolicy(StreamIdPolicy streamIdPolicy) {
         this.streamIdPolicy = streamIdPolicy;
-    }
-
-    private static <K, V> AddOptions<K, V> tsAddOptions() {
-        AddOptions.Builder<K, V> builder = AddOptions.builder();
-        return builder.build();
+        return this;
     }
 
     private static <K> Function<KeyValue<K>, K> key() {
@@ -98,7 +85,7 @@ public class StructOperation<K, V> implements Operation<K, V, KeyValue<K>> {
     }
 
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, KeyValue<K> item, List<RedisFuture<Object>> futures) {
+    public void execute(BaseRedisAsyncCommands<K, V> commands, KeyValue<K> item, List<RedisFuture<?>> futures) {
         if (shouldSkip(item)) {
             return;
         }

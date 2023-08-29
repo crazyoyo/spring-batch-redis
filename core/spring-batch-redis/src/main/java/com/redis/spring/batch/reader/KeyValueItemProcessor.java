@@ -26,7 +26,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public class KeyValueItemProcessor<K, V> extends AbstractRedisItemStreamSupport<K, V, K, List<Object>>
+public class KeyValueItemProcessor<K, V> extends AbstractRedisItemStreamSupport<K, V, K>
         implements ItemProcessor<Collection<? extends K>, List<? extends KeyValue<K>>> {
 
     private static final String FILENAME = "keyvalue.lua";
@@ -96,7 +96,7 @@ public class KeyValueItemProcessor<K, V> extends AbstractRedisItemStreamSupport<
 
     @SuppressWarnings("unchecked")
     @Override
-    protected void execute(BaseRedisAsyncCommands<K, V> commands, K item, List<RedisFuture<List<Object>>> futures) {
+    protected void execute(BaseRedisAsyncCommands<K, V> commands, K item, List<RedisFuture<?>> futures) {
         Object[] keys = { item };
         futures.add(((RedisScriptingAsyncCommands<K, V>) commands).evalsha(digest, ScriptOutputType.MULTI, (K[]) keys, args));
     }
@@ -111,7 +111,7 @@ public class KeyValueItemProcessor<K, V> extends AbstractRedisItemStreamSupport<
         return execute(keys).stream().map(toKeyValueFunction()).collect(Collectors.toList());
     }
 
-    private Function<List<Object>, KeyValue<K>> toKeyValueFunction() {
+    private Function<Object, KeyValue<K>> toKeyValueFunction() {
         ListToKeyValue<K, V> kvProc = new ListToKeyValue<>(codec);
         if (valueType == ValueType.STRUCT) {
             return kvProc.andThen(new ListToKeyValueStruct<>(codec));

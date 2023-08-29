@@ -31,7 +31,6 @@ import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.ValueType;
 import com.redis.spring.batch.reader.KeyEvent;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
@@ -50,7 +49,6 @@ import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.operation.JsonDel;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Sugadd;
-import com.redis.spring.batch.writer.operation.SugaddIncr;
 import com.redis.spring.batch.writer.operation.TsAdd;
 
 import io.lettuce.core.codec.ByteArrayCodec;
@@ -101,8 +99,10 @@ abstract class ModulesTests extends ReplicationTests {
 
     @Test
     void writeJsonSet(TestInfo testInfo) throws Exception {
-        JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>(n -> "beer:" + n.get("id").asText(), JsonNode::toString,
-                t -> ".");
+        JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>();
+        jsonSet.key(n -> "beer:" + n.get("id").asText());
+        jsonSet.value(JsonNode::toString);
+        jsonSet.path(".");
         OperationItemWriter<String, String, JsonNode> writer = new OperationItemWriter<>(client, StringCodec.UTF8, jsonSet);
         IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
         run(testInfo, reader, writer);
@@ -117,7 +117,8 @@ abstract class ModulesTests extends ReplicationTests {
         gen.getOptions().setTypes(Type.JSON);
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         generate(testInfo, gen);
-        JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>(KeyValue::getKey);
+        JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>();
+        jsonDel.key(KeyValue::getKey);
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, jsonDel));
         Assertions.assertEquals(0, connection.sync().dbsize());
     }
@@ -134,7 +135,10 @@ abstract class ModulesTests extends ReplicationTests {
         }
         ListItemReader<Sample> reader = new ListItemReader<>(samples);
         AddOptions<String, String> addOptions = AddOptions.<String, String> builder().policy(DuplicatePolicy.LAST).build();
-        TsAdd<String, String, Sample> tsadd = new TsAdd<>(t -> key, Function.identity(), t -> addOptions);
+        TsAdd<String, String, Sample> tsadd = new TsAdd<>();
+        tsadd.key(t -> key);
+        tsadd.sample(Function.identity());
+        tsadd.options(addOptions);
         OperationItemWriter<String, String, Sample> writer = new OperationItemWriter<>(client, StringCodec.UTF8, tsadd);
         run(testInfo, reader, writer);
         Assertions.assertEquals(count / 2,
@@ -203,7 +207,9 @@ abstract class ModulesTests extends ReplicationTests {
         }
         ListItemReader<Sample> reader = new ListItemReader<>(values);
         ToSampleFunction<Sample> converter = new ToSampleFunction<>(Sample::getTimestamp, Sample::getValue);
-        TsAdd<String, String, Sample> tsAdd = new TsAdd<>(t -> key, converter);
+        TsAdd<String, String, Sample> tsAdd = new TsAdd<>();
+        tsAdd.key(t -> key);
+        tsAdd.sample(converter);
         OperationItemWriter<String, String, Sample> writer = new OperationItemWriter<>(client, StringCodec.UTF8, tsAdd);
         run(testInfo, reader, writer);
         RedisModulesCommands<String, String> sync = connection.sync();
@@ -219,9 +225,9 @@ abstract class ModulesTests extends ReplicationTests {
             values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
         }
         ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
-        ToSuggestionFunction<String, Suggestion<String>> converter = new ToSuggestionFunction<>(Suggestion::getString,
-                Suggestion::getScore, Suggestion::getPayload);
-        Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(t -> key, converter);
+        Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>();
+        sugadd.key(t -> key);
+        sugadd.suggestion(new ToSuggestionFunction<>(Suggestion::getString, Suggestion::getScore, Suggestion::getPayload));
         OperationItemWriter<String, String, Suggestion<String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
                 sugadd);
         run(testInfo, reader, writer);
@@ -240,7 +246,10 @@ abstract class ModulesTests extends ReplicationTests {
         ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
         ToSuggestionFunction<String, Suggestion<String>> converter = new ToSuggestionFunction<>(Suggestion::getString,
                 Suggestion::getScore, Suggestion::getPayload);
-        SugaddIncr<String, String, Suggestion<String>> sugadd = new SugaddIncr<>(t -> key, converter);
+        Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>();
+        sugadd.key(t -> key);
+        sugadd.suggestion(converter);
+        sugadd.incr(true);
         OperationItemWriter<String, String, Suggestion<String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
                 sugadd);
         run(testInfo, reader, writer);

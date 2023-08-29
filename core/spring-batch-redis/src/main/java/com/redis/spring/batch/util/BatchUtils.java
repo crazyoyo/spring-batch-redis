@@ -17,6 +17,8 @@ import com.redis.spring.batch.reader.StreamItemReader;
 
 public abstract class BatchUtils {
 
+    private static final Boolean NULL_BOOLEAN = null;
+
     private BatchUtils() {
     }
 
@@ -96,7 +98,7 @@ public abstract class BatchUtils {
         if (object instanceof KeyComparisonItemReader) {
             return ((KeyComparisonItemReader) object).isOpen();
         }
-        return null;
+        return NULL_BOOLEAN;
     }
 
     public static boolean isPositive(Duration duration) {

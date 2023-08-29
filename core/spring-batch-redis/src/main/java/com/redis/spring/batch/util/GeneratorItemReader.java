@@ -11,7 +11,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -25,7 +24,7 @@ import com.redis.spring.batch.util.GeneratorOptions.Type;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
-public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<KeyValue<String>> {
+public class GeneratorItemReader extends AbstractCountingItemReader<KeyValue<String>> {
 
     private static final int LEFT_LIMIT = 48; // numeral '0'
 

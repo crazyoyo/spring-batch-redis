@@ -10,7 +10,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 public class Noop<K, V, T> implements Operation<K, V, T> {
 
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
         // do nothing
     }
 

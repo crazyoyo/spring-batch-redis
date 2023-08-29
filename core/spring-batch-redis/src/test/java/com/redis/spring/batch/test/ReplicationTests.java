@@ -23,7 +23,6 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.MergePolicy;
 import com.redis.spring.batch.ValueType;
-import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.GeneratorItemReader;
 import com.redis.spring.batch.util.GeneratorOptions.MapOptions;

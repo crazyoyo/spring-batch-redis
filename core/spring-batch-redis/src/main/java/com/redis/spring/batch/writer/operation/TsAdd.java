@@ -1,8 +1,7 @@
 package com.redis.spring.batch.writer.operation;
 
+import java.util.List;
 import java.util.function.Function;
-
-import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.async.RedisTimeSeriesAsyncCommands;
 import com.redis.lettucemod.timeseries.AddOptions;
@@ -11,28 +10,38 @@ import com.redis.lettucemod.timeseries.Sample;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class TsAdd<K, V, T> extends AbstractOperation<K, V, T> {
+public class TsAdd<K, V, T> extends AbstractOperation<K, V, T, TsAdd<K, V, T>> {
 
-    private final Function<T, Sample> sample;
+    private Function<T, Sample> sample;
 
-    private final Function<T, AddOptions<K, V>> options;
+    private Function<T, AddOptions<K, V>> options = t -> null;
 
-    public TsAdd(Function<T, K> key, Function<T, Sample> sample) {
-        this(key, sample, t -> null);
+    public TsAdd<K, V, T> sample(Function<T, Sample> sample) {
+        this.sample = sample;
+        return this;
     }
 
-    public TsAdd(Function<T, K> key, Function<T, Sample> sample, Function<T, AddOptions<K, V>> options) {
-        super(key);
-        Assert.notNull(sample, "A sample function is required");
-        Assert.notNull(options, "Options function is required");
-        this.sample = sample;
+    public TsAdd<K, V, T> options(AddOptions<K, V> options) {
+        return options(t -> options);
+    }
+
+    public TsAdd<K, V, T> options(Function<T, AddOptions<K, V>> options) {
         this.options = options;
+        return this;
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(key, sample.apply(item), options.apply(item));
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
+        futures.add(((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(key(item), sample(item), options(item)));
+    }
+
+    private AddOptions<K, V> options(T item) {
+        return options.apply(item);
+    }
+
+    private Sample sample(T item) {
+        return sample.apply(item);
     }
 
 }

@@ -21,7 +21,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
-public abstract class AbstractRedisItemStreamSupport<K, V, I, O> extends ItemStreamSupport {
+public abstract class AbstractRedisItemStreamSupport<K, V, I> extends ItemStreamSupport {
 
     public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
@@ -82,17 +82,17 @@ public abstract class AbstractRedisItemStreamSupport<K, V, I, O> extends ItemStr
         pool = null;
     }
 
-    protected List<O> execute(Collection<? extends I> items) throws Exception {
+    protected List<Object> execute(Collection<? extends I> items) throws Exception {
         try (StatefulConnection<K, V> connection = pool.borrowObject()) {
             long timeout = connection.getTimeout().toMillis();
             BaseRedisAsyncCommands<K, V> commands = ConnectionUtils.async(connection);
-            List<RedisFuture<O>> futures = new ArrayList<>();
+            List<RedisFuture<?>> futures = new ArrayList<>();
             try {
                 connection.setAutoFlushCommands(false);
                 execute(commands, items, futures);
                 connection.flushCommands();
-                List<O> results = new ArrayList<>(futures.size());
-                for (RedisFuture<O> future : futures) {
+                List<Object> results = new ArrayList<>(futures.size());
+                for (RedisFuture<?> future : futures) {
                     results.add(future.get(timeout, TimeUnit.MILLISECONDS));
                 }
                 return results;
@@ -102,12 +102,12 @@ public abstract class AbstractRedisItemStreamSupport<K, V, I, O> extends ItemStr
         }
     }
 
-    protected void execute(BaseRedisAsyncCommands<K, V> commands, Collection<? extends I> items, List<RedisFuture<O>> futures) {
+    protected void execute(BaseRedisAsyncCommands<K, V> commands, Collection<? extends I> items, List<RedisFuture<?>> futures) {
         for (I item : items) {
             execute(commands, item, futures);
         }
     }
 
-    protected abstract void execute(BaseRedisAsyncCommands<K, V> commands, I item, List<RedisFuture<O>> futures);
+    protected abstract void execute(BaseRedisAsyncCommands<K, V> commands, I item, List<RedisFuture<?>> futures);
 
 }

@@ -23,7 +23,6 @@ import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.ValueType;
-import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
@@ -153,7 +152,10 @@ class StackTests extends ModulesTests {
             messages.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-        Xadd<String, String, Map<String, String>> xadd = new Xadd<>(t -> stream, Function.identity(), m -> null);
+        Xadd<String, String, Map<String, String>> xadd = new Xadd<>();
+        xadd.key(t -> stream);
+        xadd.body(Function.identity());
+        xadd.args(m -> null);
         OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
                 xadd);
         writer.setMultiExec(true);

@@ -26,12 +26,10 @@ import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 
 import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.ValueType;
-import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
@@ -69,6 +67,7 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
+import io.lettuce.core.XAddArgs;
 import io.lettuce.core.cluster.SlotHash;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.StringCodec;
@@ -92,7 +91,9 @@ abstract class BatchTests extends AbstractTestBase {
             maps.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-        Hset<String, String, Map<String, String>> hset = new Hset<>(m -> "hash:" + m.remove("id"), Function.identity());
+        Hset<String, String, Map<String, String>> hset = new Hset<>();
+        hset.key(m -> "hash:" + m.remove("id"));
+        hset.map(Function.identity());
         OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
                 hset);
         writer.setWaitReplicas(1);
@@ -113,14 +114,46 @@ abstract class BatchTests extends AbstractTestBase {
             maps.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-        Hset<String, String, Map<String, String>> hset = new Hset<>(m -> "hash:" + m.remove("id"), Function.identity());
+        Hset<String, String, Map<String, String>> hset = new Hset<>();
+        hset.key(m -> "hash:" + m.remove("id"));
+        hset.map(Function.identity());
         OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
                 hset);
         run(testInfo, reader, writer);
-        assertEquals(maps.size(), connection.sync().keys("hash:*").size());
+        assertEquals(maps.size(), commands.keys("hash:*").size());
         for (int index = 0; index < maps.size(); index++) {
-            Map<String, String> hash = connection.sync().hgetall("hash:" + index);
+            Map<String, String> hash = commands.hgetall("hash:" + index);
             assertEquals(maps.get(index), hash);
+        }
+    }
+
+    @Test
+    void writeComposite(TestInfo testInfo) throws Exception {
+        List<Map<String, String>> maps = new ArrayList<>();
+        for (int index = 0; index < 100; index++) {
+            Map<String, String> body = new HashMap<>();
+            body.put("id", String.valueOf(index));
+            body.put("field1", "value1");
+            body.put("field2", "value2");
+            maps.add(body);
+        }
+        ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
+        Function<Map<String, String>, String> keyFunction = m -> "hash:" + m.get("id");
+        Hset<String, String, Map<String, String>> hset = new Hset<>();
+        hset.key(keyFunction).map(Function.identity());
+        Expire<String, String, Map<String, String>> expire = new Expire<>();
+        expire.key(keyFunction);
+        Duration ttl = Duration.ofSeconds(10);
+        expire.ttl(ttl);
+        OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
+                hset);
+        run(testInfo, reader, writer);
+        assertEquals(maps.size(), commands.keys("hash:*").size());
+        for (int index = 0; index < maps.size(); index++) {
+            String key = "hash:" + index;
+            Map<String, String> hash = commands.hgetall(key);
+            assertEquals(maps.get(index), hash);
+            assertEquals(ttl, Duration.ofMillis(commands.pttl(key)));
         }
     }
 
@@ -129,9 +162,10 @@ abstract class BatchTests extends AbstractTestBase {
         generate(testInfo);
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
-        Del<String, String, KeyValue<String>> del = new Del<>(KeyValue::getKey);
+        Del<String, String, KeyValue<String>> del = new Del<>();
+        del.key(KeyValue::getKey);
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, del));
-        assertEquals(0, connection.sync().keys(GeneratorOptions.DEFAULT_KEYSPACE + "*").size());
+        assertEquals(0, commands.keys(GeneratorOptions.DEFAULT_KEYSPACE + "*").size());
     }
 
     @Test
@@ -139,11 +173,12 @@ abstract class BatchTests extends AbstractTestBase {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         gen.getOptions().setTypes(Type.STRING);
-        Lpush<String, String, KeyValue<String>> lpush = new Lpush<>(KeyValue::getKey, v -> (String) v.getValue());
+        Lpush<String, String, KeyValue<String>> lpush = new Lpush<>();
+        lpush.key(KeyValue::getKey).value(v -> (String) v.getValue());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, lpush));
-        assertEquals(DEFAULT_GENERATOR_COUNT, connection.sync().dbsize());
-        for (String key : connection.sync().keys("*")) {
-            assertEquals(KeyValue.LIST, connection.sync().type(key));
+        assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
+        for (String key : commands.keys("*")) {
+            assertEquals(KeyValue.LIST, commands.type(key));
         }
     }
 
@@ -152,11 +187,12 @@ abstract class BatchTests extends AbstractTestBase {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         gen.getOptions().setTypes(Type.STRING);
-        Rpush<String, String, KeyValue<String>> rpush = new Rpush<>(KeyValue::getKey, v -> (String) v.getValue());
+        Rpush<String, String, KeyValue<String>> rpush = new Rpush<>();
+        rpush.key(KeyValue::getKey).value(v -> (String) v.getValue());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, rpush));
-        assertEquals(DEFAULT_GENERATOR_COUNT, connection.sync().dbsize());
-        for (String key : connection.sync().keys("*")) {
-            assertEquals(KeyValue.LIST, connection.sync().type(key));
+        assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
+        for (String key : commands.keys("*")) {
+            assertEquals(KeyValue.LIST, commands.type(key));
         }
     }
 
@@ -166,12 +202,12 @@ abstract class BatchTests extends AbstractTestBase {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         gen.getOptions().setTypes(Type.LIST);
-        LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>(KeyValue::getKey,
-                v -> (Collection<String>) v.getValue());
+        LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>();
+        lpushAll.key(KeyValue::getKey).values(v -> (Collection<String>) v.getValue());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, lpushAll));
-        assertEquals(DEFAULT_GENERATOR_COUNT, connection.sync().dbsize());
-        for (String key : connection.sync().keys("*")) {
-            assertEquals(KeyValue.LIST, connection.sync().type(key));
+        assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
+        for (String key : commands.keys("*")) {
+            assertEquals(KeyValue.LIST, commands.type(key));
         }
     }
 
@@ -181,10 +217,11 @@ abstract class BatchTests extends AbstractTestBase {
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         gen.getOptions().setTypes(Type.STRING);
         Duration ttl = Duration.ofMillis(1L);
-        Expire<String, String, KeyValue<String>> expire = new Expire<>(KeyValue::getKey, v -> ttl);
+        Expire<String, String, KeyValue<String>> expire = new Expire<>();
+        expire.key(KeyValue::getKey).ttl(ttl);
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, expire));
-        awaitUntil(() -> connection.sync().keys("*").isEmpty());
-        assertEquals(0, connection.sync().dbsize());
+        awaitUntil(() -> commands.keys("*").isEmpty());
+        assertEquals(0, commands.dbsize());
     }
 
     @Test
@@ -192,10 +229,11 @@ abstract class BatchTests extends AbstractTestBase {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         gen.getOptions().setTypes(Type.STRING);
-        ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>(KeyValue::getKey, v -> System.currentTimeMillis());
+        ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>();
+        expireAt.key(KeyValue::getKey).epoch(v -> System.currentTimeMillis());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, expireAt));
-        awaitUntil(() -> connection.sync().keys("*").isEmpty());
-        assertEquals(0, connection.sync().dbsize());
+        awaitUntil(() -> commands.keys("*").isEmpty());
+        assertEquals(0, commands.dbsize());
     }
 
     private class Geo {
@@ -230,11 +268,12 @@ abstract class BatchTests extends AbstractTestBase {
     void writeGeo(TestInfo testInfo) throws Exception {
         ListItemReader<Geo> reader = new ListItemReader<>(Arrays.asList(new Geo("Venice Breakwater", -118.476056, 33.985728),
                 new Geo("Long Beach National", -73.667022, 40.582739)));
-        ToGeoValueFunction<String, Geo> value = new ToGeoValueFunction<>(Geo::getMember, Geo::getLongitude, Geo::getLatitude);
-        Geoadd<String, String, Geo> geoadd = new Geoadd<>(t -> "geoset", value);
+        Geoadd<String, String, Geo> geoadd = new Geoadd<>();
+        geoadd.key(t -> "geoset");
+        geoadd.value(new ToGeoValueFunction<>(Geo::getMember, Geo::getLongitude, Geo::getLatitude));
         OperationItemWriter<String, String, Geo> writer = new OperationItemWriter<>(client, StringCodec.UTF8, geoadd);
         run(testInfo, reader, writer);
-        Set<String> radius1 = connection.sync().georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
+        Set<String> radius1 = commands.georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
         assertEquals(1, radius1.size());
         assertTrue(radius1.contains("Venice Breakwater"));
     }
@@ -242,23 +281,23 @@ abstract class BatchTests extends AbstractTestBase {
     @Test
     void writeHashDel(TestInfo testInfo) throws Exception {
         List<Entry<String, Map<String, String>>> hashes = new ArrayList<>();
-        RedisModulesCommands<String, String> sync = connection.sync();
         for (int index = 0; index < 100; index++) {
             String key = String.valueOf(index);
             Map<String, String> value = new HashMap<>();
             value.put("field1", "value1");
-            sync.hset("hash:" + key, value);
+            commands.hset("hash:" + key, value);
             Map<String, String> body = new HashMap<>();
             body.put("field2", "value2");
             hashes.add(new AbstractMap.SimpleEntry<>(key, index < 50 ? null : body));
         }
         ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
-        Hset<String, String, Entry<String, Map<String, String>>> hset = new Hset<>(e -> "hash:" + e.getKey(), Entry::getValue);
+        Hset<String, String, Entry<String, Map<String, String>>> hset = new Hset<>();
+        hset.key(e -> "hash:" + e.getKey()).map(Entry::getValue);
         OperationItemWriter<String, String, Entry<String, Map<String, String>>> writer = new OperationItemWriter<>(client,
                 StringCodec.UTF8, hset);
         run(testInfo, reader, writer);
-        assertEquals(100, sync.keys("hash:*").size());
-        assertEquals(2, sync.hgetall("hash:50").size());
+        assertEquals(100, commands.keys("hash:*").size());
+        assertEquals(2, commands.hgetall("hash:50").size());
     }
 
     private class ZValue {
@@ -291,14 +330,14 @@ abstract class BatchTests extends AbstractTestBase {
             values.add(new ZValue(String.valueOf(index), index % 10));
         }
         ListItemReader<ZValue> reader = new ListItemReader<>(values);
-        ToScoredValueFunction<String, ZValue> converter = new ToScoredValueFunction<>(ZValue::getMember, ZValue::getScore);
-        Zadd<String, String, ZValue> zadd = new Zadd<>(t -> key, converter);
+        Zadd<String, String, ZValue> zadd = new Zadd<>();
+        zadd.key(t -> key).value(new ToScoredValueFunction<>(ZValue::getMember, ZValue::getScore));
         OperationItemWriter<String, String, ZValue> writer = new OperationItemWriter<>(client, StringCodec.UTF8, zadd);
         run(testInfo, reader, writer);
-        RedisModulesCommands<String, String> sync = connection.sync();
-        assertEquals(1, sync.dbsize());
-        assertEquals(values.size(), sync.zcard(key));
-        assertEquals(60, sync.zrangebyscore(key, Range.from(Range.Boundary.including(0), Range.Boundary.including(5))).size());
+        assertEquals(1, commands.dbsize());
+        assertEquals(values.size(), commands.zcard(key));
+        assertEquals(60,
+                commands.zrangebyscore(key, Range.from(Range.Boundary.including(0), Range.Boundary.including(5))).size());
     }
 
     @Test
@@ -309,12 +348,12 @@ abstract class BatchTests extends AbstractTestBase {
             values.add(String.valueOf(index));
         }
         ListItemReader<String> reader = new ListItemReader<>(values);
-        Sadd<String, String, String> sadd = new Sadd<>(t -> key, Function.identity());
+        Sadd<String, String, String> sadd = new Sadd<>();
+        sadd.key(t -> key).value(Function.identity());
         OperationItemWriter<String, String, String> writer = new OperationItemWriter<>(client, StringCodec.UTF8, sadd);
         run(testInfo, reader, writer);
-        RedisModulesCommands<String, String> sync = connection.sync();
-        assertEquals(1, sync.dbsize());
-        assertEquals(values.size(), sync.scard(key));
+        assertEquals(1, commands.dbsize());
+        assertEquals(values.size(), commands.scard(key));
     }
 
     @Test
@@ -334,8 +373,7 @@ abstract class BatchTests extends AbstractTestBase {
         ListItemReader<KeyValue<String>> reader = new ListItemReader<>(list);
         RedisItemWriter<String, String> writer = structWriter(client);
         run(testInfo, reader, writer);
-        RedisModulesCommands<String, String> sync = connection.sync();
-        List<String> keys = sync.keys("hash:*");
+        List<String> keys = commands.keys("hash:*");
         assertEquals(count, keys.size());
     }
 
@@ -392,7 +430,6 @@ abstract class BatchTests extends AbstractTestBase {
         enableKeyspaceNotifications(client);
         KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
         reader.open(new ExecutionContext());
-        RedisModulesCommands<String, String> commands = connection.sync();
         String key = "key1";
         commands.zadd(key, 1, "member1");
         commands.zadd(key, 2, "member2");
@@ -411,7 +448,7 @@ abstract class BatchTests extends AbstractTestBase {
         reader.open(new ExecutionContext());
         List<KeyValue<String>> list = BatchUtils.readAll(reader);
         reader.close();
-        assertEquals(connection.sync().dbsize(), list.size());
+        assertEquals(commands.dbsize(), list.size());
     }
 
     @Test
@@ -425,8 +462,7 @@ abstract class BatchTests extends AbstractTestBase {
                 .throttleLimit(threads).build()).build());
         awaitClosed(reader);
         awaitClosed(writer);
-        assertEquals(connection.sync().dbsize(),
-                writer.getItems().stream().map(KeyValue::getKey).collect(Collectors.toSet()).size());
+        assertEquals(commands.dbsize(), writer.getItems().stream().map(KeyValue::getKey).collect(Collectors.toSet()).size());
     }
 
     @Test
@@ -435,7 +471,7 @@ abstract class BatchTests extends AbstractTestBase {
         gen.setMaxItemCount(10000);
         gen.getOptions().setTypes(Type.HASH, Type.STRING);
         generate(testInfo, gen);
-        long expectedCount = connection.sync().dbsize();
+        long expectedCount = commands.dbsize();
         ScanSizeEstimator estimator = new ScanSizeEstimator(client);
         estimator.setScanMatch(GeneratorOptions.DEFAULT_KEYSPACE + ":*");
         estimator.setSamples(1000);
@@ -455,13 +491,13 @@ abstract class BatchTests extends AbstractTestBase {
             messages.add(body);
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-        Xadd<String, String, Map<String, String>> xadd = new Xadd<>(t -> stream, Function.identity(), m -> null);
+        Xadd<String, String, Map<String, String>> xadd = new Xadd<>();
+        xadd.key(t -> stream).body(Function.identity()).args((XAddArgs) null);
         OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
                 xadd);
         run(testInfo, reader, writer);
-        RedisModulesCommands<String, String> sync = connection.sync();
-        Assertions.assertEquals(messages.size(), sync.xlen(stream));
-        List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
+        Assertions.assertEquals(messages.size(), commands.xlen(stream));
+        List<StreamMessage<String, String>> xrange = commands.xrange(stream, Range.create("-", "+"));
         for (int index = 0; index < xrange.size(); index++) {
             StreamMessage<String, String> message = xrange.get(index);
             Assertions.assertEquals(messages.get(index), message.getBody());
@@ -482,7 +518,7 @@ abstract class BatchTests extends AbstractTestBase {
         List<KeyValue<byte[]>> list = BatchUtils.readAll(reader);
         Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
         Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
-        Assertions.assertEquals(connection.sync().dbsize(), keys.size());
+        Assertions.assertEquals(commands.dbsize(), keys.size());
     }
 
     @Test
@@ -498,9 +534,9 @@ abstract class BatchTests extends AbstractTestBase {
         String field2 = "field2";
         String value2 = "value2";
         Map<String, String> body = map(field1, value1, field2, value2);
-        String id1 = connection.sync().xadd(stream, body);
-        String id2 = connection.sync().xadd(stream, body);
-        String id3 = connection.sync().xadd(stream, body);
+        String id1 = commands.xadd(stream, body);
+        String id2 = commands.xadd(stream, body);
+        String id3 = commands.xadd(stream, body);
         List<StreamMessage<String, String>> messages = new ArrayList<>();
         awaitUntil(() -> messages.addAll(reader.readMessages()));
         Assertions.assertEquals(3, messages.size());
@@ -508,7 +544,7 @@ abstract class BatchTests extends AbstractTestBase {
         assertStreamEquals(id2, body, stream, messages.get(1));
         assertStreamEquals(id3, body, stream, messages.get(2));
         reader.close();
-        Assertions.assertEquals(0, connection.sync().xpending(stream, consumerGroup).getCount(), "pending messages");
+        Assertions.assertEquals(0, commands.xpending(stream, consumerGroup).getCount(), "pending messages");
     }
 
     @Test
@@ -524,9 +560,9 @@ abstract class BatchTests extends AbstractTestBase {
         String field2 = "field2";
         String value2 = "value2";
         Map<String, String> body = map(field1, value1, field2, value2);
-        String id1 = connection.sync().xadd(stream, body);
-        String id2 = connection.sync().xadd(stream, body);
-        String id3 = connection.sync().xadd(stream, body);
+        String id1 = commands.xadd(stream, body);
+        String id2 = commands.xadd(stream, body);
+        String id3 = commands.xadd(stream, body);
         List<StreamMessage<String, String>> messages = new ArrayList<>();
         awaitUntil(() -> messages.addAll(reader.readMessages()));
         Assertions.assertEquals(3, messages.size());
@@ -534,10 +570,10 @@ abstract class BatchTests extends AbstractTestBase {
         assertStreamEquals(id1, body, stream, messages.get(0));
         assertStreamEquals(id2, body, stream, messages.get(1));
         assertStreamEquals(id3, body, stream, messages.get(2));
-        PendingMessages pendingMsgsBeforeCommit = connection.sync().xpending(stream, consumerGroup);
+        PendingMessages pendingMsgsBeforeCommit = commands.xpending(stream, consumerGroup);
         Assertions.assertEquals(3, pendingMsgsBeforeCommit.getCount(), "pending messages before commit");
-        connection.sync().xack(stream, consumerGroup, messages.get(0).getId(), messages.get(1).getId());
-        PendingMessages pendingMsgsAfterCommit = connection.sync().xpending(stream, consumerGroup);
+        commands.xack(stream, consumerGroup, messages.get(0).getId(), messages.get(1).getId());
+        PendingMessages pendingMsgsAfterCommit = commands.xpending(stream, consumerGroup);
         Assertions.assertEquals(1, pendingMsgsAfterCommit.getCount(), "pending messages after commit");
         reader.close();
     }
@@ -554,17 +590,17 @@ abstract class BatchTests extends AbstractTestBase {
         String field2 = "field2";
         String value2 = "value2";
         Map<String, String> body = map(field1, value1, field2, value2);
-        connection.sync().xadd(stream, body);
-        connection.sync().xadd(stream, body);
-        connection.sync().xadd(stream, body);
+        commands.xadd(stream, body);
+        commands.xadd(stream, body);
+        commands.xadd(stream, body);
         List<StreamMessage<String, String>> messages = new ArrayList<>();
         awaitUntil(() -> messages.addAll(reader.readMessages()));
         Assertions.assertEquals(3, messages.size());
 
         List<StreamMessage<String, String>> recoveredMessages = new ArrayList<>();
-        connection.sync().xadd(stream, body);
-        connection.sync().xadd(stream, body);
-        connection.sync().xadd(stream, body);
+        commands.xadd(stream, body);
+        commands.xadd(stream, body);
+        commands.xadd(stream, body);
 
         reader.close();
 
@@ -591,18 +627,18 @@ abstract class BatchTests extends AbstractTestBase {
         String field2 = "field2";
         String value2 = "value2";
         Map<String, String> body = map(field1, value1, field2, value2);
-        connection.sync().xadd(stream, body);
-        connection.sync().xadd(stream, body);
-        String id3 = connection.sync().xadd(stream, body);
+        commands.xadd(stream, body);
+        commands.xadd(stream, body);
+        String id3 = commands.xadd(stream, body);
         List<StreamMessage<String, String>> messages = new ArrayList<>();
         awaitUntil(() -> messages.addAll(reader.readMessages()));
         Assertions.assertEquals(3, messages.size());
-        connection.sync().xack(stream, consumerGroup, messages.get(0).getId(), messages.get(1).getId());
+        commands.xack(stream, consumerGroup, messages.get(0).getId(), messages.get(1).getId());
 
         List<StreamMessage<String, String>> recoveredMessages = new ArrayList<>();
-        String id4 = connection.sync().xadd(stream, body);
-        String id5 = connection.sync().xadd(stream, body);
-        String id6 = connection.sync().xadd(stream, body);
+        String id4 = commands.xadd(stream, body);
+        String id5 = commands.xadd(stream, body);
+        String id6 = commands.xadd(stream, body);
         reader.close();
 
         final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
@@ -631,17 +667,17 @@ abstract class BatchTests extends AbstractTestBase {
         String field2 = "field2";
         String value2 = "value2";
         Map<String, String> body = map(field1, value1, field2, value2);
-        connection.sync().xadd(stream, body);
-        connection.sync().xadd(stream, body);
-        String id3 = connection.sync().xadd(stream, body);
+        commands.xadd(stream, body);
+        commands.xadd(stream, body);
+        String id3 = commands.xadd(stream, body);
         List<StreamMessage<String, String>> sourceRecords = new ArrayList<>();
         awaitUntil(() -> sourceRecords.addAll(reader.readMessages()));
         Assertions.assertEquals(3, sourceRecords.size());
 
         List<StreamMessage<String, String>> recoveredRecords = new ArrayList<>();
-        String id4 = connection.sync().xadd(stream, body);
-        String id5 = connection.sync().xadd(stream, body);
-        String id6 = connection.sync().xadd(stream, body);
+        String id4 = commands.xadd(stream, body);
+        String id5 = commands.xadd(stream, body);
+        String id6 = commands.xadd(stream, body);
 
         reader.close();
 
@@ -671,17 +707,17 @@ abstract class BatchTests extends AbstractTestBase {
         String field2 = "field2";
         String value2 = "value2";
         Map<String, String> body = map(field1, value1, field2, value2);
-        connection.sync().xadd(stream, body);
-        connection.sync().xadd(stream, body);
-        connection.sync().xadd(stream, body);
+        commands.xadd(stream, body);
+        commands.xadd(stream, body);
+        commands.xadd(stream, body);
         List<StreamMessage<String, String>> sourceRecords = new ArrayList<>();
         awaitUntil(() -> sourceRecords.addAll(reader.readMessages()));
         Assertions.assertEquals(3, sourceRecords.size());
 
         List<StreamMessage<String, String>> recoveredRecords = new ArrayList<>();
-        String id4 = connection.sync().xadd(stream, body);
-        String id5 = connection.sync().xadd(stream, body);
-        String id6 = connection.sync().xadd(stream, body);
+        String id4 = commands.xadd(stream, body);
+        String id5 = commands.xadd(stream, body);
+        String id6 = commands.xadd(stream, body);
         reader.close();
 
         final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
@@ -694,7 +730,7 @@ abstract class BatchTests extends AbstractTestBase {
         List<String> recoveredIds = recoveredRecords.stream().map(StreamMessage::getId).collect(Collectors.toList());
         Assertions.assertEquals(Arrays.asList(id4, id5, id6), recoveredIds, "recoveredIds");
 
-        PendingMessages pending = connection.sync().xpending(stream, consumerGroup);
+        PendingMessages pending = commands.xpending(stream, consumerGroup);
         Assertions.assertEquals(0, pending.getCount(), "pending message count");
         reader2.close();
     }
@@ -702,11 +738,11 @@ abstract class BatchTests extends AbstractTestBase {
     @Test
     void readMessages(TestInfo testInfo) throws Exception {
         generateStreams(testInfo, 57);
-        List<String> keys = ScanIterator.scan(connection.sync(), KeyScanArgs.Builder.type(KeyValue.STREAM)).stream()
+        List<String> keys = ScanIterator.scan(commands, KeyScanArgs.Builder.type(KeyValue.STREAM)).stream()
                 .collect(Collectors.toList());
         Consumer<String> consumer = Consumer.from("batchtests-readmessages", "consumer1");
         for (String key : keys) {
-            long count = connection.sync().xlen(key);
+            long count = commands.xlen(key);
             StreamItemReader<String, String> reader = streamReader(key, consumer);
             reader.setName(name(testInfo) + "-reader");
             reader.open(new ExecutionContext());
@@ -722,11 +758,11 @@ abstract class BatchTests extends AbstractTestBase {
     @Test
     void streamReaderJob(TestInfo testInfo) throws Exception {
         generateStreams(testInfo, 277);
-        List<String> keys = ScanIterator.scan(connection.sync(), KeyScanArgs.Builder.type(KeyValue.STREAM)).stream()
+        List<String> keys = ScanIterator.scan(commands, KeyScanArgs.Builder.type(KeyValue.STREAM)).stream()
                 .collect(Collectors.toList());
         Consumer<String> consumer = Consumer.from("batchtests-readstreamjob", "consumer1");
         for (String key : keys) {
-            long count = connection.sync().xlen(key);
+            long count = commands.xlen(key);
             StreamItemReader<String, String> reader = streamReader(key, consumer);
             reader.setName(name(testInfo) + "-reader");
             reader.open(new ExecutionContext());
@@ -753,9 +789,9 @@ abstract class BatchTests extends AbstractTestBase {
         Map<String, String> hash = new HashMap<>();
         hash.put("field1", "value1");
         hash.put("field2", "value2");
-        connection.sync().hset(key, hash);
+        commands.hset(key, hash);
         long ttl = System.currentTimeMillis() + 123456;
-        connection.sync().pexpireat(key, ttl);
+        commands.pexpireat(key, ttl);
         KeyValueItemProcessor<String, String> reader = structReader();
         KeyValue<String> ds = reader.process(key).get(0);
         Assertions.assertEquals(key, ds.getKey());
@@ -770,7 +806,7 @@ abstract class BatchTests extends AbstractTestBase {
     void luaZset() throws Exception {
         String key = "myzset";
         ScoredValue[] values = { ScoredValue.just(123.456, "value1"), ScoredValue.just(654.321, "value2") };
-        connection.sync().zadd(key, values);
+        commands.zadd(key, values);
         KeyValueItemProcessor<String, String> reader = structReader();
         KeyValue<String> ds = reader.process(key).get(0);
         Assertions.assertEquals(key, ds.getKey());
@@ -783,7 +819,7 @@ abstract class BatchTests extends AbstractTestBase {
     void luaList() throws Exception {
         String key = "mylist";
         List<String> values = Arrays.asList("value1", "value2");
-        connection.sync().rpush(key, values.toArray(new String[0]));
+        commands.rpush(key, values.toArray(new String[0]));
         KeyValueItemProcessor<String, String> reader = structReader();
         KeyValue<String> ds = reader.process(key).get(0);
         Assertions.assertEquals(key, ds.getKey());
@@ -798,8 +834,8 @@ abstract class BatchTests extends AbstractTestBase {
         Map<String, String> body = new HashMap<>();
         body.put("field1", "value1");
         body.put("field2", "value2");
-        connection.sync().xadd(key, body);
-        connection.sync().xadd(key, body);
+        commands.xadd(key, body);
+        commands.xadd(key, body);
         KeyValueItemProcessor<String, String> reader = structReader();
         KeyValue<String> ds = reader.process(key).get(0);
         Assertions.assertEquals(key, ds.getKey());
@@ -818,19 +854,19 @@ abstract class BatchTests extends AbstractTestBase {
         Map<String, String> body = new HashMap<>();
         body.put("field1", "value1");
         body.put("field2", "value2");
-        connection.sync().xadd(key, body);
-        connection.sync().xadd(key, body);
+        commands.xadd(key, body);
+        commands.xadd(key, body);
         long ttl = System.currentTimeMillis() + 123456;
-        connection.sync().pexpireat(key, ttl);
+        commands.pexpireat(key, ttl);
         KeyValueItemProcessor<byte[], byte[]> reader = new KeyValueItemProcessor<>(client, ByteArrayCodec.INSTANCE);
         reader.open(new ExecutionContext());
         KeyValue<byte[]> dump = reader.process(toByteArray(key)).get(0);
         Assertions.assertArrayEquals(toByteArray(key), dump.getKey());
         Assertions.assertTrue(Math.abs(ttl - dump.getTtl()) <= 3);
         reader.close();
-        connection.sync().del(key);
-        connection.sync().restore(key, dump.getValue(), RestoreArgs.Builder.ttl(ttl).absttl());
-        Assertions.assertEquals(KeyValue.STREAM, connection.sync().type(key));
+        commands.del(key);
+        commands.restore(key, dump.getValue(), RestoreArgs.Builder.ttl(ttl).absttl());
+        Assertions.assertEquals(KeyValue.STREAM, commands.type(key));
     }
 
     @Test
@@ -839,8 +875,8 @@ abstract class BatchTests extends AbstractTestBase {
         Map<String, String> body = new HashMap<>();
         body.put("field1", "value1");
         body.put("field2", "value2");
-        connection.sync().xadd(key, body);
-        connection.sync().xadd(key, body);
+        commands.xadd(key, body);
+        commands.xadd(key, body);
         KeyValueItemProcessor<byte[], byte[]> reader = new KeyValueItemProcessor<>(client, ByteArrayCodec.INSTANCE);
         reader.setValueType(ValueType.STRUCT);
         reader.open(new ExecutionContext());
@@ -862,14 +898,14 @@ abstract class BatchTests extends AbstractTestBase {
     @Test
     void luaHLL() throws Exception {
         String key1 = "hll:1";
-        connection.sync().pfadd(key1, "member:1", "member:2");
+        commands.pfadd(key1, "member:1", "member:2");
         String key2 = "hll:2";
-        connection.sync().pfadd(key2, "member:1", "member:2", "member:3");
+        commands.pfadd(key2, "member:1", "member:2", "member:3");
         KeyValueItemProcessor<String, String> reader = structReader();
         KeyValue<String> ds1 = reader.process(key1).get(0);
         Assertions.assertEquals(key1, ds1.getKey());
         Assertions.assertEquals(KeyValue.STRING, ds1.getType());
-        Assertions.assertEquals(connection.sync().get(key1), ds1.getValue());
+        Assertions.assertEquals(commands.get(key1), ds1.getValue());
         reader.close();
     }
 

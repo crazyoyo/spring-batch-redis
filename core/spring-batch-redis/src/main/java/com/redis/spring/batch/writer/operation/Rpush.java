@@ -1,15 +1,9 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.function.Function;
-
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 
-public class Rpush<K, V, T> extends AbstractPushOperation<K, V, T> {
-
-    public Rpush(Function<T, K> key, Function<T, V> member) {
-        super(key, member);
-    }
+public class Rpush<K, V, T> extends AbstractPushOperation<K, V, T, Rpush<K, V, T>> {
 
     @SuppressWarnings("unchecked")
     @Override

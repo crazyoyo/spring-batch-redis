@@ -1,5 +1,6 @@
 package com.redis.spring.batch.writer.operation;
 
+import java.util.List;
 import java.util.function.Function;
 
 import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
@@ -7,23 +8,19 @@ import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class JsonDel<K, V, T> extends AbstractOperation<K, V, T> {
+public class JsonDel<K, V, T> extends AbstractOperation<K, V, T, JsonDel<K, V, T>> {
 
-    private final Function<T, String> path;
+    private Function<T, String> path = JsonSet.rootPath();
 
-    public JsonDel(Function<T, K> key) {
-        this(key, JsonSet.rootPath());
-    }
-
-    public JsonDel(Function<T, K> key, Function<T, String> path) {
-        super(key);
+    public JsonDel<K, V, T> path(Function<T, String> path) {
         this.path = path;
+        return this;
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisJSONAsyncCommands<K, V>) commands).jsonDel(key, path.apply(item));
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
+        futures.add(((RedisJSONAsyncCommands<K, V>) commands).jsonDel(key(item), path.apply(item)));
     }
 
 }
