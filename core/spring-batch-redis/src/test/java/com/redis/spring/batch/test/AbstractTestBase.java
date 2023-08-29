@@ -90,6 +90,8 @@ public abstract class AbstractTestBase {
 
     private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(1000);
 
+    protected static final Duration DEFAULT_ASYNC_DELAY = Duration.ofMillis(100);
+
     protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(300);
 
     private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(30);
@@ -358,6 +360,11 @@ public abstract class AbstractTestBase {
     protected JobExecution runAsync(Job job) throws JobExecutionException {
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         awaitRunning(execution);
+        try {
+            Thread.sleep(DEFAULT_ASYNC_DELAY.toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         return execution;
     }
 
