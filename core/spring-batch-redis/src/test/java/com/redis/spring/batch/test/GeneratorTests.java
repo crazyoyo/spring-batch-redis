@@ -49,7 +49,7 @@ class GeneratorTests {
                 case KeyValue.SET:
                 case KeyValue.LIST:
                 case KeyValue.ZSET:
-                    Assertions.assertEquals(GeneratorOptions.DEFAULT_COLLECTION_CARDINALITY.getMax(),
+                    Assertions.assertEquals(GeneratorOptions.DEFAULT_MEMBER_COUNT.getMax(),
                             ((Collection<?>) ds.getValue()).size());
                     break;
                 case KeyValue.STREAM:
