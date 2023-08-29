@@ -86,10 +86,17 @@ public class GeneratorItemReader extends AbstractCountingItemReader<KeyValue<Str
         List<Sample> samples = new ArrayList<>();
         int size = randomInt(options.getTimeSeriesOptions().getSampleCount());
         for (int index = 0; index < size; index++) {
-            long time = options.getTimeSeriesOptions().getStartTime() + index() + index;
+            long time = timeSeriesStartTime() + index() + index;
             samples.add(Sample.of(time, random.nextDouble()));
         }
         return samples;
+    }
+
+    private long timeSeriesStartTime() {
+        if (options.getTimeSeriesOptions().getStartTime() == null) {
+            return options.getTimeSeriesOptions().getStartTime().toEpochMilli();
+        }
+        return System.currentTimeMillis();
     }
 
     private List<ScoredValue<String>> zset() {
@@ -131,7 +138,7 @@ public class GeneratorItemReader extends AbstractCountingItemReader<KeyValue<Str
 
     private List<String> members(CollectionOptions options) {
         List<String> members = new ArrayList<>();
-        for (int index = 0; index < randomInt(options.getCardinality()); index++) {
+        for (int index = 0; index < randomInt(options.getMemberCount()); index++) {
             int memberId = options.getMemberRange().getMin()
                     + index % (options.getMemberRange().getMax() - options.getMemberRange().getMin() + 1);
             members.add(String.valueOf(memberId));

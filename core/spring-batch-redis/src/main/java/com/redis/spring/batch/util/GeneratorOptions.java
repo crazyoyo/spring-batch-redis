@@ -1,9 +1,8 @@
 package com.redis.spring.batch.util;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class GeneratorOptions {
 
@@ -17,9 +16,9 @@ public class GeneratorOptions {
 
     public static final IntRange DEFAULT_KEY_RANGE = IntRange.from(1);
 
-    public static final IntRange DEFAULT_COLLECTION_MEMBER_RANGE = IntRange.between(1, 100);
+    public static final IntRange DEFAULT_MEMBER_RANGE = IntRange.between(1, 100);
 
-    public static final IntRange DEFAULT_COLLECTION_CARDINALITY = IntRange.is(100);
+    public static final IntRange DEFAULT_MEMBER_COUNT = IntRange.is(100);
 
     public static final IntRange DEFAULT_STRING_LENGTH = IntRange.is(100);
 
@@ -58,11 +57,11 @@ public class GeneratorOptions {
     private List<Type> types = defaultTypes();
 
     public static List<Type> defaultTypes() {
-        return Stream.of(DEFAULT_TYPES).collect(Collectors.toList());
+        return Arrays.asList(DEFAULT_TYPES);
     }
 
-    public void setKeyRange(IntRange keyRange) {
-        this.keyRange = keyRange;
+    public void setKeyRange(IntRange range) {
+        this.keyRange = range;
     }
 
     public IntRange getKeyRange() {
@@ -113,20 +112,20 @@ public class GeneratorOptions {
         return types;
     }
 
-    public void setExpiration(IntRange expiration) {
-        this.expiration = expiration;
+    public void setExpiration(IntRange range) {
+        this.expiration = range;
     }
 
-    public void setHashOptions(MapOptions hashOptions) {
-        this.hashOptions = hashOptions;
+    public void setHashOptions(MapOptions options) {
+        this.hashOptions = options;
     }
 
-    public void setStreamOptions(StreamOptions streamOptions) {
-        this.streamOptions = streamOptions;
+    public void setStreamOptions(StreamOptions options) {
+        this.streamOptions = options;
     }
 
-    public void setJsonOptions(MapOptions jsonOptions) {
-        this.jsonOptions = jsonOptions;
+    public void setJsonOptions(MapOptions options) {
+        this.jsonOptions = options;
     }
 
     public void setTimeSeriesOptions(TimeSeriesOptions options) {
@@ -179,7 +178,7 @@ public class GeneratorOptions {
 
         private IntRange sampleCount = DEFAULT_TIMESERIES_SAMPLE_COUNT;
 
-        private long startTime;
+        private Instant startTime;
 
         public IntRange getSampleCount() {
             return sampleCount;
@@ -189,11 +188,11 @@ public class GeneratorOptions {
             this.sampleCount = sampleCount;
         }
 
-        public long getStartTime() {
+        public Instant getStartTime() {
             return startTime;
         }
 
-        public void setStartTime(long startTime) {
+        public void setStartTime(Instant startTime) {
             this.startTime = startTime;
         }
 
@@ -225,9 +224,9 @@ public class GeneratorOptions {
 
     public static class CollectionOptions {
 
-        private IntRange memberRange = DEFAULT_COLLECTION_MEMBER_RANGE;
+        private IntRange memberRange = DEFAULT_MEMBER_RANGE;
 
-        private IntRange cardinality = DEFAULT_COLLECTION_CARDINALITY;
+        private IntRange memberCount = DEFAULT_MEMBER_COUNT;
 
         public IntRange getMemberRange() {
             return memberRange;
@@ -237,12 +236,12 @@ public class GeneratorOptions {
             this.memberRange = range;
         }
 
-        public IntRange getCardinality() {
-            return cardinality;
+        public IntRange getMemberCount() {
+            return memberCount;
         }
 
-        public void setCardinality(IntRange cardinality) {
-            this.cardinality = cardinality;
+        public void setMemberCount(IntRange count) {
+            this.memberCount = count;
         }
 
     }
