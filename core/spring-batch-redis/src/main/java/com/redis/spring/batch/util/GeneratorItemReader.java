@@ -94,9 +94,9 @@ public class GeneratorItemReader extends AbstractCountingItemReader<KeyValue<Str
 
     private long timeSeriesStartTime() {
         if (options.getTimeSeriesOptions().getStartTime() == null) {
-            return options.getTimeSeriesOptions().getStartTime().toEpochMilli();
+            return System.currentTimeMillis();
         }
-        return System.currentTimeMillis();
+        return options.getTimeSeriesOptions().getStartTime().toEpochMilli();
     }
 
     private List<ScoredValue<String>> zset() {
