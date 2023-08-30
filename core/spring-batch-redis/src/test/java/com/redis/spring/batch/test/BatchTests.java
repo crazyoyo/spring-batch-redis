@@ -30,6 +30,8 @@ import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.ValueType;
+import com.redis.spring.batch.gen.DataType;
+import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
@@ -38,9 +40,6 @@ import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.GeneratorItemReader;
-import com.redis.spring.batch.util.GeneratorOptions;
-import com.redis.spring.batch.util.GeneratorOptions.Type;
 import com.redis.spring.batch.util.IntRange;
 import com.redis.spring.batch.util.PredicateItemProcessor;
 import com.redis.spring.batch.util.ToGeoValueFunction;
@@ -165,14 +164,14 @@ abstract class BatchTests extends AbstractTestBase {
         Del<String, String, KeyValue<String>> del = new Del<>();
         del.key(KeyValue::getKey);
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, del));
-        assertEquals(0, commands.keys(GeneratorOptions.DEFAULT_KEYSPACE + "*").size());
+        assertEquals(0, commands.keys(GeneratorItemReader.DEFAULT_KEYSPACE + "*").size());
     }
 
     @Test
     void writeLpush(TestInfo testInfo) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
-        gen.getOptions().setTypes(Type.STRING);
+        gen.setTypes(DataType.STRING);
         Lpush<String, String, KeyValue<String>> lpush = new Lpush<>();
         lpush.key(KeyValue::getKey).value(v -> (String) v.getValue());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, lpush));
@@ -186,7 +185,7 @@ abstract class BatchTests extends AbstractTestBase {
     void writeRpush(TestInfo testInfo) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
-        gen.getOptions().setTypes(Type.STRING);
+        gen.setTypes(DataType.STRING);
         Rpush<String, String, KeyValue<String>> rpush = new Rpush<>();
         rpush.key(KeyValue::getKey).value(v -> (String) v.getValue());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, rpush));
@@ -201,7 +200,7 @@ abstract class BatchTests extends AbstractTestBase {
     void writeLpushAll(TestInfo testInfo) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
-        gen.getOptions().setTypes(Type.LIST);
+        gen.setTypes(DataType.LIST);
         LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>();
         lpushAll.key(KeyValue::getKey).values(v -> (Collection<String>) v.getValue());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, lpushAll));
@@ -215,7 +214,7 @@ abstract class BatchTests extends AbstractTestBase {
     void writeExpire(TestInfo testInfo) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
-        gen.getOptions().setTypes(Type.STRING);
+        gen.setTypes(DataType.STRING);
         Duration ttl = Duration.ofMillis(1L);
         Expire<String, String, KeyValue<String>> expire = new Expire<>();
         expire.key(KeyValue::getKey).ttl(ttl);
@@ -228,7 +227,7 @@ abstract class BatchTests extends AbstractTestBase {
     void writeExpireAt(TestInfo testInfo) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
-        gen.getOptions().setTypes(Type.STRING);
+        gen.setTypes(DataType.STRING);
         ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>();
         expireAt.key(KeyValue::getKey).epoch(v -> System.currentTimeMillis());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, expireAt));
@@ -469,11 +468,11 @@ abstract class BatchTests extends AbstractTestBase {
     void scanSizeEstimator(TestInfo testInfo) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(10000);
-        gen.getOptions().setTypes(Type.HASH, Type.STRING);
+        gen.setTypes(DataType.HASH, DataType.STRING);
         generate(testInfo, gen);
         long expectedCount = commands.dbsize();
         ScanSizeEstimator estimator = new ScanSizeEstimator(client);
-        estimator.setScanMatch(GeneratorOptions.DEFAULT_KEYSPACE + ":*");
+        estimator.setScanMatch(GeneratorItemReader.DEFAULT_KEYSPACE + ":*");
         estimator.setSamples(1000);
         assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
         estimator.setScanType(KeyValue.HASH);
@@ -513,7 +512,7 @@ abstract class BatchTests extends AbstractTestBase {
         GeneratorItemReader gen = new GeneratorItemReader();
         int count = 123;
         gen.setMaxItemCount(count);
-        gen.getOptions().setTypes(Type.HASH, Type.STRING);
+        gen.setTypes(DataType.HASH, DataType.STRING);
         generate(info, gen);
         List<KeyValue<byte[]>> list = BatchUtils.readAll(reader);
         Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);

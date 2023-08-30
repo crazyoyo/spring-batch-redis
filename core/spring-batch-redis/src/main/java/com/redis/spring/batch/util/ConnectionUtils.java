@@ -20,21 +20,24 @@ import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public interface ConnectionUtils {
+public abstract class ConnectionUtils {
 
-    static Supplier<StatefulConnection<String, String>> supplier(AbstractRedisClient client) {
+    private ConnectionUtils() {
+    }
+
+    public static Supplier<StatefulConnection<String, String>> supplier(AbstractRedisClient client) {
         return supplier(client, StringCodec.UTF8);
     }
 
-    static Supplier<StatefulConnection<String, String>> supplier(AbstractRedisClient client, ReadFrom readFrom) {
+    public static Supplier<StatefulConnection<String, String>> supplier(AbstractRedisClient client, ReadFrom readFrom) {
         return supplier(client, StringCodec.UTF8, readFrom);
     }
 
-    static <K, V> Supplier<StatefulConnection<K, V>> supplier(AbstractRedisClient client, RedisCodec<K, V> codec) {
+    public static <K, V> Supplier<StatefulConnection<K, V>> supplier(AbstractRedisClient client, RedisCodec<K, V> codec) {
         return supplier(client, codec, null);
     }
 
-    static <K, V> Supplier<StatefulConnection<K, V>> supplier(AbstractRedisClient client, RedisCodec<K, V> codec,
+    public static <K, V> Supplier<StatefulConnection<K, V>> supplier(AbstractRedisClient client, RedisCodec<K, V> codec,
             ReadFrom readFrom) {
         if (client instanceof RedisModulesClusterClient) {
             return () -> {
@@ -49,7 +52,7 @@ public interface ConnectionUtils {
     }
 
     @SuppressWarnings("unchecked")
-    static <K, V, T> T sync(StatefulConnection<K, V> connection) {
+    public static <K, V, T> T sync(StatefulConnection<K, V> connection) {
         if (connection instanceof StatefulRedisClusterConnection) {
             return (T) ((StatefulRedisClusterConnection<K, V>) connection).sync();
         }
@@ -57,7 +60,7 @@ public interface ConnectionUtils {
     }
 
     @SuppressWarnings("unchecked")
-    static <K, V, T> T async(StatefulConnection<K, V> connection) {
+    public static <K, V, T> T async(StatefulConnection<K, V> connection) {
         if (connection instanceof StatefulRedisClusterConnection) {
             return (T) ((StatefulRedisClusterConnection<K, V>) connection).async();
         }
@@ -65,7 +68,7 @@ public interface ConnectionUtils {
     }
 
     @SuppressWarnings("unchecked")
-    static String loadScript(AbstractRedisClient client, String filename) {
+    public static String loadScript(AbstractRedisClient client, String filename) {
         byte[] bytes;
         try (InputStream inputStream = KeyValueItemProcessor.class.getClassLoader().getResourceAsStream(filename)) {
             bytes = FileCopyUtils.copyToByteArray(inputStream);

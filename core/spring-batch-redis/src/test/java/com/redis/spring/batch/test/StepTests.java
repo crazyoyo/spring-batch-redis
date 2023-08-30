@@ -36,11 +36,11 @@ import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.gen.DataType;
+import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.step.FlushingFaultTolerantStepBuilder;
 import com.redis.spring.batch.step.FlushingStepBuilder;
-import com.redis.spring.batch.util.GeneratorItemReader;
-import com.redis.spring.batch.util.GeneratorOptions.Type;
 
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
@@ -76,7 +76,7 @@ class StepTests {
         int count = 100;
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(count);
-        gen.getOptions().setTypes(Type.STRING);
+        gen.setTypes(DataType.STRING);
         ErrorItemReader<KeyValue<String>> reader = new ErrorItemReader<>(gen);
         ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
         String name = "readKeyValueFaultTolerance";

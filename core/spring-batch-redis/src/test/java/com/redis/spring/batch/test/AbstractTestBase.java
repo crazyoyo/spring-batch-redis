@@ -55,19 +55,19 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.StreamIdPolicy;
 import com.redis.spring.batch.ValueType;
-import com.redis.spring.batch.RedisItemReader.Mode;
+import com.redis.spring.batch.gen.DataType;
+import com.redis.spring.batch.gen.GeneratorItemReader;
+import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.GeneratorItemReader;
-import com.redis.spring.batch.util.GeneratorOptions.StreamOptions;
-import com.redis.spring.batch.util.GeneratorOptions.Type;
 import com.redis.spring.batch.util.IntRange;
 import com.redis.testcontainers.RedisServer;
 
@@ -275,7 +275,7 @@ public abstract class AbstractTestBase {
     protected GeneratorItemReader generator(int count) {
         GeneratorItemReader generator = new GeneratorItemReader();
         generator.setMaxItemCount(count);
-        generator.getOptions().setKeyRange(DEFAULT_GENERATOR_KEY_RANGE);
+        generator.setKeyRange(DEFAULT_GENERATOR_KEY_RANGE);
         return generator;
     }
 
@@ -384,11 +384,11 @@ public abstract class AbstractTestBase {
 
     protected void generateStreams(TestInfo testInfo, int messageCount) throws JobExecutionException {
         GeneratorItemReader gen = new GeneratorItemReader();
-        gen.getOptions().setTypes(Type.STREAM);
+        gen.setTypes(DataType.STREAM);
         gen.setMaxItemCount(3);
         StreamOptions streamOptions = new StreamOptions();
         streamOptions.setMessageCount(IntRange.is(messageCount));
-        gen.getOptions().setStreamOptions(streamOptions);
+        gen.setStreamOptions(streamOptions);
         generate(testInfo(testInfo, "streams"), gen);
     }
 

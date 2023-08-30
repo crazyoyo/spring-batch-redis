@@ -6,10 +6,13 @@ import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public interface CodecUtils {
+public abstract class CodecUtils {
+
+    private CodecUtils() {
+    }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    static <K> Function<String, K> stringKeyFunction(RedisCodec<K, ?> codec) {
+    public static <K> Function<String, K> stringKeyFunction(RedisCodec<K, ?> codec) {
         if (codec instanceof StringCodec) {
             return (Function) Function.identity();
         }
@@ -17,7 +20,7 @@ public interface CodecUtils {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    static <K> Function<K, String> toStringKeyFunction(RedisCodec<K, ?> codec) {
+    public static <K> Function<K, String> toStringKeyFunction(RedisCodec<K, ?> codec) {
         if (codec instanceof StringCodec) {
             return (Function) Function.identity();
         }
@@ -25,7 +28,7 @@ public interface CodecUtils {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    static <V> Function<String, V> stringValueFunction(RedisCodec<?, V> codec) {
+    public static <V> Function<String, V> stringValueFunction(RedisCodec<?, V> codec) {
         if (codec instanceof StringCodec) {
             return (Function) Function.identity();
         }
@@ -33,7 +36,7 @@ public interface CodecUtils {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    static <V> Function<V, String> toStringValueFunction(RedisCodec<?, V> codec) {
+    public static <V> Function<V, String> toStringValueFunction(RedisCodec<?, V> codec) {
         if (codec instanceof StringCodec) {
             return (Function) Function.identity();
         }
@@ -41,7 +44,7 @@ public interface CodecUtils {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    static <K> Function<byte[], K> byteArrayKeyFunction(RedisCodec<K, ?> codec) {
+    public static <K> Function<byte[], K> byteArrayKeyFunction(RedisCodec<K, ?> codec) {
         if (codec instanceof ByteArrayCodec) {
             return (Function) Function.identity();
         }
@@ -49,7 +52,7 @@ public interface CodecUtils {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    static <K> Function<K, byte[]> toByteArrayKeyFunction(RedisCodec<K, ?> codec) {
+    public static <K> Function<K, byte[]> toByteArrayKeyFunction(RedisCodec<K, ?> codec) {
         if (codec instanceof ByteArrayCodec) {
             return (Function) Function.identity();
         }
@@ -57,7 +60,7 @@ public interface CodecUtils {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    static <V> Function<byte[], V> byteArrayValueFunction(RedisCodec<?, V> codec) {
+    public static <V> Function<byte[], V> byteArrayValueFunction(RedisCodec<?, V> codec) {
         if (codec instanceof ByteArrayCodec) {
             return (Function) Function.identity();
         }
@@ -65,7 +68,7 @@ public interface CodecUtils {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    static <V> Function<V, byte[]> toByteArrayValueFunction(RedisCodec<?, V> codec) {
+    public static <V> Function<V, byte[]> toByteArrayValueFunction(RedisCodec<?, V> codec) {
         if (codec instanceof ByteArrayCodec) {
             return (Function) Function.identity();
         }

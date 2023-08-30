@@ -24,9 +24,9 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.gen.DataType;
+import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.util.GeneratorItemReader;
-import com.redis.spring.batch.util.GeneratorOptions.Type;
 import com.redis.spring.batch.util.IntRange;
 import com.redis.spring.batch.util.KeyComparison;
 import com.redis.spring.batch.util.KeyComparison.Status;
@@ -112,7 +112,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
             RedisItemReader<K, V> liveReader, RedisItemWriter<K, V> liveWriter) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(300);
-        gen.getOptions().setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);
+        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET);
         generate(testInfo(testInfo, "generate"), gen);
         TaskletStep step = step(testInfo(testInfo, "step"), reader, writer).build();
         SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "snapshotFlow"))).start(step).build();
@@ -124,9 +124,9 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         JobExecution execution = runAsync(job);
         GeneratorItemReader liveGen = new GeneratorItemReader();
         liveGen.setMaxItemCount(700);
-        liveGen.getOptions().setTypes(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET);
-        liveGen.getOptions().setExpiration(IntRange.is(100));
-        liveGen.getOptions().setKeyRange(IntRange.from(300));
+        liveGen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET);
+        liveGen.setExpiration(IntRange.is(100));
+        liveGen.setKeyRange(IntRange.from(300));
         generate(testInfo(testInfo, "generateLive"), liveGen);
         try {
             awaitTermination(execution);

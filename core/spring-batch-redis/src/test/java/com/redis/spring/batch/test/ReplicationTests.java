@@ -23,10 +23,10 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.MergePolicy;
 import com.redis.spring.batch.ValueType;
+import com.redis.spring.batch.gen.DataType;
+import com.redis.spring.batch.gen.GeneratorItemReader;
+import com.redis.spring.batch.gen.MapOptions;
 import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.util.GeneratorItemReader;
-import com.redis.spring.batch.util.GeneratorOptions.MapOptions;
-import com.redis.spring.batch.util.GeneratorOptions.Type;
 import com.redis.spring.batch.util.IntRange;
 import com.redis.spring.batch.util.KeyComparison;
 import com.redis.spring.batch.util.KeyComparison.Status;
@@ -44,13 +44,13 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
     void writeStructsOverwrite(TestInfo info) throws Exception {
         GeneratorItemReader gen1 = new GeneratorItemReader();
         gen1.setMaxItemCount(100);
-        gen1.getOptions().setTypes(Type.HASH);
-        gen1.getOptions().setHashOptions(hashOptions(IntRange.is(5)));
+        gen1.setTypes(DataType.HASH);
+        gen1.setHashOptions(hashOptions(IntRange.is(5)));
         generate(info, client, gen1);
         GeneratorItemReader gen2 = new GeneratorItemReader();
         gen2.setMaxItemCount(100);
-        gen2.getOptions().setTypes(Type.HASH);
-        gen2.getOptions().setHashOptions(hashOptions(IntRange.is(10)));
+        gen2.setTypes(DataType.HASH);
+        gen2.setHashOptions(hashOptions(IntRange.is(10)));
         generate(info, targetClient, gen2);
         RedisItemReader<String, String> reader = structReader(info, client);
         RedisItemWriter<String, String> writer = structWriter(targetClient);
@@ -69,13 +69,13 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
     void writeStructsMerge(TestInfo info) throws Exception {
         GeneratorItemReader gen1 = new GeneratorItemReader();
         gen1.setMaxItemCount(100);
-        gen1.getOptions().setTypes(Type.HASH);
-        gen1.getOptions().setHashOptions(hashOptions(IntRange.is(5)));
+        gen1.setTypes(DataType.HASH);
+        gen1.setHashOptions(hashOptions(IntRange.is(5)));
         generate(info, client, gen1);
         GeneratorItemReader gen2 = new GeneratorItemReader();
         gen2.setMaxItemCount(100);
-        gen2.getOptions().setTypes(Type.HASH);
-        gen2.getOptions().setHashOptions(hashOptions(IntRange.is(10)));
+        gen2.setTypes(DataType.HASH);
+        gen2.setHashOptions(hashOptions(IntRange.is(10)));
         generate(info, targetClient, gen2);
         RedisItemReader<String, String> reader = structReader(info, client);
         RedisItemWriter<String, String> writer = structWriter(targetClient);
@@ -134,7 +134,7 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         awaitOpen(reader);
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
-        gen.getOptions().setTypes(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET);
+        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET);
         generate(info, gen);
         awaitTermination(execution);
         Assertions.assertTrue(compare(info));
@@ -188,7 +188,7 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
     void replicateDsEmptyCollections(TestInfo info) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(10000);
-        gen.getOptions().setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);
+        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET);
         generate(info, gen);
         RedisItemReader<byte[], byte[]> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[]> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);

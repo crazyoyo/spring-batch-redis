@@ -32,14 +32,14 @@ import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.ValueType;
+import com.redis.spring.batch.gen.DataType;
+import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyEvent;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.GeneratorItemReader;
-import com.redis.spring.batch.util.GeneratorOptions.Type;
 import com.redis.spring.batch.util.KeyComparison;
 import com.redis.spring.batch.util.KeyComparison.Status;
 import com.redis.spring.batch.util.KeyComparisonItemReader;
@@ -67,8 +67,8 @@ abstract class ModulesTests extends ReplicationTests {
         reader.open(new ExecutionContext());
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
-        gen.getOptions().setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET, Type.TIMESERIES,
-                Type.JSON);
+        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET,
+                DataType.TIMESERIES, DataType.JSON);
         generate(testInfo, gen);
         awaitUntil(() -> reader.getQueue().size() > 0);
         Assertions.assertEquals(KeyEvent.SET, reader.getQueue().remove().getEvent());
@@ -114,7 +114,7 @@ abstract class ModulesTests extends ReplicationTests {
     @Test
     void writeJsonDel(TestInfo testInfo) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
-        gen.getOptions().setTypes(Type.JSON);
+        gen.setTypes(DataType.JSON);
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         generate(testInfo, gen);
         JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>();

@@ -23,12 +23,12 @@ import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.ValueType;
+import com.redis.spring.batch.gen.DataType;
+import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.util.GeneratorItemReader;
-import com.redis.spring.batch.util.GeneratorOptions.Type;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.testcontainers.RedisServer;
@@ -290,7 +290,7 @@ class StackTests extends ModulesTests {
     void replicateDs(TestInfo info) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(10000);
-        gen.getOptions().setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);
+        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET);
         generate(info, gen);
         RedisItemReader<byte[], byte[]> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[]> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);

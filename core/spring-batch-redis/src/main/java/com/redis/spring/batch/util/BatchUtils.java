@@ -11,6 +11,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import com.redis.spring.batch.AbstractRedisItemStreamSupport;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;

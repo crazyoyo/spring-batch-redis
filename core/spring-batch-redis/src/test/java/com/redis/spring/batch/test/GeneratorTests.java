@@ -13,8 +13,9 @@ import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.util.GeneratorItemReader;
-import com.redis.spring.batch.util.GeneratorOptions;
+import com.redis.spring.batch.gen.CollectionOptions;
+import com.redis.spring.batch.gen.GeneratorItemReader;
+import com.redis.spring.batch.gen.StreamOptions;
 
 class GeneratorTests {
 
@@ -49,11 +50,11 @@ class GeneratorTests {
                 case KeyValue.SET:
                 case KeyValue.LIST:
                 case KeyValue.ZSET:
-                    Assertions.assertEquals(GeneratorOptions.DEFAULT_MEMBER_COUNT.getMax(),
+                    Assertions.assertEquals(CollectionOptions.DEFAULT_MEMBER_COUNT.getMax(),
                             ((Collection<?>) ds.getValue()).size());
                     break;
                 case KeyValue.STREAM:
-                    Assertions.assertEquals(GeneratorOptions.DEFAULT_STREAM_MESSAGE_COUNT.getMax(),
+                    Assertions.assertEquals(StreamOptions.DEFAULT_MESSAGE_COUNT.getMax(),
                             ((Collection<?>) ds.getValue()).size());
                     break;
                 default:
