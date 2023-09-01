@@ -20,8 +20,8 @@ import org.springframework.util.unit.DataSize;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.ValueType;
 import com.redis.spring.batch.gen.DataType;
 import com.redis.spring.batch.gen.GeneratorItemReader;

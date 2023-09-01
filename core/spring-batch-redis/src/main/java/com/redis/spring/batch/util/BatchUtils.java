@@ -47,9 +47,6 @@ public abstract class BatchUtils {
             estimator.setScanType(redisItemReader.getScanType());
             return estimator.getAsLong();
         }
-        if (reader instanceof AbstractCountingItemReader) {
-            return ((AbstractCountingItemReader<?>) reader).size();
-        }
         if (reader instanceof KeyComparisonItemReader) {
             return size(((KeyComparisonItemReader) reader).getLeft());
         }

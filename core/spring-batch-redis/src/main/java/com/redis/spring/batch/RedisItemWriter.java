@@ -2,15 +2,15 @@ package com.redis.spring.batch;
 
 import java.util.function.ToLongFunction;
 
-import com.redis.spring.batch.writer.AbstractOperationItemWriter;
 import com.redis.spring.batch.writer.Operation;
+import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructOperation;
 import com.redis.spring.batch.writer.operation.Restore;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public class RedisItemWriter<K, V> extends AbstractOperationItemWriter<K, V, KeyValue<K>> {
+public class RedisItemWriter<K, V> extends OperationItemWriter<K, V, KeyValue<K>> {
 
     public enum MergePolicy {
         MERGE, OVERWRITE
@@ -77,20 +77,25 @@ public class RedisItemWriter<K, V> extends AbstractOperationItemWriter<K, V, Key
     }
 
     @Override
-    protected Operation<K, V, KeyValue<K>> operation() {
+    protected void doOpen() {
+        setOperation(operation());
+        super.doOpen();
+    }
+
+    private Operation<K, V, KeyValue<K>> operation() {
         if (valueType == ValueType.DUMP) {
-            Restore<K, V, KeyValue<K>> restore = new Restore<>();
-            restore.key(KeyValue::getKey);
-            restore.bytes(v -> (byte[]) v.getValue());
-            restore.ttl(keyValueTtl());
-            restore.replace(true);
-            return restore;
+            Restore<K, V, KeyValue<K>> operation = new Restore<>();
+            operation.key(KeyValue::getKey);
+            operation.bytes(v -> (byte[]) v.getValue());
+            operation.ttl(keyValueTtl());
+            operation.replace(true);
+            return operation;
         }
-        StructOperation<K, V> structOperation = new StructOperation<>();
-        structOperation.mergePolicy(mergePolicy);
-        structOperation.streamIdPolicy(streamIdPolicy);
-        structOperation.ttlPolicy(ttlPolicy);
-        return structOperation;
+        StructOperation<K, V> operation = new StructOperation<>();
+        operation.mergePolicy(mergePolicy);
+        operation.streamIdPolicy(streamIdPolicy);
+        operation.ttlPolicy(ttlPolicy);
+        return operation;
     }
 
     private ToLongFunction<KeyValue<K>> keyValueTtl() {

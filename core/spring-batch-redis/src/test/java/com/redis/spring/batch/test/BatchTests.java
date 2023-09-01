@@ -27,8 +27,8 @@ import org.springframework.batch.item.support.ListItemWriter;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.ValueType;
 import com.redis.spring.batch.gen.DataType;
 import com.redis.spring.batch.gen.GeneratorItemReader;
@@ -93,8 +93,8 @@ abstract class BatchTests extends AbstractTestBase {
         Hset<String, String, Map<String, String>> hset = new Hset<>();
         hset.key(m -> "hash:" + m.remove("id"));
         hset.map(Function.identity());
-        OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
-                hset);
+        OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8);
+        writer.setOperation(hset);
         writer.setWaitReplicas(1);
         writer.setWaitTimeout(Duration.ofMillis(300));
         JobExecution execution = run(testInfo, reader, writer);
@@ -116,8 +116,8 @@ abstract class BatchTests extends AbstractTestBase {
         Hset<String, String, Map<String, String>> hset = new Hset<>();
         hset.key(m -> "hash:" + m.remove("id"));
         hset.map(Function.identity());
-        OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
-                hset);
+        OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8);
+        writer.setOperation(hset);
         run(testInfo, reader, writer);
         assertEquals(maps.size(), commands.keys("hash:*").size());
         for (int index = 0; index < maps.size(); index++) {
@@ -144,8 +144,8 @@ abstract class BatchTests extends AbstractTestBase {
         expire.key(keyFunction);
         Duration ttl = Duration.ofSeconds(10);
         expire.ttl(ttl);
-        OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
-                hset);
+        OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8);
+        writer.setOperation(hset);
         run(testInfo, reader, writer);
         assertEquals(maps.size(), commands.keys("hash:*").size());
         for (int index = 0; index < maps.size(); index++) {

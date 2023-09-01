@@ -12,24 +12,25 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.util.AbstractCountingItemReader;
 import com.redis.spring.batch.util.DoubleRange;
 import com.redis.spring.batch.util.IntRange;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
-public class GeneratorItemReader extends AbstractCountingItemReader<KeyValue<String>> {
+public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<KeyValue<String>> {
 
     public static final String DEFAULT_KEYSPACE = "gen";
 
-    private static final DataType[] DEFAULT_TYPES = { DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET };
+    private static final DataType[] DEFAULT_TYPES = { DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM,
+            DataType.STRING, DataType.ZSET };
 
     public static final IntRange DEFAULT_KEY_RANGE = IntRange.from(1);
 
