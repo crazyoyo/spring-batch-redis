@@ -8,13 +8,12 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisSetAsyncCommands;
 
-public class SaddAll<K, V, T> extends AbstractOperation<K, V, T, SaddAll<K, V, T>> {
+public class SaddAll<K, V, T> extends AbstractOperation<K, V, T> {
 
     private Function<T, Collection<V>> values;
 
-    public SaddAll<K, V, T> values(Function<T, Collection<V>> values) {
+    public void setValues(Function<T, Collection<V>> values) {
         this.values = values;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

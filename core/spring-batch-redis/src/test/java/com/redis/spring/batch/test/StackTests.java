@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.awaitility.Awaitility;
@@ -20,8 +21,8 @@ import org.springframework.util.unit.DataSize;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.ValueType;
 import com.redis.spring.batch.gen.DataType;
 import com.redis.spring.batch.gen.GeneratorItemReader;
@@ -154,9 +155,8 @@ class StackTests extends ModulesTests {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
         Xadd<String, String, Map<String, String>> xadd = new Xadd<>();
-        xadd.key(t -> stream);
-        xadd.body(Function.identity());
-        xadd.args(m -> null);
+        xadd.setKey(stream);
+        xadd.setBody(Function.identity());
         OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
                 xadd);
         writer.setMultiExec(true);
@@ -246,8 +246,8 @@ class StackTests extends ModulesTests {
         fullReader.open(new ExecutionContext());
         List<KeyValue<String>> items = BatchUtils.readAll(fullReader);
         fullReader.close();
-        List<KeyValue<String>> bigkeys = items.stream().filter(ds -> ds.getMemoryUsage() > memLimit)
-                .collect(Collectors.toList());
+        Predicate<KeyValue<String>> isMemKey = v -> KeyValue.hasMemoryUsage(v) && v.getMemoryUsage() > memLimit;
+        List<KeyValue<String>> bigkeys = items.stream().filter(isMemKey).collect(Collectors.toList());
         Assertions.assertEquals(connection.sync().dbsize(), bigkeys.size() + targetConnection.sync().dbsize());
     }
 

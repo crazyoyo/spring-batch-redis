@@ -548,7 +548,7 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
         private final Function<K, String> toStringKeyFunction;
 
-        private final Predicate<KeyValue<K>> predicate = v -> v.getMemoryUsage() > memoryUsageLimit.toBytes();
+        private final Predicate<KeyValue<K>> predicate = this::isMemKey;
 
         public BlockedKeyItemWriter(RedisCodec<K, ?> codec) {
             this.toStringKeyFunction = CodecUtils.toStringKeyFunction(codec);
@@ -561,6 +561,13 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
         public Set<String> getBlockedKeys() {
             return blockedKeys;
+        }
+
+        private boolean isMemKey(KeyValue<K> keyValue) {
+            if (keyValue == null) {
+                return false;
+            }
+            return KeyValue.hasMemoryUsage(keyValue) && keyValue.getMemoryUsage() > memoryUsageLimit.toBytes();
         }
 
     }

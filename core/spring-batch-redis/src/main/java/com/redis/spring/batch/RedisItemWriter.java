@@ -85,10 +85,10 @@ public class RedisItemWriter<K, V> extends OperationItemWriter<K, V, KeyValue<K>
     private Operation<K, V, KeyValue<K>> operation() {
         if (valueType == ValueType.DUMP) {
             Restore<K, V, KeyValue<K>> operation = new Restore<>();
-            operation.key(KeyValue::getKey);
-            operation.bytes(v -> (byte[]) v.getValue());
-            operation.ttl(keyValueTtl());
-            operation.replace(true);
+            operation.setKey(KeyValue::getKey);
+            operation.setBytes(v -> (byte[]) v.getValue());
+            operation.setTtl(keyValueTtl());
+            operation.setReplace(true);
             return operation;
         }
         StructOperation<K, V> operation = new StructOperation<>();

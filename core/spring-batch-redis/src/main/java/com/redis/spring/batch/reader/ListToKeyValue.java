@@ -35,7 +35,10 @@ public class ListToKeyValue<K, V> implements Function<Object, KeyValue<K>> {
             keyValue.setTtl((Long) iterator.next());
         }
         if (iterator.hasNext()) {
-            keyValue.setMemoryUsage((Long) iterator.next());
+            Long memUsage = (Long) iterator.next();
+            if (memUsage != null && memUsage > 0) {
+                keyValue.setMemoryUsage(memUsage);
+            }
         }
         if (iterator.hasNext()) {
             keyValue.setValue(iterator.next());

@@ -4,14 +4,16 @@ import java.util.function.Function;
 
 import com.redis.spring.batch.writer.Operation;
 
-public abstract class AbstractOperation<K, V, T, O extends AbstractOperation<K, V, T, O>> implements Operation<K, V, T> {
+public abstract class AbstractOperation<K, V, T> implements Operation<K, V, T> {
 
     private Function<T, K> key;
 
-    @SuppressWarnings("unchecked")
-    public O key(Function<T, K> function) {
+    public void setKey(Function<T, K> function) {
         this.key = function;
-        return (O) this;
+    }
+
+    public void setKey(K key) {
+        this.key = t -> key;
     }
 
     protected K key(T item) {

@@ -100,9 +100,9 @@ abstract class ModulesTests extends ReplicationTests {
     @Test
     void writeJsonSet(TestInfo testInfo) throws Exception {
         JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>();
-        jsonSet.key(n -> "beer:" + n.get("id").asText());
-        jsonSet.value(JsonNode::toString);
-        jsonSet.path(".");
+        jsonSet.setKey(n -> "beer:" + n.get("id").asText());
+        jsonSet.setValue(JsonNode::toString);
+        jsonSet.setPath(".");
         OperationItemWriter<String, String, JsonNode> writer = new OperationItemWriter<>(client, StringCodec.UTF8, jsonSet);
         IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
         run(testInfo, reader, writer);
@@ -118,7 +118,7 @@ abstract class ModulesTests extends ReplicationTests {
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         generate(testInfo, gen);
         JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>();
-        jsonDel.key(KeyValue::getKey);
+        jsonDel.setKey(KeyValue::getKey);
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, jsonDel));
         Assertions.assertEquals(0, connection.sync().dbsize());
     }
@@ -136,9 +136,9 @@ abstract class ModulesTests extends ReplicationTests {
         ListItemReader<Sample> reader = new ListItemReader<>(samples);
         AddOptions<String, String> addOptions = AddOptions.<String, String> builder().policy(DuplicatePolicy.LAST).build();
         TsAdd<String, String, Sample> tsadd = new TsAdd<>();
-        tsadd.key(t -> key);
-        tsadd.sample(Function.identity());
-        tsadd.options(addOptions);
+        tsadd.setKey(key);
+        tsadd.setSample(Function.identity());
+        tsadd.setOptions(addOptions);
         OperationItemWriter<String, String, Sample> writer = new OperationItemWriter<>(client, StringCodec.UTF8, tsadd);
         run(testInfo, reader, writer);
         Assertions.assertEquals(count / 2,
@@ -208,8 +208,8 @@ abstract class ModulesTests extends ReplicationTests {
         ListItemReader<Sample> reader = new ListItemReader<>(values);
         ToSampleFunction<Sample> converter = new ToSampleFunction<>(Sample::getTimestamp, Sample::getValue);
         TsAdd<String, String, Sample> tsAdd = new TsAdd<>();
-        tsAdd.key(t -> key);
-        tsAdd.sample(converter);
+        tsAdd.setKey(key);
+        tsAdd.setSample(converter);
         OperationItemWriter<String, String, Sample> writer = new OperationItemWriter<>(client, StringCodec.UTF8, tsAdd);
         run(testInfo, reader, writer);
         RedisModulesCommands<String, String> sync = connection.sync();
@@ -226,8 +226,8 @@ abstract class ModulesTests extends ReplicationTests {
         }
         ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
         Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>();
-        sugadd.key(t -> key);
-        sugadd.suggestion(new ToSuggestionFunction<>(Suggestion::getString, Suggestion::getScore, Suggestion::getPayload));
+        sugadd.setKey(key);
+        sugadd.setSuggestion(new ToSuggestionFunction<>(Suggestion::getString, Suggestion::getScore, Suggestion::getPayload));
         OperationItemWriter<String, String, Suggestion<String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
                 sugadd);
         run(testInfo, reader, writer);
@@ -247,9 +247,9 @@ abstract class ModulesTests extends ReplicationTests {
         ToSuggestionFunction<String, Suggestion<String>> converter = new ToSuggestionFunction<>(Suggestion::getString,
                 Suggestion::getScore, Suggestion::getPayload);
         Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>();
-        sugadd.key(t -> key);
-        sugadd.suggestion(converter);
-        sugadd.incr(true);
+        sugadd.setKey(key);
+        sugadd.setSuggestion(converter);
+        sugadd.setIncr(true);
         OperationItemWriter<String, String, Suggestion<String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
                 sugadd);
         run(testInfo, reader, writer);

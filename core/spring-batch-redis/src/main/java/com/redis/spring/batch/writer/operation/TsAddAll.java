@@ -11,20 +11,18 @@ import com.redis.lettucemod.timeseries.Sample;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class TsAddAll<K, V, T> extends AbstractOperation<K, V, T, TsAddAll<K, V, T>> {
+public class TsAddAll<K, V, T> extends AbstractOperation<K, V, T> {
 
     private Function<T, Collection<Sample>> samples;
 
     private AddOptions<K, V> options = null;
 
-    public TsAddAll<K, V, T> samples(Function<T, Collection<Sample>> samples) {
+    public void setSamples(Function<T, Collection<Sample>> samples) {
         this.samples = samples;
-        return this;
     }
 
-    public TsAddAll<K, V, T> options(AddOptions<K, V> options) {
+    public void setOptions(AddOptions<K, V> options) {
         this.options = options;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

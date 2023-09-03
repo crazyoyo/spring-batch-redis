@@ -18,14 +18,12 @@ public class XAddAll<K, V, T> implements Operation<K, V, T> {
 
     private Function<StreamMessage<K, V>, XAddArgs> args = m -> new XAddArgs().id(m.getId());
 
-    public XAddAll<K, V, T> messages(Function<T, Collection<StreamMessage<K, V>>> messages) {
+    public void setMessages(Function<T, Collection<StreamMessage<K, V>>> messages) {
         this.messages = messages;
-        return this;
     }
 
-    public XAddAll<K, V, T> args(Function<StreamMessage<K, V>, XAddArgs> args) {
+    public void setArgs(Function<StreamMessage<K, V>, XAddArgs> args) {
         this.args = args;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

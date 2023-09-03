@@ -8,7 +8,7 @@ import io.lettuce.core.SetArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
-public class Set<K, V, T> extends AbstractOperation<K, V, T, Set<K, V, T>> {
+public class Set<K, V, T> extends AbstractOperation<K, V, T> {
 
     private static final SetArgs DEFAULT_ARGS = new SetArgs();
 
@@ -16,14 +16,12 @@ public class Set<K, V, T> extends AbstractOperation<K, V, T, Set<K, V, T>> {
 
     private Function<T, SetArgs> args = t -> DEFAULT_ARGS;
 
-    public Set<K, V, T> value(Function<T, V> value) {
+    public void setValue(Function<T, V> value) {
         this.value = value;
-        return this;
     }
 
-    public Set<K, V, T> args(Function<T, SetArgs> args) {
+    public void setArgs(Function<T, SetArgs> args) {
         this.args = args;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

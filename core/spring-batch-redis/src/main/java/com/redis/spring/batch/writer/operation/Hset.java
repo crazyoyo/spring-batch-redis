@@ -8,13 +8,12 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisHashAsyncCommands;
 
-public class Hset<K, V, T> extends AbstractOperation<K, V, T, Hset<K, V, T>> {
+public class Hset<K, V, T> extends AbstractOperation<K, V, T> {
 
     private Function<T, Map<K, V>> map;
 
-    public Hset<K, V, T> map(Function<T, Map<K, V>> map) {
+    public void setMap(Function<T, Map<K, V>> map) {
         this.map = map;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

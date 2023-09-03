@@ -30,29 +30,27 @@ public class StructOperation<K, V> implements Operation<K, V, KeyValue<K>> {
 
     private static final XAddArgs EMPTY_XADD_ARGS = new XAddArgs();
 
-    private final ExpireAt<K, V, KeyValue<K>> expire = new ExpireAt<K, V, KeyValue<K>>().key(key())
-            .epoch(KeyValue::getTtl);
+    private final ExpireAt<K, V, KeyValue<K>> expire = expire();
 
     private final Noop<K, V, KeyValue<K>> noop = new Noop<>();
 
-    private final Del<K, V, KeyValue<K>> del = new Del<K, V, KeyValue<K>>().key(key());
+    private final Del<K, V, KeyValue<K>> del = del();
 
-    private final Hset<K, V, KeyValue<K>> hset = new Hset<K, V, KeyValue<K>>().key(key()).map(value());
+    private final Hset<K, V, KeyValue<K>> hset = hset();
 
-    private final Set<K, V, KeyValue<K>> set = new Set<K, V, KeyValue<K>>().key(key()).value(value());
+    private final Set<K, V, KeyValue<K>> set = set();
 
-    private final JsonSet<K, V, KeyValue<K>> jsonSet = new JsonSet<K, V, KeyValue<K>>().key(key()).value(value());
+    private final JsonSet<K, V, KeyValue<K>> jsonSet = jsonSet();
 
-    private final RpushAll<K, V, KeyValue<K>> rpush = new RpushAll<K, V, KeyValue<K>>().key(key()).values(value());
+    private final RpushAll<K, V, KeyValue<K>> rpush = rpushAll();
 
-    private final SaddAll<K, V, KeyValue<K>> sadd = new SaddAll<K, V, KeyValue<K>>().key(key()).values(value());
+    private final SaddAll<K, V, KeyValue<K>> sadd = saddAll();
 
-    private final ZaddAll<K, V, KeyValue<K>> zadd = new ZaddAll<K, V, KeyValue<K>>().key(key()).values(value());
+    private final ZaddAll<K, V, KeyValue<K>> zadd = zaddAll();
 
-    private final TsAddAll<K, V, KeyValue<K>> tsAdd = new TsAddAll<K, V, KeyValue<K>>().key(key()).samples(value());
+    private final TsAddAll<K, V, KeyValue<K>> tsAdd = tsAddAll();
 
-    private final XAddAll<K, V, KeyValue<K>> xadd = new XAddAll<K, V, KeyValue<K>>().messages(value())
-            .args(this::xaddArgs);
+    private final XAddAll<K, V, KeyValue<K>> xadd = xaddAll();
 
     private TtlPolicy ttlPolicy = RedisItemWriter.DEFAULT_TTL_POLICY;
 
@@ -63,6 +61,75 @@ public class StructOperation<K, V> implements Operation<K, V, KeyValue<K>> {
     public StructOperation<K, V> ttlPolicy(TtlPolicy ttlPolicy) {
         this.ttlPolicy = ttlPolicy;
         return this;
+    }
+
+    private XAddAll<K, V, KeyValue<K>> xaddAll() {
+        XAddAll<K, V, KeyValue<K>> operation = new XAddAll<>();
+        operation.setMessages(value());
+        operation.setArgs(this::xaddArgs);
+        return operation;
+    }
+
+    private TsAddAll<K, V, KeyValue<K>> tsAddAll() {
+        TsAddAll<K, V, KeyValue<K>> operation = new TsAddAll<>();
+        operation.setKey(key());
+        operation.setSamples(value());
+        return operation;
+    }
+
+    private ZaddAll<K, V, KeyValue<K>> zaddAll() {
+        ZaddAll<K, V, KeyValue<K>> operation = new ZaddAll<>();
+        operation.setKey(key());
+        operation.setValues(value());
+        return operation;
+    }
+
+    private SaddAll<K, V, KeyValue<K>> saddAll() {
+        SaddAll<K, V, KeyValue<K>> operation = new SaddAll<>();
+        operation.setKey(key());
+        operation.setValues(value());
+        return operation;
+    }
+
+    private RpushAll<K, V, KeyValue<K>> rpushAll() {
+        RpushAll<K, V, KeyValue<K>> operation = new RpushAll<>();
+        operation.setKey(key());
+        operation.setValues(value());
+        return operation;
+    }
+
+    private JsonSet<K, V, KeyValue<K>> jsonSet() {
+        JsonSet<K, V, KeyValue<K>> operation = new JsonSet<>();
+        operation.setKey(key());
+        operation.setValue(value());
+        return operation;
+    }
+
+    private Set<K, V, KeyValue<K>> set() {
+        Set<K, V, KeyValue<K>> operation = new Set<>();
+        operation.setKey(key());
+        operation.setValue(value());
+        return operation;
+    }
+
+    private Hset<K, V, KeyValue<K>> hset() {
+        Hset<K, V, KeyValue<K>> operation = new Hset<>();
+        operation.setKey(key());
+        operation.setMap(value());
+        return operation;
+    }
+
+    private Del<K, V, KeyValue<K>> del() {
+        Del<K, V, KeyValue<K>> operation = new Del<>();
+        operation.setKey(key());
+        return operation;
+    }
+
+    private ExpireAt<K, V, KeyValue<K>> expire() {
+        ExpireAt<K, V, KeyValue<K>> operation = new ExpireAt<>();
+        operation.setKey(key());
+        operation.setEpoch(KeyValue::getTtl);
+        return operation;
     }
 
     public StructOperation<K, V> mergePolicy(MergePolicy mergePolicy) {
@@ -107,7 +174,7 @@ public class StructOperation<K, V> implements Operation<K, V, KeyValue<K>> {
     }
 
     public static boolean shouldSkip(KeyValue<?> item) {
-        return item == null || item.getKey() == null || (item.getValue() == null && item.getMemoryUsage() > 0);
+        return item == null || item.getKey() == null || (item.getValue() == null && KeyValue.hasMemoryUsage(item));
     }
 
     private boolean shouldDelete(KeyValue<K> item) {

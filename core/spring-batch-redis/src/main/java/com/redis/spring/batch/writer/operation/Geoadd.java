@@ -9,20 +9,18 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisGeoAsyncCommands;
 
-public class Geoadd<K, V, T> extends AbstractOperation<K, V, T, Geoadd<K, V, T>> {
+public class Geoadd<K, V, T> extends AbstractOperation<K, V, T> {
 
     private Function<T, GeoValue<V>> value;
 
     private Function<T, GeoAddArgs> args = t -> null;
 
-    public Geoadd<K, V, T> value(Function<T, GeoValue<V>> value) {
+    public void setValue(Function<T, GeoValue<V>> value) {
         this.value = value;
-        return this;
     }
 
-    public Geoadd<K, V, T> args(Function<T, GeoAddArgs> args) {
+    public void setArgs(Function<T, GeoAddArgs> args) {
         this.args = args;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

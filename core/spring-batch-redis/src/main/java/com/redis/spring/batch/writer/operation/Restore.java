@@ -12,7 +12,7 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Restore<K, V, T> extends AbstractOperation<K, V, T, Restore<K, V, T>> {
+public class Restore<K, V, T> extends AbstractOperation<K, V, T> {
 
     public static final long TTL_KEY_DOES_NOT_EXIST = -2;
 
@@ -22,19 +22,16 @@ public class Restore<K, V, T> extends AbstractOperation<K, V, T, Restore<K, V, T
 
     private Predicate<T> replace = Predicates.isFalse();
 
-    public Restore<K, V, T> bytes(Function<T, byte[]> function) {
+    public void setBytes(Function<T, byte[]> function) {
         this.bytes = function;
-        return this;
     }
 
-    public Restore<K, V, T> ttl(ToLongFunction<T> function) {
+    public void setTtl(ToLongFunction<T> function) {
         this.absoluteTtl = function;
-        return this;
     }
 
-    public Restore<K, V, T> replace(boolean replace) {
+    public void setReplace(boolean replace) {
         this.replace = Predicates.is(replace);
-        return this;
     }
 
     @SuppressWarnings("unchecked")

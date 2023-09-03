@@ -8,13 +8,12 @@ import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class JsonDel<K, V, T> extends AbstractOperation<K, V, T, JsonDel<K, V, T>> {
+public class JsonDel<K, V, T> extends AbstractOperation<K, V, T> {
 
     private Function<T, String> path = JsonSet.rootPath();
 
-    public JsonDel<K, V, T> path(Function<T, String> path) {
+    public void setPath(Function<T, String> path) {
         this.path = path;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

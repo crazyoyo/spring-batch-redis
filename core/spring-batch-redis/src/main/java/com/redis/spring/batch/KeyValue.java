@@ -43,7 +43,7 @@ public class KeyValue<K> {
      * Number of bytes that this key and its value require to be stored in Redis RAM. Null or -1 means no memory usage
      * information is available.
      */
-    private long memoryUsage;
+    private Long memoryUsage;
 
     public String getType() {
         return type;
@@ -53,11 +53,11 @@ public class KeyValue<K> {
         this.type = type;
     }
 
-    public long getMemoryUsage() {
+    public Long getMemoryUsage() {
         return memoryUsage;
     }
 
-    public void setMemoryUsage(long memoryUsage) {
+    public void setMemoryUsage(Long memoryUsage) {
         this.memoryUsage = memoryUsage;
     }
 
@@ -96,6 +96,13 @@ public class KeyValue<K> {
 
     public static boolean isString(KeyValue<?> item) {
         return isType(item, STRING);
+    }
+
+    public static boolean hasMemoryUsage(KeyValue<?> item) {
+        if (item.getMemoryUsage() == null) {
+            return false;
+        }
+        return item.getMemoryUsage() > 0;
     }
 
 }

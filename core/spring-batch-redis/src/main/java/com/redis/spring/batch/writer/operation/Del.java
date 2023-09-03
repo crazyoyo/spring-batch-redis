@@ -6,7 +6,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Del<K, V, T> extends AbstractOperation<K, V, T, Del<K, V, T>> {
+public class Del<K, V, T> extends AbstractOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override

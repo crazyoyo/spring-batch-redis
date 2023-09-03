@@ -10,17 +10,16 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Expire<K, V, T> extends AbstractOperation<K, V, T, Expire<K, V, T>> {
+public class Expire<K, V, T> extends AbstractOperation<K, V, T> {
 
-    private Function<T, Duration> ttl;
+    private Function<T, Duration> ttl = t -> null;
 
-    public Expire<K, V, T> ttl(Duration duration) {
-        return ttl(t -> duration);
+    public void setTtl(Duration duration) {
+        setTtl(t -> duration);
     }
 
-    public Expire<K, V, T> ttl(Function<T, Duration> function) {
+    public void setTtl(Function<T, Duration> function) {
         this.ttl = function;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

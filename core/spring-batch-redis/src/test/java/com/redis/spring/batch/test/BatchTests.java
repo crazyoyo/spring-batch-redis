@@ -27,8 +27,8 @@ import org.springframework.batch.item.support.ListItemWriter;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.ValueType;
 import com.redis.spring.batch.gen.DataType;
 import com.redis.spring.batch.gen.GeneratorItemReader;
@@ -66,7 +66,6 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
-import io.lettuce.core.XAddArgs;
 import io.lettuce.core.cluster.SlotHash;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.StringCodec;
@@ -91,8 +90,8 @@ abstract class BatchTests extends AbstractTestBase {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
         Hset<String, String, Map<String, String>> hset = new Hset<>();
-        hset.key(m -> "hash:" + m.remove("id"));
-        hset.map(Function.identity());
+        hset.setKey(m -> "hash:" + m.remove("id"));
+        hset.setMap(Function.identity());
         OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8);
         writer.setOperation(hset);
         writer.setWaitReplicas(1);
@@ -114,8 +113,8 @@ abstract class BatchTests extends AbstractTestBase {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
         Hset<String, String, Map<String, String>> hset = new Hset<>();
-        hset.key(m -> "hash:" + m.remove("id"));
-        hset.map(Function.identity());
+        hset.setKey(m -> "hash:" + m.remove("id"));
+        hset.setMap(Function.identity());
         OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8);
         writer.setOperation(hset);
         run(testInfo, reader, writer);
@@ -139,11 +138,12 @@ abstract class BatchTests extends AbstractTestBase {
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
         Function<Map<String, String>, String> keyFunction = m -> "hash:" + m.get("id");
         Hset<String, String, Map<String, String>> hset = new Hset<>();
-        hset.key(keyFunction).map(Function.identity());
+        hset.setKey(keyFunction);
+        hset.setMap(Function.identity());
         Expire<String, String, Map<String, String>> expire = new Expire<>();
-        expire.key(keyFunction);
+        expire.setKey(keyFunction);
         Duration ttl = Duration.ofSeconds(10);
-        expire.ttl(ttl);
+        expire.setTtl(ttl);
         OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8);
         writer.setOperation(hset);
         run(testInfo, reader, writer);
@@ -162,7 +162,7 @@ abstract class BatchTests extends AbstractTestBase {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         Del<String, String, KeyValue<String>> del = new Del<>();
-        del.key(KeyValue::getKey);
+        del.setKey(KeyValue::getKey);
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, del));
         assertEquals(0, commands.keys(GeneratorItemReader.DEFAULT_KEYSPACE + "*").size());
     }
@@ -173,7 +173,8 @@ abstract class BatchTests extends AbstractTestBase {
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         gen.setTypes(DataType.STRING);
         Lpush<String, String, KeyValue<String>> lpush = new Lpush<>();
-        lpush.key(KeyValue::getKey).value(v -> (String) v.getValue());
+        lpush.setKey(KeyValue::getKey);
+        lpush.setValue(v -> (String) v.getValue());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, lpush));
         assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
         for (String key : commands.keys("*")) {
@@ -187,7 +188,8 @@ abstract class BatchTests extends AbstractTestBase {
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         gen.setTypes(DataType.STRING);
         Rpush<String, String, KeyValue<String>> rpush = new Rpush<>();
-        rpush.key(KeyValue::getKey).value(v -> (String) v.getValue());
+        rpush.setKey(KeyValue::getKey);
+        rpush.setValue(v -> (String) v.getValue());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, rpush));
         assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
         for (String key : commands.keys("*")) {
@@ -202,7 +204,8 @@ abstract class BatchTests extends AbstractTestBase {
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         gen.setTypes(DataType.LIST);
         LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>();
-        lpushAll.key(KeyValue::getKey).values(v -> (Collection<String>) v.getValue());
+        lpushAll.setKey(KeyValue::getKey);
+        lpushAll.setValues(v -> (Collection<String>) v.getValue());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, lpushAll));
         assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
         for (String key : commands.keys("*")) {
@@ -217,7 +220,8 @@ abstract class BatchTests extends AbstractTestBase {
         gen.setTypes(DataType.STRING);
         Duration ttl = Duration.ofMillis(1L);
         Expire<String, String, KeyValue<String>> expire = new Expire<>();
-        expire.key(KeyValue::getKey).ttl(ttl);
+        expire.setKey(KeyValue::getKey);
+        expire.setTtl(ttl);
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, expire));
         awaitUntil(() -> commands.keys("*").isEmpty());
         assertEquals(0, commands.dbsize());
@@ -229,7 +233,8 @@ abstract class BatchTests extends AbstractTestBase {
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         gen.setTypes(DataType.STRING);
         ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>();
-        expireAt.key(KeyValue::getKey).epoch(v -> System.currentTimeMillis());
+        expireAt.setKey(KeyValue::getKey);
+        expireAt.setEpoch(v -> System.currentTimeMillis());
         run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, expireAt));
         awaitUntil(() -> commands.keys("*").isEmpty());
         assertEquals(0, commands.dbsize());
@@ -268,8 +273,8 @@ abstract class BatchTests extends AbstractTestBase {
         ListItemReader<Geo> reader = new ListItemReader<>(Arrays.asList(new Geo("Venice Breakwater", -118.476056, 33.985728),
                 new Geo("Long Beach National", -73.667022, 40.582739)));
         Geoadd<String, String, Geo> geoadd = new Geoadd<>();
-        geoadd.key(t -> "geoset");
-        geoadd.value(new ToGeoValueFunction<>(Geo::getMember, Geo::getLongitude, Geo::getLatitude));
+        geoadd.setKey("geoset");
+        geoadd.setValue(new ToGeoValueFunction<>(Geo::getMember, Geo::getLongitude, Geo::getLatitude));
         OperationItemWriter<String, String, Geo> writer = new OperationItemWriter<>(client, StringCodec.UTF8, geoadd);
         run(testInfo, reader, writer);
         Set<String> radius1 = commands.georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
@@ -291,7 +296,8 @@ abstract class BatchTests extends AbstractTestBase {
         }
         ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
         Hset<String, String, Entry<String, Map<String, String>>> hset = new Hset<>();
-        hset.key(e -> "hash:" + e.getKey()).map(Entry::getValue);
+        hset.setKey(e -> "hash:" + e.getKey());
+        hset.setMap(Entry::getValue);
         OperationItemWriter<String, String, Entry<String, Map<String, String>>> writer = new OperationItemWriter<>(client,
                 StringCodec.UTF8, hset);
         run(testInfo, reader, writer);
@@ -330,7 +336,8 @@ abstract class BatchTests extends AbstractTestBase {
         }
         ListItemReader<ZValue> reader = new ListItemReader<>(values);
         Zadd<String, String, ZValue> zadd = new Zadd<>();
-        zadd.key(t -> key).value(new ToScoredValueFunction<>(ZValue::getMember, ZValue::getScore));
+        zadd.setKey(key);
+        zadd.setValue(new ToScoredValueFunction<>(ZValue::getMember, ZValue::getScore));
         OperationItemWriter<String, String, ZValue> writer = new OperationItemWriter<>(client, StringCodec.UTF8, zadd);
         run(testInfo, reader, writer);
         assertEquals(1, commands.dbsize());
@@ -348,7 +355,8 @@ abstract class BatchTests extends AbstractTestBase {
         }
         ListItemReader<String> reader = new ListItemReader<>(values);
         Sadd<String, String, String> sadd = new Sadd<>();
-        sadd.key(t -> key).value(Function.identity());
+        sadd.setKey(key);
+        sadd.setValue(Function.identity());
         OperationItemWriter<String, String, String> writer = new OperationItemWriter<>(client, StringCodec.UTF8, sadd);
         run(testInfo, reader, writer);
         assertEquals(1, commands.dbsize());
@@ -491,7 +499,8 @@ abstract class BatchTests extends AbstractTestBase {
         }
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
         Xadd<String, String, Map<String, String>> xadd = new Xadd<>();
-        xadd.key(t -> stream).body(Function.identity()).args((XAddArgs) null);
+        xadd.setKey(stream);
+        xadd.setBody(Function.identity());
         OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
                 xadd);
         run(testInfo, reader, writer);

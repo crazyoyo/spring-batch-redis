@@ -9,24 +9,22 @@ import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 
-public class Xadd<K, V, T> extends AbstractOperation<K, V, T, Xadd<K, V, T>> {
+public class Xadd<K, V, T> extends AbstractOperation<K, V, T> {
 
-    private Function<T, XAddArgs> args;
+    private Function<T, XAddArgs> args = t -> null;
 
     private Function<T, Map<K, V>> body;
 
-    public Xadd<K, V, T> args(XAddArgs args) {
-        return args(t -> args);
+    public void setArgs(XAddArgs args) {
+        setArgs(t -> args);
     }
 
-    public Xadd<K, V, T> args(Function<T, XAddArgs> args) {
+    public void setArgs(Function<T, XAddArgs> args) {
         this.args = args;
-        return this;
     }
 
-    public Xadd<K, V, T> body(Function<T, Map<K, V>> body) {
+    public void setBody(Function<T, Map<K, V>> body) {
         this.body = body;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

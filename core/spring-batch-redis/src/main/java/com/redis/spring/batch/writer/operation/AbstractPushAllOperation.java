@@ -8,15 +8,12 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 
-public abstract class AbstractPushAllOperation<K, V, T, O extends AbstractPushAllOperation<K, V, T, O>>
-        extends AbstractOperation<K, V, T, O> {
+public abstract class AbstractPushAllOperation<K, V, T> extends AbstractOperation<K, V, T> {
 
     private Function<T, Collection<V>> values;
 
-    @SuppressWarnings("unchecked")
-    public O values(Function<T, Collection<V>> function) {
+    public void setValues(Function<T, Collection<V>> function) {
         this.values = function;
-        return (O) this;
     }
 
     @SuppressWarnings("unchecked")

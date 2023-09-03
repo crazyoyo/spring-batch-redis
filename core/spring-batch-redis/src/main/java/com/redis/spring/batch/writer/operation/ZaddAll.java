@@ -10,20 +10,18 @@ import io.lettuce.core.ZAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 
-public class ZaddAll<K, V, T> extends AbstractOperation<K, V, T, ZaddAll<K, V, T>> {
+public class ZaddAll<K, V, T> extends AbstractOperation<K, V, T> {
 
     private Function<T, Collection<ScoredValue<V>>> values;
 
-    private ZAddArgs args = null;
+    private ZAddArgs args;
 
-    public ZaddAll<K, V, T> args(ZAddArgs args) {
+    public void setArgs(ZAddArgs args) {
         this.args = args;
-        return this;
     }
 
-    public ZaddAll<K, V, T> values(Function<T, Collection<ScoredValue<V>>> values) {
+    public void setValues(Function<T, Collection<ScoredValue<V>>> values) {
         this.values = values;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

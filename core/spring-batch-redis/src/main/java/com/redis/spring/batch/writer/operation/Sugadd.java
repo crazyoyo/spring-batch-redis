@@ -9,20 +9,18 @@ import com.redis.lettucemod.search.Suggestion;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class Sugadd<K, V, T> extends AbstractOperation<K, V, T, Sugadd<K, V, T>> {
+public class Sugadd<K, V, T> extends AbstractOperation<K, V, T> {
 
     private Function<T, Suggestion<V>> suggestion;
 
     private boolean incr;
 
-    public Sugadd<K, V, T> suggestion(Function<T, Suggestion<V>> suggestion) {
+    public void setSuggestion(Function<T, Suggestion<V>> suggestion) {
         this.suggestion = suggestion;
-        return this;
     }
 
-    public Sugadd<K, V, T> incr(boolean incr) {
+    public void setIncr(boolean incr) {
         this.incr = incr;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

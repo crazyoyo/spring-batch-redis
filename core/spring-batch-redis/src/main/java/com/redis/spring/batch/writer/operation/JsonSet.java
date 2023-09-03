@@ -8,24 +8,22 @@ import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class JsonSet<K, V, T> extends AbstractOperation<K, V, T, JsonSet<K, V, T>> {
+public class JsonSet<K, V, T> extends AbstractOperation<K, V, T> {
 
     private Function<T, String> path = rootPath();
 
     private Function<T, V> value;
 
-    public JsonSet<K, V, T> path(String path) {
-        return path(t -> path);
+    public void setPath(String path) {
+        setPath(t -> path);
     }
 
-    public JsonSet<K, V, T> path(Function<T, String> path) {
+    public void setPath(Function<T, String> path) {
         this.path = path;
-        return this;
     }
 
-    public JsonSet<K, V, T> value(Function<T, V> value) {
+    public void setValue(Function<T, V> value) {
         this.value = value;
-        return this;
     }
 
     @SuppressWarnings("unchecked")

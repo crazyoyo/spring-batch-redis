@@ -7,13 +7,12 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class ExpireAt<K, V, T> extends AbstractOperation<K, V, T, ExpireAt<K, V, T>> {
+public class ExpireAt<K, V, T> extends AbstractOperation<K, V, T> {
 
     private ToLongFunction<T> epoch;
 
-    public ExpireAt<K, V, T> epoch(ToLongFunction<T> function) {
+    public void setEpoch(ToLongFunction<T> function) {
         this.epoch = function;
-        return this;
     }
 
     @SuppressWarnings("unchecked")
