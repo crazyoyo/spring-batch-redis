@@ -2,10 +2,13 @@ package com.redis.spring.batch.util;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.support.CompositeItemProcessor;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
@@ -19,6 +22,8 @@ import com.redis.spring.batch.reader.StreamItemReader;
 public abstract class BatchUtils {
 
     private static final Boolean NULL_BOOLEAN = null;
+
+    public static final long SIZE_UNKNOWN = -1;
 
     private BatchUtils() {
     }
@@ -51,10 +56,9 @@ public abstract class BatchUtils {
             return size(((KeyComparisonItemReader) reader).getLeft());
         }
         if (reader instanceof StreamItemReader) {
-            StreamItemReader<?, ?> streamItemReader = (StreamItemReader<?, ?>) reader;
-            return streamItemReader.streamLength();
+            return ((StreamItemReader<?, ?>) reader).streamLength();
         }
-        return -1;
+        return SIZE_UNKNOWN;
     }
 
     public static boolean isOpen(Object object) {
@@ -110,6 +114,19 @@ public abstract class BatchUtils {
             list.add(element);
         }
         return list;
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public static <S, T> ItemProcessor<S, T> processor(Collection<? extends ItemProcessor<?, ?>> processors) {
+        if (processors.isEmpty()) {
+            return null;
+        }
+        if (processors.size() == 1) {
+            return (ItemProcessor) processors.iterator().next();
+        }
+        CompositeItemProcessor<S, T> composite = new CompositeItemProcessor<>();
+        composite.setDelegates(new ArrayList<>(processors));
+        return composite;
     }
 
 }

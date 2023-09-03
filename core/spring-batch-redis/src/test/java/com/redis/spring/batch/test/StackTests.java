@@ -298,4 +298,16 @@ class StackTests extends ModulesTests {
         Assertions.assertTrue(compare(info));
     }
 
+    @Test
+    void replicateDsEmptyCollections(TestInfo info) throws Exception {
+        GeneratorItemReader gen = new GeneratorItemReader();
+        gen.setMaxItemCount(10000);
+        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET);
+        generate(info, gen);
+        RedisItemReader<byte[], byte[]> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
+        RedisItemWriter<byte[], byte[]> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
+        run(info, reader, writer);
+        Assertions.assertTrue(compare(info));
+    }
+
 }

@@ -19,10 +19,10 @@ import org.springframework.batch.item.ExecutionContext;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.ValueType;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.MergePolicy;
+import com.redis.spring.batch.ValueType;
 import com.redis.spring.batch.gen.DataType;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.MapOptions;
@@ -182,18 +182,6 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         RedisModulesCommands<String, String> sourceSync = connection.sync();
         RedisModulesCommands<String, String> targetSync = targetConnection.sync();
         assertEquals(sourceSync.pfcount(key1), targetSync.pfcount(key1));
-    }
-
-    @Test
-    void replicateDsEmptyCollections(TestInfo info) throws Exception {
-        GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setMaxItemCount(10000);
-        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET);
-        generate(info, gen);
-        RedisItemReader<byte[], byte[]> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
-        RedisItemWriter<byte[], byte[]> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
-        run(info, reader, writer);
-        Assertions.assertTrue(compare(info));
     }
 
     @Test
