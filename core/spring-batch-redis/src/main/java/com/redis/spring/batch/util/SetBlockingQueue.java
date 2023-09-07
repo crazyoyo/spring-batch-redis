@@ -10,13 +10,15 @@ import java.util.concurrent.TimeUnit;
 
 public class SetBlockingQueue<E> implements BlockingQueue<E> {
 
-    private final HashSet<E> set;
+    private final HashSet<E> set = new HashSet<>();
 
-    private BlockingQueue<E> delegate;
+    private final BlockingQueue<E> delegate;
 
-    public SetBlockingQueue(BlockingQueue<E> delegate) {
-        this.set = new HashSet<>();
+    private final int capacity;
+
+    public SetBlockingQueue(BlockingQueue<E> delegate, int capacity) {
         this.delegate = delegate;
+        this.capacity = capacity;
     }
 
     @Override
@@ -154,7 +156,7 @@ public class SetBlockingQueue<E> implements BlockingQueue<E> {
 
     @Override
     public int remainingCapacity() {
-        return delegate.remainingCapacity();
+        return capacity - delegate.size();
     }
 
     @Override

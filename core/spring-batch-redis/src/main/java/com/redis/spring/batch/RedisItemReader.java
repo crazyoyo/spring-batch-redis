@@ -158,6 +158,8 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     private BlockingQueue<KeyValue<K>> queue;
 
+    private ItemReader<K> keyReader;
+
     public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
         setName(ClassUtils.getShortName(getClass()));
         this.client = client;
@@ -201,6 +203,10 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     public ItemProcessor<K, K> getKeyProcessor() {
         return keyProcessor;
+    }
+
+    public ItemReader<K> getKeyReader() {
+        return keyReader;
     }
 
     public int getThreads() {
@@ -354,26 +360,13 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
     }
 
     private void doOpen() {
-        SimpleStepBuilder<K, K> step = new StepBuilder(name).repository(jobRepository())
-                .transactionManager(transactionManager()).chunk(chunkSize);
-        ItemReader<K> reader = reader();
-        step.reader(reader);
-        step.processor(processor());
-        step.writer(writer());
-        if (threads > 1) {
-            step.taskExecutor(BatchUtils.threadPoolTaskExecutor(threads));
-            step.throttleLimit(threads);
-        }
-        if (mode == Mode.LIVE) {
-            step = new FlushingStepBuilder<>(step).interval(flushingInterval).idleTimeout(idleTimeout);
-        }
-        Job job = jobBuilderFactory().get(name).start(step.build()).build();
+        Job job = jobBuilderFactory().get(name).start(step().build()).build();
         try {
             jobExecution = jobLauncher().run(job, new JobParameters());
         } catch (JobExecutionException e) {
             throw new ItemStreamException("Job execution failed", e);
         }
-        while (!(BatchUtils.isOpen(reader) || jobExecution.getStatus().isUnsuccessful()
+        while (!(BatchUtils.isOpen(keyReader) || jobExecution.getStatus().isUnsuccessful()
                 || jobExecution.getStatus().isLessThanOrEqualTo(BatchStatus.COMPLETED))) {
             sleep();
         }
@@ -382,7 +375,24 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
         }
     }
 
-    private ItemReader<K> reader() {
+    private SimpleStepBuilder<K, K> step() {
+        SimpleStepBuilder<K, K> step = new StepBuilder(name).repository(jobRepository())
+                .transactionManager(transactionManager()).chunk(chunkSize);
+        keyReader = keyReader();
+        step.reader(keyReader);
+        step.processor(processor());
+        step.writer(writer());
+        if (threads > 1) {
+            step.taskExecutor(BatchUtils.threadPoolTaskExecutor(threads));
+            step.throttleLimit(threads);
+        }
+        if (mode == Mode.LIVE) {
+            return new FlushingStepBuilder<>(step).interval(flushingInterval).idleTimeout(idleTimeout);
+        }
+        return step;
+    }
+
+    private ItemReader<K> keyReader() {
         if (mode == Mode.LIVE) {
             return keyspaceNotificationReader();
         }

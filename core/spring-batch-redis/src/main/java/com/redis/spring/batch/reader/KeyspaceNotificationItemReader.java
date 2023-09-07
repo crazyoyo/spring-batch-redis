@@ -51,7 +51,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
     private static final KeyspaceNotificationComparator NOTIFICATION_COMPARATOR = new KeyspaceNotificationComparator();
 
-    private final Log logger = LogFactory.getLog(getClass());
+    private final Log log = LogFactory.getLog(getClass());
 
     private final AbstractRedisClient client;
 
@@ -123,7 +123,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
     @Override
     public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
         if (!isOpen()) {
-            queue = new SetBlockingQueue<>(notificationQueue());
+            queue = new SetBlockingQueue<>(notificationQueue(), queueCapacity);
             Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
             connection = RedisModulesUtils.pubSubConnection(client);
             if (connection instanceof StatefulRedisClusterPubSubConnection) {
@@ -160,12 +160,18 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
             KeyspaceNotification notification = new KeyspaceNotification();
             notification.setKey(key);
             notification.setEvent(event);
-            boolean added = queue.offer(notification);
+            boolean added = enqueue(notification);
             if (!added) {
-                // could not add notification because the queue is full
-                logger.warn("Keyspace notification queue is full");
+                log.debug("Keyspace notification queue is full");
             }
         }
+    }
+
+    private boolean enqueue(KeyspaceNotification notification) {
+        if (queue.remainingCapacity() > 0) {
+            return queue.offer(notification);
+        }
+        return false;
     }
 
     private KeyEvent keyEvent(String event) {

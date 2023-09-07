@@ -11,7 +11,7 @@ class QueueTests {
 
     @Test
     void dedupe() {
-        SetBlockingQueue<String> queue = new SetBlockingQueue<>(new LinkedBlockingDeque<>(10));
+        SetBlockingQueue<String> queue = new SetBlockingQueue<>(new LinkedBlockingDeque<>(10), 10);
         queue.add("1");
         queue.add("2");
         queue.add("3");
