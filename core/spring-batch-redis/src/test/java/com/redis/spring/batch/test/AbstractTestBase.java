@@ -80,6 +80,7 @@ import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
+@SuppressWarnings("deprecation")
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
 @TestInstance(Lifecycle.PER_CLASS)
@@ -125,7 +126,6 @@ public abstract class AbstractTestBase {
 
     protected abstract RedisServer getRedisServer();
 
-    @SuppressWarnings("deprecation")
     @BeforeAll
     void setup() throws Exception {
         getRedisServer().start();

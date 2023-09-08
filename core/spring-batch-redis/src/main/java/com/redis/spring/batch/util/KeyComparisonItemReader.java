@@ -31,17 +31,15 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 
     private final RedisItemReader<String, String> left;
 
-    private final RedisItemReader<String, String> right;
+    private final KeyValueItemProcessor<String, String> right;
 
     private Iterator<KeyComparison> iterator = Collections.emptyIterator();
 
-    private KeyValueItemProcessor<String, String> rightKeyValueReader;
-
     public KeyComparisonItemReader(AbstractRedisClient left, AbstractRedisClient right) {
-        this(new RedisItemReader<>(left, StringCodec.UTF8), new RedisItemReader<>(right, StringCodec.UTF8));
+        this(new RedisItemReader<>(left, StringCodec.UTF8), new KeyValueItemProcessor<>(right, StringCodec.UTF8));
     }
 
-    public KeyComparisonItemReader(RedisItemReader<String, String> left, RedisItemReader<String, String> right) {
+    public KeyComparisonItemReader(RedisItemReader<String, String> left, KeyValueItemProcessor<String, String> right) {
         this.left = left;
         this.right = right;
         setName(ClassUtils.getShortName(getClass()));
@@ -51,7 +49,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
         return left;
     }
 
-    public RedisItemReader<String, String> getRight() {
+    public KeyValueItemProcessor<String, String> getRight() {
         return right;
     }
 
@@ -74,15 +72,13 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
             left.setValueType(ValueType.STRUCT);
             left.setMode(Mode.SCAN);
             right.setValueType(ValueType.STRUCT);
-            right.setMode(Mode.SCAN);
-            rightKeyValueReader = right.keyValueProcessor();
-            rightKeyValueReader.open(executionContext);
+            right.open(executionContext);
             left.open(executionContext);
         }
     }
 
     public boolean isOpen() {
-        return rightKeyValueReader != null && BatchUtils.isOpen(rightKeyValueReader) && left.isOpen();
+        return right.isOpen() && left.isOpen();
     }
 
     @Override
@@ -109,7 +105,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
         }
         List<KeyValue<String>> leftItems = left.readChunk();
         List<String> keys = leftItems.stream().map(KeyValue::getKey).collect(Collectors.toList());
-        List<KeyValue<String>> rightItems = rightKeyValueReader.process(keys);
+        List<KeyValue<String>> rightItems = right.process(keys);
         List<KeyComparison> results = new ArrayList<>();
         for (int index = 0; index < leftItems.size(); index++) {
             KeyValue<String> leftItem = leftItems.get(index);

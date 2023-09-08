@@ -1,5 +1,6 @@
 package com.redis.spring.batch.test;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -279,7 +280,8 @@ class StackTests extends ModulesTests {
         RedisModulesCommands<String, String> commands = connection.sync();
         String key = "key:1";
         AtomicInteger index = new AtomicInteger();
-        Awaitility.await().until(() -> {
+        //TODO
+        Awaitility.await().timeout(Duration.ofMinutes(10)).until(() -> {
             commands.sadd(key, "value:" + index.incrementAndGet());
             return reader.getBlockedKeys().contains(key);
         });

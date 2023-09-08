@@ -22,15 +22,15 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.gen.DataType;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.util.LongRange;
 import com.redis.spring.batch.util.KeyComparison;
 import com.redis.spring.batch.util.KeyComparison.Status;
 import com.redis.spring.batch.util.KeyComparisonItemReader;
+import com.redis.spring.batch.util.LongRange;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -102,7 +102,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 
     protected KeyComparisonItemReader comparisonReader(TestInfo info) throws Exception {
         KeyComparisonItemReader reader = new KeyComparisonItemReader(structReader(info, client),
-                structReader(info, targetClient));
+                structReader(info, targetClient).keyValueProcessor());
         reader.setName(name(info));
         reader.setTtlTolerance(Duration.ofMillis(100));
         return reader;

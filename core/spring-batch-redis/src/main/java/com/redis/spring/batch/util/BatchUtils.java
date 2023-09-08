@@ -8,7 +8,9 @@ import java.util.List;
 
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.CompositeItemProcessor;
+import org.springframework.batch.item.support.CompositeItemWriter;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
@@ -113,16 +115,33 @@ public abstract class BatchUtils {
         return processor(Arrays.asList(processors));
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     public static <S, T> ItemProcessor<S, T> processor(Collection<? extends ItemProcessor<?, ?>> processors) {
         if (processors.isEmpty()) {
             return null;
         }
         if (processors.size() == 1) {
-            return (ItemProcessor) processors.iterator().next();
+            return (ItemProcessor<S, T>) processors.iterator().next();
         }
         CompositeItemProcessor<S, T> composite = new CompositeItemProcessor<>();
         composite.setDelegates(new ArrayList<>(processors));
+        return composite;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> ItemWriter<T> writer(ItemWriter<T>... writers) {
+        return writer(Arrays.asList(writers));
+    }
+
+    public static <T> ItemWriter<T> writer(Collection<? extends ItemWriter<T>> writers) {
+        if (writers.isEmpty()) {
+            throw new IllegalArgumentException("At least one writer must be specified");
+        }
+        if (writers.size() == 1) {
+            return writers.iterator().next();
+        }
+        CompositeItemWriter<T> composite = new CompositeItemWriter<>();
+        composite.setDelegates(new ArrayList<>(writers));
         return composite;
     }
 
