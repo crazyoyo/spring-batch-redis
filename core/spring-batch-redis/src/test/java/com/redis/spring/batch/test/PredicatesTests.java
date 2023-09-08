@@ -13,7 +13,7 @@ import java.util.function.Predicate;
 
 import org.junit.jupiter.api.Test;
 
-import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.LongRange;
 
 class PredicatesTests {
 
@@ -71,23 +71,23 @@ class PredicatesTests {
 
     @Test
     void slotExact() {
-        Predicate<String> predicate = slots(IntRange.is(7638));
+        Predicate<String> predicate = slots(LongRange.is(7638));
         assertTrue(predicate.test("abc"));
         assertFalse(predicate.test("abcd"));
     }
 
     @Test
     void slotRange() {
-        Predicate<String> unbounded = slots(IntRange.unbounded());
+        Predicate<String> unbounded = slots(LongRange.unbounded());
         assertTrue(unbounded.test("foo"));
         assertTrue(unbounded.test("foo1"));
-        Predicate<String> is999999 = slots(IntRange.is(999999));
+        Predicate<String> is999999 = slots(LongRange.is(999999));
         assertFalse(is999999.test("foo"));
     }
 
     @Test
     void kitchenSink() {
-        Predicate<String> predicate = glob("foo").negate().and(glob("foo1")).and(slots(IntRange.unbounded()));
+        Predicate<String> predicate = glob("foo").negate().and(glob("foo1")).and(slots(LongRange.unbounded()));
         assertFalse(predicate.test("foo"));
         assertFalse(predicate.test("bar"));
         assertTrue(predicate.test("foo1"));

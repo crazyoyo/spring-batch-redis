@@ -3,9 +3,9 @@ package com.redis.spring.batch.util;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.function.Function;
-import java.util.function.IntPredicate;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
-import java.util.function.ToIntFunction;
+import java.util.function.ToLongFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -59,67 +59,67 @@ public interface Predicates {
         return predicates.reduce(isFalse(), Predicate::or);
     }
 
-    static IntPredicate intAnd(IntPredicate... predicates) {
-        return intAnd(Arrays.asList(predicates));
+    static LongPredicate longAnd(LongPredicate... predicates) {
+        return longAnd(Arrays.asList(predicates));
     }
 
-    static IntPredicate intAnd(Collection<IntPredicate> predicates) {
+    static LongPredicate longAnd(Collection<LongPredicate> predicates) {
         if (CollectionUtils.isEmpty(predicates)) {
-            return intIsTrue();
+            return longIsTrue();
         }
-        return intAnd(predicates.stream());
+        return longAnd(predicates.stream());
     }
 
-    static IntPredicate intAnd(Stream<IntPredicate> predicates) {
-        return predicates.reduce(intIsTrue(), IntPredicate::and);
+    static LongPredicate longAnd(Stream<LongPredicate> predicates) {
+        return predicates.reduce(longIsTrue(), LongPredicate::and);
     }
 
-    static IntPredicate intOr(IntPredicate... predicates) {
-        return intOr(Arrays.asList(predicates));
+    static LongPredicate longOr(LongPredicate... predicates) {
+        return longOr(Arrays.asList(predicates));
     }
 
-    static IntPredicate intOr(Collection<IntPredicate> predicates) {
+    static LongPredicate longOr(Collection<LongPredicate> predicates) {
         if (CollectionUtils.isEmpty(predicates)) {
-            return intIsTrue();
+            return longIsTrue();
         }
-        return intOr(predicates.stream());
+        return longOr(predicates.stream());
     }
 
-    static IntPredicate intOr(Stream<IntPredicate> predicates) {
-        return predicates.reduce(intIsFalse(), IntPredicate::or);
+    static LongPredicate longOr(Stream<LongPredicate> predicates) {
+        return predicates.reduce(longIsFalse(), LongPredicate::or);
     }
 
-    static <T> Predicate<T> intMap(ToIntFunction<T> function, IntPredicate predicate) {
-        return k -> predicate.test(function.applyAsInt(k));
+    static <T> Predicate<T> longMap(ToLongFunction<T> function, LongPredicate predicate) {
+        return k -> predicate.test(function.applyAsLong(k));
     }
 
     static <S, T> Predicate<S> map(Function<S, T> function, Predicate<T> predicate) {
         return s -> predicate.test(function.apply(s));
     }
 
-    static Predicate<String> slots(Collection<IntRange> ranges) {
+    static Predicate<String> slots(Collection<LongRange> ranges) {
         return slots(StringCodec.UTF8, ranges);
     }
 
-    static <K> Predicate<K> slots(RedisCodec<K, ?> codec, Collection<IntRange> ranges) {
+    static <K> Predicate<K> slots(RedisCodec<K, ?> codec, Collection<LongRange> ranges) {
         if (CollectionUtils.isEmpty(ranges)) {
             return isTrue();
         }
         return slots(codec, ranges.stream());
     }
 
-    static <K> Predicate<K> slots(RedisCodec<K, ?> codec, IntRange... ranges) {
+    static <K> Predicate<K> slots(RedisCodec<K, ?> codec, LongRange... ranges) {
         return slots(codec, Arrays.asList(ranges));
     }
 
-    static Predicate<String> slots(IntRange... ranges) {
+    static Predicate<String> slots(LongRange... ranges) {
         return slots(StringCodec.UTF8, ranges);
     }
 
-    static <K> Predicate<K> slots(RedisCodec<K, ?> codec, Stream<IntRange> ranges) {
-        ToIntFunction<K> slot = k -> SlotHash.getSlot(codec.encodeKey(k));
-        IntPredicate predicate = intAnd(ranges.map(IntRange::asPredicate).toArray(IntPredicate[]::new));
-        return intMap(slot, predicate);
+    static <K> Predicate<K> slots(RedisCodec<K, ?> codec, Stream<LongRange> ranges) {
+        ToLongFunction<K> slot = k -> SlotHash.getSlot(codec.encodeKey(k));
+        LongPredicate predicate = longAnd(ranges.map(LongRange::asPredicate).toArray(LongPredicate[]::new));
+        return longMap(slot, predicate);
     }
 
     static Predicate<String> regex(String regex) {
@@ -135,8 +135,8 @@ public interface Predicates {
         return is(true);
     }
 
-    static IntPredicate intIsTrue() {
-        return intIs(true);
+    static LongPredicate longIsTrue() {
+        return longIs(true);
     }
 
     /**
@@ -148,8 +148,8 @@ public interface Predicates {
         return is(false);
     }
 
-    static IntPredicate intIsFalse() {
-        return intIs(false);
+    static LongPredicate longIsFalse() {
+        return longIs(false);
     }
 
     /**
@@ -163,7 +163,7 @@ public interface Predicates {
         return predicate.negate();
     }
 
-    static IntPredicate intNegate(IntPredicate predicate) {
+    static LongPredicate longNegate(LongPredicate predicate) {
 
         Assert.notNull(predicate, "Predicate must not be null");
         return predicate.negate();
@@ -180,7 +180,7 @@ public interface Predicates {
         return t -> value;
     }
 
-    static IntPredicate intIs(boolean value) {
+    static LongPredicate longIs(boolean value) {
         return t -> value;
     }
 

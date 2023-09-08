@@ -1,18 +1,18 @@
 package com.redis.spring.batch.gen;
 
-import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.LongRange;
 
 public class StringOptions {
 
-    public static final IntRange DEFAULT_LENGTH = IntRange.is(100);
+    public static final LongRange DEFAULT_LENGTH = LongRange.is(100);
 
-    private IntRange length = DEFAULT_LENGTH;
+    private LongRange length = DEFAULT_LENGTH;
 
-    public IntRange getLength() {
+    public LongRange getLength() {
         return length;
     }
 
-    public void setLength(IntRange length) {
+    public void setLength(LongRange length) {
         this.length = length;
     }
 

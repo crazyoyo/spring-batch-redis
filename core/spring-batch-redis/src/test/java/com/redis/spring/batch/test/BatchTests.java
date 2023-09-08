@@ -40,7 +40,7 @@ import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.LongRange;
 import com.redis.spring.batch.util.PredicateItemProcessor;
 import com.redis.spring.batch.util.ToGeoValueFunction;
 import com.redis.spring.batch.util.ToScoredValueFunction;
@@ -417,7 +417,7 @@ abstract class BatchTests extends AbstractTestBase {
         enableKeyspaceNotifications(client);
         RedisItemReader<String, String> reader = reader(info, client);
         setLive(reader);
-        IntRange range = IntRange.between(0, 8000);
+        LongRange range = LongRange.between(0, 8000);
         reader.setKeyProcessor(new PredicateItemProcessor<>(k -> range.contains(SlotHash.getSlot(k))));
         ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
         FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = flushingStep(info, reader, writer);

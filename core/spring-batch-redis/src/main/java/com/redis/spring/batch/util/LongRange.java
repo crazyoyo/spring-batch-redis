@@ -1,36 +1,36 @@
 package com.redis.spring.batch.util;
 
 import java.util.Objects;
-import java.util.function.IntPredicate;
+import java.util.function.LongPredicate;
 
-public class IntRange {
+public class LongRange {
 
     public static final String SEPARATOR = ":";
 
-    private static final IntRange UNBOUNDED = new IntRange(Integer.MIN_VALUE, Integer.MAX_VALUE);
+    private static final LongRange UNBOUNDED = new LongRange(Long.MIN_VALUE, Long.MAX_VALUE);
 
-    private final int min;
+    private final long min;
 
-    private final int max;
+    private final long max;
 
-    private IntRange(int min, int max) {
+    private LongRange(long min, long max) {
         this.min = min;
         this.max = max;
     }
 
-    public int getMin() {
+    public long getMin() {
         return min;
     }
 
-    public int getMax() {
+    public long getMax() {
         return max;
     }
 
-    public boolean contains(int value) {
+    public boolean contains(long value) {
         return value >= min && value <= max;
     }
 
-    public IntPredicate asPredicate() {
+    public LongPredicate asPredicate() {
         return this::contains;
     }
 
@@ -47,7 +47,7 @@ public class IntRange {
             return false;
         if (getClass() != obj.getClass())
             return false;
-        IntRange other = (IntRange) obj;
+        LongRange other = (LongRange) obj;
         return max == other.max && min == other.min;
     }
 
@@ -59,23 +59,23 @@ public class IntRange {
         return min + SEPARATOR + max;
     }
 
-    public static IntRange is(int value) {
-        return new IntRange(value, value);
+    public static LongRange is(long value) {
+        return new LongRange(value, value);
     }
 
-    public static IntRange between(int min, int max) {
-        return new IntRange(min, max);
+    public static LongRange between(long min, long max) {
+        return new LongRange(min, max);
     }
 
-    public static IntRange from(int min) {
-        return new IntRange(min, Integer.MAX_VALUE);
+    public static LongRange from(long min) {
+        return new LongRange(min, Long.MAX_VALUE);
     }
 
-    public static IntRange to(int max) {
-        return new IntRange(0, max);
+    public static LongRange to(long max) {
+        return new LongRange(0, max);
     }
 
-    public static IntRange unbounded() {
+    public static LongRange unbounded() {
         return UNBOUNDED;
     }
 

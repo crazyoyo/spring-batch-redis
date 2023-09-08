@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.util.DoubleRange;
-import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.LongRange;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -32,7 +32,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
     private static final DataType[] DEFAULT_TYPES = { DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM,
             DataType.STRING, DataType.ZSET };
 
-    public static final IntRange DEFAULT_KEY_RANGE = IntRange.from(1);
+    public static final LongRange DEFAULT_KEY_RANGE = LongRange.from(1);
 
     private static final int LEFT_LIMIT = 48; // numeral '0'
 
@@ -42,9 +42,9 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     private static final Random random = new Random();
 
-    private IntRange keyRange = DEFAULT_KEY_RANGE;
+    private LongRange keyRange = DEFAULT_KEY_RANGE;
 
-    private IntRange expiration;
+    private LongRange expiration;
 
     private MapOptions hashOptions = new MapOptions();
 
@@ -76,15 +76,15 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return Arrays.asList(DEFAULT_TYPES);
     }
 
-    public void setKeyRange(IntRange range) {
+    public void setKeyRange(LongRange range) {
         this.keyRange = range;
     }
 
-    public IntRange getKeyRange() {
+    public LongRange getKeyRange() {
         return keyRange;
     }
 
-    public IntRange getExpiration() {
+    public LongRange getExpiration() {
         return expiration;
     }
 
@@ -128,7 +128,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return types;
     }
 
-    public void setExpiration(IntRange range) {
+    public void setExpiration(LongRange range) {
         this.expiration = range;
     }
 
@@ -177,11 +177,11 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
     }
 
     private String key() {
-        int index = index(keyRange);
+        long index = index(keyRange);
         return keyspace + ":" + index;
     }
 
-    private int index(IntRange range) {
+    private long index(LongRange range) {
         return range.getMin() + index() % (range.getMax() - range.getMin() + 1);
     }
 
@@ -210,7 +210,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     private List<Sample> samples() {
         List<Sample> samples = new ArrayList<>();
-        int size = randomInt(timeSeriesOptions.getSampleCount());
+        long size = randomLong(timeSeriesOptions.getSampleCount());
         for (int index = 0; index < size; index++) {
             long time = timeSeriesStartTime() + index() + index;
             samples.add(Sample.of(time, random.nextDouble()));
@@ -237,7 +237,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
     private Collection<StreamMessage<String, String>> streamMessages() {
         String key = key();
         Collection<StreamMessage<String, String>> messages = new ArrayList<>();
-        for (int elementIndex = 0; elementIndex < randomInt(streamOptions.getMessageCount()); elementIndex++) {
+        for (int elementIndex = 0; elementIndex < randomLong(streamOptions.getMessageCount()); elementIndex++) {
             messages.add(new StreamMessage<>(key, null, map(streamOptions.getBodyOptions())));
         }
         return messages;
@@ -245,38 +245,38 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     private Map<String, String> map(MapOptions options) {
         Map<String, String> hash = new HashMap<>();
-        for (int index = 0; index < randomInt(options.getFieldCount()); index++) {
+        for (int index = 0; index < randomLong(options.getFieldCount()); index++) {
             int fieldIndex = index + 1;
             hash.put("field" + fieldIndex, string(options.getFieldLength()));
         }
         return hash;
     }
 
-    private String string(IntRange range) {
-        int length = range.getMin() + random.nextInt((range.getMax() - range.getMin()) + 1);
-        return randomString(length);
+    private String string(LongRange range) {
+        long length = randomLong(range);
+        return string(length);
     }
 
-    public static String randomString(int length) {
+    public static String string(long length) {
         return random.ints(LEFT_LIMIT, RIGHT_LIMIT + 1).filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97)).limit(length)
                 .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append).toString();
     }
 
     private List<String> members(CollectionOptions options) {
         List<String> members = new ArrayList<>();
-        for (int index = 0; index < randomInt(options.getMemberCount()); index++) {
-            int memberId = options.getMemberRange().getMin()
+        for (int index = 0; index < randomLong(options.getMemberCount()); index++) {
+            long memberId = options.getMemberRange().getMin()
                     + index % (options.getMemberRange().getMax() - options.getMemberRange().getMin() + 1);
             members.add(String.valueOf(memberId));
         }
         return members;
     }
 
-    private int randomInt(IntRange range) {
+    private long randomLong(LongRange range) {
         if (range.getMin() == range.getMax()) {
             return range.getMin();
         }
-        return ThreadLocalRandom.current().nextInt(range.getMin(), range.getMax());
+        return ThreadLocalRandom.current().nextLong(range.getMin(), range.getMax());
     }
 
     private double randomDouble(DoubleRange range) {
@@ -300,7 +300,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         }
         ds.setValue(value);
         if (expiration != null) {
-            ds.setTtl(System.currentTimeMillis() + randomInt(expiration));
+            ds.setTtl(System.currentTimeMillis() + randomLong(expiration));
         }
         return ds;
     }

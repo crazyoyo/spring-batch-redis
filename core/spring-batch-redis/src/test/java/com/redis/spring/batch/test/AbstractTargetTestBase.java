@@ -27,7 +27,7 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.gen.DataType;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.LongRange;
 import com.redis.spring.batch.util.KeyComparison;
 import com.redis.spring.batch.util.KeyComparison.Status;
 import com.redis.spring.batch.util.KeyComparisonItemReader;
@@ -125,8 +125,8 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         GeneratorItemReader liveGen = new GeneratorItemReader();
         liveGen.setMaxItemCount(700);
         liveGen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET);
-        liveGen.setExpiration(IntRange.is(100));
-        liveGen.setKeyRange(IntRange.from(300));
+        liveGen.setExpiration(LongRange.is(100));
+        liveGen.setKeyRange(LongRange.from(300));
         generate(testInfo(testInfo, "generateLive"), liveGen);
         try {
             awaitTermination(execution);

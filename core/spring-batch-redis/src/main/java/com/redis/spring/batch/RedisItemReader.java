@@ -150,8 +150,6 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
 
     private JobRepository jobRepository;
 
-    private JobBuilderFactory jobBuilderFactory;
-
     private String name;
 
     private JobExecution jobExecution;
@@ -356,13 +354,22 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
         super.open(executionContext);
         if (!isOpen()) {
             doOpen();
+
         }
     }
 
     private void doOpen() {
-        Job job = jobBuilderFactory().get(name).start(step().build()).build();
         try {
-            jobExecution = jobLauncher().run(job, new JobParameters());
+            checkJobRepository();
+        } catch (Exception e) {
+            throw new ItemStreamException("Could not initialize job repository");
+        }
+        Job job = new JobBuilderFactory(jobRepository).get(name).start(step().build()).build();
+        SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
+        jobLauncher.setJobRepository(jobRepository);
+        jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+        try {
+            jobExecution = jobLauncher.run(job, new JobParameters());
         } catch (JobExecutionException e) {
             throw new ItemStreamException("Job execution failed", e);
         }
@@ -376,8 +383,8 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
     }
 
     private SimpleStepBuilder<K, K> step() {
-        SimpleStepBuilder<K, K> step = new StepBuilder(name).repository(jobRepository())
-                .transactionManager(transactionManager()).chunk(chunkSize);
+        SimpleStepBuilder<K, K> step = new StepBuilder(name).repository(jobRepository).transactionManager(transactionManager())
+                .chunk(chunkSize);
         keyReader = keyReader();
         step.reader(keyReader);
         step.processor(processor());
@@ -432,29 +439,13 @@ public class RedisItemReader<K, V> extends AbstractItemStreamItemReader<KeyValue
         return blockedKeyWriter.getBlockedKeys();
     }
 
-    private JobBuilderFactory jobBuilderFactory() {
-        if (jobBuilderFactory == null) {
-            jobBuilderFactory = new JobBuilderFactory(jobRepository());
-        }
-        return jobBuilderFactory;
-    }
-
-    private JobRepository jobRepository() {
+    @SuppressWarnings("deprecation")
+    private void checkJobRepository() throws Exception {
         if (jobRepository == null) {
-            try {
-                jobRepository = BatchUtils.inMemoryJobRepository();
-            } catch (Exception e) {
-                throw new ItemStreamException("Could not initialize job repository", e);
-            }
+            org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean bean = new org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean();
+            bean.afterPropertiesSet();
+            jobRepository = bean.getObject();
         }
-        return jobRepository;
-    }
-
-    private SimpleJobLauncher jobLauncher() {
-        SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
-        jobLauncher.setJobRepository(jobRepository());
-        jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-        return jobLauncher;
     }
 
     private void sleep() {

@@ -37,6 +37,7 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
@@ -54,11 +55,11 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.ClientBuilder;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemReader.Mode;
-import com.redis.spring.batch.ValueType;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemWriter.StreamIdPolicy;
+import com.redis.spring.batch.ValueType;
 import com.redis.spring.batch.gen.DataType;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
@@ -68,7 +69,7 @@ import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.LongRange;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -98,7 +99,7 @@ public abstract class AbstractTestBase {
 
     protected static final int DEFAULT_GENERATOR_COUNT = 100;
 
-    private static final IntRange DEFAULT_GENERATOR_KEY_RANGE = IntRange.to(10000);
+    private static final LongRange DEFAULT_GENERATOR_KEY_RANGE = LongRange.to(10000);
 
     @Value("${running-timeout:PT5S}")
     private Duration runningTimeout;
@@ -124,13 +125,16 @@ public abstract class AbstractTestBase {
 
     protected abstract RedisServer getRedisServer();
 
+    @SuppressWarnings("deprecation")
     @BeforeAll
     void setup() throws Exception {
         getRedisServer().start();
         client = client(getRedisServer());
         connection = RedisModulesUtils.connection(client);
         commands = connection.sync();
-        jobRepository = BatchUtils.inMemoryJobRepository();
+        MapJobRepositoryFactoryBean bean = new MapJobRepositoryFactoryBean();
+        bean.afterPropertiesSet();
+        jobRepository = bean.getObject();
         jobLauncher = new SimpleJobLauncher();
         jobLauncher.setJobRepository(jobRepository);
         jobLauncher.afterPropertiesSet();
@@ -387,7 +391,7 @@ public abstract class AbstractTestBase {
         gen.setTypes(DataType.STREAM);
         gen.setMaxItemCount(3);
         StreamOptions streamOptions = new StreamOptions();
-        streamOptions.setMessageCount(IntRange.is(messageCount));
+        streamOptions.setMessageCount(LongRange.is(messageCount));
         gen.setStreamOptions(streamOptions);
         generate(testInfo(testInfo, "streams"), gen);
     }

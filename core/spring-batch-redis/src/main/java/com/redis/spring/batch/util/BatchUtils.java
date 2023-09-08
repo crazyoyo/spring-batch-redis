@@ -2,10 +2,10 @@ package com.redis.spring.batch.util;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.support.CompositeItemProcessor;
@@ -35,13 +35,6 @@ public abstract class BatchUtils {
         taskExecutor.setQueueCapacity(threads);
         taskExecutor.afterPropertiesSet();
         return taskExecutor;
-    }
-
-    public static JobRepository inMemoryJobRepository() throws Exception {
-        @SuppressWarnings("deprecation")
-        org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean bean = new org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean();
-        bean.afterPropertiesSet();
-        return bean.getObject();
     }
 
     public static long size(ItemReader<?> reader) {
@@ -114,6 +107,10 @@ public abstract class BatchUtils {
             list.add(element);
         }
         return list;
+    }
+
+    public static <S, T> ItemProcessor<S, T> processor(ItemProcessor<?, ?>... processors) {
+        return processor(Arrays.asList(processors));
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

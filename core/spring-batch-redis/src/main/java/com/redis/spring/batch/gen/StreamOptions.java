@@ -1,20 +1,20 @@
 package com.redis.spring.batch.gen;
 
-import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.LongRange;
 
 public class StreamOptions {
 
-    public static final IntRange DEFAULT_MESSAGE_COUNT = IntRange.is(10);
+    public static final LongRange DEFAULT_MESSAGE_COUNT = LongRange.is(10);
 
-    private IntRange messageCount = DEFAULT_MESSAGE_COUNT;
+    private LongRange messageCount = DEFAULT_MESSAGE_COUNT;
 
     private MapOptions bodyOptions = new MapOptions();
 
-    public IntRange getMessageCount() {
+    public LongRange getMessageCount() {
         return messageCount;
     }
 
-    public void setMessageCount(IntRange count) {
+    public void setMessageCount(LongRange count) {
         this.messageCount = count;
     }
 

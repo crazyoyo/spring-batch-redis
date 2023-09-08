@@ -257,7 +257,7 @@ class StackTests extends ModulesTests {
         String key1 = "key:1";
         connection.sync().set(key1, "bar");
         String key2 = "key:2";
-        connection.sync().set(key2, GeneratorItemReader.randomString(Math.toIntExact(limit.toBytes() * 2)));
+        connection.sync().set(key2, GeneratorItemReader.string(Math.toIntExact(limit.toBytes() * 2)));
         RedisItemReader<String, String> reader = structReader(info, client);
         reader.setName(name(info) + "-reader");
         reader.setMemoryUsageLimit(limit);

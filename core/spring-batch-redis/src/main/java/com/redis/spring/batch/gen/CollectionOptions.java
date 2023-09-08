@@ -1,30 +1,30 @@
 package com.redis.spring.batch.gen;
 
-import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.LongRange;
 
 public class CollectionOptions {
 
-    public static final IntRange DEFAULT_MEMBER_RANGE = IntRange.between(1, 100);
+    public static final LongRange DEFAULT_MEMBER_RANGE = LongRange.between(1, 100);
 
-    public static final IntRange DEFAULT_MEMBER_COUNT = IntRange.is(100);
+    public static final LongRange DEFAULT_MEMBER_COUNT = LongRange.is(100);
 
-    private IntRange memberRange = DEFAULT_MEMBER_RANGE;
+    private LongRange memberRange = DEFAULT_MEMBER_RANGE;
 
-    private IntRange memberCount = DEFAULT_MEMBER_COUNT;
+    private LongRange memberCount = DEFAULT_MEMBER_COUNT;
 
-    public IntRange getMemberRange() {
+    public LongRange getMemberRange() {
         return memberRange;
     }
 
-    public void setMemberRange(IntRange range) {
+    public void setMemberRange(LongRange range) {
         this.memberRange = range;
     }
 
-    public IntRange getMemberCount() {
+    public LongRange getMemberCount() {
         return memberCount;
     }
 
-    public void setMemberCount(IntRange count) {
+    public void setMemberCount(LongRange count) {
         this.memberCount = count;
     }
 

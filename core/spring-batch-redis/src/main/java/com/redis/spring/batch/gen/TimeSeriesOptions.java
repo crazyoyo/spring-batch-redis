@@ -2,21 +2,21 @@ package com.redis.spring.batch.gen;
 
 import java.time.Instant;
 
-import com.redis.spring.batch.util.IntRange;
+import com.redis.spring.batch.util.LongRange;
 
 public class TimeSeriesOptions {
 
-    public static final IntRange DEFAULT_SAMPLE_COUNT = IntRange.is(10);
+    public static final LongRange DEFAULT_SAMPLE_COUNT = LongRange.is(10);
 
-    private IntRange sampleCount = DEFAULT_SAMPLE_COUNT;
+    private LongRange sampleCount = DEFAULT_SAMPLE_COUNT;
 
     private Instant startTime;
 
-    public IntRange getSampleCount() {
+    public LongRange getSampleCount() {
         return sampleCount;
     }
 
-    public void setSampleCount(IntRange sampleCount) {
+    public void setSampleCount(LongRange sampleCount) {
         this.sampleCount = sampleCount;
     }
 
