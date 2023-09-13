@@ -40,8 +40,8 @@ import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.LongRange;
 import com.redis.spring.batch.util.PredicateItemProcessor;
+import com.redis.spring.batch.util.Range;
 import com.redis.spring.batch.util.ToGeoValueFunction;
 import com.redis.spring.batch.util.ToScoredValueFunction;
 import com.redis.spring.batch.writer.OperationItemWriter;
@@ -60,7 +60,6 @@ import com.redis.spring.batch.writer.operation.Zadd;
 import io.lettuce.core.Consumer;
 import io.lettuce.core.GeoArgs;
 import io.lettuce.core.KeyScanArgs;
-import io.lettuce.core.Range;
 import io.lettuce.core.RedisConnectionException;
 import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.ScanIterator;
@@ -342,8 +341,8 @@ abstract class BatchTests extends AbstractTestBase {
         run(testInfo, reader, writer);
         assertEquals(1, commands.dbsize());
         assertEquals(values.size(), commands.zcard(key));
-        assertEquals(60,
-                commands.zrangebyscore(key, Range.from(Range.Boundary.including(0), Range.Boundary.including(5))).size());
+        assertEquals(60, commands.zrangebyscore(key, io.lettuce.core.Range.from(io.lettuce.core.Range.Boundary.including(0),
+                io.lettuce.core.Range.Boundary.including(5))).size());
     }
 
     @Test
@@ -417,7 +416,7 @@ abstract class BatchTests extends AbstractTestBase {
         enableKeyspaceNotifications(client);
         RedisItemReader<String, String> reader = reader(info, client);
         setLive(reader);
-        LongRange range = LongRange.between(0, 8000);
+        Range range = Range.to(8000);
         reader.setKeyProcessor(new PredicateItemProcessor<>(k -> range.contains(SlotHash.getSlot(k))));
         ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
         FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = flushingStep(info, reader, writer);
@@ -505,7 +504,7 @@ abstract class BatchTests extends AbstractTestBase {
                 xadd);
         run(testInfo, reader, writer);
         Assertions.assertEquals(messages.size(), commands.xlen(stream));
-        List<StreamMessage<String, String>> xrange = commands.xrange(stream, Range.create("-", "+"));
+        List<StreamMessage<String, String>> xrange = commands.xrange(stream, io.lettuce.core.Range.create("-", "+"));
         for (int index = 0; index < xrange.size(); index++) {
             StreamMessage<String, String> message = xrange.get(index);
             Assertions.assertEquals(messages.get(index), message.getBody());

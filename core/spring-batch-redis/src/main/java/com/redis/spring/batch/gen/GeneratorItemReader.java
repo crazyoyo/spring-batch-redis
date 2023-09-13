@@ -19,8 +19,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.util.DoubleRange;
-import com.redis.spring.batch.util.LongRange;
+import com.redis.spring.batch.util.Range;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -32,7 +31,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
     private static final DataType[] DEFAULT_TYPES = { DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM,
             DataType.STRING, DataType.ZSET };
 
-    public static final LongRange DEFAULT_KEY_RANGE = LongRange.from(1);
+    public static final Range DEFAULT_KEY_RANGE = Range.from(1);
 
     private static final int LEFT_LIMIT = 48; // numeral '0'
 
@@ -42,9 +41,9 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     private static final Random random = new Random();
 
-    private LongRange keyRange = DEFAULT_KEY_RANGE;
+    private Range keyRange = DEFAULT_KEY_RANGE;
 
-    private LongRange expiration;
+    private Range expiration;
 
     private MapOptions hashOptions = new MapOptions();
 
@@ -76,15 +75,15 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return Arrays.asList(DEFAULT_TYPES);
     }
 
-    public void setKeyRange(LongRange range) {
+    public void setKeyRange(Range range) {
         this.keyRange = range;
     }
 
-    public LongRange getKeyRange() {
+    public Range getKeyRange() {
         return keyRange;
     }
 
-    public LongRange getExpiration() {
+    public Range getExpiration() {
         return expiration;
     }
 
@@ -128,7 +127,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return types;
     }
 
-    public void setExpiration(LongRange range) {
+    public void setExpiration(Range range) {
         this.expiration = range;
     }
 
@@ -181,7 +180,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return keyspace + ":" + index;
     }
 
-    private long index(LongRange range) {
+    private long index(Range range) {
         return range.getMin() + index() % (range.getMax() - range.getMin() + 1);
     }
 
@@ -252,7 +251,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return hash;
     }
 
-    private String string(LongRange range) {
+    private String string(Range range) {
         long length = randomLong(range);
         return string(length);
     }
@@ -272,14 +271,14 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return members;
     }
 
-    private long randomLong(LongRange range) {
+    private long randomLong(Range range) {
         if (range.getMin() == range.getMax()) {
             return range.getMin();
         }
         return ThreadLocalRandom.current().nextLong(range.getMin(), range.getMax());
     }
 
-    private double randomDouble(DoubleRange range) {
+    private double randomDouble(Range range) {
         if (range.getMin() == range.getMax()) {
             return range.getMin();
         }

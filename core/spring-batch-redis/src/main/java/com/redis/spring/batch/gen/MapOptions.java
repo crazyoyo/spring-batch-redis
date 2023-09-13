@@ -1,30 +1,30 @@
 package com.redis.spring.batch.gen;
 
-import com.redis.spring.batch.util.LongRange;
+import com.redis.spring.batch.util.Range;
 
 public class MapOptions {
 
-    public static final LongRange DEFAULT_FIELD_COUNT = LongRange.is(10);
+    public static final Range DEFAULT_FIELD_COUNT = Range.of(10);
 
-    public static final LongRange DEFAULT_FIELD_LENGTH = LongRange.is(100);
+    public static final Range DEFAULT_FIELD_LENGTH = Range.of(100);
 
-    private LongRange fieldCount = DEFAULT_FIELD_COUNT;
+    private Range fieldCount = DEFAULT_FIELD_COUNT;
 
-    private LongRange fieldLength = DEFAULT_FIELD_LENGTH;
+    private Range fieldLength = DEFAULT_FIELD_LENGTH;
 
-    public LongRange getFieldCount() {
+    public Range getFieldCount() {
         return fieldCount;
     }
 
-    public void setFieldCount(LongRange count) {
+    public void setFieldCount(Range count) {
         this.fieldCount = count;
     }
 
-    public LongRange getFieldLength() {
+    public Range getFieldLength() {
         return fieldLength;
     }
 
-    public void setFieldLength(LongRange length) {
+    public void setFieldLength(Range length) {
         this.fieldLength = length;
     }
 

@@ -27,7 +27,7 @@ import com.redis.spring.batch.gen.DataType;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.MapOptions;
 import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.util.LongRange;
+import com.redis.spring.batch.util.Range;
 import com.redis.spring.batch.util.KeyComparison;
 import com.redis.spring.batch.util.KeyComparison.Status;
 import com.redis.spring.batch.util.KeyComparisonItemReader;
@@ -45,12 +45,12 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         GeneratorItemReader gen1 = new GeneratorItemReader();
         gen1.setMaxItemCount(100);
         gen1.setTypes(DataType.HASH);
-        gen1.setHashOptions(hashOptions(LongRange.is(5)));
+        gen1.setHashOptions(hashOptions(Range.of(5)));
         generate(info, client, gen1);
         GeneratorItemReader gen2 = new GeneratorItemReader();
         gen2.setMaxItemCount(100);
         gen2.setTypes(DataType.HASH);
-        gen2.setHashOptions(hashOptions(LongRange.is(10)));
+        gen2.setHashOptions(hashOptions(Range.of(10)));
         generate(info, targetClient, gen2);
         RedisItemReader<String, String> reader = structReader(info, client);
         RedisItemWriter<String, String> writer = structWriter(targetClient);
@@ -59,7 +59,7 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         assertEquals(connection.sync().hgetall("gen:1"), targetConnection.sync().hgetall("gen:1"));
     }
 
-    private MapOptions hashOptions(LongRange fieldCount) {
+    private MapOptions hashOptions(Range fieldCount) {
         MapOptions options = new MapOptions();
         options.setFieldCount(fieldCount);
         return options;
@@ -70,12 +70,12 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         GeneratorItemReader gen1 = new GeneratorItemReader();
         gen1.setMaxItemCount(100);
         gen1.setTypes(DataType.HASH);
-        gen1.setHashOptions(hashOptions(LongRange.is(5)));
+        gen1.setHashOptions(hashOptions(Range.of(5)));
         generate(info, client, gen1);
         GeneratorItemReader gen2 = new GeneratorItemReader();
         gen2.setMaxItemCount(100);
         gen2.setTypes(DataType.HASH);
-        gen2.setHashOptions(hashOptions(LongRange.is(10)));
+        gen2.setHashOptions(hashOptions(Range.of(10)));
         generate(info, targetClient, gen2);
         RedisItemReader<String, String> reader = structReader(info, client);
         RedisItemWriter<String, String> writer = structWriter(targetClient);

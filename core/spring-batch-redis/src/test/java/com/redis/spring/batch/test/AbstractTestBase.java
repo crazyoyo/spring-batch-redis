@@ -69,7 +69,7 @@ import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.LongRange;
+import com.redis.spring.batch.util.Range;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -100,7 +100,7 @@ public abstract class AbstractTestBase {
 
     protected static final int DEFAULT_GENERATOR_COUNT = 100;
 
-    private static final LongRange DEFAULT_GENERATOR_KEY_RANGE = LongRange.to(10000);
+    private static final Range DEFAULT_GENERATOR_KEY_RANGE = Range.to(10000);
 
     @Value("${running-timeout:PT5S}")
     private Duration runningTimeout;
@@ -391,7 +391,7 @@ public abstract class AbstractTestBase {
         gen.setTypes(DataType.STREAM);
         gen.setMaxItemCount(3);
         StreamOptions streamOptions = new StreamOptions();
-        streamOptions.setMessageCount(LongRange.is(messageCount));
+        streamOptions.setMessageCount(Range.of(messageCount));
         gen.setStreamOptions(streamOptions);
         generate(testInfo(testInfo, "streams"), gen);
     }
