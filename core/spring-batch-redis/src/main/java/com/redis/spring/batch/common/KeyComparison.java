@@ -1,8 +1,6 @@
-package com.redis.spring.batch.util;
+package com.redis.spring.batch.common;
 
 import java.util.Objects;
-
-import com.redis.spring.batch.KeyValue;
 
 public class KeyComparison {
 
@@ -14,31 +12,31 @@ public class KeyComparison {
         VALUE // Value mismatch
     }
 
-    private KeyValue<String> source;
+    private Struct<String> source;
 
-    private KeyValue<String> target;
+    private Struct<String> target;
 
     private Status status;
 
-    public KeyComparison(KeyValue<String> source, KeyValue<String> target, Status status) {
+    public KeyComparison(Struct<String> source, Struct<String> target, Status status) {
         this.source = source;
         this.target = target;
         this.status = status;
     }
 
-    public KeyValue<String> getSource() {
+    public Struct<String> getSource() {
         return source;
     }
 
-    public void setSource(KeyValue<String> source) {
+    public void setSource(Struct<String> source) {
         this.source = source;
     }
 
-    public KeyValue<String> getTarget() {
+    public Struct<String> getTarget() {
         return target;
     }
 
-    public void setTarget(KeyValue<String> target) {
+    public void setTarget(Struct<String> target) {
         this.target = target;
     }
 

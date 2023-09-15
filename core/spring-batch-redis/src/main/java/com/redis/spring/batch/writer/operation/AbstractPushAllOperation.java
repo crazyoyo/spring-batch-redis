@@ -16,15 +16,15 @@ public abstract class AbstractPushAllOperation<K, V, T> extends AbstractOperatio
         this.values = function;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
         Collection<V> collection = values.apply(item);
         if (collection.isEmpty()) {
             return;
         }
         RedisListAsyncCommands<K, V> listCommands = (RedisListAsyncCommands<K, V>) commands;
-        futures.add(doPush(listCommands, key(item), (V[]) collection.toArray()));
+        futures.add((RedisFuture) doPush(listCommands, key(item), (V[]) collection.toArray()));
     }
 
     protected abstract RedisFuture<Long> doPush(RedisListAsyncCommands<K, V> commands, K key, V[] values);

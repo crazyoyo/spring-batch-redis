@@ -13,7 +13,7 @@ import java.util.function.Predicate;
 
 import org.junit.jupiter.api.Test;
 
-import com.redis.spring.batch.util.Range;
+import com.redis.spring.batch.common.Range;
 
 class PredicatesTests {
 

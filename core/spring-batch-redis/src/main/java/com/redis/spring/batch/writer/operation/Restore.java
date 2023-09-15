@@ -34,24 +34,21 @@ public class Restore<K, V, T> extends AbstractOperation<K, V, T> {
         this.replace = Predicates.is(replace);
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
         byte[] dump = bytes.apply(item);
         long ttl = absoluteTtl.applyAsLong(item);
         if (dump == null || ttl == TTL_KEY_DOES_NOT_EXIST) {
-            futures.add(((RedisKeyAsyncCommands<K, V>) commands).del(key(item)));
+            futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).del(key(item)));
         } else {
-            RestoreArgs args = new RestoreArgs().absttl().replace(replace(item));
+            RestoreArgs args = new RestoreArgs();
+            args.replace(replace.test(item));
             if (ttl > 0) {
-                args.ttl(ttl);
+                args.absttl().ttl(ttl);
             }
-            futures.add(((RedisKeyAsyncCommands<K, V>) commands).restore(key(item), dump, args));
+            futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).restore(key(item), dump, args));
         }
-    }
-
-    private boolean replace(T item) {
-        return replace.test(item);
     }
 
 }

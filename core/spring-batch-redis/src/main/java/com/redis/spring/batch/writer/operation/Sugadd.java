@@ -1,6 +1,5 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.function.Function;
 
 import com.redis.lettucemod.api.async.RediSearchAsyncCommands;
@@ -9,7 +8,7 @@ import com.redis.lettucemod.search.Suggestion;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class Sugadd<K, V, T> extends AbstractOperation<K, V, T> {
+public class Sugadd<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
     private Function<T, Suggestion<V>> suggestion;
 
@@ -25,8 +24,8 @@ public class Sugadd<K, V, T> extends AbstractOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
-        futures.add(execute((RediSearchAsyncCommands<K, V>) commands, key(item), suggestion(item)));
+    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
+        return execute((RediSearchAsyncCommands<K, V>) commands, key(item), suggestion(item));
     }
 
     private Suggestion<V> suggestion(T item) {

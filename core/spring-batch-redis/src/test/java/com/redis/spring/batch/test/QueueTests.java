@@ -5,7 +5,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import com.redis.spring.batch.util.SetBlockingQueue;
+import com.redis.spring.batch.common.SetBlockingQueue;
 
 class QueueTests {
 

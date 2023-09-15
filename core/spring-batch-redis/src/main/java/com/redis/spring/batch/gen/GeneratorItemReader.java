@@ -18,18 +18,20 @@ import org.springframework.util.ClassUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
-import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.util.Range;
+import com.redis.spring.batch.common.Range;
+import com.redis.spring.batch.common.Struct;
+import com.redis.spring.batch.common.Struct.Type;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
-public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<KeyValue<String>> {
+public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<Struct<String>> {
 
     public static final String DEFAULT_KEYSPACE = "gen";
 
-    private static final DataType[] DEFAULT_TYPES = { DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM,
-            DataType.STRING, DataType.ZSET };
+    public static final String DEFAULT_KEY_SEPARATOR = ":";
+
+    private static final Type[] DEFAULT_TYPES = { Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET };
 
     public static final Range DEFAULT_KEY_RANGE = Range.from(1);
 
@@ -40,6 +42,10 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
     private final ObjectMapper mapper = new ObjectMapper();
 
     private static final Random random = new Random();
+
+    private String keySeparator = DEFAULT_KEY_SEPARATOR;
+
+    private String keyspace = DEFAULT_KEYSPACE;
 
     private Range keyRange = DEFAULT_KEY_RANGE;
 
@@ -61,9 +67,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     private ZsetOptions zsetOptions = new ZsetOptions();
 
-    private String keyspace = DEFAULT_KEYSPACE;
-
-    private List<DataType> types = defaultTypes();
+    private List<Type> types = defaultTypes();
 
     private boolean open;
 
@@ -71,8 +75,16 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         setName(ClassUtils.getShortName(getClass()));
     }
 
-    public static List<DataType> defaultTypes() {
+    public static List<Type> defaultTypes() {
         return Arrays.asList(DEFAULT_TYPES);
+    }
+
+    public String getKeySeparator() {
+        return keySeparator;
+    }
+
+    public void setKeySeparator(String keySeparator) {
+        this.keySeparator = keySeparator;
     }
 
     public void setKeyRange(Range range) {
@@ -123,7 +135,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return keyspace;
     }
 
-    public List<DataType> getTypes() {
+    public List<Type> getTypes() {
         return types;
     }
 
@@ -167,40 +179,43 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         this.keyspace = keyspace;
     }
 
-    public void setTypes(DataType... types) {
+    public void setTypes(Type... types) {
         setTypes(Arrays.asList(types));
     }
 
-    public void setTypes(List<DataType> types) {
+    public void setTypes(List<Type> types) {
         this.types = types;
     }
 
     private String key() {
-        long index = index(keyRange);
-        return keyspace + ":" + index;
+        StringBuilder builder = new StringBuilder();
+        builder.append(keyspace);
+        builder.append(keySeparator);
+        builder.append(index(keyRange));
+        return builder.toString();
     }
 
-    private long index(Range range) {
+    private int index(Range range) {
         return range.getMin() + index() % (range.getMax() - range.getMin() + 1);
     }
 
-    private Object value(KeyValue<String> ds) throws JsonProcessingException {
-        switch (ds.getType()) {
-            case KeyValue.HASH:
+    private Object value(Type type) throws JsonProcessingException {
+        switch (type) {
+            case HASH:
                 return map(hashOptions);
-            case KeyValue.LIST:
+            case LIST:
                 return members(listOptions);
-            case KeyValue.SET:
+            case SET:
                 return new HashSet<>(members(setOptions));
-            case KeyValue.STREAM:
+            case STREAM:
                 return streamMessages();
-            case KeyValue.STRING:
+            case STRING:
                 return string(stringOptions.getLength());
-            case KeyValue.ZSET:
+            case ZSET:
                 return zset();
-            case KeyValue.JSON:
+            case JSON:
                 return mapper.writeValueAsString(map(jsonOptions));
-            case KeyValue.TIMESERIES:
+            case TIMESERIES:
                 return samples();
             default:
                 return null;
@@ -286,45 +301,20 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
     }
 
     @Override
-    protected KeyValue<String> doRead() {
-        KeyValue<String> ds = new KeyValue<>();
-        DataType type = types.get(index() % types.size());
-        ds.setType(typeString(type));
-        ds.setKey(key());
+    protected Struct<String> doRead() {
+        Type type = types.get(index() % types.size());
+        String key = key();
         Object value;
         try {
-            value = value(ds);
+            value = value(type);
         } catch (JsonProcessingException e) {
             throw new ItemStreamException("Could not read value", e);
         }
-        ds.setValue(value);
+        Struct<String> struct = new Struct<>(type, key, value);
         if (expiration != null) {
-            ds.setTtl(System.currentTimeMillis() + randomLong(expiration));
+            struct.setTtl(System.currentTimeMillis() + randomLong(expiration));
         }
-        return ds;
-    }
-
-    private String typeString(DataType type) {
-        switch (type) {
-            case HASH:
-                return KeyValue.HASH;
-            case JSON:
-                return KeyValue.JSON;
-            case LIST:
-                return KeyValue.LIST;
-            case SET:
-                return KeyValue.SET;
-            case STREAM:
-                return KeyValue.STREAM;
-            case STRING:
-                return KeyValue.STRING;
-            case TIMESERIES:
-                return KeyValue.TIMESERIES;
-            case ZSET:
-                return KeyValue.ZSET;
-            default:
-                return KeyValue.NONE;
-        }
+        return struct;
     }
 
     private int index() {

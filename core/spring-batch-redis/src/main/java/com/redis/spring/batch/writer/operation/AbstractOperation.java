@@ -2,13 +2,13 @@ package com.redis.spring.batch.writer.operation;
 
 import java.util.function.Function;
 
-import com.redis.spring.batch.writer.Operation;
+import com.redis.spring.batch.common.Operation;
 
-public abstract class AbstractOperation<K, V, T> implements Operation<K, V, T> {
+public abstract class AbstractOperation<K, V, T> implements Operation<K, V, T, Object> {
 
     private Function<T, K> key;
 
-    public void setKey(Function<T, K> function) {
+    public void setKeyFunction(Function<T, K> function) {
         this.key = function;
     }
 

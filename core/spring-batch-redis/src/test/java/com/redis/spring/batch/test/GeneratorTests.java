@@ -12,7 +12,7 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
-import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.common.Struct;
 import com.redis.spring.batch.gen.CollectionOptions;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
@@ -24,14 +24,14 @@ class GeneratorTests {
         int count = 123;
         GeneratorItemReader reader = new GeneratorItemReader();
         reader.setMaxItemCount(count);
-        List<KeyValue<String>> list = readAll(reader);
+        List<Struct<String>> list = readAll(reader);
         Assertions.assertEquals(count, list.size());
     }
 
-    private List<KeyValue<String>> readAll(GeneratorItemReader reader)
+    private List<Struct<String>> readAll(GeneratorItemReader reader)
             throws UnexpectedInputException, ParseException, Exception {
-        List<KeyValue<String>> list = new ArrayList<>();
-        KeyValue<String> ds;
+        List<Struct<String>> list = new ArrayList<>();
+        Struct<String> ds;
         while ((ds = reader.read()) != null) {
             list.add(ds);
         }
@@ -43,17 +43,17 @@ class GeneratorTests {
         int count = 123;
         GeneratorItemReader reader = new GeneratorItemReader();
         reader.setMaxItemCount(count);
-        List<KeyValue<String>> list = readAll(reader);
+        List<Struct<String>> list = readAll(reader);
         Assertions.assertEquals(count, list.size());
-        for (KeyValue<String> ds : list) {
+        for (Struct<String> ds : list) {
             switch (ds.getType()) {
-                case KeyValue.SET:
-                case KeyValue.LIST:
-                case KeyValue.ZSET:
+                case SET:
+                case LIST:
+                case ZSET:
                     Assertions.assertEquals(CollectionOptions.DEFAULT_MEMBER_COUNT.getMax(),
                             ((Collection<?>) ds.getValue()).size());
                     break;
-                case KeyValue.STREAM:
+                case STREAM:
                     Assertions.assertEquals(StreamOptions.DEFAULT_MESSAGE_COUNT.getMax(),
                             ((Collection<?>) ds.getValue()).size());
                     break;
@@ -64,12 +64,27 @@ class GeneratorTests {
     }
 
     @Test
+    void keys() throws Exception {
+        GeneratorItemReader reader = new GeneratorItemReader();
+        reader.setMaxItemCount(10);
+        reader.open(new ExecutionContext());
+        Struct<String> keyValue = reader.read();
+        Assertions.assertEquals(GeneratorItemReader.DEFAULT_KEYSPACE + GeneratorItemReader.DEFAULT_KEY_SEPARATOR
+                + GeneratorItemReader.DEFAULT_KEY_RANGE.getMin(), keyValue.getKey());
+        String lastKey;
+        do {
+            lastKey = keyValue.getKey();
+        } while ((keyValue = reader.read()) != null);
+        Assertions.assertEquals(GeneratorItemReader.DEFAULT_KEYSPACE + GeneratorItemReader.DEFAULT_KEY_SEPARATOR + 10, lastKey);
+    }
+
+    @Test
     void read() throws Exception {
         int count = 456;
         GeneratorItemReader reader = new GeneratorItemReader();
         reader.open(new ExecutionContext());
         reader.setMaxItemCount(456);
-        KeyValue<String> ds1 = reader.read();
+        Struct<String> ds1 = reader.read();
         assertEquals("gen:1", ds1.getKey());
         int actualCount = 1;
         while (reader.read() != null) {

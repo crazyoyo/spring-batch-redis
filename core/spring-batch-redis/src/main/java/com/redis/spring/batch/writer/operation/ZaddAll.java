@@ -26,11 +26,11 @@ public class ZaddAll<K, V, T> extends AbstractOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
         Collection<ScoredValue<V>> collection = values(item);
+        RedisSortedSetAsyncCommands<K, V> zsetCommands = (RedisSortedSetAsyncCommands<K, V>) commands;
         if (!collection.isEmpty()) {
-            futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key(item), args,
-                    collection.toArray(new ScoredValue[0])));
+            futures.add(zsetCommands.zadd(key(item), args, collection.toArray(new ScoredValue[0])));
         }
     }
 

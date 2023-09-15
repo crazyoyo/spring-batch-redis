@@ -22,12 +22,12 @@ public class Expire<K, V, T> extends AbstractOperation<K, V, T> {
         this.ttl = function;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
         Duration duration = ttl(item);
         if (BatchUtils.isPositive(duration)) {
-            futures.add(((RedisKeyAsyncCommands<K, V>) commands).pexpire(key(item), duration));
+            futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).pexpire(key(item), duration));
         }
     }
 

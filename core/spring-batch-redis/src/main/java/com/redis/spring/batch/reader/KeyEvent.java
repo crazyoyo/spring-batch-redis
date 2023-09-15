@@ -1,6 +1,6 @@
 package com.redis.spring.batch.reader;
 
-import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.common.Struct.Type;
 
 public enum KeyEvent {
 
@@ -13,68 +13,68 @@ public enum KeyEvent {
     RESTORE,
     EXPIRE,
     SORTSTORE,
-    SET(KeyValue.STRING),
-    SETRANGE(KeyValue.STRING),
-    INCRBY(KeyValue.STRING),
-    INCRBYFLOAT(KeyValue.STRING),
-    APPEND(KeyValue.STRING),
-    LPUSH(KeyValue.LIST),
-    RPUSH(KeyValue.LIST),
-    RPOP(KeyValue.LIST),
-    LPOP(KeyValue.LIST),
-    LINSERT(KeyValue.LIST),
-    LSET(KeyValue.LIST),
-    LREM(KeyValue.LIST),
-    LTRIM(KeyValue.LIST),
-    HSET(KeyValue.HASH),
-    HINCRBY(KeyValue.HASH),
-    HINCRBYFLOAT(KeyValue.HASH),
-    HDEL(KeyValue.HASH),
-    SADD(KeyValue.SET),
-    SPOP(KeyValue.SET),
-    SINTERSTORE(KeyValue.SET),
-    SUNIONSTORE(KeyValue.SET),
-    SDIFFSTORE(KeyValue.SET),
-    ZINCR(KeyValue.ZSET),
-    ZADD(KeyValue.ZSET),
-    ZREM(KeyValue.ZSET),
-    ZREMBYSCORE(KeyValue.ZSET),
-    ZREMBYRANK(KeyValue.ZSET),
-    ZDIFFSTORE(KeyValue.ZSET),
-    ZINTERSTORE(KeyValue.ZSET),
-    ZUNIONSTORE(KeyValue.ZSET),
-    XADD(KeyValue.STREAM),
-    XTRIM(KeyValue.STREAM),
-    XDEL(KeyValue.STREAM),
-    XGROUP_CREATE("xgroup-create", KeyValue.STREAM),
-    XGROUP_CREATECONSUMER("xgroup-createconsumer", KeyValue.STREAM),
-    XGROUP_DELCONSUMER("xgroup-delconsumer", KeyValue.STREAM),
-    XGROUP_DESTROY("xgroup-destroy", KeyValue.STREAM),
-    XGROUP_SETID("xgroup-setid", KeyValue.STREAM),
-    XSETID(KeyValue.STREAM),
-    TS_ADD("ts.add", KeyValue.TIMESERIES),
-    JSON_SET("json.set", KeyValue.JSON),
+    SET(Type.STRING),
+    SETRANGE(Type.STRING),
+    INCRBY(Type.STRING),
+    INCRBYFLOAT(Type.STRING),
+    APPEND(Type.STRING),
+    LPUSH(Type.LIST),
+    RPUSH(Type.LIST),
+    RPOP(Type.LIST),
+    LPOP(Type.LIST),
+    LINSERT(Type.LIST),
+    LSET(Type.LIST),
+    LREM(Type.LIST),
+    LTRIM(Type.LIST),
+    HSET(Type.HASH),
+    HINCRBY(Type.HASH),
+    HINCRBYFLOAT(Type.HASH),
+    HDEL(Type.HASH),
+    SADD(Type.SET),
+    SPOP(Type.SET),
+    SINTERSTORE(Type.SET),
+    SUNIONSTORE(Type.SET),
+    SDIFFSTORE(Type.SET),
+    ZINCR(Type.ZSET),
+    ZADD(Type.ZSET),
+    ZREM(Type.ZSET),
+    ZREMBYSCORE(Type.ZSET),
+    ZREMBYRANK(Type.ZSET),
+    ZDIFFSTORE(Type.ZSET),
+    ZINTERSTORE(Type.ZSET),
+    ZUNIONSTORE(Type.ZSET),
+    XADD(Type.STREAM),
+    XTRIM(Type.STREAM),
+    XDEL(Type.STREAM),
+    XGROUP_CREATE("xgroup-create", Type.STREAM),
+    XGROUP_CREATECONSUMER("xgroup-createconsumer", Type.STREAM),
+    XGROUP_DELCONSUMER("xgroup-delconsumer", Type.STREAM),
+    XGROUP_DESTROY("xgroup-destroy", Type.STREAM),
+    XGROUP_SETID("xgroup-setid", Type.STREAM),
+    XSETID(Type.STREAM),
+    TS_ADD("ts.add", Type.TIMESERIES),
+    JSON_SET("json.set", Type.JSON),
     PERSIST,
     EXPIRED,
     EVICTED,
-    NEW_KEY("new"),
+    NEW_KEY("new", Type.NONE),
     UNKNOWN;
 
     private final String string;
 
-    private final String type;
+    private final Type type;
 
     private KeyEvent() {
         this.string = this.name().toLowerCase();
-        this.type = KeyValue.NONE;
+        this.type = Type.NONE;
     }
 
-    private KeyEvent(String type) {
+    private KeyEvent(Type type) {
         this.string = this.name().toLowerCase();
         this.type = type;
     }
 
-    private KeyEvent(String string, String type) {
+    private KeyEvent(String string, Type type) {
         this.string = string;
         this.type = type;
     }
@@ -83,7 +83,7 @@ public enum KeyEvent {
         return string;
     }
 
-    public String getType() {
+    public Type getType() {
         return type;
     }
 

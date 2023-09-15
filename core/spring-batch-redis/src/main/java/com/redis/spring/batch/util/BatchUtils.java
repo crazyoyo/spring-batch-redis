@@ -14,16 +14,14 @@ import org.springframework.batch.item.support.CompositeItemWriter;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import com.redis.spring.batch.AbstractRedisItemStreamSupport;
-import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
+import com.redis.spring.batch.reader.AbstractRedisItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
-import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
 
 public abstract class BatchUtils {
-
-    private static final Boolean NULL_BOOLEAN = null;
 
     public static final long SIZE_UNKNOWN = -1;
 
@@ -39,23 +37,6 @@ public abstract class BatchUtils {
         return taskExecutor;
     }
 
-    public static long size(ItemReader<?> reader) {
-        if (reader instanceof RedisItemReader) {
-            RedisItemReader<?, ?> redisItemReader = (RedisItemReader<?, ?>) reader;
-            ScanSizeEstimator estimator = new ScanSizeEstimator(redisItemReader.getClient());
-            estimator.setScanMatch(redisItemReader.getScanMatch());
-            estimator.setScanType(redisItemReader.getScanType());
-            return estimator.getAsLong();
-        }
-        if (reader instanceof KeyComparisonItemReader) {
-            return size(((KeyComparisonItemReader) reader).getLeft());
-        }
-        if (reader instanceof StreamItemReader) {
-            return ((StreamItemReader<?, ?>) reader).streamLength();
-        }
-        return SIZE_UNKNOWN;
-    }
-
     public static boolean isOpen(Object object) {
         return isOpen(object, true);
     }
@@ -64,21 +45,16 @@ public abstract class BatchUtils {
         return !isOpen(object, false);
     }
 
-    private static boolean isOpen(Object object, boolean defaultValue) {
-        Boolean value = isNullableOpen(object);
-        if (value == null) {
-            return defaultValue;
-        }
-        return value;
-    }
-
     @SuppressWarnings("rawtypes")
-    private static Boolean isNullableOpen(Object object) {
+    private static boolean isOpen(Object object, boolean defaultValue) {
         if (object instanceof GeneratorItemReader) {
             return ((GeneratorItemReader) object).isOpen();
         }
-        if (object instanceof RedisItemReader) {
-            return ((RedisItemReader) object).isOpen();
+        if (object instanceof AbstractRedisItemReader) {
+            return ((AbstractRedisItemReader) object).isOpen();
+        }
+        if (object instanceof RedisItemWriter) {
+            return ((RedisItemWriter) object).isOpen();
         }
         if (object instanceof KeyspaceNotificationItemReader) {
             return ((KeyspaceNotificationItemReader) object).isOpen();
@@ -86,16 +62,10 @@ public abstract class BatchUtils {
         if (object instanceof StreamItemReader) {
             return ((StreamItemReader) object).isOpen();
         }
-        if (object instanceof AbstractRedisItemStreamSupport) {
-            return ((AbstractRedisItemStreamSupport) object).isOpen();
-        }
-        if (object instanceof KeyspaceNotificationItemReader) {
-            return ((KeyspaceNotificationItemReader) object).isOpen();
-        }
         if (object instanceof KeyComparisonItemReader) {
             return ((KeyComparisonItemReader) object).isOpen();
         }
-        return NULL_BOOLEAN;
+        return defaultValue;
     }
 
     public static boolean isPositive(Duration duration) {

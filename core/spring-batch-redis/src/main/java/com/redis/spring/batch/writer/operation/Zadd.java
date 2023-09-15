@@ -1,6 +1,5 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.function.Function;
 
 import io.lettuce.core.RedisFuture;
@@ -9,7 +8,7 @@ import io.lettuce.core.ZAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 
-public class Zadd<K, V, T> extends AbstractOperation<K, V, T> {
+public class Zadd<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
     private Function<T, ScoredValue<V>> value;
 
@@ -25,8 +24,8 @@ public class Zadd<K, V, T> extends AbstractOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
-        futures.add(((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key(item), args(item), value(item)));
+    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
+        return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key(item), args(item), value(item));
     }
 
     private ScoredValue<V> value(T item) {

@@ -14,6 +14,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import com.hrakaroo.glob.GlobPattern;
+import com.redis.spring.batch.common.Range;
 
 import io.lettuce.core.cluster.SlotHash;
 import io.lettuce.core.codec.RedisCodec;

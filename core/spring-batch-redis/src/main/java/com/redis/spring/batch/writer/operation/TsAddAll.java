@@ -25,12 +25,13 @@ public class TsAddAll<K, V, T> extends AbstractOperation<K, V, T> {
         this.options = options;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
         K key = key(item);
+        RedisTimeSeriesAsyncCommands<K, V> tsCommands = (RedisTimeSeriesAsyncCommands<K, V>) commands;
         for (Sample sample : samples(item)) {
-            futures.add(((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(key, sample, options));
+            futures.add((RedisFuture) tsCommands.tsAdd(key, sample, options));
         }
     }
 

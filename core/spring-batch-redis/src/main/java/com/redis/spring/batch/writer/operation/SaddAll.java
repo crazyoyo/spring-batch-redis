@@ -16,12 +16,12 @@ public class SaddAll<K, V, T> extends AbstractOperation<K, V, T> {
         this.values = values;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<?>> futures) {
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
         Collection<V> collection = values(item);
         if (!collection.isEmpty()) {
-            futures.add(((RedisSetAsyncCommands<K, V>) commands).sadd(key(item), (V[]) collection.toArray()));
+            futures.add((RedisFuture) ((RedisSetAsyncCommands<K, V>) commands).sadd(key(item), (V[]) collection.toArray()));
         }
     }
 

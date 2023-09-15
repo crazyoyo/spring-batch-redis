@@ -6,12 +6,13 @@ import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
+@SuppressWarnings("rawtypes")
 public abstract class CodecUtils {
 
     private CodecUtils() {
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     public static <K> Function<String, K> stringKeyFunction(RedisCodec<K, ?> codec) {
         if (codec instanceof StringCodec) {
             return (Function) Function.identity();
@@ -19,7 +20,7 @@ public abstract class CodecUtils {
         return key -> codec.decodeKey(StringCodec.UTF8.encodeKey(key));
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     public static <K> Function<K, String> toStringKeyFunction(RedisCodec<K, ?> codec) {
         if (codec instanceof StringCodec) {
             return (Function) Function.identity();
@@ -27,7 +28,7 @@ public abstract class CodecUtils {
         return key -> StringCodec.UTF8.decodeKey(codec.encodeKey(key));
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     public static <V> Function<String, V> stringValueFunction(RedisCodec<?, V> codec) {
         if (codec instanceof StringCodec) {
             return (Function) Function.identity();
@@ -35,7 +36,7 @@ public abstract class CodecUtils {
         return value -> codec.decodeValue(StringCodec.UTF8.encodeValue(value));
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     public static <V> Function<V, String> toStringValueFunction(RedisCodec<?, V> codec) {
         if (codec instanceof StringCodec) {
             return (Function) Function.identity();
@@ -43,7 +44,7 @@ public abstract class CodecUtils {
         return value -> StringCodec.UTF8.decodeValue(codec.encodeValue(value));
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     public static <K> Function<byte[], K> byteArrayKeyFunction(RedisCodec<K, ?> codec) {
         if (codec instanceof ByteArrayCodec) {
             return (Function) Function.identity();
@@ -51,7 +52,7 @@ public abstract class CodecUtils {
         return key -> codec.decodeKey(ByteArrayCodec.INSTANCE.encodeKey(key));
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     public static <K> Function<K, byte[]> toByteArrayKeyFunction(RedisCodec<K, ?> codec) {
         if (codec instanceof ByteArrayCodec) {
             return (Function) Function.identity();
@@ -59,7 +60,7 @@ public abstract class CodecUtils {
         return key -> ByteArrayCodec.INSTANCE.decodeKey(codec.encodeKey(key));
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     public static <V> Function<byte[], V> byteArrayValueFunction(RedisCodec<?, V> codec) {
         if (codec instanceof ByteArrayCodec) {
             return (Function) Function.identity();
@@ -67,7 +68,7 @@ public abstract class CodecUtils {
         return value -> codec.decodeValue(ByteArrayCodec.INSTANCE.encodeValue(value));
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     public static <V> Function<V, byte[]> toByteArrayValueFunction(RedisCodec<?, V> codec) {
         if (codec instanceof ByteArrayCodec) {
             return (Function) Function.identity();

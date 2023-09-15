@@ -1,37 +1,36 @@
-package com.redis.spring.batch.writer;
+package com.redis.spring.batch.common;
 
-import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 
 public class ProcessingItemWriter<I, O> extends AbstractItemStreamItemWriter<I> {
 
-    private final ItemProcessor<Collection<? extends I>, List<? extends O>> processor;
+    private final Function<List<? extends I>, List<O>> function;
 
     private final ItemWriter<O> writer;
 
-    public ProcessingItemWriter(ItemProcessor<Collection<? extends I>, List<? extends O>> reader, ItemWriter<O> writer) {
-        this.processor = reader;
+    public ProcessingItemWriter(Function<List<? extends I>, List<O>> function, ItemWriter<O> writer) {
+        this.function = function;
         this.writer = writer;
     }
 
     @Override
     public void open(ExecutionContext executionContext) {
-        if (processor instanceof ItemStream) {
-            ((ItemStream) processor).open(executionContext);
+        if (writer instanceof ItemStream) {
+            ((ItemStream) writer).open(executionContext);
         }
         super.open(executionContext);
     }
 
     @Override
     public void update(ExecutionContext executionContext) {
-        if (processor instanceof ItemStream) {
-            ((ItemStream) processor).update(executionContext);
+        if (writer instanceof ItemStream) {
+            ((ItemStream) writer).update(executionContext);
         }
         super.update(executionContext);
     }
@@ -39,14 +38,14 @@ public class ProcessingItemWriter<I, O> extends AbstractItemStreamItemWriter<I> 
     @Override
     public void close() {
         super.close();
-        if (processor instanceof ItemStream) {
-            ((ItemStream) processor).close();
+        if (writer instanceof ItemStream) {
+            ((ItemStream) writer).close();
         }
     }
 
     @Override
     public void write(List<? extends I> items) throws Exception {
-        List<? extends O> targets = processor.process(items);
+        List<? extends O> targets = function.apply(items);
         if (targets != null) {
             writer.write(targets);
         }

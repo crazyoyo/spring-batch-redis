@@ -29,23 +29,22 @@ import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.ValueType;
-import com.redis.spring.batch.gen.DataType;
+import com.redis.spring.batch.common.KeyComparison;
+import com.redis.spring.batch.common.KeyComparison.Status;
+import com.redis.spring.batch.common.KeyComparisonItemReader;
+import com.redis.spring.batch.common.Struct;
+import com.redis.spring.batch.common.Struct.Type;
+import com.redis.spring.batch.common.ToSampleFunction;
+import com.redis.spring.batch.common.ToSuggestionFunction;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyEvent;
-import com.redis.spring.batch.reader.KeyValueItemProcessor;
 import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
+import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.KeyComparison;
-import com.redis.spring.batch.util.KeyComparison.Status;
-import com.redis.spring.batch.util.KeyComparisonItemReader;
-import com.redis.spring.batch.util.ToSampleFunction;
-import com.redis.spring.batch.util.ToSuggestionFunction;
-import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.operation.JsonDel;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Sugadd;
@@ -63,12 +62,11 @@ abstract class ModulesTests extends ReplicationTests {
     @Test
     void readKeyspaceNotifications(TestInfo testInfo) throws Exception {
         enableKeyspaceNotifications(client);
-        KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
+        KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
         reader.open(new ExecutionContext());
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
-        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET,
-                DataType.TIMESERIES, DataType.JSON);
+        gen.setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET, Type.TIMESERIES, Type.JSON);
         generate(testInfo, gen);
         awaitUntil(() -> reader.getQueue().size() > 0);
         Assertions.assertEquals(KeyEvent.SET, reader.getQueue().remove().getEvent());
@@ -84,26 +82,25 @@ abstract class ModulesTests extends ReplicationTests {
     @Test
     void liveReaderWithType(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
-        RedisItemReader<String, String> reader = reader(info, client);
-        setLive(reader);
-        reader.setScanType(KeyValue.HASH);
+        LiveRedisItemReader<String, String, Struct<String>> reader = liveStructReader(info, client);
+        reader.setKeyType(Type.HASH.getString());
         reader.open(new ExecutionContext());
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
         generate(info, gen);
         reader.open(new ExecutionContext());
-        List<KeyValue<String>> keyValues = BatchUtils.readAll(reader);
+        List<Struct<String>> keyValues = BatchUtils.readAll(reader);
         reader.close();
-        Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType().equalsIgnoreCase(KeyValue.HASH)));
+        Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType() == Type.HASH));
     }
 
     @Test
     void writeJsonSet(TestInfo testInfo) throws Exception {
         JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>();
-        jsonSet.setKey(n -> "beer:" + n.get("id").asText());
+        jsonSet.setKeyFunction(n -> "beer:" + n.get("id").asText());
         jsonSet.setValue(JsonNode::toString);
         jsonSet.setPath(".");
-        OperationItemWriter<String, String, JsonNode> writer = new OperationItemWriter<>(client, StringCodec.UTF8, jsonSet);
+        RedisItemWriter<String, String, JsonNode> writer = new RedisItemWriter<>(client, StringCodec.UTF8, jsonSet);
         IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
         run(testInfo, reader, writer);
         Assertions.assertEquals(BEER_COUNT, connection.sync().keys("beer:*").size());
@@ -114,12 +111,12 @@ abstract class ModulesTests extends ReplicationTests {
     @Test
     void writeJsonDel(TestInfo testInfo) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setTypes(DataType.JSON);
+        gen.setTypes(Type.JSON);
         gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
         generate(testInfo, gen);
-        JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>();
-        jsonDel.setKey(KeyValue::getKey);
-        run(testInfo, gen, new OperationItemWriter<>(client, StringCodec.UTF8, jsonDel));
+        JsonDel<String, String, Struct<String>> jsonDel = new JsonDel<>();
+        jsonDel.setKeyFunction(Struct::getKey);
+        run(testInfo, gen, new RedisItemWriter<>(client, StringCodec.UTF8, jsonDel));
         Assertions.assertEquals(0, connection.sync().dbsize());
     }
 
@@ -139,7 +136,7 @@ abstract class ModulesTests extends ReplicationTests {
         tsadd.setKey(key);
         tsadd.setSample(Function.identity());
         tsadd.setOptions(addOptions);
-        OperationItemWriter<String, String, Sample> writer = new OperationItemWriter<>(client, StringCodec.UTF8, tsadd);
+        RedisItemWriter<String, String, Sample> writer = new RedisItemWriter<>(client, StringCodec.UTF8, tsadd);
         run(testInfo, reader, writer);
         Assertions.assertEquals(count / 2,
                 connection.sync().tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
@@ -170,14 +167,12 @@ abstract class ModulesTests extends ReplicationTests {
         for (Sample sample : samples) {
             connection.sync().tsAdd(key, sample);
         }
-        KeyValueItemProcessor<String, String> reader = new KeyValueItemProcessor<>(client, StringCodec.UTF8);
-        reader.setValueType(ValueType.STRUCT);
-        reader.open(new ExecutionContext());
-        KeyValue<String> ds = reader.process(key).get(0);
+        Function<List<? extends String>, List<Struct<String>>> reader = RedisItemReader.struct(client, StringCodec.UTF8)
+                .toKeyValueFunction(pool);
+        Struct<String> ds = reader.apply(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
-        Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
+        Assertions.assertEquals(Type.TIMESERIES, ds.getType());
         Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
-        reader.close();
     }
 
     @Test
@@ -187,15 +182,13 @@ abstract class ModulesTests extends ReplicationTests {
         for (Sample sample : samples) {
             connection.sync().tsAdd(key, sample);
         }
-        KeyValueItemProcessor<byte[], byte[]> reader = new KeyValueItemProcessor<>(client, ByteArrayCodec.INSTANCE);
-        reader.setValueType(ValueType.STRUCT);
-        reader.open(new ExecutionContext());
+        Function<List<? extends byte[]>, List<Struct<byte[]>>> function = RedisItemReader
+                .struct(client, ByteArrayCodec.INSTANCE).toKeyValueFunction(bytePool);
         Function<String, byte[]> toByteArrayKeyFunction = CodecUtils.toByteArrayKeyFunction(StringCodec.UTF8);
-        KeyValue<byte[]> ds = reader.process(toByteArrayKeyFunction.apply(key)).get(0);
+        Struct<byte[]> ds = function.apply(Arrays.asList(toByteArrayKeyFunction.apply(key))).get(0);
         Assertions.assertArrayEquals(toByteArrayKeyFunction.apply(key), ds.getKey());
-        Assertions.assertEquals(KeyValue.TIMESERIES, ds.getType());
+        Assertions.assertEquals(Type.TIMESERIES, ds.getType());
         Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
-        reader.close();
     }
 
     @Test
@@ -210,7 +203,7 @@ abstract class ModulesTests extends ReplicationTests {
         TsAdd<String, String, Sample> tsAdd = new TsAdd<>();
         tsAdd.setKey(key);
         tsAdd.setSample(converter);
-        OperationItemWriter<String, String, Sample> writer = new OperationItemWriter<>(client, StringCodec.UTF8, tsAdd);
+        RedisItemWriter<String, String, Sample> writer = new RedisItemWriter<>(client, StringCodec.UTF8, tsAdd);
         run(testInfo, reader, writer);
         RedisModulesCommands<String, String> sync = connection.sync();
         assertEquals(1, sync.dbsize());
@@ -228,8 +221,7 @@ abstract class ModulesTests extends ReplicationTests {
         Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>();
         sugadd.setKey(key);
         sugadd.setSuggestion(new ToSuggestionFunction<>(Suggestion::getString, Suggestion::getScore, Suggestion::getPayload));
-        OperationItemWriter<String, String, Suggestion<String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
-                sugadd);
+        RedisItemWriter<String, String, Suggestion<String>> writer = new RedisItemWriter<>(client, StringCodec.UTF8, sugadd);
         run(testInfo, reader, writer);
         RedisModulesCommands<String, String> sync = connection.sync();
         assertEquals(1, sync.dbsize());
@@ -250,8 +242,7 @@ abstract class ModulesTests extends ReplicationTests {
         sugadd.setKey(key);
         sugadd.setSuggestion(converter);
         sugadd.setIncr(true);
-        OperationItemWriter<String, String, Suggestion<String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
-                sugadd);
+        RedisItemWriter<String, String, Suggestion<String>> writer = new RedisItemWriter<>(client, StringCodec.UTF8, sugadd);
         run(testInfo, reader, writer);
         RedisModulesCommands<String, String> sync = connection.sync();
         assertEquals(1, sync.dbsize());

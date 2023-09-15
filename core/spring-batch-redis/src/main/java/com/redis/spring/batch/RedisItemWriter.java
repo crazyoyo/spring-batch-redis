@@ -1,108 +1,171 @@
 package com.redis.spring.batch;
 
-import java.util.function.ToLongFunction;
+import java.text.MessageFormat;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
 
-import com.redis.spring.batch.writer.Operation;
-import com.redis.spring.batch.writer.OperationItemWriter;
-import com.redis.spring.batch.writer.StructOperation;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
+
+import com.redis.spring.batch.common.BatchOperationFunction;
+import com.redis.spring.batch.common.BatchOperationFunction.BatchOperation;
+import com.redis.spring.batch.common.Dump;
+import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Operation;
+import com.redis.spring.batch.common.Struct;
+import com.redis.spring.batch.util.ConnectionUtils;
+import com.redis.spring.batch.writer.StructOverwriteOperation;
+import com.redis.spring.batch.writer.StructWriteOperation;
 import com.redis.spring.batch.writer.operation.Restore;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisCommandExecutionException;
+import io.lettuce.core.RedisFuture;
+import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
+import io.lettuce.core.cluster.PipelinedRedisFuture;
 import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.support.ConnectionPoolSupport;
 
-public class RedisItemWriter<K, V> extends OperationItemWriter<K, V, KeyValue<K>> {
+public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 
-    public enum MergePolicy {
-        MERGE, OVERWRITE
+    public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
+
+    public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
+
+    private final AbstractRedisClient client;
+
+    private final RedisCodec<K, V> codec;
+
+    private final Operation<K, V, T, Object> operation;
+
+    private int poolSize = DEFAULT_POOL_SIZE;
+
+    private int waitReplicas;
+
+    private Duration waitTimeout = DEFAULT_WAIT_TIMEOUT;
+
+    private boolean multiExec;
+
+    private GenericObjectPool<StatefulConnection<K, V>> pool;
+
+    private BatchOperationFunction<K, V, T, Object> operationFunction;
+
+    public RedisItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec, Operation<K, V, T, Object> operation) {
+        this.client = client;
+        this.codec = codec;
+        this.operation = operation;
     }
 
-    public enum TtlPolicy {
-        PROPAGATE, DROP
+    public void setPoolSize(int poolSize) {
+        this.poolSize = poolSize;
     }
 
-    public enum StreamIdPolicy {
-        PROPAGATE, DROP
+    public void setWaitReplicas(int replicas) {
+        this.waitReplicas = replicas;
     }
 
-    public static final MergePolicy DEFAULT_MERGE_POLICY = MergePolicy.OVERWRITE;
-
-    public static final StreamIdPolicy DEFAULT_STREAM_ID_POLICY = StreamIdPolicy.PROPAGATE;
-
-    public static final TtlPolicy DEFAULT_TTL_POLICY = TtlPolicy.PROPAGATE;
-
-    public static final ValueType DEFAULT_VALUE_TYPE = ValueType.DUMP;
-
-    private TtlPolicy ttlPolicy = DEFAULT_TTL_POLICY;
-
-    private MergePolicy mergePolicy = DEFAULT_MERGE_POLICY;
-
-    private StreamIdPolicy streamIdPolicy = DEFAULT_STREAM_ID_POLICY;
-
-    private ValueType valueType = DEFAULT_VALUE_TYPE;
-
-    public RedisItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        super(client, codec);
+    public void setWaitTimeout(Duration timeout) {
+        this.waitTimeout = timeout;
     }
 
-    public TtlPolicy getTtlPolicy() {
-        return ttlPolicy;
-    }
-
-    public void setTtlPolicy(TtlPolicy policy) {
-        this.ttlPolicy = policy;
-    }
-
-    public MergePolicy getMergePolicy() {
-        return mergePolicy;
-    }
-
-    public void setMergePolicy(MergePolicy policy) {
-        this.mergePolicy = policy;
-    }
-
-    public StreamIdPolicy getStreamIdPolicy() {
-        return streamIdPolicy;
-    }
-
-    public void setStreamIdPolicy(StreamIdPolicy policy) {
-        this.streamIdPolicy = policy;
-    }
-
-    public ValueType getValueType() {
-        return valueType;
-    }
-
-    public void setValueType(ValueType valueType) {
-        this.valueType = valueType;
+    public void setMultiExec(boolean multiExec) {
+        this.multiExec = multiExec;
     }
 
     @Override
-    protected void doOpen() {
-        setOperation(operation());
-        super.doOpen();
+    public synchronized void open(ExecutionContext executionContext) {
+        super.open(executionContext);
+        if (isOpen()) {
+            return;
+        }
+        pool = pool();
+        operationFunction = new BatchOperationFunction<>(pool, new WriteOperation(operation));
     }
 
-    private Operation<K, V, KeyValue<K>> operation() {
-        if (valueType == ValueType.DUMP) {
-            Restore<K, V, KeyValue<K>> operation = new Restore<>();
-            operation.setKey(KeyValue::getKey);
-            operation.setBytes(v -> (byte[]) v.getValue());
-            operation.setTtl(keyValueTtl());
-            operation.setReplace(true);
-            return operation;
+    @Override
+    public synchronized void close() {
+        super.close();
+        if (!isOpen()) {
+            return;
         }
-        StructOperation<K, V> operation = new StructOperation<>();
-        operation.mergePolicy(mergePolicy);
-        operation.streamIdPolicy(streamIdPolicy);
-        operation.ttlPolicy(ttlPolicy);
-        return operation;
+        pool.close();
+        operationFunction = null;
     }
 
-    private ToLongFunction<KeyValue<K>> keyValueTtl() {
-        if (ttlPolicy == TtlPolicy.PROPAGATE) {
-            return KeyValue::getTtl;
+    public boolean isOpen() {
+        return operationFunction != null;
+    }
+
+    public GenericObjectPool<StatefulConnection<K, V>> pool() {
+        Supplier<StatefulConnection<K, V>> connectionSupplier = ConnectionUtils.supplier(client, codec);
+        GenericObjectPoolConfig<StatefulConnection<K, V>> config = new GenericObjectPoolConfig<>();
+        config.setMaxTotal(poolSize);
+        return ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config);
+    }
+
+    @Override
+    public void write(List<? extends T> items) throws Exception {
+        operationFunction.apply(items);
+    }
+
+    private class WriteOperation implements BatchOperation<K, V, T, Object> {
+
+        private final Operation<K, V, T, Object> operation;
+
+        public WriteOperation(Operation<K, V, T, Object> operation) {
+            this.operation = operation;
         }
-        return kv -> 0;
+
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        @Override
+        public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
+            List<RedisFuture<Object>> futures = new ArrayList<>(items.size());
+            if (multiExec) {
+                futures.add((RedisFuture) ((RedisTransactionalAsyncCommands<K, V>) commands).multi());
+            }
+            for (T item : items) {
+                operation.execute(commands, item, futures);
+            }
+            if (waitReplicas > 0) {
+                RedisFuture<Long> waitFuture = commands.waitForReplication(waitReplicas, waitTimeout.toMillis());
+                futures.add((RedisFuture) new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));
+            }
+            if (multiExec) {
+                futures.add((RedisFuture) ((RedisTransactionalAsyncCommands<K, V>) commands).exec());
+            }
+            return futures;
+        }
+
+        private void checkReplicas(Long actual) {
+            if (actual == null || actual < waitReplicas) {
+                throw new RedisCommandExecutionException(
+                        MessageFormat.format("Insufficient replication level ({0}/{1})", actual, waitReplicas));
+            }
+        }
+
+    }
+
+    public static <K, V> RedisItemWriter<K, V, Dump<K>> dump(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        Restore<K, V, Dump<K>> operation = new Restore<>();
+        operation.setKeyFunction(Dump::getKey);
+        operation.setBytes(KeyValue::getValue);
+        operation.setTtl(KeyValue::getTtl);
+        operation.setReplace(true);
+        return new RedisItemWriter<>(client, codec, operation);
+    }
+
+    public static <K, V> RedisItemWriter<K, V, Struct<K>> struct(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        return new RedisItemWriter<>(client, codec, new StructOverwriteOperation<>());
+    }
+
+    public static <K, V> RedisItemWriter<K, V, Struct<K>> structMerge(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        return new RedisItemWriter<>(client, codec, new StructWriteOperation<>());
     }
 
 }

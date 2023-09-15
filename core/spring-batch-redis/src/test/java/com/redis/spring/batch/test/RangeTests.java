@@ -3,7 +3,7 @@ package com.redis.spring.batch.test;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import com.redis.spring.batch.util.Range;
+import com.redis.spring.batch.common.Range;
 
 class RangeTests {
 

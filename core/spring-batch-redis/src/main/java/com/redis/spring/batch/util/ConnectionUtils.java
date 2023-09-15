@@ -9,7 +9,6 @@ import org.springframework.util.FileCopyUtils;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.spring.batch.reader.KeyValueItemProcessor;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -70,7 +69,7 @@ public abstract class ConnectionUtils {
     @SuppressWarnings("unchecked")
     public static String loadScript(AbstractRedisClient client, String filename) {
         byte[] bytes;
-        try (InputStream inputStream = KeyValueItemProcessor.class.getClassLoader().getResourceAsStream(filename)) {
+        try (InputStream inputStream = ConnectionUtils.class.getClassLoader().getResourceAsStream(filename)) {
             bytes = FileCopyUtils.copyToByteArray(inputStream);
         } catch (IOException e) {
             throw new ItemStreamException("Could not read LUA script file " + filename);

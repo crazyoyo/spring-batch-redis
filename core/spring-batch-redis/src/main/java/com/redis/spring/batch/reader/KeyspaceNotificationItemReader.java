@@ -18,9 +18,8 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.common.SetBlockingQueue;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.SetBlockingQueue;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
@@ -31,7 +30,7 @@ import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.micrometer.core.instrument.Metrics;
 
-public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItemReader<K>
+public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemReader<K>
         implements PollableItemReader<K>, RedisPubSubListener<String, String>, RedisClusterPubSubListener<String, String> {
 
     public enum OrderingStrategy {
@@ -57,13 +56,13 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
     private final Function<String, K> stringKeyEncoder;
 
-    protected String pattern = RedisItemReader.DEFAULT_PUBSUB_PATTERN;
+    protected String pattern = LiveRedisItemReader.DEFAULT_PUBSUB_PATTERN;
 
     private OrderingStrategy orderingStrategy = DEFAULT_ORDERING;
 
     private String keyType;
 
-    private int queueCapacity = RedisItemReader.DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
+    private int queueCapacity = LiveRedisItemReader.DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
 
     private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
 
@@ -71,53 +70,33 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
     private StatefulRedisPubSubConnection<String, String> connection;
 
-    public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+    public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, ?> codec) {
         this.client = client;
         this.stringKeyEncoder = CodecUtils.stringKeyFunction(codec);
     }
 
-    public Duration getPollTimeout() {
-        return pollTimeout;
+    public BlockingQueue<KeyspaceNotification> getQueue() {
+        return queue;
     }
 
     public void setPollTimeout(Duration pollTimeout) {
         this.pollTimeout = pollTimeout;
     }
 
-    public int getQueueCapacity() {
-        return queueCapacity;
-    }
-
     public void setQueueCapacity(int queueCapacity) {
         this.queueCapacity = queueCapacity;
-    }
-
-    public String getPattern() {
-        return pattern;
     }
 
     public void setPattern(String pattern) {
         this.pattern = pattern;
     }
 
-    public String getKeyType() {
-        return keyType;
-    }
-
     public void setKeyType(String keyType) {
         this.keyType = keyType;
     }
 
-    public OrderingStrategy getOrderingStrategy() {
-        return orderingStrategy;
-    }
-
     public void setOrderingStrategy(OrderingStrategy orderingStrategy) {
         this.orderingStrategy = orderingStrategy;
-    }
-
-    public BlockingQueue<KeyspaceNotification> getQueue() {
-        return queue;
     }
 
     @Override
@@ -156,7 +135,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
         }
         String key = channel.substring(channel.indexOf(SEPARATOR) + 1);
         KeyEvent event = keyEvent(message);
-        if (keyType == null || keyType.equalsIgnoreCase(event.getType())) {
+        if (keyType == null || keyType.equalsIgnoreCase(event.getType().getString())) {
             KeyspaceNotification notification = new KeyspaceNotification();
             notification.setKey(key);
             notification.setEvent(event);

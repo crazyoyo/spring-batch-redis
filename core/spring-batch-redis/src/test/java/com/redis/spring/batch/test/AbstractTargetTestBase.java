@@ -22,15 +22,17 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
-import com.redis.spring.batch.gen.DataType;
+import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.common.KeyComparison;
+import com.redis.spring.batch.common.KeyComparison.Status;
+import com.redis.spring.batch.common.KeyComparisonItemReader;
+import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Range;
+import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.gen.GeneratorItemReader;
+import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.util.KeyComparison;
-import com.redis.spring.batch.util.KeyComparison.Status;
-import com.redis.spring.batch.util.KeyComparisonItemReader;
-import com.redis.spring.batch.util.Range;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -102,21 +104,21 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 
     protected KeyComparisonItemReader comparisonReader(TestInfo info) throws Exception {
         KeyComparisonItemReader reader = new KeyComparisonItemReader(structReader(info, client),
-                structReader(info, targetClient).keyValueProcessor());
+                structReader(info, targetClient));
         reader.setName(name(info));
         reader.setTtlTolerance(Duration.ofMillis(100));
         return reader;
     }
 
-    protected <K, V> boolean liveReplication(TestInfo testInfo, RedisItemReader<K, V> reader, RedisItemWriter<K, V> writer,
-            RedisItemReader<K, V> liveReader, RedisItemWriter<K, V> liveWriter) throws Exception {
+    protected <K, V, T extends KeyValue<K, ?>> boolean liveReplication(TestInfo testInfo, RedisItemReader<K, V, T> reader,
+            RedisItemWriter<K, V, T> writer, LiveRedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
+            throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(300);
-        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET);
+        gen.setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);
         generate(testInfo(testInfo, "generate"), gen);
         TaskletStep step = step(testInfo(testInfo, "step"), reader, writer).build();
         SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "snapshotFlow"))).start(step).build();
-        setLive(liveReader);
         TaskletStep liveStep = flushingStep(testInfo(testInfo, "liveStep"), liveReader, liveWriter).build();
         SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "liveFlow"))).start(liveStep).build();
         Job job = job(testInfo).start(new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "flow")))
@@ -124,7 +126,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         JobExecution execution = runAsync(job);
         GeneratorItemReader liveGen = new GeneratorItemReader();
         liveGen.setMaxItemCount(700);
-        liveGen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET);
+        liveGen.setTypes(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET);
         liveGen.setExpiration(Range.of(100));
         liveGen.setKeyRange(Range.from(300));
         generate(testInfo(testInfo, "generateLive"), liveGen);

@@ -1,4 +1,4 @@
-package com.redis.spring.batch.util;
+package com.redis.spring.batch.common;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -6,22 +6,22 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemReader.Mode;
-import com.redis.spring.batch.ValueType;
-import com.redis.spring.batch.reader.KeyValueItemProcessor;
-import com.redis.spring.batch.util.KeyComparison.Status;
+import com.redis.spring.batch.common.KeyComparison.Status;
+import com.redis.spring.batch.common.Struct.Type;
+import com.redis.spring.batch.util.BatchUtils;
 
-import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.codec.StringCodec;
+import io.lettuce.core.api.StatefulConnection;
 
 public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyComparison> {
 
@@ -29,34 +29,29 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 
     private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-    private final RedisItemReader<String, String> left;
+    private final RedisItemReader<String, String, Struct<String>> left;
 
-    private final KeyValueItemProcessor<String, String> right;
+    private final RedisItemReader<String, String, Struct<String>> right;
+
+    private GenericObjectPool<StatefulConnection<String, String>> rightPool;
 
     private Iterator<KeyComparison> iterator = Collections.emptyIterator();
 
-    public KeyComparisonItemReader(AbstractRedisClient left, AbstractRedisClient right) {
-        this(new RedisItemReader<>(left, StringCodec.UTF8), new KeyValueItemProcessor<>(right, StringCodec.UTF8));
-    }
+    private Function<List<? extends String>, List<Struct<String>>> rightFunction;
 
-    public KeyComparisonItemReader(RedisItemReader<String, String> left, KeyValueItemProcessor<String, String> right) {
+    public KeyComparisonItemReader(RedisItemReader<String, String, Struct<String>> left,
+            RedisItemReader<String, String, Struct<String>> right) {
         this.left = left;
         this.right = right;
         setName(ClassUtils.getShortName(getClass()));
     }
 
-    public RedisItemReader<String, String> getLeft() {
-        return left;
-    }
-
-    public KeyValueItemProcessor<String, String> getRight() {
-        return right;
-    }
-
     @Override
     public void setName(String name) {
         super.setName(name);
-        left.setName(name + "-left");
+        if (left instanceof ItemStreamSupport) {
+            ((ItemStreamSupport) left).setName(name + "-left");
+        }
         right.setName(name + "-right");
     }
 
@@ -69,16 +64,14 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
         if (!isOpen()) {
-            left.setValueType(ValueType.STRUCT);
-            left.setMode(Mode.SCAN);
-            right.setValueType(ValueType.STRUCT);
-            right.open(executionContext);
+            rightPool = right.pool();
+            rightFunction = right.toKeyValueFunction(rightPool);
             left.open(executionContext);
         }
     }
 
     public boolean isOpen() {
-        return right.isOpen() && left.isOpen();
+        return BatchUtils.isOpen(left);
     }
 
     @Override
@@ -90,6 +83,7 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
     @Override
     public synchronized void close() {
         if (isOpen()) {
+            rightPool.close();
             left.close();
         }
         super.close();
@@ -103,13 +97,13 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
         if (iterator.hasNext()) {
             return iterator.next();
         }
-        List<KeyValue<String>> leftItems = left.readChunk();
-        List<String> keys = leftItems.stream().map(KeyValue::getKey).collect(Collectors.toList());
-        List<KeyValue<String>> rightItems = right.process(keys);
+        List<Struct<String>> leftItems = left.readChunk();
+        List<String> keys = leftItems.stream().map(Struct::getKey).collect(Collectors.toList());
+        List<Struct<String>> rightItems = rightFunction.apply(keys);
         List<KeyComparison> results = new ArrayList<>();
         for (int index = 0; index < leftItems.size(); index++) {
-            KeyValue<String> leftItem = leftItems.get(index);
-            KeyValue<String> rightItem = getElement(rightItems, index);
+            Struct<String> leftItem = leftItems.get(index);
+            Struct<String> rightItem = getElement(rightItems, index);
             Status status = compare(leftItem, rightItem);
             results.add(new KeyComparison(leftItem, rightItem, status));
         }
@@ -127,12 +121,12 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
         return list.get(index);
     }
 
-    private Status compare(KeyValue<String> left, KeyValue<String> right) {
+    private Status compare(Struct<String> left, Struct<String> right) {
         if (right == null) {
             return Status.MISSING;
         }
         if (!Objects.equals(left.getType(), right.getType())) {
-            if (KeyValue.isNone(right)) {
+            if (right.getType() == Type.NONE) {
                 return Status.MISSING;
             }
             return Status.TYPE;

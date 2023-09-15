@@ -1,6 +1,6 @@
 package com.redis.spring.batch.gen;
 
-import com.redis.spring.batch.util.Range;
+import com.redis.spring.batch.common.Range;
 
 public class CollectionOptions {
 
