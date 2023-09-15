@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-public class ToListFunction<T, R> implements Function<List<T>, List<R>> {
+public class ToListFunction<T, R> implements Function<List<? extends T>, List<R>> {
 
     private final Function<T, R> function;
 
@@ -13,7 +13,7 @@ public class ToListFunction<T, R> implements Function<List<T>, List<R>> {
     }
 
     @Override
-    public List<R> apply(List<T> t) {
+    public List<R> apply(List<? extends T> t) {
         List<R> list = new ArrayList<>();
         for (T element : t) {
             list.add(function.apply(element));

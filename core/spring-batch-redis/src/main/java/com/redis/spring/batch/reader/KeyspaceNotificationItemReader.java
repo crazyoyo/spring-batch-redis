@@ -185,6 +185,7 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
         if (notification == null) {
             return null;
         }
+        log.debug(notification);
         return stringKeyEncoder.apply(notification.getKey());
     }
 

@@ -5,12 +5,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -21,8 +19,8 @@ import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.Dump;
 import com.redis.spring.batch.common.Struct;
 import com.redis.spring.batch.common.Struct.Type;
@@ -255,24 +253,6 @@ class StackTests extends ModulesTests {
         reader.close();
         Map<String, Struct<String>> map = keyValues.stream().collect(Collectors.toMap(s -> s.getKey(), s -> s));
         Assertions.assertNull(map.get(key2).getValue());
-    }
-
-    @Test
-    void blockBigKeys(TestInfo info) throws Exception {
-        enableKeyspaceNotifications(client);
-        LiveRedisItemReader<String, String, Struct<String>> reader = liveStructReader(info, client);
-        reader.setMemoryUsageLimit(DataSize.ofBytes(300));
-        reader.setName("blockBigKeys");
-        reader.open(new ExecutionContext());
-        awaitOpen(reader);
-        RedisModulesCommands<String, String> commands = connection.sync();
-        String key = "key:1";
-        AtomicInteger index = new AtomicInteger();
-        Awaitility.await().until(() -> {
-            commands.sadd(key, "value:" + index.incrementAndGet());
-            return reader.getBlockedKeys().contains(key);
-        });
-        awaitClosed(reader);
     }
 
     @Test

@@ -76,13 +76,13 @@ public class LiveRedisItemReader<K, V, T extends KeyValue<K, ?>> extends Abstrac
 
     @Override
     protected KeyspaceNotificationItemReader<K> keyReader() {
-        KeyspaceNotificationItemReader<K> notificationReader = new KeyspaceNotificationItemReader<>(client, codec);
-        notificationReader.setKeyType(keyType);
-        notificationReader.setOrderingStrategy(orderingStrategy);
-        notificationReader.setQueueCapacity(notificationQueueCapacity);
-        notificationReader.setPollTimeout(pollTimeout);
-        notificationReader.setPattern(pattern(database, keyPattern));
-        return notificationReader;
+        KeyspaceNotificationItemReader<K> reader = new KeyspaceNotificationItemReader<>(client, codec);
+        reader.setKeyType(keyType);
+        reader.setOrderingStrategy(orderingStrategy);
+        reader.setQueueCapacity(notificationQueueCapacity);
+        reader.setPollTimeout(pollTimeout);
+        reader.setPattern(pattern(database, keyPattern));
+        return reader;
     }
 
     private static String pattern(int database, String match) {

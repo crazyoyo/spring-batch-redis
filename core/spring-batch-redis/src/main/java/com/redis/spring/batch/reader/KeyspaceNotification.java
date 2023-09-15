@@ -36,4 +36,9 @@ public class KeyspaceNotification {
         return key.equals(that.key);
     }
 
+    @Override
+    public String toString() {
+        return "KeyspaceNotification [key=" + key + ", event=" + event + "]";
+    }
+
 }
