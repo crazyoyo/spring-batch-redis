@@ -8,7 +8,9 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.FileCopyUtils;
 
 import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
+import com.redis.lettucemod.cluster.api.StatefulRedisModulesClusterConnection;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -39,15 +41,30 @@ public abstract class ConnectionUtils {
     public static <K, V> Supplier<StatefulConnection<K, V>> supplier(AbstractRedisClient client, RedisCodec<K, V> codec,
             ReadFrom readFrom) {
         if (client instanceof RedisModulesClusterClient) {
-            return () -> {
-                StatefulRedisClusterConnection<K, V> connection = ((RedisModulesClusterClient) client).connect(codec);
-                if (readFrom != null) {
-                    connection.setReadFrom(readFrom);
-                }
-                return connection;
-            };
+            return () -> connection((RedisModulesClusterClient) client, codec, readFrom);
         }
-        return () -> ((RedisModulesClient) client).connect(codec);
+        return () -> connection((RedisModulesClient) client, codec);
+    }
+
+    public static <K, V> StatefulRedisModulesConnection<K, V> connection(AbstractRedisClient client, RedisCodec<K, V> codec,
+            ReadFrom readFrom) {
+        if (client instanceof RedisModulesClusterClient) {
+            return connection((RedisModulesClusterClient) client, codec, readFrom);
+        }
+        return connection((RedisModulesClient) client, codec);
+    }
+
+    public static <K, V> StatefulRedisModulesConnection<K, V> connection(RedisModulesClient client, RedisCodec<K, V> codec) {
+        return client.connect(codec);
+    }
+
+    public static <K, V> StatefulRedisModulesConnection<K, V> connection(RedisModulesClusterClient client,
+            RedisCodec<K, V> codec, ReadFrom readFrom) {
+        StatefulRedisModulesClusterConnection<K, V> connection = client.connect(codec);
+        if (readFrom != null) {
+            connection.setReadFrom(readFrom);
+        }
+        return connection;
     }
 
     @SuppressWarnings("unchecked")

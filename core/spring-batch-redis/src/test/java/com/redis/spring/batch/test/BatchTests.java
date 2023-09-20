@@ -26,19 +26,19 @@ import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 
 import com.redis.lettucemod.RedisModulesClient;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.Dump;
 import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.PredicateItemProcessor;
 import com.redis.spring.batch.common.Range;
+import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.Struct;
 import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.common.ToGeoValueFunction;
 import com.redis.spring.batch.common.ToScoredValueFunction;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
-import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
@@ -412,7 +412,7 @@ abstract class BatchTests extends AbstractTestBase {
     @Test
     void filterKeySlot(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
-        LiveRedisItemReader<String, String, Struct<String>> reader = liveStructReader(info, client);
+        RedisItemReader<String, String, Struct<String>> reader = liveStructReader(info, client);
         Range range = Range.to(8000);
         reader.setKeyProcessor(new PredicateItemProcessor<>(k -> range.contains(SlotHash.getSlot(k))));
         ListItemWriter<Struct<String>> writer = new ListItemWriter<>();
@@ -431,7 +431,7 @@ abstract class BatchTests extends AbstractTestBase {
     @Test
     void dedupeKeyspaceNotifications() throws Exception {
         enableKeyspaceNotifications(client);
-        KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
+        KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
         reader.open(new ExecutionContext());
         String key = "key1";
         commands.zadd(key, 1, "member1");
@@ -508,7 +508,7 @@ abstract class BatchTests extends AbstractTestBase {
     @Test
     void readLive(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
-        LiveRedisItemReader<byte[], byte[], Struct<byte[]>> reader = liveStructReader(info, client, ByteArrayCodec.INSTANCE);
+        RedisItemReader<byte[], byte[], Struct<byte[]>> reader = liveStructReader(info, client, ByteArrayCodec.INSTANCE);
         reader.setNotificationQueueCapacity(10000);
         GeneratorItemReader gen = new GeneratorItemReader();
         int count = 123;
@@ -791,16 +791,13 @@ abstract class BatchTests extends AbstractTestBase {
         commands.hset(key, hash);
         long ttl = System.currentTimeMillis() + 123456;
         commands.pexpireat(key, ttl);
-        Function<List<? extends String>, List<Struct<String>>> reader = structProcessor();
-        Struct<String> ds = reader.apply(Arrays.asList(key)).get(0);
+        SimpleOperationExecutor<String, String, String, Struct<String>> reader = structOperationExecutor();
+        Struct<String> ds = reader.execute(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(ttl, ds.getTtl());
         Assertions.assertEquals(Type.HASH, ds.getType());
         Assertions.assertEquals(hash, ds.getValue());
-    }
-
-    private Function<List<? extends String>, List<Struct<String>>> structProcessor() {
-        return RedisItemReader.struct(client, StringCodec.UTF8).toKeyValueFunction(pool);
+        reader.close();
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -809,11 +806,12 @@ abstract class BatchTests extends AbstractTestBase {
         String key = "myzset";
         ScoredValue[] values = { ScoredValue.just(123.456, "value1"), ScoredValue.just(654.321, "value2") };
         commands.zadd(key, values);
-        Function<List<? extends String>, List<Struct<String>>> reader = structProcessor();
-        Struct<String> ds = reader.apply(Arrays.asList(key)).get(0);
+        SimpleOperationExecutor<String, String, String, Struct<String>> executor = structOperationExecutor();
+        Struct<String> ds = executor.execute(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(Type.ZSET, ds.getType());
         Assertions.assertEquals(new HashSet<>(Arrays.asList(values)), ds.getValue());
+        executor.close();
     }
 
     @Test
@@ -821,11 +819,12 @@ abstract class BatchTests extends AbstractTestBase {
         String key = "mylist";
         List<String> values = Arrays.asList("value1", "value2");
         commands.rpush(key, values.toArray(new String[0]));
-        Function<List<? extends String>, List<Struct<String>>> reader = structProcessor();
-        Struct<String> ds = reader.apply(Arrays.asList(key)).get(0);
+        SimpleOperationExecutor<String, String, String, Struct<String>> executor = structOperationExecutor();
+        Struct<String> ds = executor.execute(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(Type.LIST, ds.getType());
         Assertions.assertEquals(values, ds.getValue());
+        executor.close();
     }
 
     @SuppressWarnings("unchecked")
@@ -837,8 +836,8 @@ abstract class BatchTests extends AbstractTestBase {
         body.put("field2", "value2");
         commands.xadd(key, body);
         commands.xadd(key, body);
-        Function<List<? extends String>, List<Struct<String>>> reader = structProcessor();
-        Struct<String> ds = reader.apply(Arrays.asList(key)).get(0);
+        SimpleOperationExecutor<String, String, String, Struct<String>> executor = structOperationExecutor();
+        Struct<String> ds = executor.execute(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(Type.STREAM, ds.getType());
         List<StreamMessage<String, String>> messages = (List<StreamMessage<String, String>>) ds.getValue();
@@ -847,6 +846,7 @@ abstract class BatchTests extends AbstractTestBase {
             Assertions.assertEquals(body, message.getBody());
             Assertions.assertNotNull(message.getId());
         }
+        executor.close();
     }
 
     @Test
@@ -859,14 +859,14 @@ abstract class BatchTests extends AbstractTestBase {
         commands.xadd(key, body);
         long ttl = System.currentTimeMillis() + 123456;
         commands.pexpireat(key, ttl);
-        RedisItemReader<byte[], byte[], Dump<byte[]>> reader = RedisItemReader.dump(client, ByteArrayCodec.INSTANCE);
-        Function<List<? extends byte[]>, List<Dump<byte[]>>> function = reader.toKeyValueFunction(bytePool);
-        Dump<byte[]> dump = function.apply(Arrays.asList(toByteArray(key))).get(0);
+        SimpleOperationExecutor<byte[], byte[], byte[], Dump<byte[]>> executor = dumpOperationExecutor(ByteArrayCodec.INSTANCE);
+        Dump<byte[]> dump = executor.execute(Arrays.asList(toByteArray(key))).get(0);
         Assertions.assertArrayEquals(toByteArray(key), dump.getKey());
         Assertions.assertTrue(Math.abs(ttl - dump.getTtl()) <= 3);
         commands.del(key);
         commands.restore(key, dump.getValue(), RestoreArgs.Builder.ttl(ttl).absttl());
         Assertions.assertEquals(Type.STREAM.getString(), commands.type(key));
+        executor.close();
     }
 
     @SuppressWarnings("unchecked")
@@ -878,9 +878,9 @@ abstract class BatchTests extends AbstractTestBase {
         body.put("field2", "value2");
         commands.xadd(key, body);
         commands.xadd(key, body);
-        Function<List<? extends byte[]>, List<Struct<byte[]>>> function = RedisItemReader
-                .struct(client, ByteArrayCodec.INSTANCE).toKeyValueFunction(bytePool);
-        Struct<byte[]> ds = function.apply(Arrays.asList(toByteArray(key))).get(0);
+        SimpleOperationExecutor<byte[], byte[], byte[], Struct<byte[]>> executor = structOperationExecutor(
+                ByteArrayCodec.INSTANCE);
+        Struct<byte[]> ds = executor.execute(Arrays.asList(toByteArray(key))).get(0);
         Assertions.assertArrayEquals(toByteArray(key), ds.getKey());
         Assertions.assertEquals(Type.STREAM, ds.getType());
         List<StreamMessage<byte[], byte[]>> messages = (List<StreamMessage<byte[], byte[]>>) ds.getValue();
@@ -892,6 +892,7 @@ abstract class BatchTests extends AbstractTestBase {
             actual.forEach((k, v) -> actualString.put(toString(k), toString(v)));
             Assertions.assertEquals(body, actualString);
         }
+        executor.close();
     }
 
     @Test
@@ -900,11 +901,12 @@ abstract class BatchTests extends AbstractTestBase {
         commands.pfadd(key1, "member:1", "member:2");
         String key2 = "hll:2";
         commands.pfadd(key2, "member:1", "member:2", "member:3");
-        Function<List<? extends String>, List<Struct<String>>> reader = structProcessor();
-        Struct<String> ds1 = reader.apply(Arrays.asList(key1)).get(0);
+        SimpleOperationExecutor<String, String, String, Struct<String>> executor = structOperationExecutor();
+        Struct<String> ds1 = executor.execute(Arrays.asList(key1)).get(0);
         Assertions.assertEquals(key1, ds1.getKey());
         Assertions.assertEquals(Type.STRING, ds1.getType());
         Assertions.assertEquals(commands.get(key1), ds1.getValue());
+        executor.close();
     }
 
 }

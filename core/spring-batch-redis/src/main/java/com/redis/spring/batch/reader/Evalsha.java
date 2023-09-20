@@ -5,39 +5,42 @@ import java.util.function.Function;
 
 import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.util.CodecUtils;
+import com.redis.spring.batch.util.ConnectionUtils;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public class Evalsha<K, V> implements Operation<K, V, K, List<Object>> {
+public class Evalsha<K, V, T> implements Operation<K, V, K, T> {
+
+    private final Function<List<Object>, T> function;
 
     private final String digest;
 
-    private final V[] args;
+    private final V[] encodedArgs;
 
-    public Evalsha(RedisCodec<K, V> codec, String digest, Object... args) {
-        this.digest = digest;
-        this.args = encode(codec, args);
+    @SuppressWarnings("unchecked")
+    public Evalsha(String filename, AbstractRedisClient client, RedisCodec<K, V> codec, Function<List<Object>, T> function,
+            Object... args) {
+        this.digest = ConnectionUtils.loadScript(client, filename);
+        this.function = function;
+        Function<String, V> stringValueFunction = CodecUtils.stringValueFunction(codec);
+        this.encodedArgs = (V[]) new Object[args.length];
+        for (int index = 0; index < args.length; index++) {
+            this.encodedArgs[index] = stringValueFunction.apply(String.valueOf(args[index]));
+        }
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, K item, List<RedisFuture<List<Object>>> futures) {
+    public void execute(BaseRedisAsyncCommands<K, V> commands, K item, List<RedisFuture<T>> futures) {
         K[] keys = (K[]) new Object[] { item };
-        futures.add(((RedisScriptingAsyncCommands<K, V>) commands).evalsha(digest, ScriptOutputType.MULTI, keys, args));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <K, V> V[] encode(RedisCodec<K, V> codec, Object... values) {
-        Function<String, V> stringValueFunction = CodecUtils.stringValueFunction(codec);
-        Object[] encodedValues = new Object[values.length];
-        for (int index = 0; index < values.length; index++) {
-            encodedValues[index] = stringValueFunction.apply(String.valueOf(values[index]));
-        }
-        return (V[]) encodedValues;
+        RedisFuture<List<Object>> future = ((RedisScriptingAsyncCommands<K, V>) commands).evalsha(digest,
+                ScriptOutputType.MULTI, keys, encodedArgs);
+        futures.add(new MappingRedisFuture<>(future.toCompletableFuture(), function));
     }
 
 }

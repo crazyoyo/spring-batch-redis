@@ -29,11 +29,12 @@ import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyComparisonItemReader;
+import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.Struct;
 import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.common.ToSampleFunction;
@@ -42,7 +43,6 @@ import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyEvent;
 import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
-import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.writer.operation.JsonDel;
@@ -62,7 +62,7 @@ abstract class ModulesTests extends ReplicationTests {
     @Test
     void readKeyspaceNotifications(TestInfo testInfo) throws Exception {
         enableKeyspaceNotifications(client);
-        KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
+        KeyspaceNotificationItemReader<String, String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
         reader.open(new ExecutionContext());
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
@@ -82,8 +82,8 @@ abstract class ModulesTests extends ReplicationTests {
     @Test
     void liveReaderWithType(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
-        LiveRedisItemReader<String, String, Struct<String>> reader = liveStructReader(info, client);
-        reader.setKeyType(Type.HASH.getString());
+        RedisItemReader<String, String, Struct<String>> reader = liveStructReader(info, client);
+        reader.setKeyType(Type.HASH);
         reader.open(new ExecutionContext());
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
@@ -154,9 +154,15 @@ abstract class ModulesTests extends ReplicationTests {
         connection.sync().tsAdd("ts:1", Sample.of(123));
         KeyComparisonItemReader reader = comparisonReader(info);
         reader.setName(name(info));
+        log.debug("Opening KeyComparisonItemReader");
         reader.open(new ExecutionContext());
+        log.debug("Awaiting KeyComparisonItemReader open");
+        awaitOpen(reader);
+        log.debug("readAll");
         List<KeyComparison> comparisons = BatchUtils.readAll(reader);
+        log.debug("Closing KeyComparisonItemReader");
         reader.close();
+        log.debug("KeyComparisonItemReader closed");
         Assertions.assertEquals(1, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());
     }
 
@@ -167,12 +173,12 @@ abstract class ModulesTests extends ReplicationTests {
         for (Sample sample : samples) {
             connection.sync().tsAdd(key, sample);
         }
-        Function<List<? extends String>, List<Struct<String>>> reader = RedisItemReader.struct(client, StringCodec.UTF8)
-                .toKeyValueFunction(pool);
-        Struct<String> ds = reader.apply(Arrays.asList(key)).get(0);
+        SimpleOperationExecutor<String, String, String, Struct<String>> executor = structOperationExecutor();
+        Struct<String> ds = executor.execute(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(Type.TIMESERIES, ds.getType());
         Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
+        executor.close();
     }
 
     @Test
@@ -182,13 +188,14 @@ abstract class ModulesTests extends ReplicationTests {
         for (Sample sample : samples) {
             connection.sync().tsAdd(key, sample);
         }
-        Function<List<? extends byte[]>, List<Struct<byte[]>>> function = RedisItemReader
-                .struct(client, ByteArrayCodec.INSTANCE).toKeyValueFunction(bytePool);
+        SimpleOperationExecutor<byte[], byte[], byte[], Struct<byte[]>> executor = structOperationExecutor(
+                ByteArrayCodec.INSTANCE);
         Function<String, byte[]> toByteArrayKeyFunction = CodecUtils.toByteArrayKeyFunction(StringCodec.UTF8);
-        Struct<byte[]> ds = function.apply(Arrays.asList(toByteArrayKeyFunction.apply(key))).get(0);
+        Struct<byte[]> ds = executor.execute(Arrays.asList(toByteArrayKeyFunction.apply(key))).get(0);
         Assertions.assertArrayEquals(toByteArrayKeyFunction.apply(key), ds.getKey());
         Assertions.assertEquals(Type.TIMESERIES, ds.getType());
         Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
+        executor.close();
     }
 
     @Test

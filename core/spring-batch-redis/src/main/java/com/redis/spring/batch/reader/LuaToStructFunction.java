@@ -21,8 +21,6 @@ import io.lettuce.core.internal.LettuceAssert;
 
 public class LuaToStructFunction<K, V> extends AbstractLuaFunction<K, Struct<K>> {
 
-    private static final String VALUE_TYPE = "struct";
-
     private final Function<V, String> toStringValueFunction;
 
     public LuaToStructFunction(RedisCodec<K, V> codec) {
@@ -30,15 +28,10 @@ public class LuaToStructFunction<K, V> extends AbstractLuaFunction<K, Struct<K>>
     }
 
     @Override
-    public String getValueType() {
-        return VALUE_TYPE;
-    }
-
-    @Override
     protected Struct<K> keyValue(K key, Iterator<Object> iterator) {
         Object value = value(iterator);
         Type type = type(iterator);
-        return new Struct<>(type, key, value(type, key, value));
+        return Struct.of(key, type, value(type, key, value));
     }
 
     private Object value(Iterator<Object> iterator) {

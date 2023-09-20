@@ -1,50 +1,29 @@
 package com.redis.spring.batch;
 
-import java.text.MessageFormat;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
+import org.springframework.batch.item.ItemStreamWriter;
 
-import com.redis.spring.batch.common.BatchOperationFunction;
-import com.redis.spring.batch.common.BatchOperationFunction.BatchOperation;
+import com.redis.spring.batch.common.AbstractOperationExecutor;
+import com.redis.spring.batch.common.BatchOperation;
 import com.redis.spring.batch.common.Dump;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Operation;
+import com.redis.spring.batch.common.SimpleBatchOperation;
 import com.redis.spring.batch.common.Struct;
-import com.redis.spring.batch.util.ConnectionUtils;
+import com.redis.spring.batch.writer.MultiExecBatchOperation;
+import com.redis.spring.batch.writer.ReplicaWaitBatchOperation;
 import com.redis.spring.batch.writer.StructOverwriteOperation;
 import com.redis.spring.batch.writer.StructWriteOperation;
 import com.redis.spring.batch.writer.operation.Restore;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.RedisCommandExecutionException;
-import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
-import io.lettuce.core.cluster.PipelinedRedisFuture;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.support.ConnectionPoolSupport;
 
-public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
-
-    public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
+public class RedisItemWriter<K, V, T> extends AbstractOperationExecutor<K, V, T, Object> implements ItemStreamWriter<T> {
 
     public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
-
-    private final AbstractRedisClient client;
-
-    private final RedisCodec<K, V> codec;
-
-    private final Operation<K, V, T, Object> operation;
-
-    private int poolSize = DEFAULT_POOL_SIZE;
 
     private int waitReplicas;
 
@@ -52,18 +31,11 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 
     private boolean multiExec;
 
-    private GenericObjectPool<StatefulConnection<K, V>> pool;
-
-    private BatchOperationFunction<K, V, T, Object> operationFunction;
+    private Operation<K, V, T, Object> operation;
 
     public RedisItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec, Operation<K, V, T, Object> operation) {
-        this.client = client;
-        this.codec = codec;
+        super(client, codec);
         this.operation = operation;
-    }
-
-    public void setPoolSize(int poolSize) {
-        this.poolSize = poolSize;
     }
 
     public void setWaitReplicas(int replicas) {
@@ -79,76 +51,27 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
     }
 
     @Override
-    public synchronized void open(ExecutionContext executionContext) {
-        super.open(executionContext);
-        if (isOpen()) {
-            return;
-        }
-        pool = pool();
-        operationFunction = new BatchOperationFunction<>(pool, new WriteOperation(operation));
-    }
-
-    @Override
-    public synchronized void close() {
-        super.close();
-        if (!isOpen()) {
-            return;
-        }
-        pool.close();
-        operationFunction = null;
-    }
-
-    public boolean isOpen() {
-        return operationFunction != null;
-    }
-
-    public GenericObjectPool<StatefulConnection<K, V>> pool() {
-        Supplier<StatefulConnection<K, V>> connectionSupplier = ConnectionUtils.supplier(client, codec);
-        GenericObjectPoolConfig<StatefulConnection<K, V>> config = new GenericObjectPoolConfig<>();
-        config.setMaxTotal(poolSize);
-        return ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config);
-    }
-
-    @Override
     public void write(List<? extends T> items) throws Exception {
-        operationFunction.apply(items);
+        execute(items);
     }
 
-    private class WriteOperation implements BatchOperation<K, V, T, Object> {
-
-        private final Operation<K, V, T, Object> operation;
-
-        public WriteOperation(Operation<K, V, T, Object> operation) {
-            this.operation = operation;
+    @Override
+    protected BatchOperation<K, V, T, Object> operation() {
+        BatchOperation<K, V, T, Object> batchOperation = new SimpleBatchOperation<>(operation);
+        if (waitReplicas > 0) {
+            batchOperation = replicaWaitOperation(batchOperation);
         }
-
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        @Override
-        public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
-            List<RedisFuture<Object>> futures = new ArrayList<>(items.size());
-            if (multiExec) {
-                futures.add((RedisFuture) ((RedisTransactionalAsyncCommands<K, V>) commands).multi());
-            }
-            for (T item : items) {
-                operation.execute(commands, item, futures);
-            }
-            if (waitReplicas > 0) {
-                RedisFuture<Long> waitFuture = commands.waitForReplication(waitReplicas, waitTimeout.toMillis());
-                futures.add((RedisFuture) new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));
-            }
-            if (multiExec) {
-                futures.add((RedisFuture) ((RedisTransactionalAsyncCommands<K, V>) commands).exec());
-            }
-            return futures;
+        if (multiExec) {
+            batchOperation = new MultiExecBatchOperation<>(batchOperation);
         }
+        return batchOperation;
+    }
 
-        private void checkReplicas(Long actual) {
-            if (actual == null || actual < waitReplicas) {
-                throw new RedisCommandExecutionException(
-                        MessageFormat.format("Insufficient replication level ({0}/{1})", actual, waitReplicas));
-            }
-        }
-
+    private ReplicaWaitBatchOperation<K, V, T> replicaWaitOperation(BatchOperation<K, V, T, Object> batchOperation) {
+        ReplicaWaitBatchOperation<K, V, T> waitOperation = new ReplicaWaitBatchOperation<>(batchOperation);
+        waitOperation.setWaitReplicas(waitReplicas);
+        waitOperation.setWaitTimeout(waitTimeout);
+        return waitOperation;
     }
 
     public static <K, V> RedisItemWriter<K, V, Dump<K>> dump(AbstractRedisClient client, RedisCodec<K, V> codec) {

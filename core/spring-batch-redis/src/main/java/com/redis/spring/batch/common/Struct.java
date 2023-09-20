@@ -4,15 +4,14 @@ import java.util.Map;
 
 public class Struct<K> extends KeyValue<K, Object> {
 
-    private final Type type;
-
-    public Struct(Type type, K key, Object value) {
-        super(key, value);
-        this.type = type;
-    }
+    private Type type;
 
     public Type getType() {
         return type;
+    }
+
+    public void setType(Type type) {
+        this.type = type;
     }
 
     public enum Type {
@@ -48,12 +47,20 @@ public class Struct<K> extends KeyValue<K, Object> {
 
     }
 
+    public static <K> Struct<K> of(K key, Type type, Object value) {
+        Struct<K> struct = new Struct<>();
+        struct.setKey(key);
+        struct.setType(type);
+        struct.setValue(value);
+        return struct;
+    }
+
     public static <K> Struct<K> hash(K key, Map<K, ?> map) {
-        return new Struct<>(Type.HASH, key, map);
+        return of(key, Type.HASH, map);
     }
 
     public static <K> Struct<K> string(K key, Object string) {
-        return new Struct<>(Type.STRING, key, string);
+        return of(key, Type.STRING, string);
     }
 
 }

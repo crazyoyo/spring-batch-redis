@@ -302,19 +302,23 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     @Override
     protected Struct<String> doRead() {
+        Struct<String> struct = new Struct<>();
+        struct.setKey(key());
         Type type = types.get(index() % types.size());
-        String key = key();
-        Object value;
+        struct.setType(type);
         try {
-            value = value(type);
+            struct.setValue(value(type));
         } catch (JsonProcessingException e) {
             throw new ItemStreamException("Could not read value", e);
         }
-        Struct<String> struct = new Struct<>(type, key, value);
         if (expiration != null) {
-            struct.setTtl(System.currentTimeMillis() + randomLong(expiration));
+            struct.setTtl(ttl());
         }
         return struct;
+    }
+
+    private long ttl() {
+        return System.currentTimeMillis() + randomLong(expiration);
     }
 
     private int index() {

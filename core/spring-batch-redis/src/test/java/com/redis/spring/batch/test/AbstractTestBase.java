@@ -54,21 +54,24 @@ import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 
+import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.lettucemod.util.ClientBuilder;
+import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.Dump;
+import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.OperationExecutor;
 import com.redis.spring.batch.common.Range;
+import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.Struct;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
-import com.redis.spring.batch.reader.AbstractRedisItemReader;
-import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
+import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
@@ -77,7 +80,6 @@ import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
-import io.lettuce.core.RedisURI;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.ByteArrayCodec;
@@ -97,11 +99,13 @@ public abstract class AbstractTestBase {
 
     private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(1000);
 
-    protected static final Duration DEFAULT_ASYNC_DELAY = Duration.ofMillis(100);
+    protected static final Duration DEFAULT_RUNNING_DELAY = Duration.ofMillis(100);
 
-    protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(300);
+    protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
 
-    private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(30);
+    private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(10);
+
+    private static final Duration DEFAULT_POLL_DELAY = Duration.ofMillis(1);
 
     protected static final int DEFAULT_GENERATOR_COUNT = 100;
 
@@ -120,8 +124,6 @@ public abstract class AbstractTestBase {
     protected AbstractRedisClient client;
 
     protected GenericObjectPool<StatefulConnection<String, String>> pool;
-
-    protected GenericObjectPool<StatefulConnection<byte[], byte[]>> bytePool;
 
     protected StatefulRedisModulesConnection<String, String> connection;
 
@@ -142,8 +144,6 @@ public abstract class AbstractTestBase {
         getRedisServer().start();
         client = client(getRedisServer());
         pool = ConnectionPoolSupport.createGenericObjectPool(ConnectionUtils.supplier(client), new GenericObjectPoolConfig<>());
-        bytePool = ConnectionPoolSupport.createGenericObjectPool(ConnectionUtils.supplier(client, ByteArrayCodec.INSTANCE),
-                new GenericObjectPoolConfig<>());
         connection = RedisModulesUtils.connection(client);
         commands = connection.sync();
         MapJobRepositoryFactoryBean bean = new MapJobRepositoryFactoryBean();
@@ -164,7 +164,6 @@ public abstract class AbstractTestBase {
     @AfterAll
     void teardown() {
         connection.close();
-        bytePool.close();
         pool.close();
         client.shutdown();
         client.getResources().shutdown();
@@ -225,7 +224,7 @@ public abstract class AbstractTestBase {
     }
 
     protected static void awaitClosed(Object object) {
-        awaitUntil(() -> BatchUtils.isClosed(object));
+        awaitUntil(() -> !BatchUtils.isOpen(object));
     }
 
     protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer) {
@@ -254,8 +253,10 @@ public abstract class AbstractTestBase {
     }
 
     protected AbstractRedisClient client(RedisServer server) {
-        RedisURI uri = RedisURI.create(server.getRedisURI());
-        return ClientBuilder.create(uri).cluster(server.isCluster()).build();
+        if (server.isCluster()) {
+            return RedisModulesClusterClient.create(server.getRedisURI());
+        }
+        return RedisModulesClient.create(server.getRedisURI());
     }
 
     public static <T> void awaitEquals(Supplier<T> expected, Supplier<T> actual) {
@@ -263,7 +264,7 @@ public abstract class AbstractTestBase {
     }
 
     public static JobExecution awaitRunning(JobExecution jobExecution) {
-        Awaitility.await().until(() -> isRunning(jobExecution));
+        Awaitility.await().pollDelay(DEFAULT_RUNNING_DELAY).until(() -> isRunning(jobExecution));
         return jobExecution;
     }
 
@@ -288,7 +289,8 @@ public abstract class AbstractTestBase {
     }
 
     protected static void awaitUntil(Callable<Boolean> conditionEvaluator) {
-        Awaitility.await().pollInterval(DEFAULT_POLL_INTERVAL).timeout(DEFAULT_AWAIT_TIMEOUT).until(conditionEvaluator);
+        Awaitility.await().pollDelay(DEFAULT_POLL_DELAY).pollInterval(DEFAULT_POLL_INTERVAL).timeout(DEFAULT_AWAIT_TIMEOUT)
+                .until(conditionEvaluator);
     }
 
     protected JobBuilder job(TestInfo testInfo) {
@@ -348,26 +350,29 @@ public abstract class AbstractTestBase {
         return RedisItemWriter.struct(client, codec);
     }
 
-    protected LiveRedisItemReader<String, String, Struct<String>> liveStructReader(TestInfo testInfo,
-            AbstractRedisClient client) {
+    protected RedisItemReader<String, String, Struct<String>> liveStructReader(TestInfo testInfo, AbstractRedisClient client) {
         return liveStructReader(testInfo, client, StringCodec.UTF8);
     }
 
-    protected <K, V> LiveRedisItemReader<K, V, Struct<K>> liveStructReader(TestInfo info, AbstractRedisClient client,
+    protected <K, V> RedisItemReader<K, V, Struct<K>> liveStructReader(TestInfo info, AbstractRedisClient client,
             RedisCodec<K, V> codec) {
-        LiveRedisItemReader<K, V, Struct<K>> reader = reader(info, LiveRedisItemReader.struct(client, codec));
-        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-        return reader;
+        return liveReader(info, RedisItemReader.struct(client, codec));
     }
 
-    protected LiveRedisItemReader<String, String, Dump<String>> liveDumpReader(TestInfo testInfo, AbstractRedisClient client) {
+    protected RedisItemReader<String, String, Dump<String>> liveDumpReader(TestInfo testInfo, AbstractRedisClient client) {
         return liveDumpReader(testInfo, client, StringCodec.UTF8);
     }
 
-    protected <K, V> LiveRedisItemReader<K, V, Dump<K>> liveDumpReader(TestInfo info, AbstractRedisClient client,
+    protected <K, V> RedisItemReader<K, V, Dump<K>> liveDumpReader(TestInfo info, AbstractRedisClient client,
             RedisCodec<K, V> codec) {
-        LiveRedisItemReader<K, V, Dump<K>> reader = reader(info, LiveRedisItemReader.dump(client, codec));
+        return liveReader(info, RedisItemReader.dump(client, codec));
+    }
+
+    protected <K, V, T extends KeyValue<K, ?>> RedisItemReader<K, V, T> liveReader(TestInfo info,
+            RedisItemReader<K, V, T> reader) {
+        reader(info, reader);
         reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+        reader.setFlushingInterval(FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL);
         return reader;
     }
 
@@ -381,7 +386,7 @@ public abstract class AbstractTestBase {
     }
 
     @SuppressWarnings("rawtypes")
-    protected <R extends AbstractRedisItemReader> R reader(TestInfo info, R reader) {
+    protected <R extends RedisItemReader> R reader(TestInfo info, R reader) {
         reader.setJobRepository(jobRepository);
         reader.setTransactionManager(transactionManager);
         reader.setName(name(info));
@@ -416,11 +421,6 @@ public abstract class AbstractTestBase {
     protected JobExecution runAsync(Job job) throws JobExecutionException {
         JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
         awaitRunning(execution);
-        try {
-            Thread.sleep(DEFAULT_ASYNC_DELAY.toMillis());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
         return execution;
     }
 
@@ -480,6 +480,28 @@ public abstract class AbstractTestBase {
 
     protected void open(ItemStream itemStream) {
         itemStream.open(new ExecutionContext());
+    }
+
+    protected OperationExecutor<String, Dump<String>> dumpOperationExecutor() {
+        return dumpOperationExecutor(StringCodec.UTF8);
+    }
+
+    protected <K, V> SimpleOperationExecutor<K, V, K, Dump<K>> dumpOperationExecutor(RedisCodec<K, V> codec) {
+        RedisItemReader<K, V, Dump<K>> reader = RedisItemReader.dump(client, codec);
+        SimpleOperationExecutor<K, V, K, Dump<K>> executor = reader.operationExecutor();
+        executor.open(new ExecutionContext());
+        return executor;
+    }
+
+    protected SimpleOperationExecutor<String, String, String, Struct<String>> structOperationExecutor() {
+        return structOperationExecutor(StringCodec.UTF8);
+    }
+
+    protected <K, V> SimpleOperationExecutor<K, V, K, Struct<K>> structOperationExecutor(RedisCodec<K, V> codec) {
+        RedisItemReader<K, V, Struct<K>> reader = RedisItemReader.struct(client, codec);
+        SimpleOperationExecutor<K, V, K, Struct<K>> executor = reader.operationExecutor();
+        executor.open(new ExecutionContext());
+        return executor;
     }
 
 }

@@ -22,8 +22,8 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyComparisonItemReader;
@@ -31,7 +31,6 @@ import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.testcontainers.RedisServer;
 
@@ -110,8 +109,8 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         return reader;
     }
 
-    protected <K, V, T extends KeyValue<K, ?>> boolean liveReplication(TestInfo testInfo, RedisItemReader<K, V, T> reader,
-            RedisItemWriter<K, V, T> writer, LiveRedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
+    protected <K, V, T extends KeyValue<K, ?>> boolean replicateLive(TestInfo testInfo, RedisItemReader<K, V, T> reader,
+            RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
             throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(300);

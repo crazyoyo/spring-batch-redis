@@ -6,11 +6,12 @@ import com.redis.spring.batch.common.Dump;
 
 public class LuaToDumpFunction<K> extends AbstractLuaFunction<K, Dump<K>> {
 
-    private static final String VALUE_TYPE = "dump";
-
     @Override
     protected Dump<K> keyValue(K key, Iterator<Object> iterator) {
-        return new Dump<>(key, (byte[]) value(iterator));
+        Dump<K> dump = new Dump<>();
+        dump.setKey(key);
+        dump.setValue((byte[]) value(iterator));
+        return dump;
     }
 
     private Object value(Iterator<Object> iterator) {
@@ -18,11 +19,6 @@ public class LuaToDumpFunction<K> extends AbstractLuaFunction<K, Dump<K>> {
             return iterator.next();
         }
         return null;
-    }
-
-    @Override
-    public String getValueType() {
-        return VALUE_TYPE;
     }
 
 }

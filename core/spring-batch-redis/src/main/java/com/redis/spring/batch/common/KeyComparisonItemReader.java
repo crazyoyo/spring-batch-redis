@@ -6,10 +6,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
@@ -21,8 +19,6 @@ import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.util.BatchUtils;
 
-import io.lettuce.core.api.StatefulConnection;
-
 public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyComparison> {
 
     public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
@@ -33,11 +29,9 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 
     private final RedisItemReader<String, String, Struct<String>> right;
 
-    private GenericObjectPool<StatefulConnection<String, String>> rightPool;
-
     private Iterator<KeyComparison> iterator = Collections.emptyIterator();
 
-    private Function<List<? extends String>, List<Struct<String>>> rightFunction;
+    private SimpleOperationExecutor<String, String, String, Struct<String>> rightOperationExecutor;
 
     public KeyComparisonItemReader(RedisItemReader<String, String, Struct<String>> left,
             RedisItemReader<String, String, Struct<String>> right) {
@@ -63,11 +57,11 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
     @Override
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
-        if (!isOpen()) {
-            rightPool = right.pool();
-            rightFunction = right.toKeyValueFunction(rightPool);
-            left.open(executionContext);
+        if (rightOperationExecutor == null) {
+            rightOperationExecutor = right.operationExecutor();
+            rightOperationExecutor.open(executionContext);
         }
+        left.open(executionContext);
     }
 
     public boolean isOpen() {
@@ -75,31 +69,13 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
     }
 
     @Override
-    public void update(ExecutionContext executionContext) {
-        super.update(executionContext);
-        left.update(executionContext);
-    }
-
-    @Override
-    public synchronized void close() {
-        if (isOpen()) {
-            rightPool.close();
-            left.close();
-        }
-        super.close();
-    }
-
-    @Override
     public synchronized KeyComparison read() throws Exception {
-        if (!isOpen()) {
-            return null;
-        }
         if (iterator.hasNext()) {
             return iterator.next();
         }
         List<Struct<String>> leftItems = left.readChunk();
         List<String> keys = leftItems.stream().map(Struct::getKey).collect(Collectors.toList());
-        List<Struct<String>> rightItems = rightFunction.apply(keys);
+        List<Struct<String>> rightItems = rightOperationExecutor.execute(keys);
         List<KeyComparison> results = new ArrayList<>();
         for (int index = 0; index < leftItems.size(); index++) {
             Struct<String> leftItem = leftItems.get(index);
@@ -112,6 +88,23 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
             return iterator.next();
         }
         return null;
+    }
+
+    @Override
+    public void update(ExecutionContext executionContext) {
+        super.update(executionContext);
+        rightOperationExecutor.update(executionContext);
+        left.update(executionContext);
+    }
+
+    @Override
+    public synchronized void close() {
+        if (rightOperationExecutor != null) {
+            rightOperationExecutor.close();
+            rightOperationExecutor = null;
+        }
+        left.close();
+        super.close();
     }
 
     private <T> T getElement(List<T> list, int index) {

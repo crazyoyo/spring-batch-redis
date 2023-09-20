@@ -22,10 +22,10 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.Dump;
+import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.Struct;
 import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.reader.LiveRedisItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.util.BatchUtils;
@@ -59,7 +59,7 @@ class StackTests extends ModulesTests {
     }
 
     @Test
-    void structs(TestInfo info) throws Exception {
+    void readWriteStruct(TestInfo info) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
         generate(info, gen);
@@ -79,13 +79,13 @@ class StackTests extends ModulesTests {
     }
 
     @Test
-    void liveTypeBasedReplication(TestInfo info) throws Exception {
+    void replicateLiveStruct(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
         RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
         RedisItemWriter<String, String, Struct<String>> writer = structWriter(targetClient);
-        LiveRedisItemReader<String, String, Struct<String>> liveReader = liveStructReader(info, client);
+        RedisItemReader<String, String, Struct<String>> liveReader = liveStructReader(info, client);
         RedisItemWriter<String, String, Struct<String>> liveWriter = structWriter(targetClient);
-        Assertions.assertTrue(liveReplication(info, reader, writer, liveReader, liveWriter));
+        Assertions.assertTrue(replicateLive(info, reader, writer, liveReader, liveWriter));
     }
 
     private static final String DEFAULT_CONSUMER_GROUP = "consumerGroup";
@@ -169,16 +169,18 @@ class StackTests extends ModulesTests {
         connection.sync().pexpireat(key, ttl);
         RedisItemReader<String, String, Struct<String>> reader = RedisItemReader.struct(client, StringCodec.UTF8);
         reader.setMemoryUsageLimit(DataSize.ofBytes(-1));
-        Function<List<? extends String>, List<Struct<String>>> operation = reader.toKeyValueFunction(pool);
-        Struct<String> ds = operation.apply(Arrays.asList(key)).get(0);
+        SimpleOperationExecutor<String, String, String, Struct<String>> executor = reader.operationExecutor();
+        executor.open(new ExecutionContext());
+        Struct<String> ds = executor.execute(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(ttl, ds.getTtl());
         Assertions.assertEquals(Type.HASH, ds.getType());
         Assertions.assertTrue(ds.getMemoryUsage().toBytes() > 0);
+        executor.close();
     }
 
     @Test
-    void structsMemUsage(TestInfo info) throws Exception {
+    void structMemUsage(TestInfo info) throws Exception {
         generate(info);
         long memLimit = 200;
         RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
@@ -197,7 +199,7 @@ class StackTests extends ModulesTests {
     }
 
     @Test
-    void replicateStructsMemLimit(TestInfo info) throws Exception {
+    void replicateStructMemLimit(TestInfo info) throws Exception {
         generate(info);
         RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
         reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
@@ -207,7 +209,7 @@ class StackTests extends ModulesTests {
     }
 
     @Test
-    void replicateDumpsMemLimitHigh(TestInfo info) throws Exception {
+    void replicateDumpMemLimitHigh(TestInfo info) throws Exception {
         generate(info);
         RedisItemReader<byte[], byte[], Dump<byte[]>> reader = dumpReader(info, client, ByteArrayCodec.INSTANCE);
         reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
@@ -217,7 +219,7 @@ class StackTests extends ModulesTests {
     }
 
     @Test
-    void replicateDumpsMemLimitLow(TestInfo info) throws Exception {
+    void replicateDumpMemLimitLow(TestInfo info) throws Exception {
         generate(info);
         Assertions.assertTrue(connection.sync().dbsize() > 10);
         long memLimit = 1500;
@@ -256,7 +258,7 @@ class StackTests extends ModulesTests {
     }
 
     @Test
-    void replicateDs(TestInfo info) throws Exception {
+    void replicateStruct(TestInfo info) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(10000);
         gen.setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);
@@ -268,7 +270,7 @@ class StackTests extends ModulesTests {
     }
 
     @Test
-    void replicateDsEmptyCollections(TestInfo info) throws Exception {
+    void replicateStructEmptyCollections(TestInfo info) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(10000);
         gen.setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);

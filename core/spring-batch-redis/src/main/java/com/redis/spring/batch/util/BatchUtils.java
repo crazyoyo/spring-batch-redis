@@ -14,11 +14,13 @@ import org.springframework.batch.item.support.CompositeItemWriter;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.common.AbstractOperationExecutor;
 import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.reader.AbstractRedisItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
+import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
 
 public abstract class BatchUtils {
@@ -37,21 +39,13 @@ public abstract class BatchUtils {
         return taskExecutor;
     }
 
-    public static boolean isOpen(Object object) {
-        return isOpen(object, true);
-    }
-
-    public static boolean isClosed(Object object) {
-        return !isOpen(object, false);
-    }
-
     @SuppressWarnings("rawtypes")
-    private static boolean isOpen(Object object, boolean defaultValue) {
+    public static boolean isOpen(Object object) {
         if (object instanceof GeneratorItemReader) {
             return ((GeneratorItemReader) object).isOpen();
         }
-        if (object instanceof AbstractRedisItemReader) {
-            return ((AbstractRedisItemReader) object).isOpen();
+        if (object instanceof RedisItemReader) {
+            return ((RedisItemReader) object).isOpen();
         }
         if (object instanceof RedisItemWriter) {
             return ((RedisItemWriter) object).isOpen();
@@ -59,13 +53,19 @@ public abstract class BatchUtils {
         if (object instanceof KeyspaceNotificationItemReader) {
             return ((KeyspaceNotificationItemReader) object).isOpen();
         }
+        if (object instanceof ScanKeyItemReader) {
+            return ((ScanKeyItemReader) object).isOpen();
+        }
         if (object instanceof StreamItemReader) {
             return ((StreamItemReader) object).isOpen();
         }
         if (object instanceof KeyComparisonItemReader) {
             return ((KeyComparisonItemReader) object).isOpen();
         }
-        return defaultValue;
+        if (object instanceof AbstractOperationExecutor) {
+            return ((AbstractOperationExecutor) object).isOpen();
+        }
+        return false;
     }
 
     public static boolean isPositive(Duration duration) {

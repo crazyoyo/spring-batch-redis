@@ -2,12 +2,13 @@ package com.redis.spring.batch.reader;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Function;
 
 import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.common.KeyValue;
 
-public abstract class AbstractLuaFunction<K, T extends KeyValue<K, ?>> implements LuaToKeyValueFunction<T> {
+public abstract class AbstractLuaFunction<K, T extends KeyValue<K, ?>> implements Function<List<Object>, T> {
 
     @Override
     public T apply(List<Object> item) {
