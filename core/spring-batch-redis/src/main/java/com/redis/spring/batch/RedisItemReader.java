@@ -49,6 +49,7 @@ import com.redis.spring.batch.reader.LuaToDumpFunction;
 import com.redis.spring.batch.reader.LuaToStructFunction;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
+import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 
@@ -59,6 +60,10 @@ import io.micrometer.core.instrument.Metrics;
 
 public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractItemStreamItemReader<T>
         implements PollableItemReader<T> {
+
+    public enum Mode {
+        SCAN, LIVE
+    }
 
     private static final String LUA_FILENAME = "keyvalue.lua";
 
@@ -74,6 +79,8 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
 
     public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
+    public static final Duration DEFAULT_FLUSH_INTERVAL = FlushingChunkProvider.DEFAULT_FLUSH_INTERVAL;
+
     public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(10);
 
     /**
@@ -85,6 +92,8 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
 
     public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = 10000;
 
+    public static final Mode DEFAULT_MODE = Mode.SCAN;
+
     private final Log log = LogFactory.getLog(getClass());
 
     private final AbstractRedisClient client;
@@ -93,13 +102,15 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
 
     private final Class<?> type;
 
+    private Mode mode = DEFAULT_MODE;
+
     private int database;
 
     private OrderingStrategy orderingStrategy = DEFAULT_ORDERING;
 
     private int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
 
-    private Duration flushingInterval;
+    private Duration flushInterval = DEFAULT_FLUSH_INTERVAL;
 
     private Duration idleTimeout;
 
@@ -136,8 +147,6 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
     private JobExecution jobExecution;
 
     private ItemReader<K> keyReader;
-
-    private KeyValueItemWriter<K, V, T> writer;
 
     private BlockingQueue<T> queue;
 
@@ -184,6 +193,10 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         this.memoryUsageSamples = memoryUsageSamples;
     }
 
+    public void setMode(Mode mode) {
+        this.mode = mode;
+    }
+
     public void setReadFrom(ReadFrom readFrom) {
         this.readFrom = readFrom;
     }
@@ -208,8 +221,8 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         this.idleTimeout = idleTimeout;
     }
 
-    public void setFlushingInterval(Duration interval) {
-        this.flushingInterval = interval;
+    public void setFlushInterval(Duration interval) {
+        this.flushInterval = interval;
     }
 
     public void setNotificationQueueCapacity(int notificationQueueCapacity) {
@@ -302,16 +315,16 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         step.processor(keyProcessor);
         queue = new LinkedBlockingQueue<>(queueCapacity);
         Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
-        writer = new KeyValueItemWriter<>(client, codec, evalOperation(), queue);
+        KeyValueItemWriter<K, V, T> writer = new KeyValueItemWriter<>(client, codec, evalOperation(), queue);
         configure(writer);
         step.writer(writer);
         if (threads > 1) {
             step.taskExecutor(BatchUtils.threadPoolTaskExecutor(threads));
             step.throttleLimit(threads);
         }
-        if (flushingInterval != null) {
+        if (isLive()) {
             FlushingStepBuilder<K, K> flushingStep = new FlushingStepBuilder<>(step);
-            flushingStep.interval(flushingInterval);
+            flushingStep.interval(flushInterval);
             flushingStep.idleTimeout(idleTimeout);
             return flushingStep;
         }
@@ -332,7 +345,7 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
     }
 
     private ItemReader<K> keyReader() {
-        if (flushingInterval != null) {
+        if (isLive()) {
             KeyspaceNotificationItemReader<K, V> reader = new KeyspaceNotificationItemReader<>(client, codec);
             reader.setDatabase(database);
             reader.setKeyPattern(keyPattern);
@@ -348,6 +361,10 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         reader.setMatch(keyPattern);
         reader.setType(keyType == null ? null : keyType.getString());
         return reader;
+    }
+
+    private boolean isLive() {
+        return mode == Mode.LIVE;
     }
 
     @Override

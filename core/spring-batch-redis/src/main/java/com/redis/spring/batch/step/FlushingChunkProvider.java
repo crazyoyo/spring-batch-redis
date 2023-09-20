@@ -30,11 +30,11 @@ import io.micrometer.core.instrument.Timer.Sample;
  */
 public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 
-    public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
+    public static final Duration DEFAULT_FLUSH_INTERVAL = Duration.ofMillis(50);
 
     private final RepeatOperations repeatOperations;
 
-    private Duration interval = DEFAULT_FLUSHING_INTERVAL;
+    private Duration interval = DEFAULT_FLUSH_INTERVAL;
 
     private Duration idleTimeout; // no idle stream detection by default
 
@@ -54,7 +54,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
         this.idleTimeout = timeout;
     }
 
-    private void stopFlushingTimer(Timer.Sample sample, StepExecution stepExecution, String status) {
+    private void stopFlushTimer(Timer.Sample sample, StepExecution stepExecution, String status) {
         sample.stop(BatchMetrics.createTimer("item.read", "Item reading duration",
                 Tag.of("job.name", stepExecution.getJobExecution().getJobInstance().getJobName()),
                 Tag.of("step.name", stepExecution.getStepName()), Tag.of("status", status)));
@@ -78,7 +78,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
                 item = read(contribution, inputs, pollingTimeout);
             } catch (SkipOverflowException e) {
                 // read() tells us about an excess of skips by throwing an exception
-                stopFlushingTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_FAILURE);
+                stopFlushTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_FAILURE);
                 return RepeatStatus.FINISHED;
             }
             if (item == null) {
@@ -87,7 +87,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
                 }
                 return RepeatStatus.CONTINUABLE;
             }
-            stopFlushingTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_SUCCESS);
+            stopFlushTimer(sample, contribution.getStepExecution(), BatchMetrics.STATUS_SUCCESS);
             inputs.add(item);
             contribution.incrementReadCount();
             lastActivity = System.currentTimeMillis();
