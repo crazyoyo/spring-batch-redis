@@ -103,9 +103,9 @@ public abstract class AbstractTestBase {
 
     protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
 
-    private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(10);
+    private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(1);
 
-    private static final Duration DEFAULT_POLL_DELAY = Duration.ofMillis(1);
+    private static final Duration DEFAULT_POLL_DELAY = Duration.ZERO;
 
     protected static final int DEFAULT_GENERATOR_COUNT = 100;
 
