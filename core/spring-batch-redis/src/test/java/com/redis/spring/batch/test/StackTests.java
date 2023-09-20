@@ -18,7 +18,6 @@ import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.util.unit.DataSize;
 
-import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.Dump;
@@ -38,7 +37,6 @@ import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.Range;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.StreamMessage;
-import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.StringCodec;
 
@@ -99,10 +97,10 @@ class StackTests extends ModulesTests {
     @Test
     void readMultipleStreams(TestInfo testInfo) throws Exception {
         generateStreams(testInfo(testInfo, "streams"), 277);
-        final List<String> keys = ScanIterator.scan(connection.sync(), KeyScanArgs.Builder.type(Type.STREAM.getString()))
-                .stream().collect(Collectors.toList());
+        final List<String> keys = ScanIterator.scan(commands, KeyScanArgs.Builder.type(Type.STREAM.getString())).stream()
+                .collect(Collectors.toList());
         for (String key : keys) {
-            long count = connection.sync().xlen(key);
+            long count = commands.xlen(key);
             StreamItemReader<String, String> reader1 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
             reader1.setAckPolicy(StreamAckPolicy.MANUAL);
             StreamItemReader<String, String> reader2 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"));
@@ -122,8 +120,7 @@ class StackTests extends ModulesTests {
             Assertions.assertEquals(count, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
             assertMessageBody(writer1.getWrittenItems());
             assertMessageBody(writer2.getWrittenItems());
-            RedisModulesCommands<String, String> sync = connection.sync();
-            Assertions.assertEquals(count, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
+            Assertions.assertEquals(count, commands.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
             reader1 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
             reader1.setAckPolicy(StreamAckPolicy.MANUAL);
             reader1.open(new ExecutionContext());
@@ -134,7 +131,7 @@ class StackTests extends ModulesTests {
             reader2.open(new ExecutionContext());
             reader2.ack(writer2.getWrittenItems());
             reader2.close();
-            Assertions.assertEquals(0, sync.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
+            Assertions.assertEquals(0, commands.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
         }
     }
 
@@ -155,9 +152,8 @@ class StackTests extends ModulesTests {
         RedisItemWriter<String, String, Map<String, String>> writer = new RedisItemWriter<>(client, StringCodec.UTF8, xadd);
         writer.setMultiExec(true);
         run(testInfo, reader, writer);
-        RedisStreamCommands<String, String> sync = connection.sync();
-        Assertions.assertEquals(messages.size(), sync.xlen(stream));
-        List<StreamMessage<String, String>> xrange = sync.xrange(stream, Range.create("-", "+"));
+        Assertions.assertEquals(messages.size(), commands.xlen(stream));
+        List<StreamMessage<String, String>> xrange = commands.xrange(stream, Range.create("-", "+"));
         for (int index = 0; index < xrange.size(); index++) {
             StreamMessage<String, String> message = xrange.get(index);
             Assertions.assertEquals(messages.get(index), message.getBody());
@@ -170,9 +166,9 @@ class StackTests extends ModulesTests {
         Map<String, String> hash = new HashMap<>();
         hash.put("field1", "value1");
         hash.put("field2", "value2");
-        connection.sync().hset(key, hash);
+        commands.hset(key, hash);
         long ttl = System.currentTimeMillis() + 123456;
-        connection.sync().pexpireat(key, ttl);
+        commands.pexpireat(key, ttl);
         RedisItemReader<String, String, Struct<String>> reader = RedisItemReader.struct(client, StringCodec.UTF8);
         reader.setMemoryUsageLimit(DataSize.ofBytes(-1));
         SimpleOperationExecutor<String, String, String, Struct<String>> executor = reader.operationExecutor();
@@ -231,7 +227,7 @@ class StackTests extends ModulesTests {
     @Test
     void replicateDumpMemLimitLow(TestInfo info) throws Exception {
         generate(info);
-        Assertions.assertTrue(connection.sync().dbsize() > 10);
+        Assertions.assertTrue(commands.dbsize() > 10);
         long memLimit = 1500;
         RedisItemReader<byte[], byte[], Dump<byte[]>> reader = dumpReader(info, client, ByteArrayCodec.INSTANCE);
         reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
@@ -249,16 +245,16 @@ class StackTests extends ModulesTests {
         fullReader.close();
         Predicate<Struct<String>> isMemKey = v -> v.getMemoryUsage().toBytes() > memLimit;
         List<Struct<String>> bigkeys = items.stream().filter(isMemKey).collect(Collectors.toList());
-        Assertions.assertEquals(connection.sync().dbsize(), bigkeys.size() + targetConnection.sync().dbsize());
+        Assertions.assertEquals(commands.dbsize(), bigkeys.size() + targetCommands.dbsize());
     }
 
     @Test
     void replicateMemLimit(TestInfo info) throws Exception {
         DataSize limit = DataSize.ofBytes(500);
         String key1 = "key:1";
-        connection.sync().set(key1, "bar");
+        commands.set(key1, "bar");
         String key2 = "key:2";
-        connection.sync().set(key2, GeneratorItemReader.string(Math.toIntExact(limit.toBytes() * 2)));
+        commands.set(key2, GeneratorItemReader.string(Math.toIntExact(limit.toBytes() * 2)));
         RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
         reader.setName(name(info) + "-reader");
         reader.setMemoryUsageLimit(limit);

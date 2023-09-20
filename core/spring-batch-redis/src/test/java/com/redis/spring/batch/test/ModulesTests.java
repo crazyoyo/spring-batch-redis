@@ -103,9 +103,9 @@ abstract class ModulesTests extends ReplicationTests {
         RedisItemWriter<String, String, JsonNode> writer = new RedisItemWriter<>(client, StringCodec.UTF8, jsonSet);
         IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
         run(testInfo, reader, writer);
-        Assertions.assertEquals(BEER_COUNT, connection.sync().keys("beer:*").size());
+        Assertions.assertEquals(BEER_COUNT, commands.keys("beer:*").size());
         Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
-                new ObjectMapper().readTree(connection.sync().jsonGet("beer:1", "$")));
+                new ObjectMapper().readTree(commands.jsonGet("beer:1", "$")));
     }
 
     @Test
@@ -117,7 +117,7 @@ abstract class ModulesTests extends ReplicationTests {
         JsonDel<String, String, Struct<String>> jsonDel = new JsonDel<>();
         jsonDel.setKeyFunction(Struct::getKey);
         run(testInfo, gen, new RedisItemWriter<>(client, StringCodec.UTF8, jsonDel));
-        Assertions.assertEquals(0, connection.sync().dbsize());
+        Assertions.assertEquals(0, commands.dbsize());
     }
 
     @Test
@@ -138,32 +138,30 @@ abstract class ModulesTests extends ReplicationTests {
         tsadd.setOptions(addOptions);
         RedisItemWriter<String, String, Sample> writer = new RedisItemWriter<>(client, StringCodec.UTF8, tsadd);
         run(testInfo, reader, writer);
-        Assertions.assertEquals(count / 2,
-                connection.sync().tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
+        Assertions.assertEquals(count / 2, commands.tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(),
+                2);
     }
 
     @Test
     void beerIndex() throws Exception {
         Beers.populateIndex(connection);
-        IndexInfo indexInfo = RedisModulesUtils.indexInfo(connection.sync().ftInfo(Beers.INDEX));
+        IndexInfo indexInfo = RedisModulesUtils.indexInfo(commands.ftInfo(Beers.INDEX));
         Assertions.assertEquals(BEER_COUNT, indexInfo.getNumDocs());
     }
 
     @Test
     void tsComparator(TestInfo info) throws Exception {
-        connection.sync().tsAdd("ts:1", Sample.of(123));
+        int count = 1000;
+        for (int index = 0; index < count; index++) {
+            commands.tsAdd("ts:" + index, Sample.of(123));
+        }
         KeyComparisonItemReader reader = comparisonReader(info);
         reader.setName(name(info));
-        log.debug("Opening KeyComparisonItemReader");
         reader.open(new ExecutionContext());
-        log.debug("Awaiting KeyComparisonItemReader open");
         awaitOpen(reader);
-        log.debug("readAll");
         List<KeyComparison> comparisons = BatchUtils.readAll(reader);
-        log.debug("Closing KeyComparisonItemReader");
         reader.close();
-        log.debug("KeyComparisonItemReader closed");
-        Assertions.assertEquals(1, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());
+        Assertions.assertEquals(count, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());
     }
 
     @Test
@@ -171,7 +169,7 @@ abstract class ModulesTests extends ReplicationTests {
         String key = "myts";
         Sample[] samples = { Sample.of(System.currentTimeMillis(), 1.1), Sample.of(System.currentTimeMillis() + 10, 2.2) };
         for (Sample sample : samples) {
-            connection.sync().tsAdd(key, sample);
+            commands.tsAdd(key, sample);
         }
         SimpleOperationExecutor<String, String, String, Struct<String>> executor = structOperationExecutor();
         Struct<String> ds = executor.execute(Arrays.asList(key)).get(0);
@@ -186,7 +184,7 @@ abstract class ModulesTests extends ReplicationTests {
         String key = "myts";
         Sample[] samples = { Sample.of(System.currentTimeMillis(), 1.1), Sample.of(System.currentTimeMillis() + 10, 2.2) };
         for (Sample sample : samples) {
-            connection.sync().tsAdd(key, sample);
+            commands.tsAdd(key, sample);
         }
         SimpleOperationExecutor<byte[], byte[], byte[], Struct<byte[]>> executor = structOperationExecutor(
                 ByteArrayCodec.INSTANCE);
@@ -212,9 +210,8 @@ abstract class ModulesTests extends ReplicationTests {
         tsAdd.setSample(converter);
         RedisItemWriter<String, String, Sample> writer = new RedisItemWriter<>(client, StringCodec.UTF8, tsAdd);
         run(testInfo, reader, writer);
-        RedisModulesCommands<String, String> sync = connection.sync();
-        assertEquals(1, sync.dbsize());
-        assertEquals(values.size(), sync.tsRange(key, TimeRange.unbounded()).size());
+        assertEquals(1, commands.dbsize());
+        assertEquals(values.size(), commands.tsRange(key, TimeRange.unbounded()).size());
     }
 
     @Test
@@ -230,7 +227,7 @@ abstract class ModulesTests extends ReplicationTests {
         sugadd.setSuggestion(new ToSuggestionFunction<>(Suggestion::getString, Suggestion::getScore, Suggestion::getPayload));
         RedisItemWriter<String, String, Suggestion<String>> writer = new RedisItemWriter<>(client, StringCodec.UTF8, sugadd);
         run(testInfo, reader, writer);
-        RedisModulesCommands<String, String> sync = connection.sync();
+        RedisModulesCommands<String, String> sync = commands;
         assertEquals(1, sync.dbsize());
         assertEquals(values.size(), sync.ftSuglen(key));
     }
@@ -251,9 +248,8 @@ abstract class ModulesTests extends ReplicationTests {
         sugadd.setIncr(true);
         RedisItemWriter<String, String, Suggestion<String>> writer = new RedisItemWriter<>(client, StringCodec.UTF8, sugadd);
         run(testInfo, reader, writer);
-        RedisModulesCommands<String, String> sync = connection.sync();
-        assertEquals(1, sync.dbsize());
-        assertEquals(values.size(), sync.ftSuglen(key));
+        assertEquals(1, commands.dbsize());
+        assertEquals(values.size(), commands.ftSuglen(key));
     }
 
 }

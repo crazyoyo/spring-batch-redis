@@ -57,7 +57,7 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         run(info, reader, writer);
         awaitClosed(reader);
         awaitClosed(writer);
-        assertEquals(connection.sync().hgetall("gen:1"), targetConnection.sync().hgetall("gen:1"));
+        assertEquals(commands.hgetall("gen:1"), targetCommands.hgetall("gen:1"));
     }
 
     private MapOptions hashOptions(Range fieldCount) {
@@ -83,14 +83,14 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         run(info, reader, writer);
         awaitClosed(reader);
         awaitClosed(writer);
-        Map<String, String> actual = targetConnection.sync().hgetall("gen:1");
+        Map<String, String> actual = targetCommands.hgetall("gen:1");
         assertEquals(10, actual.size());
     }
 
     @Test
     void compareSet(TestInfo info) throws Exception {
-        connection.sync().sadd("set:1", "value1", "value2");
-        targetConnection.sync().sadd("set:1", "value2", "value1");
+        commands.sadd("set:1", "value1", "value2");
+        targetCommands.sadd("set:1", "value2", "value1");
         KeyComparisonItemReader reader = comparisonReader(info);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
@@ -127,7 +127,7 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         run(info, reader, writer);
         awaitClosed(reader);
         awaitClosed(writer);
-        Assertions.assertEquals(connection.sync().dbsize(), targetConnection.sync().dbsize());
+        Assertions.assertEquals(commands.dbsize(), targetCommands.dbsize());
     }
 
     @Test
@@ -162,31 +162,31 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
     void replicateSetLive(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
         String key = "myset";
-        connection.sync().sadd(key, "1", "2", "3", "4", "5");
+        commands.sadd(key, "1", "2", "3", "4", "5");
         RedisItemReader<String, String, Struct<String>> reader = liveStructReader(info, client);
         reader.setNotificationQueueCapacity(100);
         RedisItemWriter<String, String, Struct<String>> writer = structWriter(targetClient);
         JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
         awaitOpen(reader);
         awaitOpen(writer);
-        connection.sync().srem(key, "5");
+        commands.srem(key, "5");
         awaitTermination(execution);
-        assertEquals(connection.sync().smembers(key), targetConnection.sync().smembers(key));
+        assertEquals(commands.smembers(key), targetCommands.smembers(key));
     }
 
     @Test
     void replicateHLL(TestInfo info) throws Exception {
         String key1 = "hll:1";
-        connection.sync().pfadd(key1, "member:1", "member:2");
+        commands.pfadd(key1, "member:1", "member:2");
         String key2 = "hll:2";
-        connection.sync().pfadd(key2, "member:1", "member:2", "member:3");
+        commands.pfadd(key2, "member:1", "member:2", "member:3");
         RedisItemReader<byte[], byte[], Struct<byte[]>> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[], Struct<byte[]>> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
         run(info, reader, writer);
         awaitClosed(reader);
         awaitClosed(writer);
-        RedisModulesCommands<String, String> sourceSync = connection.sync();
-        RedisModulesCommands<String, String> targetSync = targetConnection.sync();
+        RedisModulesCommands<String, String> sourceSync = commands;
+        RedisModulesCommands<String, String> targetSync = targetCommands;
         assertEquals(sourceSync.pfcount(key1), targetSync.pfcount(key1));
     }
 
@@ -203,24 +203,24 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         awaitClosed(writer);
         long deleted = 0;
         for (int index = 0; index < 13; index++) {
-            deleted += targetConnection.sync().del(targetConnection.sync().randomkey());
+            deleted += targetCommands.del(targetCommands.randomkey());
         }
         Set<String> ttlChanges = new HashSet<>();
         for (int index = 0; index < 23; index++) {
-            String key = targetConnection.sync().randomkey();
+            String key = targetCommands.randomkey();
             if (key == null) {
                 continue;
             }
-            long ttl = targetConnection.sync().ttl(key) + 12345;
-            if (targetConnection.sync().expire(key, ttl)) {
+            long ttl = targetCommands.ttl(key) + 12345;
+            if (targetCommands.expire(key, ttl)) {
                 ttlChanges.add(key);
             }
         }
         Set<String> typeChanges = new HashSet<>();
         Set<String> valueChanges = new HashSet<>();
         for (int index = 0; index < 17; index++) {
-            String key = targetConnection.sync().randomkey();
-            String type = targetConnection.sync().type(key);
+            String key = targetCommands.randomkey();
+            String type = targetCommands.type(key);
             if (type.equalsIgnoreCase(Type.STRING.getString())) {
                 if (!typeChanges.contains(key)) {
                     valueChanges.add(key);
@@ -231,16 +231,16 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
                 valueChanges.remove(key);
                 ttlChanges.remove(key);
             }
-            targetConnection.sync().set(key, "blah");
+            targetCommands.set(key, "blah");
         }
         KeyComparisonItemReader comparator = comparisonReader(info);
         comparator.setName(name(info));
         comparator.open(new ExecutionContext());
         List<KeyComparison> comparisons = BatchUtils.readAll(comparator);
         comparator.close();
-        long sourceCount = connection.sync().dbsize();
+        long sourceCount = commands.dbsize();
         assertEquals(sourceCount, comparisons.size());
-        assertEquals(sourceCount, targetConnection.sync().dbsize() + deleted);
+        assertEquals(sourceCount, targetCommands.dbsize() + deleted);
         assertEquals(typeChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.TYPE).count());
         assertEquals(valueChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.VALUE).count());
         assertEquals(ttlChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.TTL).count());

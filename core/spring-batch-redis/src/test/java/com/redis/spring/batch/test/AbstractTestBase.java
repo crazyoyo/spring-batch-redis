@@ -60,6 +60,7 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.Dump;
 import com.redis.spring.batch.common.KeyValue;
@@ -71,7 +72,6 @@ import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
-import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
@@ -172,7 +172,7 @@ public abstract class AbstractTestBase {
 
     @BeforeEach
     void flushAll() {
-        connection.sync().flushall();
+        commands.flushall();
     }
 
     private static class SimpleTestInfo implements TestInfo {
@@ -371,8 +371,8 @@ public abstract class AbstractTestBase {
     protected <K, V, T extends KeyValue<K, ?>> RedisItemReader<K, V, T> liveReader(TestInfo info,
             RedisItemReader<K, V, T> reader) {
         reader(info, reader);
+        reader.setMode(Mode.LIVE);
         reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-        reader.setFlushingInterval(FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL);
         return reader;
     }
 
@@ -395,8 +395,8 @@ public abstract class AbstractTestBase {
 
     protected void flushAll(AbstractRedisClient client) {
         try (StatefulRedisModulesConnection<String, String> connection = RedisModulesUtils.connection(client)) {
-            connection.sync().flushall();
-            awaitUntil(() -> connection.sync().dbsize() == 0);
+            commands.flushall();
+            awaitUntil(() -> commands.dbsize() == 0);
         }
     }
 
