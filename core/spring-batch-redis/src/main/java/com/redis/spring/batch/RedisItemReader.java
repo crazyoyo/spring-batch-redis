@@ -231,7 +231,7 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
     }
 
     public boolean isOpen() {
-        return jobExecution != null && jobExecution.isRunning();
+        return jobExecution != null && jobExecution.isRunning() && BatchUtils.isOpen(keyReader);
     }
 
     @Override

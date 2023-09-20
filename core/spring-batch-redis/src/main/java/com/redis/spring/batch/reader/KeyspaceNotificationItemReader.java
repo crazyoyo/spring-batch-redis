@@ -8,8 +8,6 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
@@ -42,8 +40,6 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
     public static final String QUEUE_METER = "redis.batch.notification.queue.size";
 
     private static final KeyspaceNotificationComparator NOTIFICATION_COMPARATOR = new KeyspaceNotificationComparator();
-
-    private final Log log = LogFactory.getLog(getClass());
 
     private final AbstractRedisClient client;
 
@@ -162,7 +158,6 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
         if (notification == null) {
             return null;
         }
-        log.debug(notification);
         return stringKeyEncoder.apply(notification.getKey());
     }
 
