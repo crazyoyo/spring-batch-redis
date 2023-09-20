@@ -63,7 +63,11 @@ class StackTests extends ModulesTests {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
         generate(info, gen);
-        run(info, structReader(info, client), structWriter(targetClient));
+        RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
+        RedisItemWriter<String, String, Struct<String>> writer = structWriter(targetClient);
+        run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         Assertions.assertTrue(compare(info));
     }
 
@@ -75,6 +79,8 @@ class StackTests extends ModulesTests {
         RedisItemReader<byte[], byte[], Dump<byte[]>> reader = dumpReader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[], Dump<byte[]>> writer = dumpWriter(targetClient, ByteArrayCodec.INSTANCE);
         run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         Assertions.assertTrue(compare(info));
     }
 
@@ -205,6 +211,8 @@ class StackTests extends ModulesTests {
         reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
         RedisItemWriter<String, String, Struct<String>> writer = structWriter(targetClient);
         run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         Assertions.assertTrue(compare(info));
     }
 
@@ -215,6 +223,8 @@ class StackTests extends ModulesTests {
         reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
         RedisItemWriter<byte[], byte[], Dump<byte[]>> writer = dumpWriter(targetClient, ByteArrayCodec.INSTANCE);
         run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         Assertions.assertTrue(compare(info));
     }
 
@@ -227,6 +237,8 @@ class StackTests extends ModulesTests {
         reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
         RedisItemWriter<byte[], byte[], Dump<byte[]>> writer = dumpWriter(targetClient, ByteArrayCodec.INSTANCE);
         run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         RedisItemReader<String, String, Struct<String>> fullReader = structReader(info, client);
         fullReader.setName(name(info) + "-fullReader");
         fullReader.setJobRepository(jobRepository);
@@ -266,6 +278,8 @@ class StackTests extends ModulesTests {
         RedisItemReader<byte[], byte[], Struct<byte[]>> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[], Struct<byte[]>> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
         run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         Assertions.assertTrue(compare(info));
     }
 
@@ -278,6 +292,8 @@ class StackTests extends ModulesTests {
         RedisItemReader<byte[], byte[], Struct<byte[]>> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[], Struct<byte[]>> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
         run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         Assertions.assertTrue(compare(info));
     }
 

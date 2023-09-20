@@ -15,7 +15,6 @@ import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.AbstractOperationExecutor;
 import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
@@ -41,26 +40,23 @@ public abstract class BatchUtils {
 
     @SuppressWarnings("rawtypes")
     public static boolean isOpen(Object object) {
-        if (object instanceof GeneratorItemReader) {
-            return ((GeneratorItemReader) object).isOpen();
-        }
-        if (object instanceof RedisItemReader) {
-            return ((RedisItemReader) object).isOpen();
-        }
-        if (object instanceof RedisItemWriter) {
-            return ((RedisItemWriter) object).isOpen();
-        }
         if (object instanceof KeyspaceNotificationItemReader) {
             return ((KeyspaceNotificationItemReader) object).isOpen();
         }
         if (object instanceof ScanKeyItemReader) {
             return ((ScanKeyItemReader) object).isOpen();
         }
-        if (object instanceof StreamItemReader) {
-            return ((StreamItemReader) object).isOpen();
+        if (object instanceof RedisItemReader) {
+            return ((RedisItemReader) object).isOpen();
         }
         if (object instanceof KeyComparisonItemReader) {
             return ((KeyComparisonItemReader) object).isOpen();
+        }
+        if (object instanceof GeneratorItemReader) {
+            return ((GeneratorItemReader) object).isOpen();
+        }
+        if (object instanceof StreamItemReader) {
+            return ((StreamItemReader) object).isOpen();
         }
         if (object instanceof AbstractOperationExecutor) {
             return ((AbstractOperationExecutor) object).isOpen();

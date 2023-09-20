@@ -55,6 +55,8 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
         RedisItemWriter<String, String, Struct<String>> writer = structWriter(targetClient);
         run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         assertEquals(connection.sync().hgetall("gen:1"), targetConnection.sync().hgetall("gen:1"));
     }
 
@@ -79,6 +81,8 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
         RedisItemWriter<String, String, Struct<String>> writer = RedisItemWriter.structMerge(targetClient, StringCodec.UTF8);
         run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         Map<String, String> actual = targetConnection.sync().hgetall("gen:1");
         assertEquals(10, actual.size());
     }
@@ -121,6 +125,8 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         RedisItemReader<byte[], byte[], Struct<byte[]>> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[], Struct<byte[]>> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
         run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         Assertions.assertEquals(connection.sync().dbsize(), targetConnection.sync().dbsize());
     }
 
@@ -177,6 +183,8 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         RedisItemReader<byte[], byte[], Struct<byte[]>> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[], Struct<byte[]>> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
         run(info, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         RedisModulesCommands<String, String> sourceSync = connection.sync();
         RedisModulesCommands<String, String> targetSync = targetConnection.sync();
         assertEquals(sourceSync.pfcount(key1), targetSync.pfcount(key1));
@@ -188,8 +196,11 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(120);
         generate(info, gen);
-        run(testInfo(info, "replicate"), dumpReader(info, client, ByteArrayCodec.INSTANCE),
-                dumpWriter(targetClient, ByteArrayCodec.INSTANCE));
+        RedisItemReader<byte[], byte[], Dump<byte[]>> reader = dumpReader(info, client, ByteArrayCodec.INSTANCE);
+        RedisItemWriter<byte[], byte[], Dump<byte[]>> writer = dumpWriter(targetClient, ByteArrayCodec.INSTANCE);
+        run(testInfo(info, "replicate"), reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
         long deleted = 0;
         for (int index = 0; index < 13; index++) {
             deleted += targetConnection.sync().del(targetConnection.sync().randomkey());
@@ -222,11 +233,11 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
             }
             targetConnection.sync().set(key, "blah");
         }
-        KeyComparisonItemReader reader = comparisonReader(info);
-        reader.setName(name(info));
-        reader.open(new ExecutionContext());
-        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
-        reader.close();
+        KeyComparisonItemReader comparator = comparisonReader(info);
+        comparator.setName(name(info));
+        comparator.open(new ExecutionContext());
+        List<KeyComparison> comparisons = BatchUtils.readAll(comparator);
+        comparator.close();
         long sourceCount = connection.sync().dbsize();
         assertEquals(sourceCount, comparisons.size());
         assertEquals(sourceCount, targetConnection.sync().dbsize() + deleted);

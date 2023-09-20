@@ -408,10 +408,7 @@ public abstract class AbstractTestBase {
             ItemWriter<O> writer) throws JobExecutionException {
         SimpleStepBuilder<I, O> step = step(testInfo, reader, processor, writer);
         SimpleJobBuilder job = job(testInfo).start(step.build());
-        JobExecution execution = run(job.build());
-        awaitClosed(reader);
-        awaitClosed(writer);
-        return execution;
+        return run(job.build());
     }
 
     protected JobExecution run(Job job) throws JobExecutionException {
