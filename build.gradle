@@ -93,10 +93,6 @@ subprojects {
         exclude('build/**')
     }
 
-    dependencies {
-        compileOnly group: 'com.google.code.findbugs', name: 'jsr305', version: jsr305Version
-    }
-
     test {
         useJUnitPlatform()
     }
