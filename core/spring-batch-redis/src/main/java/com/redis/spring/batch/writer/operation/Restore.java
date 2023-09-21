@@ -16,38 +16,46 @@ public class Restore<K, V, T> extends AbstractOperation<K, V, T> {
 
     public static final long TTL_KEY_DOES_NOT_EXIST = -2;
 
-    private Function<T, byte[]> bytes;
+    private Function<T, byte[]> bytesFunction;
 
-    private ToLongFunction<T> absoluteTtl;
+    private ToLongFunction<T> ttlFunction;
 
-    private Predicate<T> replace = Predicates.isFalse();
+    private Predicate<T> replacePredicate = Predicates.isFalse();
 
-    public void setBytes(Function<T, byte[]> function) {
-        this.bytes = function;
+    public void setBytesFunction(Function<T, byte[]> function) {
+        this.bytesFunction = function;
     }
 
-    public void setTtl(ToLongFunction<T> function) {
-        this.absoluteTtl = function;
+    public void setTtl(long ttl) {
+        this.ttlFunction = t -> ttl;
+    }
+
+    public void setTtlFunction(ToLongFunction<T> function) {
+        this.ttlFunction = function;
     }
 
     public void setReplace(boolean replace) {
-        this.replace = Predicates.is(replace);
+        this.replacePredicate = Predicates.is(replace);
+    }
+
+    public void setReplacePredicate(Predicate<T> predicate) {
+        this.replacePredicate = predicate;
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-        byte[] dump = bytes.apply(item);
-        long ttl = absoluteTtl.applyAsLong(item);
+    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, List<RedisFuture<Object>> futures) {
+        byte[] dump = bytesFunction.apply(item);
+        long ttl = ttlFunction.applyAsLong(item);
         if (dump == null || ttl == TTL_KEY_DOES_NOT_EXIST) {
-            futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).del(key(item)));
+            futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).del(key));
         } else {
             RestoreArgs args = new RestoreArgs();
-            args.replace(replace.test(item));
+            args.replace(replacePredicate.test(item));
             if (ttl > 0) {
                 args.absttl().ttl(ttl);
             }
-            futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).restore(key(item), dump, args));
+            futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).restore(key, dump, args));
         }
     }
 

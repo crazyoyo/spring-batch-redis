@@ -14,33 +14,30 @@ import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 
 public class XAddAll<K, V, T> implements Operation<K, V, T, Object> {
 
-    private Function<T, Collection<StreamMessage<K, V>>> messages;
+    private Function<T, Collection<StreamMessage<K, V>>> messagesFunction;
 
-    private Function<StreamMessage<K, V>, XAddArgs> args = m -> new XAddArgs().id(m.getId());
+    private Function<StreamMessage<K, V>, XAddArgs> argsFunction = m -> new XAddArgs().id(m.getId());
 
-    public void setMessages(Function<T, Collection<StreamMessage<K, V>>> messages) {
-        this.messages = messages;
+    public void setMessagesFunction(Function<T, Collection<StreamMessage<K, V>>> function) {
+        this.messagesFunction = function;
     }
 
-    public void setArgs(Function<StreamMessage<K, V>, XAddArgs> args) {
-        this.args = args;
+    public void setArgs(XAddArgs args) {
+        this.argsFunction = t -> args;
+    }
+
+    public void setArgsFunction(Function<StreamMessage<K, V>, XAddArgs> function) {
+        this.argsFunction = function;
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
     public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
         RedisStreamAsyncCommands<K, V> streamCommands = (RedisStreamAsyncCommands<K, V>) commands;
-        for (StreamMessage<K, V> message : messages(item)) {
-            futures.add((RedisFuture) streamCommands.xadd(message.getStream(), args(message), message.getBody()));
+        for (StreamMessage<K, V> message : messagesFunction.apply(item)) {
+            XAddArgs args = argsFunction.apply(message);
+            futures.add((RedisFuture) streamCommands.xadd(message.getStream(), args, message.getBody()));
         }
-    }
-
-    private XAddArgs args(StreamMessage<K, V> message) {
-        return args.apply(message);
-    }
-
-    private Collection<StreamMessage<K, V>> messages(T item) {
-        return messages.apply(item);
     }
 
 }

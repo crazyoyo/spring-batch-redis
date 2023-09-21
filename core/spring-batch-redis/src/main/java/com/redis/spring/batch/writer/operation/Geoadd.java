@@ -10,30 +10,28 @@ import io.lettuce.core.api.async.RedisGeoAsyncCommands;
 
 public class Geoadd<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
-    private Function<T, GeoValue<V>> value;
+    private Function<T, GeoValue<V>> valueFunction;
 
-    private Function<T, GeoAddArgs> args = t -> null;
+    private Function<T, GeoAddArgs> argsFunction = t -> null;
 
-    public void setValue(Function<T, GeoValue<V>> value) {
-        this.value = value;
+    public void setValueFunction(Function<T, GeoValue<V>> value) {
+        this.valueFunction = value;
     }
 
-    public void setArgs(Function<T, GeoAddArgs> args) {
-        this.args = args;
+    public void setArgs(GeoAddArgs args) {
+        this.argsFunction = t -> args;
+    }
+
+    public void setArgsFunction(Function<T, GeoAddArgs> args) {
+        this.argsFunction = args;
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
-        return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key(item), args(item), value(item));
-    }
-
-    private GeoValue<V> value(T item) {
-        return value.apply(item);
-    }
-
-    private GeoAddArgs args(T item) {
-        return args.apply(item);
+    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        GeoAddArgs args = argsFunction.apply(item);
+        GeoValue<V> value = valueFunction.apply(item);
+        return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args, value);
     }
 
 }

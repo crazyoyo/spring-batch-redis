@@ -9,38 +9,30 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public class JsonSet<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
-    private Function<T, String> path = rootPath();
+    public static final String ROOT_PATH = "$";
 
-    private Function<T, V> value;
+    private Function<T, String> pathFunction = t -> ROOT_PATH;
+
+    private Function<T, V> valueFunction;
 
     public void setPath(String path) {
-        setPath(t -> path);
+        this.pathFunction = t -> path;
     }
 
-    public void setPath(Function<T, String> path) {
-        this.path = path;
+    public void setPathFunction(Function<T, String> path) {
+        this.pathFunction = path;
     }
 
-    public void setValue(Function<T, V> value) {
-        this.value = value;
+    public void setValueFunction(Function<T, V> value) {
+        this.valueFunction = value;
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
-        return ((RedisJSONAsyncCommands<K, V>) commands).jsonSet(key(item), path(item), value(item));
-    }
-
-    private V value(T item) {
-        return value.apply(item);
-    }
-
-    private String path(T item) {
-        return path.apply(item);
-    }
-
-    public static <T> Function<T, String> rootPath() {
-        return t -> "$";
+    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        String path = pathFunction.apply(item);
+        V value = valueFunction.apply(item);
+        return ((RedisJSONAsyncCommands<K, V>) commands).jsonSet(key, path, value);
     }
 
 }

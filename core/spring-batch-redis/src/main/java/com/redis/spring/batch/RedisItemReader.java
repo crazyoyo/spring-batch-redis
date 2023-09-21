@@ -34,7 +34,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.unit.DataSize;
 
-import com.redis.spring.batch.common.AbstractOperationExecutor;
+import com.redis.spring.batch.common.AbstractBatchOperationExecutor;
 import com.redis.spring.batch.common.Dump;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Operation;
@@ -155,6 +155,22 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         this.client = client;
         this.codec = codec;
         this.type = type;
+    }
+
+    public AbstractRedisClient getClient() {
+        return client;
+    }
+
+    public RedisCodec<K, V> getCodec() {
+        return codec;
+    }
+
+    public Class<?> getType() {
+        return type;
+    }
+
+    public Mode getMode() {
+        return mode;
     }
 
     public void setScanCount(long count) {
@@ -301,7 +317,7 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         return executor;
     }
 
-    private void configure(AbstractOperationExecutor<K, V, K, T> executor) {
+    private void configure(AbstractBatchOperationExecutor<K, V, K, T> executor) {
         executor.setPoolSize(poolSize);
         executor.setReadFrom(readFrom);
     }

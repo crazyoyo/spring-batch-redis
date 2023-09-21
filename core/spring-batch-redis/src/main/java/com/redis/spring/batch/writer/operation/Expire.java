@@ -12,27 +12,23 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
 public class Expire<K, V, T> extends AbstractOperation<K, V, T> {
 
-    private Function<T, Duration> ttl = t -> null;
+    private Function<T, Duration> ttlFunction = t -> Duration.ZERO;
 
     public void setTtl(Duration duration) {
-        setTtl(t -> duration);
+        this.ttlFunction = t -> duration;
     }
 
-    public void setTtl(Function<T, Duration> function) {
-        this.ttl = function;
+    public void setTtlFunction(Function<T, Duration> function) {
+        this.ttlFunction = function;
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-        Duration duration = ttl(item);
+    protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, List<RedisFuture<Object>> futures) {
+        Duration duration = ttlFunction.apply(item);
         if (BatchUtils.isPositive(duration)) {
-            futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).pexpire(key(item), duration));
+            futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).pexpire(key, duration));
         }
-    }
-
-    private Duration ttl(T item) {
-        return ttl.apply(item);
     }
 
 }

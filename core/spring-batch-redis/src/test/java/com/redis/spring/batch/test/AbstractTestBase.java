@@ -343,11 +343,11 @@ public abstract class AbstractTestBase {
     }
 
     protected <K, V> RedisItemWriter<K, V, Dump<K>> dumpWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return RedisItemWriter.dump(client, codec);
+        return new RedisItemWriter<>(client, codec, Dump.class);
     }
 
     protected <K, V> RedisItemWriter<K, V, Struct<K>> structWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return RedisItemWriter.struct(client, codec);
+        return new RedisItemWriter<>(client, codec, Struct.class);
     }
 
     protected RedisItemReader<String, String, Struct<String>> liveStructReader(TestInfo testInfo, AbstractRedisClient client) {

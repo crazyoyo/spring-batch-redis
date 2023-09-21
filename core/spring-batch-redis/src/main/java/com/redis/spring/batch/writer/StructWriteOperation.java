@@ -1,6 +1,6 @@
 package com.redis.spring.batch.writer;
 
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,8 +33,10 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
 
     private final Map<Type, Operation<K, V, Struct<K>, Object>> operations = operations();
 
+    private boolean merge;
+
     private Map<Type, Operation<K, V, Struct<K>, Object>> operations() {
-        Map<Type, Operation<K, V, Struct<K>, Object>> map = new HashMap<>();
+        EnumMap<Type, Operation<K, V, Struct<K>, Object>> map = new EnumMap<>(Type.class);
         map.put(Type.NONE, new Noop<>());
         map.put(Type.HASH, hashOperation());
         map.put(Type.STRING, stringOperation());
@@ -45,6 +47,10 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
         map.put(Type.TIMESERIES, timeseriesOperation());
         map.put(Type.STREAM, streamOperation());
         return map;
+    }
+
+    public void setMerge(boolean merge) {
+        this.merge = merge;
     }
 
     @Override
@@ -61,6 +67,9 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
     }
 
     protected void write(BaseRedisAsyncCommands<K, V> commands, Struct<K> item, List<RedisFuture<Object>> futures) {
+        if (!merge && item.getType() != Type.STRING) {
+            delete(commands, item, futures);
+        }
         operations.get(item.getType()).execute(commands, item, futures);
         if (item.getTtl() > 0) {
             expire.execute(commands, item, futures);
@@ -70,14 +79,14 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
     private Operation<K, V, Struct<K>, Object> hashOperation() {
         Hset<K, V, Struct<K>> operation = new Hset<>();
         operation.setKeyFunction(Struct::getKey);
-        operation.setMap(this::value);
+        operation.setMapFunction(this::value);
         return operation;
     }
 
     private Operation<K, V, Struct<K>, Object> stringOperation() {
         Set<K, V, Struct<K>> operation = new Set<>();
         operation.setKeyFunction(Struct::getKey);
-        operation.setValue(this::value);
+        operation.setValueFunction(this::value);
         return operation;
     }
 
@@ -95,43 +104,43 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
 
     private XAddAll<K, V, Struct<K>> streamOperation() {
         XAddAll<K, V, Struct<K>> operation = new XAddAll<>();
-        operation.setMessages(this::value);
-        operation.setArgs(this::xaddArgs);
+        operation.setMessagesFunction(this::value);
+        operation.setArgsFunction(this::xaddArgs);
         return operation;
     }
 
     private TsAddAll<K, V, Struct<K>> timeseriesOperation() {
         TsAddAll<K, V, Struct<K>> operation = new TsAddAll<>();
         operation.setKeyFunction(Struct::getKey);
-        operation.setSamples(this::value);
+        operation.setSamplesFunction(this::value);
         return operation;
     }
 
     private ZaddAll<K, V, Struct<K>> zsetOperation() {
         ZaddAll<K, V, Struct<K>> operation = new ZaddAll<>();
         operation.setKeyFunction(Struct::getKey);
-        operation.setValues(this::value);
+        operation.setValuesFunction(this::value);
         return operation;
     }
 
     private SaddAll<K, V, Struct<K>> setOperation() {
         SaddAll<K, V, Struct<K>> operation = new SaddAll<>();
         operation.setKeyFunction(Struct::getKey);
-        operation.setValues(this::value);
+        operation.setValuesFunction(this::value);
         return operation;
     }
 
     private RpushAll<K, V, Struct<K>> listOperation() {
         RpushAll<K, V, Struct<K>> operation = new RpushAll<>();
         operation.setKeyFunction(Struct::getKey);
-        operation.setValues(this::value);
+        operation.setValuesFunction(this::value);
         return operation;
     }
 
     private JsonSet<K, V, Struct<K>> jsonOperation() {
         JsonSet<K, V, Struct<K>> operation = new JsonSet<>();
         operation.setKeyFunction(Struct::getKey);
-        operation.setValue(this::value);
+        operation.setValueFunction(this::value);
         return operation;
     }
 
@@ -144,7 +153,7 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
     private ExpireAt<K, V, Struct<K>> expireOperation() {
         ExpireAt<K, V, Struct<K>> operation = new ExpireAt<>();
         operation.setKeyFunction(Struct::getKey);
-        operation.setEpoch(Struct::getTtl);
+        operation.setEpochFunction(Struct::getTtl);
         return operation;
     }
 

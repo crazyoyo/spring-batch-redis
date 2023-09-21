@@ -8,8 +8,8 @@ public class Del<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
-        return ((RedisKeyAsyncCommands<K, V>) commands).del(key(item));
+    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        return ((RedisKeyAsyncCommands<K, V>) commands).del(key);
     }
 
 }

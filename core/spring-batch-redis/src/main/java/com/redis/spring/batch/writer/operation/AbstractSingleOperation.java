@@ -9,10 +9,10 @@ public abstract class AbstractSingleOperation<K, V, T> extends AbstractOperation
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-        futures.add((RedisFuture) execute(commands, item));
+    protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, List<RedisFuture<Object>> futures) {
+        futures.add((RedisFuture) execute(commands, item, key));
     }
 
-    protected abstract RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item);
+    protected abstract RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key);
 
 }

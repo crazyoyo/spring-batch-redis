@@ -3,7 +3,7 @@ package com.redis.spring.batch.common;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public class SimpleOperationExecutor<K, V, I, O> extends AbstractOperationExecutor<K, V, I, O> {
+public class SimpleOperationExecutor<K, V, I, O> extends AbstractBatchOperationExecutor<K, V, I, O> {
 
     private final BatchOperation<K, V, I, O> operation;
 
@@ -17,7 +17,7 @@ public class SimpleOperationExecutor<K, V, I, O> extends AbstractOperationExecut
     }
 
     @Override
-    protected BatchOperation<K, V, I, O> operation() {
+    protected BatchOperation<K, V, I, O> batchOperation() {
         return operation;
     }
 

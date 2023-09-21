@@ -8,16 +8,16 @@ import io.lettuce.core.api.async.RedisSetAsyncCommands;
 
 public class Sadd<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
-    private Function<T, V> value;
+    private Function<T, V> valueFunction;
 
-    public void setValue(Function<T, V> value) {
-        this.value = value;
+    public void setValueFunction(Function<T, V> function) {
+        this.valueFunction = function;
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
-        return ((RedisSetAsyncCommands<K, V>) commands).sadd(key(item), value.apply(item));
+    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        return ((RedisSetAsyncCommands<K, V>) commands).sadd(key, valueFunction.apply(item));
     }
 
 }

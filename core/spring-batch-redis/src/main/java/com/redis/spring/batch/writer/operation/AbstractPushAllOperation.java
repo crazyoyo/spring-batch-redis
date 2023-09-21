@@ -4,27 +4,29 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
+import org.springframework.util.CollectionUtils;
+
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 
 public abstract class AbstractPushAllOperation<K, V, T> extends AbstractOperation<K, V, T> {
 
-    private Function<T, Collection<V>> values;
+    private Function<T, Collection<V>> valuesFunction;
 
-    public void setValues(Function<T, Collection<V>> function) {
-        this.values = function;
+    public void setValuesFunction(Function<T, Collection<V>> function) {
+        this.valuesFunction = function;
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, T item, List<RedisFuture<Object>> futures) {
-        Collection<V> collection = values.apply(item);
-        if (collection.isEmpty()) {
-            return;
+    protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, List<RedisFuture<Object>> futures) {
+        Collection<V> values = valuesFunction.apply(item);
+        if (!CollectionUtils.isEmpty(values)) {
+            RedisListAsyncCommands<K, V> listCommands = (RedisListAsyncCommands<K, V>) commands;
+            V[] array = (V[]) values.toArray();
+            futures.add((RedisFuture) doPush(listCommands, key, array));
         }
-        RedisListAsyncCommands<K, V> listCommands = (RedisListAsyncCommands<K, V>) commands;
-        futures.add((RedisFuture) doPush(listCommands, key(item), (V[]) collection.toArray()));
     }
 
     protected abstract RedisFuture<Long> doPush(RedisListAsyncCommands<K, V> commands, K key, V[] values);

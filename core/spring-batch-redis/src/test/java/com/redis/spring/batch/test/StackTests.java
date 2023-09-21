@@ -28,6 +28,7 @@ import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
@@ -148,8 +149,9 @@ class StackTests extends ModulesTests {
         ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
         Xadd<String, String, Map<String, String>> xadd = new Xadd<>();
         xadd.setKey(stream);
-        xadd.setBody(Function.identity());
-        RedisItemWriter<String, String, Map<String, String>> writer = new RedisItemWriter<>(client, StringCodec.UTF8, xadd);
+        xadd.setBodyFunction(Function.identity());
+        OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
+                xadd);
         writer.setMultiExec(true);
         run(testInfo, reader, writer);
         Assertions.assertEquals(messages.size(), commands.xlen(stream));

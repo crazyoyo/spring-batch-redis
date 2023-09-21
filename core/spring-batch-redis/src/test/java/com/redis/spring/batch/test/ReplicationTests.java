@@ -30,6 +30,7 @@ import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.MapOptions;
 import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.writer.StructWriteOperation;
 
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
@@ -79,7 +80,9 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         gen2.setHashOptions(hashOptions(Range.of(10)));
         generate(info, targetClient, gen2);
         RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
-        RedisItemWriter<String, String, Struct<String>> writer = RedisItemWriter.structMerge(targetClient, StringCodec.UTF8);
+        RedisItemWriter<String, String, Struct<String>> writer = new RedisItemWriter<>(targetClient, StringCodec.UTF8,
+                Struct.class);
+        ((StructWriteOperation<String, String>) writer.getOperation()).setMerge(true);
         run(info, reader, writer);
         awaitClosed(reader);
         awaitClosed(writer);

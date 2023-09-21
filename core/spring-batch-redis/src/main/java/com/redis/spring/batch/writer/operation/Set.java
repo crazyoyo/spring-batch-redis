@@ -11,30 +11,28 @@ public class Set<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
     private static final SetArgs DEFAULT_ARGS = new SetArgs();
 
-    private Function<T, V> value;
+    private Function<T, V> valueFunction;
 
-    private Function<T, SetArgs> args = t -> DEFAULT_ARGS;
+    private Function<T, SetArgs> argsFunction = t -> DEFAULT_ARGS;
 
-    public void setValue(Function<T, V> value) {
-        this.value = value;
+    public void setValueFunction(Function<T, V> function) {
+        this.valueFunction = function;
     }
 
-    public void setArgs(Function<T, SetArgs> args) {
-        this.args = args;
+    public void setArgs(SetArgs args) {
+        this.argsFunction = t -> args;
     }
 
-    @SuppressWarnings("unchecked")
+    public void setArgsFunction(Function<T, SetArgs> function) {
+        this.argsFunction = function;
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
-        return ((RedisStringAsyncCommands<K, V>) commands).set(key(item), value(item), args(item));
-    }
-
-    private SetArgs args(T item) {
-        return args.apply(item);
-    }
-
-    private V value(T item) {
-        return value.apply(item);
+    protected RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        V value = valueFunction.apply(item);
+        SetArgs args = argsFunction.apply(item);
+        return ((RedisStringAsyncCommands<K, V>) commands).set(key, value, args);
     }
 
 }
