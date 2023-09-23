@@ -17,13 +17,13 @@ import io.lettuce.core.ReadFrom;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.codec.RedisCodec;
 
-public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
+public class ScanKeyItemReader<K> extends AbstractItemStreamItemReader<K> {
 
     private final Log log = LogFactory.getLog(getClass());
 
     private final AbstractRedisClient client;
 
-    private final RedisCodec<K, V> codec;
+    private final RedisCodec<K, ?> codec;
 
     private ReadFrom readFrom;
 
@@ -33,11 +33,11 @@ public class ScanKeyItemReader<K, V> extends AbstractItemStreamItemReader<K> {
 
     private String type;
 
-    private StatefulRedisModulesConnection<K, V> connection;
+    private StatefulRedisModulesConnection<K, ?> connection;
 
     private ScanIterator<K> iterator;
 
-    public ScanKeyItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+    public ScanKeyItemReader(AbstractRedisClient client, RedisCodec<K, ?> codec) {
         this.client = client;
         this.codec = codec;
     }

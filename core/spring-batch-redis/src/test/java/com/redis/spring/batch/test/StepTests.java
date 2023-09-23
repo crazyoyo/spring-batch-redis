@@ -35,8 +35,8 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.Struct;
-import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.step.FlushingFaultTolerantStepBuilder;
@@ -76,7 +76,7 @@ class StepTests {
         int count = 100;
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(count);
-        gen.setTypes(Type.STRING);
+        gen.setTypes(DataStructureType.STRING);
         ErrorItemReader<Struct<String>> reader = new ErrorItemReader<>(gen);
         ListItemWriter<Struct<String>> writer = new ListItemWriter<>();
         String name = "readKeyValueFaultTolerance";

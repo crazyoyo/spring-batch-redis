@@ -2,7 +2,7 @@ package com.redis.spring.batch.common;
 
 import java.util.Objects;
 
-public class KeyComparison {
+public class KeyComparison<T> {
 
     public enum Status {
         OK, // No difference
@@ -12,31 +12,34 @@ public class KeyComparison {
         VALUE // Value mismatch
     }
 
-    private Struct<String> source;
+    private T source;
 
-    private Struct<String> target;
+    private T target;
 
     private Status status;
 
-    public KeyComparison(Struct<String> source, Struct<String> target, Status status) {
-        this.source = source;
-        this.target = target;
-        this.status = status;
+    public KeyComparison() {
     }
 
-    public Struct<String> getSource() {
+    private KeyComparison(Builder<T> builder) {
+        this.source = builder.source;
+        this.target = builder.target;
+        this.status = builder.status;
+    }
+
+    public T getSource() {
         return source;
     }
 
-    public void setSource(Struct<String> source) {
+    public void setSource(T source) {
         this.source = source;
     }
 
-    public Struct<String> getTarget() {
+    public T getTarget() {
         return target;
     }
 
-    public void setTarget(Struct<String> target) {
+    public void setTarget(T target) {
         this.target = target;
     }
 
@@ -64,13 +67,45 @@ public class KeyComparison {
             return false;
         if (getClass() != obj.getClass())
             return false;
-        KeyComparison other = (KeyComparison) obj;
+        KeyComparison<?> other = (KeyComparison<?>) obj;
         return Objects.equals(source, other.source) && status == other.status && Objects.equals(target, other.target);
     }
 
     @Override
     public String toString() {
         return "KeyComparison [source=" + source + ", target=" + target + ", status=" + status + "]";
+    }
+
+    public static <T> Builder<T> source(T source) {
+        return new Builder<>(source);
+    }
+
+    public static class Builder<T> {
+
+        private final T source;
+
+        private T target;
+
+        private Status status;
+
+        public Builder(T source) {
+            this.source = source;
+        }
+
+        public Builder<T> target(T target) {
+            this.target = target;
+            return this;
+        }
+
+        public Builder<T> status(Status status) {
+            this.status = status;
+            return this;
+        }
+
+        public KeyComparison<T> build() {
+            return new KeyComparison<>(this);
+        }
+
     }
 
 }

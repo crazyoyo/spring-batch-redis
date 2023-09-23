@@ -20,6 +20,16 @@ public class KeyValue<K, V> {
      */
     private DataSize memoryUsage;
 
+    public KeyValue() {
+    }
+
+    protected KeyValue(Builder<K, V, ?> builder) {
+        this.key = builder.key;
+        this.value = builder.value;
+        this.memoryUsage = builder.memoryUsage;
+        this.ttl = builder.ttl;
+    }
+
     public K getKey() {
         return key;
     }
@@ -50,6 +60,40 @@ public class KeyValue<K, V> {
 
     public void setMemoryUsage(DataSize memoryUsage) {
         this.memoryUsage = memoryUsage;
+    }
+
+    public static class Builder<K, V, B extends Builder<K, V, B>> {
+
+        private final K key;
+
+        private V value;
+
+        private DataSize memoryUsage;
+
+        private long ttl;
+
+        public Builder(K key) {
+            this.key = key;
+        }
+
+        @SuppressWarnings("unchecked")
+        public B value(V value) {
+            this.value = value;
+            return (B) this;
+        }
+
+        @SuppressWarnings("unchecked")
+        public B memoryUsage(DataSize size) {
+            this.memoryUsage = size;
+            return (B) this;
+        }
+
+        @SuppressWarnings("unchecked")
+        public B ttl(long ttl) {
+            this.ttl = ttl;
+            return (B) this;
+        }
+
     }
 
 }

@@ -2,15 +2,14 @@ package com.redis.spring.batch.common;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamSupport;
 
 import com.redis.spring.batch.util.ConnectionUtils;
@@ -23,7 +22,8 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
-public abstract class AbstractBatchOperationExecutor<K, V, I, O> extends ItemStreamSupport implements OperationExecutor<I, O> {
+public abstract class AbstractBatchOperationExecutor<K, V, I, O> extends ItemStreamSupport
+        implements ItemProcessor<List<? extends I>, List<O>> {
 
     public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
@@ -61,6 +61,9 @@ public abstract class AbstractBatchOperationExecutor<K, V, I, O> extends ItemStr
             config.setMaxTotal(poolSize);
             pool = ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config);
             batchOperation = batchOperation();
+            if (batchOperation instanceof ItemStream) {
+                ((ItemStream) batchOperation).open(executionContext);
+            }
         }
     }
 
@@ -80,7 +83,7 @@ public abstract class AbstractBatchOperationExecutor<K, V, I, O> extends ItemStr
     }
 
     @Override
-    public List<O> execute(List<? extends I> items) {
+    public List<O> process(List<? extends I> items) throws Exception {
         try (StatefulConnection<K, V> connection = pool.borrowObject()) {
             long timeout = connection.getTimeout().toMillis();
             BaseRedisAsyncCommands<K, V> commands = ConnectionUtils.async(connection);
@@ -96,15 +99,6 @@ public abstract class AbstractBatchOperationExecutor<K, V, I, O> extends ItemStr
             } finally {
                 connection.setAutoFlushCommands(true);
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new ItemStreamException("Command execution interrupted", e);
-        } catch (ExecutionException e) {
-            throw new ItemStreamException("Exception during command execution", e);
-        } catch (TimeoutException e) {
-            throw new ItemStreamException("Timed out waiting for command response", e);
-        } catch (Exception e) {
-            throw new ItemStreamException("Could not get connection from pool", e);
         }
     }
 

@@ -10,42 +10,34 @@ import java.util.Set;
 import java.util.function.Function;
 
 import com.redis.lettucemod.timeseries.Sample;
+import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.Struct;
-import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.util.CodecUtils;
 
+import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.internal.LettuceAssert;
 
-public class LuaToStructFunction<K, V> extends AbstractLuaFunction<K, Struct<K>> {
+public class StructReadOperation<K, V> extends AbstractKeyValueReadOperation<K, V, Struct<K>> {
+
+    private static final String TYPE = "type";
 
     private final Function<V, String> toStringValueFunction;
 
-    public LuaToStructFunction(RedisCodec<K, V> codec) {
+    public StructReadOperation(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        super(client, codec, TYPE);
         this.toStringValueFunction = CodecUtils.toStringValueFunction(codec);
     }
 
     @Override
     protected Struct<K> keyValue(K key, Iterator<Object> iterator) {
-        Object value = value(iterator);
-        Type type = type(iterator);
-        return Struct.of(key, type, value(type, key, value));
-    }
-
-    private Object value(Iterator<Object> iterator) {
-        if (iterator.hasNext()) {
-            return iterator.next();
-        }
-        return null;
-    }
-
-    private Type type(Iterator<Object> iterator) {
-        if (iterator.hasNext()) {
-            return Type.of(toString(iterator.next()));
-        }
-        return Type.NONE;
+        // Iterator reading order must match LUA script
+        Object value = iterator.hasNext() ? iterator.next() : null;
+        DataStructureType type = iterator.hasNext() ? DataStructureType.of(toString(iterator.next())) : DataStructureType.NONE;
+        Object object = object(type, key, value);
+        return Struct.key(key).type(type).value(object).build();
     }
 
     @SuppressWarnings("unchecked")
@@ -53,7 +45,7 @@ public class LuaToStructFunction<K, V> extends AbstractLuaFunction<K, Struct<K>>
         return toStringValueFunction.apply((V) value);
     }
 
-    private Object value(Type type, K key, Object value) {
+    private Object object(DataStructureType type, K key, Object value) {
         if (value == null) {
             return null;
         }

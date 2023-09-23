@@ -16,7 +16,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.AbstractBatchOperationExecutor;
-import com.redis.spring.batch.common.KeyComparisonItemReader;
+import com.redis.spring.batch.common.AbstractKeyComparisonItemReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
@@ -49,8 +49,8 @@ public abstract class BatchUtils {
         if (object instanceof RedisItemReader) {
             return ((RedisItemReader) object).isOpen();
         }
-        if (object instanceof KeyComparisonItemReader) {
-            return ((KeyComparisonItemReader) object).isOpen();
+        if (object instanceof AbstractKeyComparisonItemReader) {
+            return ((AbstractKeyComparisonItemReader) object).isOpen();
         }
         if (object instanceof GeneratorItemReader) {
             return ((GeneratorItemReader) object).isOpen();

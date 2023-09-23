@@ -24,12 +24,13 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
-import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
-import com.redis.spring.batch.common.Struct.Type;
+import com.redis.spring.batch.common.Struct;
+import com.redis.spring.batch.common.StructComparisonItemReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.testcontainers.RedisServer;
@@ -91,18 +92,19 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
             log.info("Source and target databases have different sizes");
             return false;
         }
-        KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare", "reader"));
+        StructComparisonItemReader reader = comparisonReader(testInfo(info, "compare", "reader"));
         reader.open(new ExecutionContext());
-        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
+        List<KeyComparison<Struct<String>>> comparisons = BatchUtils.readAll(reader);
         reader.close();
         Assertions.assertFalse(comparisons.isEmpty());
-        List<KeyComparison> diffs = comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
+        List<KeyComparison<Struct<String>>> diffs = comparisons.stream().filter(c -> c.getStatus() != Status.OK)
+                .collect(Collectors.toList());
         diffs.forEach(this::logComparison);
         return diffs.isEmpty();
     }
 
-    protected KeyComparisonItemReader comparisonReader(TestInfo info) throws Exception {
-        KeyComparisonItemReader reader = new KeyComparisonItemReader(structReader(info, client),
+    protected StructComparisonItemReader comparisonReader(TestInfo info) throws Exception {
+        StructComparisonItemReader reader = new StructComparisonItemReader(structReader(info, client),
                 structReader(info, targetClient));
         reader.setName(name(info));
         reader.setTtlTolerance(Duration.ofMillis(100));
@@ -114,7 +116,8 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
             throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(300);
-        gen.setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);
+        gen.setTypes(DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STREAM,
+                DataStructureType.STRING, DataStructureType.ZSET);
         generate(testInfo(testInfo, "generate"), gen);
         TaskletStep step = step(testInfo(testInfo, "step"), reader, writer).build();
         SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "snapshotFlow"))).start(step).build();
@@ -125,7 +128,8 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         JobExecution execution = runAsync(job);
         GeneratorItemReader liveGen = new GeneratorItemReader();
         liveGen.setMaxItemCount(700);
-        liveGen.setTypes(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET);
+        liveGen.setTypes(DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STRING,
+                DataStructureType.ZSET);
         liveGen.setExpiration(Range.of(100));
         liveGen.setKeyRange(Range.from(300));
         generate(testInfo(testInfo, "generateLive"), liveGen);
@@ -141,7 +145,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         return compare(testInfo);
     }
 
-    protected void logComparison(KeyComparison comparison) {
+    protected void logComparison(KeyComparison<Struct<String>> comparison) {
         log.error(comparison.toString());
         if (comparison.getStatus() == Status.VALUE) {
             log.error("Expected {} but was {}", comparison.getSource().getValue(), comparison.getTarget().getValue());

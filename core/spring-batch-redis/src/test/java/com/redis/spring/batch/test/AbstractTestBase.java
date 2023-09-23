@@ -50,6 +50,7 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
@@ -60,18 +61,21 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemReader.Mode;
+import com.redis.spring.batch.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.Dump;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationExecutor;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.Struct;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
+import com.redis.spring.batch.reader.DumpItemReader;
+import com.redis.spring.batch.reader.KeyTypeItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
+import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
@@ -152,6 +156,7 @@ public abstract class AbstractTestBase {
         transactionManager = bean.getTransactionManager();
         jobLauncher = new SimpleJobLauncher();
         jobLauncher.setJobRepository(jobRepository);
+        jobLauncher.setTaskExecutor(new SyncTaskExecutor());
         jobLauncher.afterPropertiesSet();
         asyncJobLauncher = new SimpleJobLauncher();
         asyncJobLauncher.setJobRepository(jobRepository);
@@ -325,12 +330,11 @@ public abstract class AbstractTestBase {
         run(finalTestInfo, reader, writer);
     }
 
-    protected RedisItemReader<String, String, Dump<String>> dumpReader(TestInfo info, AbstractRedisClient client) {
+    protected DumpItemReader<String, String> dumpReader(TestInfo info, AbstractRedisClient client) {
         return dumpReader(info, client, StringCodec.UTF8);
     }
 
-    protected <K, V> RedisItemReader<K, V, Dump<K>> dumpReader(TestInfo info, AbstractRedisClient client,
-            RedisCodec<K, V> codec) {
+    protected <K, V> DumpItemReader<K, V> dumpReader(TestInfo info, AbstractRedisClient client, RedisCodec<K, V> codec) {
         return reader(info, RedisItemReader.dump(client, codec));
     }
 
@@ -343,11 +347,11 @@ public abstract class AbstractTestBase {
     }
 
     protected <K, V> RedisItemWriter<K, V, Dump<K>> dumpWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return new RedisItemWriter<>(client, codec, Dump.class);
+        return RedisItemWriter.dump(client, codec);
     }
 
     protected <K, V> RedisItemWriter<K, V, Struct<K>> structWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return new RedisItemWriter<>(client, codec, Struct.class);
+        return RedisItemWriter.struct(client, codec);
     }
 
     protected RedisItemReader<String, String, Struct<String>> liveStructReader(TestInfo testInfo, AbstractRedisClient client) {
@@ -371,18 +375,25 @@ public abstract class AbstractTestBase {
     protected <K, V, T extends KeyValue<K, ?>> RedisItemReader<K, V, T> liveReader(TestInfo info,
             RedisItemReader<K, V, T> reader) {
         reader(info, reader);
-        reader.setMode(Mode.LIVE);
+        reader.setMode(ReaderMode.LIVE);
         reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
         return reader;
     }
 
-    protected RedisItemReader<String, String, Struct<String>> structReader(TestInfo testInfo, AbstractRedisClient client) {
+    protected StructItemReader<String, String> structReader(TestInfo testInfo, AbstractRedisClient client) {
         return structReader(testInfo, client, StringCodec.UTF8);
     }
 
-    protected <K, V> RedisItemReader<K, V, Struct<K>> structReader(TestInfo info, AbstractRedisClient client,
-            RedisCodec<K, V> codec) {
+    protected KeyTypeItemReader<String, String> keyTypeReader(TestInfo testInfo, AbstractRedisClient client) {
+        return keyTypeReader(testInfo, client, StringCodec.UTF8);
+    }
+
+    protected <K, V> StructItemReader<K, V> structReader(TestInfo info, AbstractRedisClient client, RedisCodec<K, V> codec) {
         return reader(info, RedisItemReader.struct(client, codec));
+    }
+
+    protected <K, V> KeyTypeItemReader<K, V> keyTypeReader(TestInfo info, AbstractRedisClient client, RedisCodec<K, V> codec) {
+        return reader(info, RedisItemReader.keyType(client, codec));
     }
 
     @SuppressWarnings("rawtypes")
@@ -431,7 +442,7 @@ public abstract class AbstractTestBase {
 
     protected void generateStreams(TestInfo testInfo, int messageCount) throws JobExecutionException {
         GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setTypes(Struct.Type.STREAM);
+        gen.setTypes(DataStructureType.STREAM);
         gen.setMaxItemCount(3);
         StreamOptions streamOptions = new StreamOptions();
         streamOptions.setMessageCount(Range.of(messageCount));
@@ -479,7 +490,7 @@ public abstract class AbstractTestBase {
         itemStream.open(new ExecutionContext());
     }
 
-    protected OperationExecutor<String, Dump<String>> dumpOperationExecutor() {
+    protected SimpleOperationExecutor<String, String, String, Dump<String>> dumpOperationExecutor() {
         return dumpOperationExecutor(StringCodec.UTF8);
     }
 

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
@@ -20,16 +21,20 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.Dump;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
-import com.redis.spring.batch.common.KeyComparisonItemReader;
+import com.redis.spring.batch.common.KeyType;
+import com.redis.spring.batch.common.KeyTypeComparisonItemReader;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.common.Struct;
-import com.redis.spring.batch.common.Struct.Type;
+import com.redis.spring.batch.common.StructComparisonItemReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.MapOptions;
+import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.writer.StructItemWriter;
 import com.redis.spring.batch.writer.StructWriteOperation;
 
 import io.lettuce.core.LettuceFutures;
@@ -37,7 +42,6 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
-import io.lettuce.core.codec.StringCodec;
 
 abstract class ReplicationTests extends AbstractTargetTestBase {
 
@@ -45,12 +49,12 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
     void writeStructOverwrite(TestInfo info) throws Exception {
         GeneratorItemReader gen1 = new GeneratorItemReader();
         gen1.setMaxItemCount(100);
-        gen1.setTypes(Type.HASH);
+        gen1.setTypes(DataStructureType.HASH);
         gen1.setHashOptions(hashOptions(Range.of(5)));
         generate(info, client, gen1);
         GeneratorItemReader gen2 = new GeneratorItemReader();
         gen2.setMaxItemCount(100);
-        gen2.setTypes(Type.HASH);
+        gen2.setTypes(DataStructureType.HASH);
         gen2.setHashOptions(hashOptions(Range.of(10)));
         generate(info, targetClient, gen2);
         RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
@@ -71,17 +75,16 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
     void writeStructMerge(TestInfo info) throws Exception {
         GeneratorItemReader gen1 = new GeneratorItemReader();
         gen1.setMaxItemCount(100);
-        gen1.setTypes(Type.HASH);
+        gen1.setTypes(DataStructureType.HASH);
         gen1.setHashOptions(hashOptions(Range.of(5)));
         generate(info, client, gen1);
         GeneratorItemReader gen2 = new GeneratorItemReader();
         gen2.setMaxItemCount(100);
-        gen2.setTypes(Type.HASH);
+        gen2.setTypes(DataStructureType.HASH);
         gen2.setHashOptions(hashOptions(Range.of(10)));
         generate(info, targetClient, gen2);
-        RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
-        RedisItemWriter<String, String, Struct<String>> writer = new RedisItemWriter<>(targetClient, StringCodec.UTF8,
-                Struct.class);
+        StructItemReader<String, String> reader = structReader(info, client);
+        StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
         ((StructWriteOperation<String, String>) writer.getOperation()).setMerge(true);
         run(info, reader, writer);
         awaitClosed(reader);
@@ -94,16 +97,38 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
     void compareSet(TestInfo info) throws Exception {
         commands.sadd("set:1", "value1", "value2");
         targetCommands.sadd("set:1", "value2", "value1");
-        KeyComparisonItemReader reader = comparisonReader(info);
+        StructComparisonItemReader reader = comparisonReader(info);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
         awaitOpen(reader);
         log.info("readAll");
-        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
+        List<KeyComparison<Struct<String>>> comparisons = BatchUtils.readAll(reader);
         log.info("closing");
         reader.close();
         log.info("assert");
         Assertions.assertEquals(KeyComparison.Status.OK, comparisons.get(0).getStatus());
+    }
+
+    @Test
+    void compareQuick(TestInfo info) throws Exception {
+        int sourceCount = 100;
+        for (int index = 1; index <= sourceCount; index++) {
+            commands.set("key:" + index, "value:" + index);
+        }
+        int targetCount = 90;
+        for (int index = 1; index <= targetCount; index++) {
+            targetCommands.set("key:" + index, "value:" + index);
+        }
+        KeyTypeComparisonItemReader reader = new KeyTypeComparisonItemReader(keyTypeReader(info, client),
+                keyTypeReader(info, targetClient));
+        reader.setName(name(info));
+        reader.open(new ExecutionContext());
+        awaitOpen(reader);
+        List<KeyComparison<KeyType<String>>> comparisons = BatchUtils.readAll(reader);
+        reader.close();
+        List<KeyComparison<KeyType<String>>> missing = comparisons.stream().filter(c -> c.getStatus() == Status.MISSING)
+                .collect(Collectors.toList());
+        Assertions.assertEquals(sourceCount - targetCount, missing.size());
     }
 
     @Test
@@ -144,7 +169,8 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         awaitOpen(reader);
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(100);
-        gen.setTypes(Type.HASH, Type.LIST, Type.SET, Type.STRING, Type.ZSET);
+        gen.setTypes(DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STRING,
+                DataStructureType.ZSET);
         generate(info, gen);
         awaitTermination(execution);
         Assertions.assertTrue(compare(info));
@@ -224,7 +250,7 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
         for (int index = 0; index < 17; index++) {
             String key = targetCommands.randomkey();
             String type = targetCommands.type(key);
-            if (type.equalsIgnoreCase(Type.STRING.getString())) {
+            if (type.equalsIgnoreCase(DataStructureType.STRING.getString())) {
                 if (!typeChanges.contains(key)) {
                     valueChanges.add(key);
                 }
@@ -236,10 +262,10 @@ abstract class ReplicationTests extends AbstractTargetTestBase {
             }
             targetCommands.set(key, "blah");
         }
-        KeyComparisonItemReader comparator = comparisonReader(info);
+        StructComparisonItemReader comparator = comparisonReader(info);
         comparator.setName(name(info));
         comparator.open(new ExecutionContext());
-        List<KeyComparison> comparisons = BatchUtils.readAll(comparator);
+        List<KeyComparison<Struct<String>>> comparisons = BatchUtils.readAll(comparator);
         comparator.close();
         long sourceCount = commands.dbsize();
         assertEquals(sourceCount, comparisons.size());

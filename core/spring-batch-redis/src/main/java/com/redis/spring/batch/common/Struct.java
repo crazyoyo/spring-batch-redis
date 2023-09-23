@@ -1,66 +1,46 @@
 package com.redis.spring.batch.common;
 
-import java.util.Map;
-
 public class Struct<K> extends KeyValue<K, Object> {
 
-    private Type type;
+    private DataStructureType type;
 
-    public Type getType() {
+    public Struct() {
+    }
+
+    private Struct(Builder<K> builder) {
+        super(builder);
+        this.type = builder.type;
+    }
+
+    public DataStructureType getType() {
         return type;
     }
 
-    public void setType(Type type) {
+    public void setType(DataStructureType type) {
         this.type = type;
     }
 
-    public enum Type {
-
-        NONE("none"),
-        HASH("hash"),
-        JSON("ReJSON-RL"),
-        LIST("list"),
-        SET("set"),
-        STREAM("stream"),
-        STRING("string"),
-        TIMESERIES("TSDB-TYPE"),
-        ZSET("zset");
-
-        private final String string;
-
-        private Type(String string) {
-            this.string = string;
-        }
-
-        public String getString() {
-            return string;
-        }
-
-        public static Type of(String string) {
-            for (Type type : Type.values()) {
-                if (type.getString().equalsIgnoreCase(string)) {
-                    return type;
-                }
-            }
-            return NONE;
-        }
-
+    public static <K> Builder<K> key(K key) {
+        return new Builder<>(key);
     }
 
-    public static <K> Struct<K> of(K key, Type type, Object value) {
-        Struct<K> struct = new Struct<>();
-        struct.setKey(key);
-        struct.setType(type);
-        struct.setValue(value);
-        return struct;
-    }
+    public static class Builder<K> extends KeyValue.Builder<K, Object, Builder<K>> {
 
-    public static <K> Struct<K> hash(K key, Map<K, ?> map) {
-        return of(key, Type.HASH, map);
-    }
+        private DataStructureType type;
 
-    public static <K> Struct<K> string(K key, Object string) {
-        return of(key, Type.STRING, string);
+        public Builder(K key) {
+            super(key);
+        }
+
+        public Builder<K> type(DataStructureType type) {
+            this.type = type;
+            return this;
+        }
+
+        public Struct<K> build() {
+            return new Struct<>(this);
+        }
+
     }
 
 }

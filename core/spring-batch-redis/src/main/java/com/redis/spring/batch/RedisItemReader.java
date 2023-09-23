@@ -1,13 +1,10 @@
 package com.redis.spring.batch;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -32,44 +29,36 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.lang.NonNull;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
-import org.springframework.util.unit.DataSize;
 
-import com.redis.spring.batch.common.AbstractBatchOperationExecutor;
-import com.redis.spring.batch.common.Dump;
-import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.SimpleOperationExecutor;
-import com.redis.spring.batch.common.Struct;
-import com.redis.spring.batch.common.Struct.Type;
-import com.redis.spring.batch.reader.Evalsha;
-import com.redis.spring.batch.reader.KeyValueItemWriter;
+import com.redis.spring.batch.reader.DumpItemReader;
+import com.redis.spring.batch.reader.KeyTypeItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader.OrderingStrategy;
-import com.redis.spring.batch.reader.LuaToDumpFunction;
-import com.redis.spring.batch.reader.LuaToStructFunction;
 import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.ProcessingItemWriter;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
+import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.writer.BlockingQueueItemWriter;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
 import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 import io.micrometer.core.instrument.Metrics;
 
-public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractItemStreamItemReader<T>
-        implements PollableItemReader<T> {
+public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
-    public enum Mode {
+    public enum ReaderMode {
         SCAN, LIVE
     }
 
-    private static final String LUA_FILENAME = "keyvalue.lua";
-
     public static final String QUEUE_METER = "redis.batch.reader.queue.size";
-
-    public static final int DEFAULT_MEMORY_USAGE_SAMPLES = 5;
 
     public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 
@@ -83,16 +72,11 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
 
     public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(10);
 
-    /**
-     * Default to no memory usage calculation
-     */
-    public static final DataSize DEFAULT_MEMORY_USAGE_LIMIT = DataSize.ofBytes(0);
-
     public static final OrderingStrategy DEFAULT_ORDERING = OrderingStrategy.PRIORITY;
 
     public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = 10000;
 
-    public static final Mode DEFAULT_MODE = Mode.SCAN;
+    public static final ReaderMode DEFAULT_MODE = ReaderMode.SCAN;
 
     private final Log log = LogFactory.getLog(getClass());
 
@@ -100,9 +84,9 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
 
     private final RedisCodec<K, V> codec;
 
-    private final Class<?> type;
+    protected final Operation<K, V, K, T> operation;
 
-    private Mode mode = DEFAULT_MODE;
+    private ReaderMode mode = DEFAULT_MODE;
 
     private int database;
 
@@ -128,13 +112,9 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
 
     private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
-    private DataSize memoryUsageLimit = DEFAULT_MEMORY_USAGE_LIMIT;
-
-    private int memoryUsageSamples = DEFAULT_MEMORY_USAGE_SAMPLES;
-
     private String keyPattern;
 
-    private Type keyType;
+    private DataStructureType keyType;
 
     private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
 
@@ -150,11 +130,11 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
 
     private BlockingQueue<T> queue;
 
-    public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, Class<? extends T> type) {
+    public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
         setName(ClassUtils.getShortName(getClass()));
         this.client = client;
         this.codec = codec;
-        this.type = type;
+        this.operation = operation;
     }
 
     public AbstractRedisClient getClient() {
@@ -165,11 +145,7 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         return codec;
     }
 
-    public Class<?> getType() {
-        return type;
-    }
-
-    public Mode getMode() {
+    public ReaderMode getMode() {
         return mode;
     }
 
@@ -201,15 +177,7 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         this.queueCapacity = queueCapacity;
     }
 
-    public void setMemoryUsageLimit(DataSize memoryUsageLimit) {
-        this.memoryUsageLimit = memoryUsageLimit;
-    }
-
-    public void setMemoryUsageSamples(int memoryUsageSamples) {
-        this.memoryUsageSamples = memoryUsageSamples;
-    }
-
-    public void setMode(Mode mode) {
+    public void setMode(ReaderMode mode) {
         this.mode = mode;
     }
 
@@ -221,7 +189,7 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         this.keyPattern = globPattern;
     }
 
-    public void setKeyType(Type type) {
+    public void setKeyType(DataStructureType type) {
         this.keyType = type;
     }
 
@@ -312,14 +280,10 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
     }
 
     public SimpleOperationExecutor<K, V, K, T> operationExecutor() {
-        SimpleOperationExecutor<K, V, K, T> executor = new SimpleOperationExecutor<>(client, codec, evalOperation());
-        configure(executor);
-        return executor;
-    }
-
-    private void configure(AbstractBatchOperationExecutor<K, V, K, T> executor) {
+        SimpleOperationExecutor<K, V, K, T> executor = new SimpleOperationExecutor<>(client, codec, operation);
         executor.setPoolSize(poolSize);
         executor.setReadFrom(readFrom);
+        return executor;
     }
 
     private SimpleStepBuilder<K, K> step() {
@@ -331,8 +295,8 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         step.processor(keyProcessor);
         queue = new LinkedBlockingQueue<>(queueCapacity);
         Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
-        KeyValueItemWriter<K, V, T> writer = new KeyValueItemWriter<>(client, codec, evalOperation(), queue);
-        configure(writer);
+        BlockingQueueItemWriter<T> queueWriter = new BlockingQueueItemWriter<>(queue);
+        ProcessingItemWriter<K, T> writer = new ProcessingItemWriter<>(operationExecutor(), queueWriter);
         step.writer(writer);
         if (threads > 1) {
             step.taskExecutor(BatchUtils.threadPoolTaskExecutor(threads));
@@ -347,31 +311,26 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         return step;
     }
 
-    public Operation<K, V, K, T> evalOperation() {
-        Object[] args = { memoryUsageLimit.toBytes(), memoryUsageSamples, ClassUtils.getShortName(type).toLowerCase() };
-        return new Evalsha<>(LUA_FILENAME, client, codec, luaFunction(), args);
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private Function<List<Object>, T> luaFunction() {
-        if (Dump.class.isAssignableFrom(type)) {
-            return (Function) new LuaToDumpFunction<>();
-        }
-        return (Function) new LuaToStructFunction<>(codec);
-    }
-
     private ItemReader<K> keyReader() {
         if (isLive()) {
-            KeyspaceNotificationItemReader<K, V> reader = new KeyspaceNotificationItemReader<>(client, codec);
-            reader.setDatabase(database);
-            reader.setKeyPattern(keyPattern);
-            reader.setKeyType(keyType);
-            reader.setOrderingStrategy(orderingStrategy);
-            reader.setQueueCapacity(notificationQueueCapacity);
-            reader.setPollTimeout(pollTimeout);
-            return reader;
+            return keyspaceNotificationReader();
         }
-        ScanKeyItemReader<K, V> reader = new ScanKeyItemReader<>(client, codec);
+        return scanKeyReader();
+    }
+
+    private KeyspaceNotificationItemReader<K> keyspaceNotificationReader() {
+        KeyspaceNotificationItemReader<K> reader = new KeyspaceNotificationItemReader<>(client, codec);
+        reader.setDatabase(database);
+        reader.setKeyPattern(keyPattern);
+        reader.setKeyType(keyType);
+        reader.setOrderingStrategy(orderingStrategy);
+        reader.setQueueCapacity(notificationQueueCapacity);
+        reader.setPollTimeout(pollTimeout);
+        return reader;
+    }
+
+    public ScanKeyItemReader<K> scanKeyReader() {
+        ScanKeyItemReader<K> reader = new ScanKeyItemReader<>(client, codec);
         reader.setReadFrom(readFrom);
         reader.setLimit(scanCount);
         reader.setMatch(keyPattern);
@@ -380,7 +339,7 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
     }
 
     private boolean isLive() {
-        return mode == Mode.LIVE;
+        return mode == ReaderMode.LIVE;
     }
 
     @Override
@@ -398,21 +357,28 @@ public class RedisItemReader<K, V, T extends KeyValue<K, ?>> extends AbstractIte
         }
     }
 
-    public synchronized List<T> readChunk() throws Exception {
-        List<T> items = new ArrayList<>();
-        T item;
-        while (items.size() < chunkSize && (item = read()) != null) {
-            items.add(item);
-        }
-        return items;
+    public static DumpItemReader<String, String> dump(AbstractRedisClient client) {
+        return dump(client, StringCodec.UTF8);
     }
 
-    public static <K, V> RedisItemReader<K, V, Struct<K>> struct(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return new RedisItemReader<>(client, codec, Struct.class);
+    public static <K, V> DumpItemReader<K, V> dump(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        return new DumpItemReader<>(client, codec);
     }
 
-    public static <K, V> RedisItemReader<K, V, Dump<K>> dump(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return new RedisItemReader<>(client, codec, Dump.class);
+    public static StructItemReader<String, String> struct(AbstractRedisClient client) {
+        return struct(client, StringCodec.UTF8);
+    }
+
+    public static <K, V> StructItemReader<K, V> struct(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        return new StructItemReader<>(client, codec);
+    }
+
+    public static KeyTypeItemReader<String, String> keyType(AbstractRedisClient client) {
+        return keyType(client, StringCodec.UTF8);
+    }
+
+    public static <K, V> KeyTypeItemReader<K, V> keyType(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        return new KeyTypeItemReader<>(client, codec);
     }
 
 }

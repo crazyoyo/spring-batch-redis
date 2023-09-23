@@ -1,6 +1,6 @@
 package com.redis.spring.batch.reader;
 
-import com.redis.spring.batch.common.Struct.Type;
+import com.redis.spring.batch.common.DataStructureType;
 
 public enum KeyEvent {
 
@@ -13,68 +13,68 @@ public enum KeyEvent {
     RESTORE,
     EXPIRE,
     SORTSTORE,
-    SET(Type.STRING),
-    SETRANGE(Type.STRING),
-    INCRBY(Type.STRING),
-    INCRBYFLOAT(Type.STRING),
-    APPEND(Type.STRING),
-    LPUSH(Type.LIST),
-    RPUSH(Type.LIST),
-    RPOP(Type.LIST),
-    LPOP(Type.LIST),
-    LINSERT(Type.LIST),
-    LSET(Type.LIST),
-    LREM(Type.LIST),
-    LTRIM(Type.LIST),
-    HSET(Type.HASH),
-    HINCRBY(Type.HASH),
-    HINCRBYFLOAT(Type.HASH),
-    HDEL(Type.HASH),
-    SADD(Type.SET),
-    SPOP(Type.SET),
-    SINTERSTORE(Type.SET),
-    SUNIONSTORE(Type.SET),
-    SDIFFSTORE(Type.SET),
-    ZINCR(Type.ZSET),
-    ZADD(Type.ZSET),
-    ZREM(Type.ZSET),
-    ZREMBYSCORE(Type.ZSET),
-    ZREMBYRANK(Type.ZSET),
-    ZDIFFSTORE(Type.ZSET),
-    ZINTERSTORE(Type.ZSET),
-    ZUNIONSTORE(Type.ZSET),
-    XADD(Type.STREAM),
-    XTRIM(Type.STREAM),
-    XDEL(Type.STREAM),
-    XGROUP_CREATE("xgroup-create", Type.STREAM),
-    XGROUP_CREATECONSUMER("xgroup-createconsumer", Type.STREAM),
-    XGROUP_DELCONSUMER("xgroup-delconsumer", Type.STREAM),
-    XGROUP_DESTROY("xgroup-destroy", Type.STREAM),
-    XGROUP_SETID("xgroup-setid", Type.STREAM),
-    XSETID(Type.STREAM),
-    TS_ADD("ts.add", Type.TIMESERIES),
-    JSON_SET("json.set", Type.JSON),
+    SET(DataStructureType.STRING),
+    SETRANGE(DataStructureType.STRING),
+    INCRBY(DataStructureType.STRING),
+    INCRBYFLOAT(DataStructureType.STRING),
+    APPEND(DataStructureType.STRING),
+    LPUSH(DataStructureType.LIST),
+    RPUSH(DataStructureType.LIST),
+    RPOP(DataStructureType.LIST),
+    LPOP(DataStructureType.LIST),
+    LINSERT(DataStructureType.LIST),
+    LSET(DataStructureType.LIST),
+    LREM(DataStructureType.LIST),
+    LTRIM(DataStructureType.LIST),
+    HSET(DataStructureType.HASH),
+    HINCRBY(DataStructureType.HASH),
+    HINCRBYFLOAT(DataStructureType.HASH),
+    HDEL(DataStructureType.HASH),
+    SADD(DataStructureType.SET),
+    SPOP(DataStructureType.SET),
+    SINTERSTORE(DataStructureType.SET),
+    SUNIONSTORE(DataStructureType.SET),
+    SDIFFSTORE(DataStructureType.SET),
+    ZINCR(DataStructureType.ZSET),
+    ZADD(DataStructureType.ZSET),
+    ZREM(DataStructureType.ZSET),
+    ZREMBYSCORE(DataStructureType.ZSET),
+    ZREMBYRANK(DataStructureType.ZSET),
+    ZDIFFSTORE(DataStructureType.ZSET),
+    ZINTERSTORE(DataStructureType.ZSET),
+    ZUNIONSTORE(DataStructureType.ZSET),
+    XADD(DataStructureType.STREAM),
+    XTRIM(DataStructureType.STREAM),
+    XDEL(DataStructureType.STREAM),
+    XGROUP_CREATE("xgroup-create", DataStructureType.STREAM),
+    XGROUP_CREATECONSUMER("xgroup-createconsumer", DataStructureType.STREAM),
+    XGROUP_DELCONSUMER("xgroup-delconsumer", DataStructureType.STREAM),
+    XGROUP_DESTROY("xgroup-destroy", DataStructureType.STREAM),
+    XGROUP_SETID("xgroup-setid", DataStructureType.STREAM),
+    XSETID(DataStructureType.STREAM),
+    TS_ADD("ts.add", DataStructureType.TIMESERIES),
+    JSON_SET("json.set", DataStructureType.JSON),
     PERSIST,
     EXPIRED,
     EVICTED,
-    NEW_KEY("new", Type.NONE),
+    NEW_KEY("new", DataStructureType.NONE),
     UNKNOWN;
 
     private final String string;
 
-    private final Type type;
+    private final DataStructureType type;
 
     private KeyEvent() {
         this.string = this.name().toLowerCase();
-        this.type = Type.NONE;
+        this.type = DataStructureType.NONE;
     }
 
-    private KeyEvent(Type type) {
+    private KeyEvent(DataStructureType type) {
         this.string = this.name().toLowerCase();
         this.type = type;
     }
 
-    private KeyEvent(String string, Type type) {
+    private KeyEvent(String string, DataStructureType type) {
         this.string = string;
         this.type = type;
     }
@@ -83,7 +83,7 @@ public enum KeyEvent {
         return string;
     }
 
-    public Type getType() {
+    public DataStructureType getType() {
         return type;
     }
 

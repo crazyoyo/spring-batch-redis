@@ -13,8 +13,8 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.SetBlockingQueue;
-import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.util.CodecUtils;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -23,7 +23,7 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
 import io.micrometer.core.instrument.Metrics;
 
-public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItemReader<K> implements PollableItemReader<K> {
+public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemReader<K> implements PollableItemReader<K> {
 
     public enum OrderingStrategy {
         FIFO, PRIORITY
@@ -51,7 +51,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
     private OrderingStrategy orderingStrategy = DEFAULT_ORDERING;
 
-    private Type keyType;
+    private DataStructureType keyType;
 
     private int queueCapacity = RedisItemReader.DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
 
@@ -61,7 +61,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
 
     private ChannelMessagePublisher publisher;
 
-    public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+    public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, ?> codec) {
         this.client = client;
         this.stringKeyEncoder = CodecUtils.stringKeyFunction(codec);
     }
@@ -86,7 +86,7 @@ public class KeyspaceNotificationItemReader<K, V> extends AbstractItemStreamItem
         this.queueCapacity = queueCapacity;
     }
 
-    public void setKeyType(Type keyType) {
+    public void setKeyType(DataStructureType keyType) {
         this.keyType = keyType;
     }
 

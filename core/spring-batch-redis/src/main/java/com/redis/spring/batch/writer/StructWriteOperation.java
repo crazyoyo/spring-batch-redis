@@ -4,9 +4,9 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.Struct;
-import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.writer.operation.Del;
 import com.redis.spring.batch.writer.operation.ExpireAt;
 import com.redis.spring.batch.writer.operation.Hset;
@@ -31,21 +31,21 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
 
     private final Del<K, V, Struct<K>> del = delOperation();
 
-    private final Map<Type, Operation<K, V, Struct<K>, Object>> operations = operations();
+    private final Map<DataStructureType, Operation<K, V, Struct<K>, Object>> operations = operations();
 
     private boolean merge;
 
-    private Map<Type, Operation<K, V, Struct<K>, Object>> operations() {
-        EnumMap<Type, Operation<K, V, Struct<K>, Object>> map = new EnumMap<>(Type.class);
-        map.put(Type.NONE, new Noop<>());
-        map.put(Type.HASH, hashOperation());
-        map.put(Type.STRING, stringOperation());
-        map.put(Type.JSON, jsonOperation());
-        map.put(Type.LIST, listOperation());
-        map.put(Type.SET, setOperation());
-        map.put(Type.ZSET, zsetOperation());
-        map.put(Type.TIMESERIES, timeseriesOperation());
-        map.put(Type.STREAM, streamOperation());
+    private Map<DataStructureType, Operation<K, V, Struct<K>, Object>> operations() {
+        EnumMap<DataStructureType, Operation<K, V, Struct<K>, Object>> map = new EnumMap<>(DataStructureType.class);
+        map.put(DataStructureType.NONE, new Noop<>());
+        map.put(DataStructureType.HASH, hashOperation());
+        map.put(DataStructureType.STRING, stringOperation());
+        map.put(DataStructureType.JSON, jsonOperation());
+        map.put(DataStructureType.LIST, listOperation());
+        map.put(DataStructureType.SET, setOperation());
+        map.put(DataStructureType.ZSET, zsetOperation());
+        map.put(DataStructureType.TIMESERIES, timeseriesOperation());
+        map.put(DataStructureType.STREAM, streamOperation());
         return map;
     }
 
@@ -67,7 +67,7 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
     }
 
     protected void write(BaseRedisAsyncCommands<K, V> commands, Struct<K> item, List<RedisFuture<Object>> futures) {
-        if (!merge && item.getType() != Type.STRING) {
+        if (!merge && item.getType() != DataStructureType.STRING) {
             delete(commands, item, futures);
         }
         operations.get(item.getType()).execute(commands, item, futures);
@@ -91,7 +91,7 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
     }
 
     private static boolean exists(Struct<?> item) {
-        return item.getValue() != null && item.getTtl() != Restore.TTL_KEY_DOES_NOT_EXIST && item.getType() != Type.NONE;
+        return item.getValue() != null && item.getTtl() != Restore.TTL_KEY_DOES_NOT_EXIST && item.getType() != DataStructureType.NONE;
     }
 
     private XAddArgs xaddArgs(StreamMessage<K, V> message) {

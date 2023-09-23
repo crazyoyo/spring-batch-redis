@@ -20,15 +20,16 @@ import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.Dump;
 import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.Struct;
-import com.redis.spring.batch.common.Struct.Type;
 import com.redis.spring.batch.gen.GeneratorItemReader;
+import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
+import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
@@ -98,8 +99,8 @@ class StackTests extends ModulesTests {
     @Test
     void readMultipleStreams(TestInfo testInfo) throws Exception {
         generateStreams(testInfo(testInfo, "streams"), 277);
-        final List<String> keys = ScanIterator.scan(commands, KeyScanArgs.Builder.type(Type.STREAM.getString())).stream()
-                .collect(Collectors.toList());
+        final List<String> keys = ScanIterator.scan(commands, KeyScanArgs.Builder.type(DataStructureType.STREAM.getString()))
+                .stream().collect(Collectors.toList());
         for (String key : keys) {
             long count = commands.xlen(key);
             StreamItemReader<String, String> reader1 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
@@ -150,8 +151,7 @@ class StackTests extends ModulesTests {
         Xadd<String, String, Map<String, String>> xadd = new Xadd<>();
         xadd.setKey(stream);
         xadd.setBodyFunction(Function.identity());
-        OperationItemWriter<String, String, Map<String, String>> writer = new OperationItemWriter<>(client, StringCodec.UTF8,
-                xadd);
+        RedisItemWriter<String, String, Map<String, String>> writer = new RedisItemWriter<>(client, StringCodec.UTF8, xadd);
         writer.setMultiExec(true);
         run(testInfo, reader, writer);
         Assertions.assertEquals(messages.size(), commands.xlen(stream));
@@ -171,14 +171,14 @@ class StackTests extends ModulesTests {
         commands.hset(key, hash);
         long ttl = System.currentTimeMillis() + 123456;
         commands.pexpireat(key, ttl);
-        RedisItemReader<String, String, Struct<String>> reader = RedisItemReader.struct(client, StringCodec.UTF8);
+        StructItemReader<String, String> reader = RedisItemReader.struct(client, StringCodec.UTF8);
         reader.setMemoryUsageLimit(DataSize.ofBytes(-1));
         SimpleOperationExecutor<String, String, String, Struct<String>> executor = reader.operationExecutor();
         executor.open(new ExecutionContext());
-        Struct<String> ds = executor.execute(Arrays.asList(key)).get(0);
+        Struct<String> ds = executor.process(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(ttl, ds.getTtl());
-        Assertions.assertEquals(Type.HASH, ds.getType());
+        Assertions.assertEquals(DataStructureType.HASH, ds.getType());
         Assertions.assertTrue(ds.getMemoryUsage().toBytes() > 0);
         executor.close();
     }
@@ -187,7 +187,7 @@ class StackTests extends ModulesTests {
     void structMemUsage(TestInfo info) throws Exception {
         generate(info);
         long memLimit = 200;
-        RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
+        StructItemReader<String, String> reader = structReader(info, client);
         reader.setName(name(info) + "-reader");
         reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
         reader.open(new ExecutionContext());
@@ -205,7 +205,7 @@ class StackTests extends ModulesTests {
     @Test
     void replicateStructMemLimit(TestInfo info) throws Exception {
         generate(info);
-        RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
+        StructItemReader<String, String> reader = structReader(info, client);
         reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
         RedisItemWriter<String, String, Struct<String>> writer = structWriter(targetClient);
         run(info, reader, writer);
@@ -217,7 +217,7 @@ class StackTests extends ModulesTests {
     @Test
     void replicateDumpMemLimitHigh(TestInfo info) throws Exception {
         generate(info);
-        RedisItemReader<byte[], byte[], Dump<byte[]>> reader = dumpReader(info, client, ByteArrayCodec.INSTANCE);
+        DumpItemReader<byte[], byte[]> reader = dumpReader(info, client, ByteArrayCodec.INSTANCE);
         reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
         RedisItemWriter<byte[], byte[], Dump<byte[]>> writer = dumpWriter(targetClient, ByteArrayCodec.INSTANCE);
         run(info, reader, writer);
@@ -231,13 +231,13 @@ class StackTests extends ModulesTests {
         generate(info);
         Assertions.assertTrue(commands.dbsize() > 10);
         long memLimit = 1500;
-        RedisItemReader<byte[], byte[], Dump<byte[]>> reader = dumpReader(info, client, ByteArrayCodec.INSTANCE);
+        DumpItemReader<byte[], byte[]> reader = dumpReader(info, client, ByteArrayCodec.INSTANCE);
         reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
         RedisItemWriter<byte[], byte[], Dump<byte[]>> writer = dumpWriter(targetClient, ByteArrayCodec.INSTANCE);
         run(info, reader, writer);
         awaitClosed(reader);
         awaitClosed(writer);
-        RedisItemReader<String, String, Struct<String>> fullReader = structReader(info, client);
+        StructItemReader<String, String> fullReader = structReader(info, client);
         fullReader.setName(name(info) + "-fullReader");
         fullReader.setJobRepository(jobRepository);
         fullReader.setTransactionManager(transactionManager);
@@ -257,7 +257,7 @@ class StackTests extends ModulesTests {
         commands.set(key1, "bar");
         String key2 = "key:2";
         commands.set(key2, GeneratorItemReader.string(Math.toIntExact(limit.toBytes() * 2)));
-        RedisItemReader<String, String, Struct<String>> reader = structReader(info, client);
+        StructItemReader<String, String> reader = structReader(info, client);
         reader.setName(name(info) + "-reader");
         reader.setMemoryUsageLimit(limit);
         reader.open(new ExecutionContext());
@@ -271,7 +271,8 @@ class StackTests extends ModulesTests {
     void replicateStruct(TestInfo info) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(10000);
-        gen.setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);
+        gen.setTypes(DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STREAM,
+                DataStructureType.STRING, DataStructureType.ZSET);
         generate(info, gen);
         RedisItemReader<byte[], byte[], Struct<byte[]>> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[], Struct<byte[]>> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);
@@ -285,7 +286,8 @@ class StackTests extends ModulesTests {
     void replicateStructEmptyCollections(TestInfo info) throws Exception {
         GeneratorItemReader gen = new GeneratorItemReader();
         gen.setMaxItemCount(10000);
-        gen.setTypes(Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET);
+        gen.setTypes(DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STREAM,
+                DataStructureType.STRING, DataStructureType.ZSET);
         generate(info, gen);
         RedisItemReader<byte[], byte[], Struct<byte[]>> reader = structReader(info, client, ByteArrayCodec.INSTANCE);
         RedisItemWriter<byte[], byte[], Struct<byte[]>> writer = structWriter(targetClient, ByteArrayCodec.INSTANCE);

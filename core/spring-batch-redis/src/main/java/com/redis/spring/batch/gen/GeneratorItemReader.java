@@ -18,9 +18,9 @@ import org.springframework.util.ClassUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
+import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.common.Struct;
-import com.redis.spring.batch.common.Struct.Type;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -31,7 +31,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     public static final String DEFAULT_KEY_SEPARATOR = ":";
 
-    private static final Type[] DEFAULT_TYPES = { Type.HASH, Type.LIST, Type.SET, Type.STREAM, Type.STRING, Type.ZSET };
+    private static final DataStructureType[] DEFAULT_TYPES = { DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STREAM, DataStructureType.STRING, DataStructureType.ZSET };
 
     public static final Range DEFAULT_KEY_RANGE = Range.from(1);
 
@@ -67,7 +67,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     private ZsetOptions zsetOptions = new ZsetOptions();
 
-    private List<Type> types = defaultTypes();
+    private List<DataStructureType> types = defaultTypes();
 
     private boolean open;
 
@@ -75,7 +75,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         setName(ClassUtils.getShortName(getClass()));
     }
 
-    public static List<Type> defaultTypes() {
+    public static List<DataStructureType> defaultTypes() {
         return Arrays.asList(DEFAULT_TYPES);
     }
 
@@ -135,7 +135,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return keyspace;
     }
 
-    public List<Type> getTypes() {
+    public List<DataStructureType> getTypes() {
         return types;
     }
 
@@ -179,11 +179,11 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         this.keyspace = keyspace;
     }
 
-    public void setTypes(Type... types) {
+    public void setTypes(DataStructureType... types) {
         setTypes(Arrays.asList(types));
     }
 
-    public void setTypes(List<Type> types) {
+    public void setTypes(List<DataStructureType> types) {
         this.types = types;
     }
 
@@ -199,7 +199,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return range.getMin() + index() % (range.getMax() - range.getMin() + 1);
     }
 
-    private Object value(Type type) throws JsonProcessingException {
+    private Object value(DataStructureType type) throws JsonProcessingException {
         switch (type) {
             case HASH:
                 return map(hashOptions);
@@ -304,7 +304,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
     protected Struct<String> doRead() {
         Struct<String> struct = new Struct<>();
         struct.setKey(key());
-        Type type = types.get(index() % types.size());
+        DataStructureType type = types.get(index() % types.size());
         struct.setType(type);
         try {
             struct.setValue(value(type));
