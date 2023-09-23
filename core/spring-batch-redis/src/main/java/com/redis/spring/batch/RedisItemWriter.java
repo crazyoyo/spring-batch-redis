@@ -59,20 +59,25 @@ public class RedisItemWriter<K, V, T> extends AbstractBatchOperationExecutor<K, 
     @Override
     protected BatchOperation<K, V, T, Object> batchOperation() {
         BatchOperation<K, V, T, Object> batchOperation = new SimpleBatchOperation<>(operation);
-        if (waitReplicas > 0) {
-            batchOperation = replicaWaitOperation(batchOperation);
-        }
+        batchOperation = replicaWaitOperation(batchOperation);
+        return multiExec(batchOperation);
+    }
+
+    private BatchOperation<K, V, T, Object> multiExec(BatchOperation<K, V, T, Object> batchOperation) {
         if (multiExec) {
-            batchOperation = new MultiExecBatchOperation<>(batchOperation);
+            return new MultiExecBatchOperation<>(batchOperation);
         }
         return batchOperation;
     }
 
-    private ReplicaWaitBatchOperation<K, V, T> replicaWaitOperation(BatchOperation<K, V, T, Object> batchOperation) {
-        ReplicaWaitBatchOperation<K, V, T> waitOperation = new ReplicaWaitBatchOperation<>(batchOperation);
-        waitOperation.setWaitReplicas(waitReplicas);
-        waitOperation.setWaitTimeout(waitTimeout);
-        return waitOperation;
+    private BatchOperation<K, V, T, Object> replicaWaitOperation(BatchOperation<K, V, T, Object> operation) {
+        if (waitReplicas > 0) {
+            ReplicaWaitBatchOperation<K, V, T> waitOperation = new ReplicaWaitBatchOperation<>(operation);
+            waitOperation.setWaitReplicas(waitReplicas);
+            waitOperation.setWaitTimeout(waitTimeout);
+            return waitOperation;
+        }
+        return operation;
     }
 
     public static StructItemWriter<String, String> struct(AbstractRedisClient client) {
