@@ -20,6 +20,10 @@ public class Struct<K> extends KeyValue<K, Object> {
         this.type = type;
     }
 
+    public boolean exists() {
+        return super.exists() && type != DataStructureType.NONE;
+    }
+
     public static <K> Builder<K> key(K key) {
         return new Builder<>(key);
     }

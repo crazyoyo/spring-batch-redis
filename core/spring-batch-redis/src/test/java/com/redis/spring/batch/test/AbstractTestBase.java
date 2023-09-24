@@ -14,10 +14,12 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionTimeoutException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -35,12 +37,15 @@ import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.job.builder.SimpleJobBuilder;
+import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
@@ -65,10 +70,13 @@ import com.redis.spring.batch.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataStructureType;
 import com.redis.spring.batch.common.Dump;
+import com.redis.spring.batch.common.KeyComparison;
+import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.Struct;
+import com.redis.spring.batch.common.StructComparisonItemReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.reader.DumpItemReader;
@@ -100,6 +108,8 @@ public abstract class AbstractTestBase {
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
     public static final int DEFAULT_CHUNK_SIZE = 50;
+
+    public static final Duration COMPARE_TIMEOUT = Duration.ofSeconds(3);
 
     private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(1000);
 
@@ -143,13 +153,112 @@ public abstract class AbstractTestBase {
 
     protected abstract RedisServer getRedisServer();
 
+    protected abstract RedisServer getTargetRedisServer();
+
+    protected AbstractRedisClient targetClient;
+
+    protected StatefulRedisModulesConnection<String, String> targetConnection;
+
+    protected RedisModulesCommands<String, String> targetCommands;
+
+    protected void awaitCompare(TestInfo info) {
+        Awaitility.await().timeout(COMPARE_TIMEOUT).until(() -> compare(info));
+    }
+
+    /**
+     * 
+     * @param left
+     * @param right
+     * @return
+     * @return list of differences
+     * @throws Exception
+     */
+    protected boolean compare(TestInfo info) throws Exception {
+        if (commands.dbsize().equals(0L)) {
+            log.info("Source database is empty");
+            return false;
+        }
+        if (!commands.dbsize().equals(targetCommands.dbsize())) {
+            log.info("Source and target databases have different sizes");
+            return false;
+        }
+        StructComparisonItemReader reader = comparisonReader(testInfo(info, "compare", "reader"));
+        reader.open(new ExecutionContext());
+        List<KeyComparison<Struct<String>>> comparisons = BatchUtils.readAll(reader);
+        reader.close();
+        Assertions.assertFalse(comparisons.isEmpty());
+        List<KeyComparison<Struct<String>>> diffs = comparisons.stream().filter(c -> c.getStatus() != Status.OK)
+                .collect(Collectors.toList());
+        diffs.forEach(this::logComparison);
+        return diffs.isEmpty();
+    }
+
+    protected StructComparisonItemReader comparisonReader(TestInfo info) throws Exception {
+        StructComparisonItemReader reader = new StructComparisonItemReader(structReader(info, client),
+                structReader(info, targetClient));
+        reader.setName(name(info));
+        reader.setTtlTolerance(Duration.ofMillis(100));
+        return reader;
+    }
+
+    protected <K, V, T extends KeyValue<K, ?>> boolean replicateLive(TestInfo testInfo, RedisItemReader<K, V, T> reader,
+            RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
+            throws Exception {
+        GeneratorItemReader gen = new GeneratorItemReader();
+        gen.setMaxItemCount(300);
+        gen.setTypes(DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STREAM,
+                DataStructureType.STRING, DataStructureType.ZSET);
+        generate(testInfo(testInfo, "generate"), gen);
+        TaskletStep step = step(testInfo(testInfo, "step"), reader, writer).build();
+        SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "snapshotFlow"))).start(step).build();
+        TaskletStep liveStep = flushingStep(testInfo(testInfo, "liveStep"), liveReader, liveWriter).build();
+        SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "liveFlow"))).start(liveStep).build();
+        Job job = job(testInfo).start(new FlowBuilder<SimpleFlow>(name(testInfo(testInfo, "flow")))
+                .split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
+        JobExecution execution = runAsync(job);
+        GeneratorItemReader liveGen = new GeneratorItemReader();
+        liveGen.setMaxItemCount(700);
+        liveGen.setTypes(DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STRING,
+                DataStructureType.ZSET);
+        liveGen.setExpiration(Range.of(100));
+        liveGen.setKeyRange(Range.from(300));
+        generate(testInfo(testInfo, "generateLive"), liveGen);
+        try {
+            awaitTermination(execution);
+        } catch (ConditionTimeoutException e) {
+            // ignore
+        }
+        awaitClosed(reader);
+        awaitClosed(writer);
+        awaitClosed(liveReader);
+        awaitClosed(liveWriter);
+        return compare(testInfo);
+    }
+
+    protected void logComparison(KeyComparison<Struct<String>> comparison) {
+        log.error(comparison.toString());
+        if (comparison.getStatus() == Status.VALUE) {
+            log.error("Expected {} but was {}", comparison.getSource().getValue(), comparison.getTarget().getValue());
+        }
+    }
+
     @BeforeAll
     void setup() throws Exception {
+
+        // Source Redis setup
         getRedisServer().start();
         client = client(getRedisServer());
         pool = ConnectionPoolSupport.createGenericObjectPool(ConnectionUtils.supplier(client), new GenericObjectPoolConfig<>());
         connection = RedisModulesUtils.connection(client);
         commands = connection.sync();
+
+        // Target Redis setup
+        getTargetRedisServer().start();
+        targetClient = client(getTargetRedisServer());
+        targetConnection = RedisModulesUtils.connection(targetClient);
+        targetCommands = targetConnection.sync();
+
+        // Job infra setup
         MapJobRepositoryFactoryBean bean = new MapJobRepositoryFactoryBean();
         bean.afterPropertiesSet();
         jobRepository = bean.getObject();
@@ -173,11 +282,19 @@ public abstract class AbstractTestBase {
         client.shutdown();
         client.getResources().shutdown();
         getRedisServer().close();
+
+        targetConnection.close();
+        targetClient.shutdown();
+        targetClient.getResources().shutdown();
+        getTargetRedisServer().close();
+
     }
 
     @BeforeEach
     void flushAll() {
         commands.flushall();
+        targetCommands.flushall();
+        awaitEquals(() -> 0L, targetCommands::dbsize);
     }
 
     private static class SimpleTestInfo implements TestInfo {

@@ -4,6 +4,8 @@ import org.springframework.util.unit.DataSize;
 
 public class KeyValue<K, V> {
 
+    private static final long TTL_KEY_DOES_NOT_EXIST = -2;
+
     private K key;
 
     private V value;
@@ -60,6 +62,10 @@ public class KeyValue<K, V> {
 
     public void setMemoryUsage(DataSize memoryUsage) {
         this.memoryUsage = memoryUsage;
+    }
+
+    public boolean exists() {
+        return value != null && ttl != TTL_KEY_DOES_NOT_EXIST;
     }
 
     public static class Builder<K, V, B extends Builder<K, V, B>> {

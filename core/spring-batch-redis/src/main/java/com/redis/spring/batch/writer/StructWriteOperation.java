@@ -12,7 +12,6 @@ import com.redis.spring.batch.writer.operation.ExpireAt;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.JsonSet;
 import com.redis.spring.batch.writer.operation.Noop;
-import com.redis.spring.batch.writer.operation.Restore;
 import com.redis.spring.batch.writer.operation.RpushAll;
 import com.redis.spring.batch.writer.operation.SaddAll;
 import com.redis.spring.batch.writer.operation.Set;
@@ -55,7 +54,7 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
 
     @Override
     public void execute(BaseRedisAsyncCommands<K, V> commands, Struct<K> item, List<RedisFuture<Object>> futures) {
-        if (exists(item)) {
+        if (item.exists()) {
             write(commands, item, futures);
         } else {
             delete(commands, item, futures);
@@ -88,10 +87,6 @@ public class StructWriteOperation<K, V> implements Operation<K, V, Struct<K>, Ob
         operation.setKeyFunction(Struct::getKey);
         operation.setValueFunction(this::value);
         return operation;
-    }
-
-    private static boolean exists(Struct<?> item) {
-        return item.getValue() != null && item.getTtl() != Restore.TTL_KEY_DOES_NOT_EXIST && item.getType() != DataStructureType.NONE;
     }
 
     private XAddArgs xaddArgs(StreamMessage<K, V> message) {
