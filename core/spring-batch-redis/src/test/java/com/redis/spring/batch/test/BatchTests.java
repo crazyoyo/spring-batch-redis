@@ -454,6 +454,7 @@ abstract class BatchTests extends AbstractTestBase {
         RedisItemReader<byte[], byte[], Struct<byte[]>> reader = liveStructReader(info, client, ByteArrayCodec.INSTANCE);
         reader.setNotificationQueueCapacity(10000);
         reader.open(new ExecutionContext());
+        awaitOpen(reader);
         GeneratorItemReader gen = new GeneratorItemReader();
         int count = 123;
         gen.setMaxItemCount(count);
@@ -464,6 +465,23 @@ abstract class BatchTests extends AbstractTestBase {
         Set<String> keys = list.stream().map(Struct::getKey).map(toString).collect(Collectors.toSet());
         Assertions.assertEquals(commands.dbsize(), keys.size());
         reader.close();
+    }
+
+    @Test
+    void readWriteLive(TestInfo info) throws Exception {
+        enableKeyspaceNotifications(client);
+        RedisItemReader<byte[], byte[], Dump<byte[]>> reader = liveDumpReader(info, client, ByteArrayCodec.INSTANCE);
+        reader.setNotificationQueueCapacity(100000);
+        RedisItemWriter<byte[], byte[], Dump<byte[]>> writer = dumpWriter(targetClient, ByteArrayCodec.INSTANCE);
+        JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
+        awaitOpen(reader);
+        GeneratorItemReader gen = new GeneratorItemReader();
+        gen.setMaxItemCount(100);
+        gen.setTypes(DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STRING,
+                DataStructureType.ZSET);
+        generate(info, gen);
+        awaitTermination(execution);
+        Assertions.assertTrue(compare(info));
     }
 
     @Test
@@ -954,23 +972,6 @@ abstract class BatchTests extends AbstractTestBase {
         awaitClosed(reader);
         awaitClosed(writer);
         Assertions.assertEquals(commands.dbsize(), targetCommands.dbsize());
-    }
-
-    @Test
-    void readWriteLive(TestInfo info) throws Exception {
-        enableKeyspaceNotifications(client);
-        RedisItemReader<byte[], byte[], Dump<byte[]>> reader = liveDumpReader(info, client, ByteArrayCodec.INSTANCE);
-        reader.setNotificationQueueCapacity(100000);
-        RedisItemWriter<byte[], byte[], Dump<byte[]>> writer = dumpWriter(targetClient, ByteArrayCodec.INSTANCE);
-        JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
-        awaitOpen(reader);
-        GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setMaxItemCount(100);
-        gen.setTypes(DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STRING,
-                DataStructureType.ZSET);
-        generate(info, gen);
-        awaitTermination(execution);
-        Assertions.assertTrue(compare(info));
     }
 
     @Test
