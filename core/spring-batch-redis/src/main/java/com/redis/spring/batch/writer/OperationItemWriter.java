@@ -5,7 +5,7 @@ import com.redis.spring.batch.common.SimpleBatchWriteOperation;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public class OperationItemWriter<K, V, T> extends AbstractBatchOperationItemWriter<K, V, T> {
+public class OperationItemWriter<K, V, T> extends AbstractOperationItemWriter<K, V, T> {
 
     private final BatchWriteOperation<K, V, T> operation;
 

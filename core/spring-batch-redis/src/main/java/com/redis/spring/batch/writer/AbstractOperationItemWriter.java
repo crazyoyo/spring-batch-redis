@@ -5,14 +5,14 @@ import java.util.List;
 
 import org.springframework.batch.item.ItemStreamWriter;
 
-import com.redis.spring.batch.common.AbstractBatchOperationExecutor;
+import com.redis.spring.batch.common.AbstractOperationExecutor;
 import com.redis.spring.batch.writer.operation.MultiExecBatchOperation;
 import com.redis.spring.batch.writer.operation.ReplicaWaitBatchWriteOperation;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public abstract class AbstractBatchOperationItemWriter<K, V, T> extends AbstractBatchOperationExecutor<K, V, T, Object>
+public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOperationExecutor<K, V, T, Object>
         implements ItemStreamWriter<T> {
 
     public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
@@ -23,7 +23,7 @@ public abstract class AbstractBatchOperationItemWriter<K, V, T> extends Abstract
 
     private boolean multiExec;
 
-    protected AbstractBatchOperationItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
+    protected AbstractOperationItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
         super(client, codec);
     }
 

@@ -21,7 +21,7 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
-public abstract class AbstractBatchOperationExecutor<K, V, I, O> extends ItemStreamSupport
+public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSupport
         implements ItemProcessor<List<? extends I>, List<O>> {
 
     public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
@@ -38,7 +38,7 @@ public abstract class AbstractBatchOperationExecutor<K, V, I, O> extends ItemStr
 
     private BatchOperation<K, V, I, O> batchOperation;
 
-    protected AbstractBatchOperationExecutor(AbstractRedisClient client, RedisCodec<K, V> codec) {
+    protected AbstractOperationExecutor(AbstractRedisClient client, RedisCodec<K, V> codec) {
         this.client = client;
         this.codec = codec;
     }

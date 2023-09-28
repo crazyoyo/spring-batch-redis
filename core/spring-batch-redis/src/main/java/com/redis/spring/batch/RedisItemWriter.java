@@ -1,6 +1,6 @@
 package com.redis.spring.batch;
 
-import com.redis.spring.batch.writer.AbstractBatchOperationItemWriter;
+import com.redis.spring.batch.writer.AbstractOperationItemWriter;
 import com.redis.spring.batch.writer.BatchWriteOperation;
 import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.OperationItemWriter;
@@ -11,7 +11,7 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public abstract class RedisItemWriter<K, V, T> extends AbstractBatchOperationItemWriter<K, V, T> {
+public abstract class RedisItemWriter<K, V, T> extends AbstractOperationItemWriter<K, V, T> {
 
     protected RedisItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
         super(client, codec);
