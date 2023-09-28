@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.function.Function;
 
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
@@ -48,7 +47,7 @@ public class KeyValueReadOperation<K, V> implements Operation<K, V, K, KeyValue<
             keyValue.setTtl((Long) iterator.next());
         }
         if (iterator.hasNext()) {
-            keyValue.setMemoryUsage(DataSize.ofBytes((Long) iterator.next()));
+            keyValue.setMemoryUsage((Long) iterator.next());
         }
         if (iterator.hasNext()) {
             keyValue.setType(DataType.of(toString(iterator.next())));

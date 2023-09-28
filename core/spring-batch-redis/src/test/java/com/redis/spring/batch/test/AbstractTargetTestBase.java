@@ -27,8 +27,8 @@ import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
+import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.KeyValueComparisonItemReader;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.util.BatchUtils;
@@ -90,19 +90,18 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
             log.info("Source and target databases have different sizes");
             return false;
         }
-        KeyValueComparisonItemReader reader = comparisonReader(new SimpleTestInfo(info, "compare", "reader"));
+        KeyComparisonItemReader reader = comparisonReader(new SimpleTestInfo(info, "compare", "reader"));
         reader.open(new ExecutionContext());
-        List<KeyComparison<KeyValue<String>>> comparisons = BatchUtils.readAll(reader);
+        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
         reader.close();
         Assertions.assertFalse(comparisons.isEmpty());
-        List<KeyComparison<KeyValue<String>>> diffs = comparisons.stream().filter(c -> c.getStatus() != Status.OK)
-                .collect(Collectors.toList());
+        List<KeyComparison> diffs = comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
         diffs.forEach(this::logComparison);
         return diffs.isEmpty();
     }
 
-    protected KeyValueComparisonItemReader comparisonReader(TestInfo info) throws Exception {
-        KeyValueComparisonItemReader reader = new KeyValueComparisonItemReader(structReader(info, client),
+    protected KeyComparisonItemReader comparisonReader(TestInfo info) throws Exception {
+        KeyComparisonItemReader reader = new KeyComparisonItemReader(structReader(info, client),
                 structReader(info, targetClient));
         reader.setName(name(info));
         reader.setTtlTolerance(Duration.ofMillis(100));
@@ -142,7 +141,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         return compare(testInfo);
     }
 
-    protected void logComparison(KeyComparison<KeyValue<String>> comparison) {
+    protected void logComparison(KeyComparison comparison) {
         log.error(comparison.toString());
         if (comparison.getStatus() == Status.VALUE) {
             log.error("Expected {} but was {}", comparison.getSource().getValue(), comparison.getTarget().getValue());

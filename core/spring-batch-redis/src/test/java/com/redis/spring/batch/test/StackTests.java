@@ -179,7 +179,7 @@ class StackTests extends ModulesTests {
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(ttl, ds.getTtl());
         Assertions.assertEquals(DataType.HASH, ds.getType());
-        Assertions.assertTrue(ds.getMemoryUsage().toBytes() > 0);
+        Assertions.assertTrue(ds.getMemoryUsage() > 0);
         executor.close();
     }
 
@@ -195,8 +195,8 @@ class StackTests extends ModulesTests {
         reader.close();
         Assertions.assertFalse(keyValues.isEmpty());
         for (KeyValue<String> keyValue : keyValues) {
-            Assertions.assertTrue(keyValue.getMemoryUsage().toBytes() > 0);
-            if (keyValue.getMemoryUsage().toBytes() > memLimit) {
+            Assertions.assertTrue(keyValue.getMemoryUsage() > 0);
+            if (keyValue.getMemoryUsage() > memLimit) {
                 Assertions.assertNull(keyValue.getValue());
             }
         }
@@ -245,7 +245,7 @@ class StackTests extends ModulesTests {
         fullReader.open(new ExecutionContext());
         List<KeyValue<String>> items = BatchUtils.readAll(fullReader);
         fullReader.close();
-        Predicate<KeyValue<String>> isMemKey = v -> v.getMemoryUsage().toBytes() > memLimit;
+        Predicate<KeyValue<String>> isMemKey = v -> v.getMemoryUsage() > memLimit;
         List<KeyValue<String>> bigkeys = items.stream().filter(isMemKey).collect(Collectors.toList());
         Assertions.assertEquals(commands.dbsize(), bigkeys.size() + targetCommands.dbsize());
     }

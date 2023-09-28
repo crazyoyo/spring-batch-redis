@@ -1,9 +1,11 @@
 package com.redis.spring.batch.common;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
@@ -15,31 +17,41 @@ import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.util.BatchUtils;
 
-public abstract class AbstractKeyComparisonItemReader<T> extends AbstractItemStreamItemReader<KeyComparison<T>> {
+public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyComparison> {
+
+    public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
     public static final int DEFAULT_CHUNK_SIZE = RedisItemReader.DEFAULT_CHUNK_SIZE;
 
+    private long ttlTolerance = DEFAULT_TTL_TOLERANCE.toMillis();
+
     private int chunkSize = DEFAULT_CHUNK_SIZE;
 
-    private final RedisItemReader<String, String, T> source;
+    private final RedisItemReader<String, String, KeyValue<String>> source;
 
-    private final RedisItemReader<String, String, T> target;
-
-    private KeyComparator<T> comparator;
+    private final RedisItemReader<String, String, KeyValue<String>> target;
 
     private ScanKeyItemReader<String> keyReader;
 
-    private SimpleOperationExecutor<String, String, String, T> sourceExecutor;
+    private SimpleOperationExecutor<String, String, String, KeyValue<String>> sourceExecutor;
 
-    private SimpleOperationExecutor<String, String, String, T> targetExecutor;
+    private SimpleOperationExecutor<String, String, String, KeyValue<String>> targetExecutor;
 
-    private Iterator<KeyComparison<T>> iterator = Collections.emptyIterator();
+    private Iterator<KeyComparison> iterator = Collections.emptyIterator();
 
-    protected AbstractKeyComparisonItemReader(RedisItemReader<String, String, T> source,
-            RedisItemReader<String, String, T> target) {
+    public KeyComparisonItemReader(RedisItemReader<String, String, KeyValue<String>> source,
+            RedisItemReader<String, String, KeyValue<String>> target) {
         setName(ClassUtils.getShortName(getClass()));
         this.source = source;
         this.target = target;
+    }
+
+    public void setChunkSize(int chunkSize) {
+        this.chunkSize = chunkSize;
+    }
+
+    public void setTtlTolerance(Duration ttlTolerance) {
+        this.ttlTolerance = ttlTolerance.toMillis();
     }
 
     @Override
@@ -51,17 +63,14 @@ public abstract class AbstractKeyComparisonItemReader<T> extends AbstractItemStr
         sourceExecutor = source.operationExecutor();
         sourceExecutor.open(executionContext);
         keyReader.open(executionContext);
-        comparator = comparator();
     }
-
-    protected abstract KeyComparator<T> comparator();
 
     public boolean isOpen() {
         return BatchUtils.isOpen(sourceExecutor) && BatchUtils.isOpen(targetExecutor) && BatchUtils.isOpen(keyReader);
     }
 
     @Override
-    public synchronized KeyComparison<T> read() throws Exception {
+    public synchronized KeyComparison read() throws Exception {
         if (iterator.hasNext()) {
             return iterator.next();
         }
@@ -72,25 +81,48 @@ public abstract class AbstractKeyComparisonItemReader<T> extends AbstractItemStr
         return null;
     }
 
-    private List<KeyComparison<T>> readNextChunk() throws Exception {
-        List<KeyComparison<T>> results = new ArrayList<>();
+    private List<KeyComparison> readNextChunk() throws Exception {
+        List<KeyComparison> results = new ArrayList<>();
         List<String> keys = readKeys();
-        List<T> sourceItems = sourceExecutor.process(keys);
+        List<KeyValue<String>> sourceItems = sourceExecutor.process(keys);
         if (!CollectionUtils.isEmpty(sourceItems)) {
-            List<T> targetItems = targetExecutor.process(keys);
+            List<KeyValue<String>> targetItems = targetExecutor.process(keys);
             if (!CollectionUtils.isEmpty(targetItems)) {
                 for (int index = 0; index < sourceItems.size(); index++) {
                     if (index >= targetItems.size()) {
                         continue;
                     }
-                    T sourceItem = sourceItems.get(index);
-                    T targetItem = targetItems.get(index);
-                    Status status = comparator.compare(sourceItem, targetItem);
-                    results.add(KeyComparison.source(sourceItem).target(targetItem).status(status).build());
+                    KeyValue<String> sourceItem = sourceItems.get(index);
+                    KeyValue<String> targetItem = targetItems.get(index);
+                    Status status = compare(sourceItem, targetItem);
+                    KeyComparison comparison = new KeyComparison();
+                    comparison.setSource(sourceItem);
+                    comparison.setTarget(targetItem);
+                    comparison.setStatus(status);
+                    results.add(comparison);
                 }
             }
         }
         return results;
+    }
+
+    private Status compare(KeyValue<String> source, KeyValue<String> target) {
+        if (!target.exists() && source.exists()) {
+            return Status.MISSING;
+        }
+        if (target.getType() != source.getType()) {
+            return Status.TYPE;
+        }
+        if (!Objects.deepEquals(source.getValue(), target.getValue())) {
+            return Status.VALUE;
+        }
+        if (source.getTtl() != target.getTtl()) {
+            long delta = Math.abs(source.getTtl() - target.getTtl());
+            if (delta > ttlTolerance) {
+                return Status.TTL;
+            }
+        }
+        return Status.OK;
     }
 
     private List<String> readKeys() throws Exception {

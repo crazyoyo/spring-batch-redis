@@ -1,7 +1,5 @@
 package com.redis.spring.batch.common;
 
-import org.springframework.util.unit.DataSize;
-
 public class KeyValue<K> {
 
     public static final long TTL_KEY_DOES_NOT_EXIST = -2;
@@ -22,7 +20,7 @@ public class KeyValue<K> {
      * Number of bytes that this key and its value require to be stored in Redis RAM. 0 means no memory usage information is
      * available.
      */
-    private DataSize memoryUsage;
+    private long memoryUsage;
 
     public K getKey() {
         return key;
@@ -56,16 +54,16 @@ public class KeyValue<K> {
         this.ttl = ttl;
     }
 
-    public DataSize getMemoryUsage() {
+    public long getMemoryUsage() {
         return memoryUsage;
     }
 
-    public void setMemoryUsage(DataSize memoryUsage) {
+    public void setMemoryUsage(long memoryUsage) {
         this.memoryUsage = memoryUsage;
     }
 
     public boolean exists() {
-        return type != DataType.NONE && ttl != KeyValue.TTL_KEY_DOES_NOT_EXIST && value != null;
+        return type != DataType.NONE && ttl != KeyValue.TTL_KEY_DOES_NOT_EXIST;
     }
 
 }

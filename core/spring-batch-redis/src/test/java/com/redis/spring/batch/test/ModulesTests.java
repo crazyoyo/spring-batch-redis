@@ -35,8 +35,8 @@ import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
+import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.KeyValueComparisonItemReader;
 import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.ToSuggestionFunction;
 import com.redis.spring.batch.gen.GeneratorItemReader;
@@ -179,11 +179,11 @@ abstract class ModulesTests extends BatchTests {
         for (int index = 0; index < count; index++) {
             commands.tsAdd("ts:" + index, Sample.of(123));
         }
-        KeyValueComparisonItemReader reader = comparisonReader(info);
+        KeyComparisonItemReader reader = comparisonReader(info);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
         awaitOpen(reader);
-        List<KeyComparison<KeyValue<String>>> comparisons = BatchUtils.readAll(reader);
+        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
         reader.close();
         Assertions.assertEquals(count, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());
     }

@@ -32,15 +32,15 @@ import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
-import com.redis.spring.batch.common.KeyTypeComparisonItemReader;
+import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.KeyValueComparisonItemReader;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.ToGeoValueFunction;
 import com.redis.spring.batch.common.ToScoredValueFunction;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.MapOptions;
+import com.redis.spring.batch.reader.KeyTypeItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
@@ -923,12 +923,12 @@ abstract class BatchTests extends AbstractTargetTestBase {
     void compareSet(TestInfo info) throws Exception {
         commands.sadd("set:1", "value1", "value2");
         targetCommands.sadd("set:1", "value2", "value1");
-        KeyValueComparisonItemReader reader = comparisonReader(info);
+        KeyComparisonItemReader reader = comparisonReader(info);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
         awaitOpen(reader);
         log.info("readAll");
-        List<KeyComparison<KeyValue<String>>> comparisons = BatchUtils.readAll(reader);
+        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
         log.info("closing");
         reader.close();
         log.info("assert");
@@ -945,14 +945,15 @@ abstract class BatchTests extends AbstractTargetTestBase {
         for (int index = 1; index <= targetCount; index++) {
             targetCommands.set("key:" + index, "value:" + index);
         }
-        KeyTypeComparisonItemReader reader = new KeyTypeComparisonItemReader(keyTypeReader(info, client),
-                keyTypeReader(info, targetClient));
+        KeyTypeItemReader<String, String> source = keyTypeReader(info, client);
+        KeyTypeItemReader<String, String> target = keyTypeReader(info, targetClient);
+        KeyComparisonItemReader reader = new KeyComparisonItemReader(source, target);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
         awaitOpen(reader);
-        List<KeyComparison<KeyValue<String>>> comparisons = BatchUtils.readAll(reader);
+        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
         reader.close();
-        List<KeyComparison<KeyValue<String>>> missing = comparisons.stream().filter(c -> c.getStatus() == Status.MISSING)
+        List<KeyComparison> missing = comparisons.stream().filter(c -> c.getStatus() == Status.MISSING)
                 .collect(Collectors.toList());
         Assertions.assertEquals(sourceCount - targetCount, missing.size());
     }
@@ -1067,15 +1068,15 @@ abstract class BatchTests extends AbstractTargetTestBase {
             }
             targetCommands.set(key, "blah");
         }
-        KeyValueComparisonItemReader comparator = comparisonReader(info);
+        KeyComparisonItemReader comparator = comparisonReader(info);
         comparator.setName(name(info));
         comparator.open(new ExecutionContext());
-        List<KeyComparison<KeyValue<String>>> comparisons = BatchUtils.readAll(comparator);
+        List<KeyComparison> comparisons = BatchUtils.readAll(comparator);
         comparator.close();
         long sourceCount = commands.dbsize();
         assertEquals(sourceCount, comparisons.size());
         assertEquals(sourceCount, targetCommands.dbsize() + deleted);
-        List<KeyComparison<KeyValue<String>>> actualTypeChanges = comparisons.stream().filter(c -> c.getStatus() == Status.TYPE)
+        List<KeyComparison> actualTypeChanges = comparisons.stream().filter(c -> c.getStatus() == Status.TYPE)
                 .collect(Collectors.toList());
         assertEquals(typeChanges.size(), actualTypeChanges.size());
         assertEquals(valueChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.VALUE).count());
