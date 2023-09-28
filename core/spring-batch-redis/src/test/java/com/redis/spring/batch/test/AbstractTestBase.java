@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -421,7 +422,7 @@ public abstract class AbstractTestBase {
     protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemProcessor<I, O> processor,
             ItemWriter<O> writer) throws JobExecutionException {
         SimpleStepBuilder<I, O> step = step(testInfo, reader, processor, writer);
-        SimpleJobBuilder job = job(testInfo).start(step.build());
+        SimpleJobBuilder job = job(testInfo).start(step.faultTolerant().retryLimit(3).retry(TimeoutException.class).build());
         return run(job.build());
     }
 

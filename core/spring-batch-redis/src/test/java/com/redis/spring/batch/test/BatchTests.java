@@ -103,7 +103,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         writer.setWaitTimeout(Duration.ofMillis(300));
         JobExecution execution = run(info, reader, writer);
         List<Throwable> exceptions = execution.getAllFailureExceptions();
-        assertEquals("Insufficient replication level (0/1)", exceptions.get(0).getCause().getMessage());
+        assertEquals("Insufficient replication level (0/1)", exceptions.get(0).getCause().getCause().getMessage());
     }
 
     @Test
@@ -1054,7 +1054,10 @@ abstract class BatchTests extends AbstractTargetTestBase {
         Set<String> typeChanges = new HashSet<>();
         Set<String> valueChanges = new HashSet<>();
         for (int index = 0; index < 17; index++) {
-            String key = targetCommands.randomkey();
+            String key;
+            do {
+                key = targetCommands.randomkey();
+            } while (key == null);
             DataType type = DataType.of(targetCommands.type(key));
             if (type == DataType.STRING) {
                 if (!typeChanges.contains(key)) {
