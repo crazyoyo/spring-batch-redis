@@ -1,55 +1,40 @@
-package com.redis.spring.batch.reader;
+package com.redis.spring.batch.reader.operation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import com.redis.lettucemod.timeseries.Sample;
-import com.redis.spring.batch.common.DataStructureType;
-import com.redis.spring.batch.common.Struct;
-import com.redis.spring.batch.util.CodecUtils;
+import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Operation;
 
-import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.internal.LettuceAssert;
 
-public class StructReadOperation<K, V> extends AbstractKeyValueReadOperation<K, V, Struct<K>> {
+public class StructReadOperation<K, V> extends KeyValueReadOperation<K, V> {
 
-    private static final String TYPE = "type";
-
-    private final Function<V, String> toStringValueFunction;
-
-    public StructReadOperation(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        super(client, codec, TYPE);
-        this.toStringValueFunction = CodecUtils.toStringValueFunction(codec);
+    public StructReadOperation(RedisCodec<K, V> codec, Operation<K, V, K, List<Object>> evalOperation) {
+        super(codec, evalOperation);
     }
 
     @Override
-    protected Struct<K> keyValue(K key, Iterator<Object> iterator) {
-        // Iterator reading order must match LUA script
-        Object value = iterator.hasNext() ? iterator.next() : null;
-        DataStructureType type = iterator.hasNext() ? DataStructureType.of(toString(iterator.next())) : DataStructureType.NONE;
-        Object object = object(type, key, value);
-        return Struct.key(key).type(type).value(object).build();
+    protected KeyValue<K> toKeyValue(List<Object> list) {
+        KeyValue<K> keyValue = super.toKeyValue(list);
+        keyValue.setValue(object(keyValue));
+        return keyValue;
     }
 
-    @SuppressWarnings("unchecked")
-    private String toString(Object value) {
-        return toStringValueFunction.apply((V) value);
-    }
-
-    private Object object(DataStructureType type, K key, Object value) {
-        if (value == null) {
+    private Object object(KeyValue<K> keyValue) {
+        if (keyValue.getValue() == null) {
             return null;
         }
-        switch (type) {
+        Object value = keyValue.getValue();
+        switch (keyValue.getType()) {
             case HASH:
                 return map(value);
             case SET:
@@ -57,7 +42,7 @@ public class StructReadOperation<K, V> extends AbstractKeyValueReadOperation<K, 
             case ZSET:
                 return zset(value);
             case STREAM:
-                return stream(key, value);
+                return stream(keyValue.getKey(), value);
             case TIMESERIES:
                 return timeSeries(value);
             default:

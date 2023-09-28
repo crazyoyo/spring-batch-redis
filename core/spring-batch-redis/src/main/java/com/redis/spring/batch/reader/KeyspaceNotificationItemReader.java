@@ -13,7 +13,7 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.common.DataStructureType;
+import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.SetBlockingQueue;
 import com.redis.spring.batch.util.CodecUtils;
 
@@ -51,7 +51,7 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 
     private OrderingStrategy orderingStrategy = DEFAULT_ORDERING;
 
-    private DataStructureType keyType;
+    private DataType keyType;
 
     private int queueCapacity = RedisItemReader.DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
 
@@ -86,7 +86,7 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
         this.queueCapacity = queueCapacity;
     }
 
-    public void setKeyType(DataStructureType keyType) {
+    public void setKeyType(DataType keyType) {
         this.keyType = keyType;
     }
 

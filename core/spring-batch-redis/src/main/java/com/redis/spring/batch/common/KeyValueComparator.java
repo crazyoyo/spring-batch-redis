@@ -5,23 +5,20 @@ import java.util.Objects;
 
 import com.redis.spring.batch.common.KeyComparison.Status;
 
-public class StructComparator implements KeyComparator<Struct<String>> {
+public class KeyValueComparator implements KeyComparator<KeyValue<String>> {
 
     private final Duration ttlTolerance;
 
-    public StructComparator(Duration ttlTolerance) {
+    public KeyValueComparator(Duration ttlTolerance) {
         this.ttlTolerance = ttlTolerance;
     }
 
     @Override
-    public Status compare(Struct<String> source, Struct<String> target) {
-        if (target == null) {
+    public Status compare(KeyValue<String> source, KeyValue<String> target) {
+        if (!target.exists() && source.exists()) {
             return Status.MISSING;
         }
-        if (!Objects.equals(source.getType(), target.getType())) {
-            if (target.getType() == DataStructureType.NONE) {
-                return Status.MISSING;
-            }
+        if (target.getType() != source.getType()) {
             return Status.TYPE;
         }
         if (!Objects.deepEquals(source.getValue(), target.getValue())) {

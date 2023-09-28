@@ -1,6 +1,5 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -10,7 +9,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisHashAsyncCommands;
 
-public class Hset<K, V, T> extends AbstractOperation<K, V, T> {
+public class Hset<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
     private Function<T, Map<K, V>> mapFunction;
 
@@ -18,13 +17,14 @@ public class Hset<K, V, T> extends AbstractOperation<K, V, T> {
         this.mapFunction = map;
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     @Override
-    protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, List<RedisFuture<Object>> futures) {
+    protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         Map<K, V> map = mapFunction.apply(item);
-        if (!CollectionUtils.isEmpty(map)) {
-            futures.add((RedisFuture) ((RedisHashAsyncCommands<K, V>) commands).hset(key, map));
+        if (CollectionUtils.isEmpty(map)) {
+            return null;
         }
+        return ((RedisHashAsyncCommands<K, V>) commands).hset(key, map);
     }
 
 }

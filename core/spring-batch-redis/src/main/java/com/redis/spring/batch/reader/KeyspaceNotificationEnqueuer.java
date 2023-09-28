@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.redis.spring.batch.common.DataStructureType;
+import com.redis.spring.batch.common.DataType;
 
 public class KeyspaceNotificationEnqueuer implements ChannelMessageConsumer {
 
@@ -22,13 +22,13 @@ public class KeyspaceNotificationEnqueuer implements ChannelMessageConsumer {
 
     private final BlockingQueue<KeyspaceNotification> queue;
 
-    private DataStructureType type;
+    private DataType type;
 
     public KeyspaceNotificationEnqueuer(BlockingQueue<KeyspaceNotification> queue) {
         this.queue = queue;
     }
 
-    public void setType(DataStructureType type) {
+    public void setType(DataType type) {
         this.type = type;
     }
 

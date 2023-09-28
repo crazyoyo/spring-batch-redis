@@ -1,7 +1,7 @@
 local key = KEYS[1]
 local ttl = redis.call('PTTL', key)
 if ttl == -2 then
-  return {key, ttl}
+  return { key, ttl }
 end
 if ttl >= 0 then
   local e = redis.call('TIME')
@@ -17,13 +17,11 @@ if memlimit ~= 0 then
     return { key, ttl, mem }
   end
 end
-if ARGV[3] == 'dump' then
-  local dump = redis.call('DUMP', key)
-  return { key, ttl, mem, dump}
-end
 local type = redis.call('TYPE', key)['ok']
 local value = nil
-if type == 'hash' then
+if ARGV[3] == 'dump' then
+  value = redis.call('DUMP', key)
+elseif type == 'hash' then
   value = redis.call('HGETALL', key)
 elseif type == 'ReJSON-RL' then
   value = redis.call('JSON.GET', key)
@@ -40,4 +38,4 @@ elseif type == 'TSDB-TYPE' then
 elseif type == 'zset' then
   value = redis.call('ZRANGE', key, 0, -1, 'WITHSCORES')
 end
-return { key, ttl, mem, value, type }
+return { key, ttl, mem, type, value }

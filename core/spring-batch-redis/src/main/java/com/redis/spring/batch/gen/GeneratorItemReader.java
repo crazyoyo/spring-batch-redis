@@ -18,20 +18,20 @@ import org.springframework.util.ClassUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
-import com.redis.spring.batch.common.DataStructureType;
+import com.redis.spring.batch.common.DataType;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
-import com.redis.spring.batch.common.Struct;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
-public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<Struct<String>> {
+public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<KeyValue<String>> {
 
     public static final String DEFAULT_KEYSPACE = "gen";
 
     public static final String DEFAULT_KEY_SEPARATOR = ":";
 
-    private static final DataStructureType[] DEFAULT_TYPES = { DataStructureType.HASH, DataStructureType.LIST, DataStructureType.SET, DataStructureType.STREAM, DataStructureType.STRING, DataStructureType.ZSET };
+    private static final DataType[] DEFAULT_TYPES = DataType.values();
 
     public static final Range DEFAULT_KEY_RANGE = Range.from(1);
 
@@ -67,7 +67,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     private ZsetOptions zsetOptions = new ZsetOptions();
 
-    private List<DataStructureType> types = defaultTypes();
+    private List<DataType> types = defaultTypes();
 
     private boolean open;
 
@@ -75,7 +75,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         setName(ClassUtils.getShortName(getClass()));
     }
 
-    public static List<DataStructureType> defaultTypes() {
+    public static List<DataType> defaultTypes() {
         return Arrays.asList(DEFAULT_TYPES);
     }
 
@@ -135,7 +135,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         return keyspace;
     }
 
-    public List<DataStructureType> getTypes() {
+    public List<DataType> getTypes() {
         return types;
     }
 
@@ -179,27 +179,28 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
         this.keyspace = keyspace;
     }
 
-    public void setTypes(DataStructureType... types) {
+    public void setTypes(DataType... types) {
         setTypes(Arrays.asList(types));
     }
 
-    public void setTypes(List<DataStructureType> types) {
+    public void setTypes(List<DataType> types) {
         this.types = types;
     }
 
     private String key() {
+        int index = keyRange.getMin() + index() % keyRange.getSpread();
+        return key(index);
+    }
+
+    public String key(int index) {
         StringBuilder builder = new StringBuilder();
         builder.append(keyspace);
         builder.append(keySeparator);
-        builder.append(index(keyRange));
+        builder.append(index);
         return builder.toString();
     }
 
-    private int index(Range range) {
-        return range.getMin() + index() % (range.getMax() - range.getMin() + 1);
-    }
-
-    private Object value(DataStructureType type) throws JsonProcessingException {
+    private Object value(DataType type) throws JsonProcessingException {
         switch (type) {
             case HASH:
                 return map(hashOptions);
@@ -278,9 +279,9 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
     private List<String> members(CollectionOptions options) {
         List<String> members = new ArrayList<>();
+        int spread = options.getMemberRange().getMax() - options.getMemberRange().getMin() + 1;
         for (int index = 0; index < randomLong(options.getMemberCount()); index++) {
-            long memberId = options.getMemberRange().getMin()
-                    + index % (options.getMemberRange().getMax() - options.getMemberRange().getMin() + 1);
+            int memberId = options.getMemberRange().getMin() + index % spread;
             members.add(String.valueOf(memberId));
         }
         return members;
@@ -301,10 +302,10 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
     }
 
     @Override
-    protected Struct<String> doRead() {
-        Struct<String> struct = new Struct<>();
+    protected KeyValue<String> doRead() {
+        KeyValue<String> struct = new KeyValue<>();
         struct.setKey(key());
-        DataStructureType type = types.get(index() % types.size());
+        DataType type = types.get(index() % types.size());
         struct.setType(type);
         try {
             struct.setValue(value(type));

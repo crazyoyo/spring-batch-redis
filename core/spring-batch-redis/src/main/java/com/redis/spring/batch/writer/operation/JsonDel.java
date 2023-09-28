@@ -7,7 +7,7 @@ import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class JsonDel<K, V, T> extends AbstractSingleOperation<K, V, T> {
+public class JsonDel<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
     private Function<T, String> pathFunction = t -> JsonSet.ROOT_PATH;
 
@@ -21,8 +21,9 @@ public class JsonDel<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        return ((RedisJSONAsyncCommands<K, V>) commands).jsonDel(key, pathFunction.apply(item));
+    protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        String path = pathFunction.apply(item);
+        return ((RedisJSONAsyncCommands<K, V>) commands).jsonDel(key, path);
     }
 
 }

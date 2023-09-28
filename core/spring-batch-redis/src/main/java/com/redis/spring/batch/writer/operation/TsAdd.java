@@ -9,7 +9,7 @@ import com.redis.lettucemod.timeseries.Sample;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class TsAdd<K, V, T> extends AbstractSingleOperation<K, V, T> {
+public class TsAdd<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
     private Function<T, Sample> sampleFunction;
 
@@ -29,10 +29,14 @@ public class TsAdd<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        Sample sample = sampleFunction.apply(item);
+    protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+        RedisTimeSeriesAsyncCommands<K, V> timeseriesCommands = (RedisTimeSeriesAsyncCommands<K, V>) commands;
         AddOptions<K, V> options = optionsFunction.apply(item);
-        return ((RedisTimeSeriesAsyncCommands<K, V>) commands).tsAdd(key, sample, options);
+        Sample sample = sampleFunction.apply(item);
+        if (sample == null) {
+            return null;
+        }
+        return timeseriesCommands.tsAdd(key, sample, options);
     }
 
 }

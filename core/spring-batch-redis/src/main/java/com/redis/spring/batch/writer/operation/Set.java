@@ -7,7 +7,7 @@ import io.lettuce.core.SetArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
-public class Set<K, V, T> extends AbstractSingleOperation<K, V, T> {
+public class Set<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
     private static final SetArgs DEFAULT_ARGS = new SetArgs();
 
@@ -27,9 +27,9 @@ public class Set<K, V, T> extends AbstractSingleOperation<K, V, T> {
         this.argsFunction = function;
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<String> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         V value = valueFunction.apply(item);
         SetArgs args = argsFunction.apply(item);
         return ((RedisStringAsyncCommands<K, V>) commands).set(key, value, args);

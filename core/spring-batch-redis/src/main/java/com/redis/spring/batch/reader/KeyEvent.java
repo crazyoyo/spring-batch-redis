@@ -1,6 +1,6 @@
 package com.redis.spring.batch.reader;
 
-import com.redis.spring.batch.common.DataStructureType;
+import com.redis.spring.batch.common.DataType;
 
 public enum KeyEvent {
 
@@ -13,68 +13,68 @@ public enum KeyEvent {
     RESTORE,
     EXPIRE,
     SORTSTORE,
-    SET(DataStructureType.STRING),
-    SETRANGE(DataStructureType.STRING),
-    INCRBY(DataStructureType.STRING),
-    INCRBYFLOAT(DataStructureType.STRING),
-    APPEND(DataStructureType.STRING),
-    LPUSH(DataStructureType.LIST),
-    RPUSH(DataStructureType.LIST),
-    RPOP(DataStructureType.LIST),
-    LPOP(DataStructureType.LIST),
-    LINSERT(DataStructureType.LIST),
-    LSET(DataStructureType.LIST),
-    LREM(DataStructureType.LIST),
-    LTRIM(DataStructureType.LIST),
-    HSET(DataStructureType.HASH),
-    HINCRBY(DataStructureType.HASH),
-    HINCRBYFLOAT(DataStructureType.HASH),
-    HDEL(DataStructureType.HASH),
-    SADD(DataStructureType.SET),
-    SPOP(DataStructureType.SET),
-    SINTERSTORE(DataStructureType.SET),
-    SUNIONSTORE(DataStructureType.SET),
-    SDIFFSTORE(DataStructureType.SET),
-    ZINCR(DataStructureType.ZSET),
-    ZADD(DataStructureType.ZSET),
-    ZREM(DataStructureType.ZSET),
-    ZREMBYSCORE(DataStructureType.ZSET),
-    ZREMBYRANK(DataStructureType.ZSET),
-    ZDIFFSTORE(DataStructureType.ZSET),
-    ZINTERSTORE(DataStructureType.ZSET),
-    ZUNIONSTORE(DataStructureType.ZSET),
-    XADD(DataStructureType.STREAM),
-    XTRIM(DataStructureType.STREAM),
-    XDEL(DataStructureType.STREAM),
-    XGROUP_CREATE("xgroup-create", DataStructureType.STREAM),
-    XGROUP_CREATECONSUMER("xgroup-createconsumer", DataStructureType.STREAM),
-    XGROUP_DELCONSUMER("xgroup-delconsumer", DataStructureType.STREAM),
-    XGROUP_DESTROY("xgroup-destroy", DataStructureType.STREAM),
-    XGROUP_SETID("xgroup-setid", DataStructureType.STREAM),
-    XSETID(DataStructureType.STREAM),
-    TS_ADD("ts.add", DataStructureType.TIMESERIES),
-    JSON_SET("json.set", DataStructureType.JSON),
+    SET(DataType.STRING),
+    SETRANGE(DataType.STRING),
+    INCRBY(DataType.STRING),
+    INCRBYFLOAT(DataType.STRING),
+    APPEND(DataType.STRING),
+    LPUSH(DataType.LIST),
+    RPUSH(DataType.LIST),
+    RPOP(DataType.LIST),
+    LPOP(DataType.LIST),
+    LINSERT(DataType.LIST),
+    LSET(DataType.LIST),
+    LREM(DataType.LIST),
+    LTRIM(DataType.LIST),
+    HSET(DataType.HASH),
+    HINCRBY(DataType.HASH),
+    HINCRBYFLOAT(DataType.HASH),
+    HDEL(DataType.HASH),
+    SADD(DataType.SET),
+    SPOP(DataType.SET),
+    SINTERSTORE(DataType.SET),
+    SUNIONSTORE(DataType.SET),
+    SDIFFSTORE(DataType.SET),
+    ZINCR(DataType.ZSET),
+    ZADD(DataType.ZSET),
+    ZREM(DataType.ZSET),
+    ZREMBYSCORE(DataType.ZSET),
+    ZREMBYRANK(DataType.ZSET),
+    ZDIFFSTORE(DataType.ZSET),
+    ZINTERSTORE(DataType.ZSET),
+    ZUNIONSTORE(DataType.ZSET),
+    XADD(DataType.STREAM),
+    XTRIM(DataType.STREAM),
+    XDEL(DataType.STREAM),
+    XGROUP_CREATE("xgroup-create", DataType.STREAM),
+    XGROUP_CREATECONSUMER("xgroup-createconsumer", DataType.STREAM),
+    XGROUP_DELCONSUMER("xgroup-delconsumer", DataType.STREAM),
+    XGROUP_DESTROY("xgroup-destroy", DataType.STREAM),
+    XGROUP_SETID("xgroup-setid", DataType.STREAM),
+    XSETID(DataType.STREAM),
+    TS_ADD("ts.add", DataType.TIMESERIES),
+    JSON_SET("json.set", DataType.JSON),
     PERSIST,
     EXPIRED,
     EVICTED,
-    NEW_KEY("new", DataStructureType.NONE),
+    NEW_KEY("new", DataType.NONE),
     UNKNOWN;
 
     private final String string;
 
-    private final DataStructureType type;
+    private final DataType type;
 
     private KeyEvent() {
         this.string = this.name().toLowerCase();
-        this.type = DataStructureType.NONE;
+        this.type = DataType.NONE;
     }
 
-    private KeyEvent(DataStructureType type) {
+    private KeyEvent(DataType type) {
         this.string = this.name().toLowerCase();
         this.type = type;
     }
 
-    private KeyEvent(String string, DataStructureType type) {
+    private KeyEvent(String string, DataType type) {
         this.string = string;
         this.type = type;
     }
@@ -83,7 +83,7 @@ public enum KeyEvent {
         return string;
     }
 
-    public DataStructureType getType() {
+    public DataType getType() {
         return type;
     }
 

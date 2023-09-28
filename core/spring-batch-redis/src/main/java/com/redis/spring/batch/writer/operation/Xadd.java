@@ -1,6 +1,5 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -11,7 +10,7 @@ import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 
-public class Xadd<K, V, T> extends AbstractOperation<K, V, T> {
+public class Xadd<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
     private Function<T, XAddArgs> argsFunction = t -> null;
 
@@ -29,14 +28,15 @@ public class Xadd<K, V, T> extends AbstractOperation<K, V, T> {
         this.bodyFunction = function;
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     @Override
-    protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, List<RedisFuture<Object>> futures) {
+    protected RedisFuture<String> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         Map<K, V> map = bodyFunction.apply(item);
-        if (!CollectionUtils.isEmpty(map)) {
-            XAddArgs args = argsFunction.apply(item);
-            futures.add((RedisFuture) ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args, map));
+        if (CollectionUtils.isEmpty(map)) {
+            return null;
         }
+        XAddArgs args = argsFunction.apply(item);
+        return ((RedisStreamAsyncCommands<K, V>) commands).xadd(key, args, map);
     }
 
 }

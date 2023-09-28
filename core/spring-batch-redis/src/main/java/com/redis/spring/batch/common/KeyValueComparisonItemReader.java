@@ -6,14 +6,14 @@ import org.springframework.util.Assert;
 
 import com.redis.spring.batch.RedisItemReader;
 
-public class StructComparisonItemReader extends AbstractKeyComparisonItemReader<Struct<String>> {
+public class KeyValueComparisonItemReader extends AbstractKeyComparisonItemReader<KeyValue<String>> {
 
     public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
     private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-    public StructComparisonItemReader(RedisItemReader<String, String, Struct<String>> source,
-            RedisItemReader<String, String, Struct<String>> target) {
+    public KeyValueComparisonItemReader(RedisItemReader<String, String, KeyValue<String>> source,
+            RedisItemReader<String, String, KeyValue<String>> target) {
         super(source, target);
     }
 
@@ -23,8 +23,8 @@ public class StructComparisonItemReader extends AbstractKeyComparisonItemReader<
     }
 
     @Override
-    protected KeyComparator<Struct<String>> comparator() {
-        return new StructComparator(ttlTolerance);
+    protected KeyComparator<KeyValue<String>> comparator() {
+        return new KeyValueComparator(ttlTolerance);
     }
 
 }

@@ -1,4 +1,4 @@
-package com.redis.spring.batch.reader;
+package com.redis.spring.batch.reader.operation;
 
 import java.util.List;
 import java.util.function.Function;
@@ -14,11 +14,13 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public class Evalsha<K, V> implements Operation<K, V, K, List<Object>> {
+public class Evalsha<K, V, T> implements Operation<K, V, T, List<Object>> {
 
     private final String digest;
 
     private final V[] encodedArgs;
+
+    private Function<T, K> keyFunction;
 
     @SuppressWarnings("unchecked")
     public Evalsha(String filename, AbstractRedisClient client, RedisCodec<K, V> codec, Object... args) {
@@ -30,14 +32,18 @@ public class Evalsha<K, V> implements Operation<K, V, K, List<Object>> {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
-    public void execute(BaseRedisAsyncCommands<K, V> commands, K item, List<RedisFuture<List<Object>>> futures) {
-        futures.add(execute(commands, item));
+    public void setKeyFunction(Function<T, K> function) {
+        this.keyFunction = function;
+    }
+
+    public void setKey(K key) {
+        this.keyFunction = t -> key;
     }
 
     @SuppressWarnings("unchecked")
-    public RedisFuture<List<Object>> execute(BaseRedisAsyncCommands<K, V> commands, K... keys) {
+    @Override
+    public RedisFuture<List<Object>> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
+        K[] keys = (K[]) new Object[] { keyFunction.apply(item) };
         return ((RedisScriptingAsyncCommands<K, V>) commands).evalsha(digest, ScriptOutputType.MULTI, keys, encodedArgs);
     }
 

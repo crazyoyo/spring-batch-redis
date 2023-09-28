@@ -30,7 +30,7 @@ import org.springframework.lang.NonNull;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.common.DataStructureType;
+import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.reader.DumpItemReader;
@@ -52,7 +52,7 @@ import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 import io.micrometer.core.instrument.Metrics;
 
-public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
+public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
     public enum ReaderMode {
         SCAN, LIVE
@@ -80,11 +80,9 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 
     private final Log log = LogFactory.getLog(getClass());
 
-    private final AbstractRedisClient client;
+    protected final AbstractRedisClient client;
 
-    private final RedisCodec<K, V> codec;
-
-    protected final Operation<K, V, K, T> operation;
+    protected final RedisCodec<K, V> codec;
 
     private ReaderMode mode = DEFAULT_MODE;
 
@@ -114,7 +112,7 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 
     private String keyPattern;
 
-    private DataStructureType keyType;
+    private DataType keyType;
 
     private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
 
@@ -130,11 +128,10 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
 
     private BlockingQueue<T> queue;
 
-    public RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
+    protected RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
         setName(ClassUtils.getShortName(getClass()));
         this.client = client;
         this.codec = codec;
-        this.operation = operation;
     }
 
     public AbstractRedisClient getClient() {
@@ -189,7 +186,7 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
         this.keyPattern = globPattern;
     }
 
-    public void setKeyType(DataStructureType type) {
+    public void setKeyType(DataType type) {
         this.keyType = type;
     }
 
@@ -225,6 +222,10 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
     public void setName(String name) {
         super.setName(name);
         this.name = name;
+    }
+
+    public ItemReader<K> getKeyReader() {
+        return keyReader;
     }
 
     public boolean isOpen() {
@@ -280,11 +281,14 @@ public class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> im
     }
 
     public SimpleOperationExecutor<K, V, K, T> operationExecutor() {
+        Operation<K, V, K, T> operation = operation();
         SimpleOperationExecutor<K, V, K, T> executor = new SimpleOperationExecutor<>(client, codec, operation);
         executor.setPoolSize(poolSize);
         executor.setReadFrom(readFrom);
         return executor;
     }
+
+    protected abstract Operation<K, V, K, T> operation();
 
     private SimpleStepBuilder<K, K> step() {
         SimpleStepBuilder<K, K> step = new StepBuilder(name).chunk(chunkSize);

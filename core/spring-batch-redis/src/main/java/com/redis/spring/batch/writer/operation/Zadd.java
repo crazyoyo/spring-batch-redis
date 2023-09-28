@@ -8,7 +8,7 @@ import io.lettuce.core.ZAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 
-public class Zadd<K, V, T> extends AbstractSingleOperation<K, V, T> {
+public class Zadd<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
     private Function<T, ScoredValue<V>> valueFunction;
 
@@ -28,7 +28,7 @@ public class Zadd<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         ZAddArgs args = argsFunction.apply(item);
         ScoredValue<V> value = valueFunction.apply(item);
         return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key, args, value);

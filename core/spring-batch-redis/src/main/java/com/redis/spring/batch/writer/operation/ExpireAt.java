@@ -1,13 +1,12 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.List;
 import java.util.function.ToLongFunction;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class ExpireAt<K, V, T> extends AbstractOperation<K, V, T> {
+public class ExpireAt<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
     private ToLongFunction<T> epochFunction;
 
@@ -19,13 +18,14 @@ public class ExpireAt<K, V, T> extends AbstractOperation<K, V, T> {
         this.epochFunction = function;
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     @Override
-    protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, List<RedisFuture<Object>> futures) {
+    protected RedisFuture<Boolean> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         long millis = epochFunction.applyAsLong(item);
         if (millis > 0) {
-            futures.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).pexpireat(key, millis));
+            return ((RedisKeyAsyncCommands<K, V>) commands).pexpireat(key, millis);
         }
+        return null;
     }
 
 }

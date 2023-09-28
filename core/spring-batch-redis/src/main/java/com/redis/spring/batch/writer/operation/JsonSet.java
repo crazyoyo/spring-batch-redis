@@ -7,7 +7,7 @@ import com.redis.lettucemod.api.async.RedisJSONAsyncCommands;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class JsonSet<K, V, T> extends AbstractSingleOperation<K, V, T> {
+public class JsonSet<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
     public static final String ROOT_PATH = "$";
 
@@ -29,7 +29,7 @@ public class JsonSet<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<String> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         String path = pathFunction.apply(item);
         V value = valueFunction.apply(item);
         return ((RedisJSONAsyncCommands<K, V>) commands).jsonSet(key, path, value);

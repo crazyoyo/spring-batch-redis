@@ -10,7 +10,7 @@ import com.redis.spring.batch.util.Predicates;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class Sugadd<K, V, T> extends AbstractSingleOperation<K, V, T> {
+public class Sugadd<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
     private Function<T, Suggestion<V>> suggestionFunction;
 
@@ -28,9 +28,9 @@ public class Sugadd<K, V, T> extends AbstractSingleOperation<K, V, T> {
         this.incrPredicate = predicate;
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         RediSearchAsyncCommands<K, V> searchCommands = (RediSearchAsyncCommands<K, V>) commands;
         Suggestion<V> suggestion = suggestionFunction.apply(item);
         if (incrPredicate.test(item)) {

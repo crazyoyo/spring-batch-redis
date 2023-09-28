@@ -1,26 +1,26 @@
-package com.redis.spring.batch.writer;
+package com.redis.spring.batch.writer.operation;
 
 import java.text.MessageFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.redis.spring.batch.common.BatchOperation;
+import com.redis.spring.batch.writer.BatchWriteOperation;
 
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.PipelinedRedisFuture;
 
-public class ReplicaWaitBatchOperation<K, V, I> implements BatchOperation<K, V, I, Object> {
+public class ReplicaWaitBatchWriteOperation<K, V, I> implements BatchWriteOperation<K, V, I> {
 
-    private final BatchOperation<K, V, I, Object> delegate;
+    private final BatchWriteOperation<K, V, I> delegate;
 
     private int waitReplicas;
 
     private Duration waitTimeout;
 
-    public ReplicaWaitBatchOperation(BatchOperation<K, V, I, Object> delegate) {
+    public ReplicaWaitBatchWriteOperation(BatchWriteOperation<K, V, I> delegate) {
         this.delegate = delegate;
     }
 

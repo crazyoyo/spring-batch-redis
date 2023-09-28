@@ -8,7 +8,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisGeoAsyncCommands;
 
-public class Geoadd<K, V, T> extends AbstractSingleOperation<K, V, T> {
+public class Geoadd<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
     private Function<T, GeoValue<V>> valueFunction;
 
@@ -28,7 +28,7 @@ public class Geoadd<K, V, T> extends AbstractSingleOperation<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
+    protected RedisFuture<Long> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         GeoAddArgs args = argsFunction.apply(item);
         GeoValue<V> value = valueFunction.apply(item);
         return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args, value);

@@ -9,7 +9,6 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamSupport;
 
 import com.redis.spring.batch.util.ConnectionUtils;
@@ -61,9 +60,6 @@ public abstract class AbstractBatchOperationExecutor<K, V, I, O> extends ItemStr
             config.setMaxTotal(poolSize);
             pool = ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config);
             batchOperation = batchOperation();
-            if (batchOperation instanceof ItemStream) {
-                ((ItemStream) batchOperation).open(executionContext);
-            }
         }
     }
 
