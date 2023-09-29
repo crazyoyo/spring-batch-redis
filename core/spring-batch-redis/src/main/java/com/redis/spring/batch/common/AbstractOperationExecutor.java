@@ -1,8 +1,10 @@
 package com.redis.spring.batch.common;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -19,6 +21,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.internal.Exceptions;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
 public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSupport
@@ -81,20 +84,42 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
     @Override
     public List<O> process(List<? extends I> items) throws Exception {
         try (StatefulConnection<K, V> connection = pool.borrowObject()) {
-            long timeout = connection.getTimeout().toMillis();
             BaseRedisAsyncCommands<K, V> commands = ConnectionUtils.async(connection);
             try {
                 connection.setAutoFlushCommands(false);
                 List<RedisFuture<O>> futures = batchOperation.execute(commands, items);
                 connection.flushCommands();
-                List<O> results = new ArrayList<>(futures.size());
-                for (RedisFuture<? extends O> future : futures) {
-                    results.add(future.get(timeout, TimeUnit.MILLISECONDS));
-                }
-                return results;
+                return getAll(connection.getTimeout(), futures);
             } finally {
                 connection.setAutoFlushCommands(true);
             }
+        }
+    }
+
+    public static <T> List<T> getAll(Duration timeout, List<RedisFuture<T>> futures) {
+        List<T> results = new ArrayList<>(futures.size());
+        try {
+            long nanos = timeout.toNanos();
+            long time = System.nanoTime();
+            for (RedisFuture<T> f : futures) {
+                if (timeout.isNegative()) {
+                    results.add(f.get());
+                } else {
+                    if (nanos < 0) {
+                        throw new TimeoutException(String.format("Timed out after %s", timeout));
+                    }
+                    results.add(f.get(nanos, TimeUnit.NANOSECONDS));
+                    long now = System.nanoTime();
+                    nanos -= now - time;
+                    time = now;
+                }
+            }
+            return results;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw Exceptions.fromSynchronization(e);
+        } catch (Exception e) {
+            throw Exceptions.fromSynchronization(e);
         }
     }
 

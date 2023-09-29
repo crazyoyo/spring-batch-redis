@@ -16,20 +16,14 @@ public class ReplicaWaitBatchWriteOperation<K, V, I> implements BatchWriteOperat
 
     private final BatchWriteOperation<K, V, I> delegate;
 
-    private int waitReplicas;
+    private final int replicas;
 
-    private Duration waitTimeout;
+    private final long timeout;
 
-    public ReplicaWaitBatchWriteOperation(BatchWriteOperation<K, V, I> delegate) {
+    public ReplicaWaitBatchWriteOperation(BatchWriteOperation<K, V, I> delegate, int replicas, Duration timeout) {
         this.delegate = delegate;
-    }
-
-    public void setWaitReplicas(int count) {
-        this.waitReplicas = count;
-    }
-
-    public void setWaitTimeout(Duration timeout) {
-        this.waitTimeout = timeout;
+        this.replicas = replicas;
+        this.timeout = timeout.toMillis();
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -37,19 +31,19 @@ public class ReplicaWaitBatchWriteOperation<K, V, I> implements BatchWriteOperat
     public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends I> items) {
         List<RedisFuture<Object>> futures = new ArrayList<>();
         futures.addAll(delegate.execute(commands, items));
-        RedisFuture<Long> waitFuture = commands.waitForReplication(waitReplicas, waitTimeout.toMillis());
+        RedisFuture<Long> waitFuture = commands.waitForReplication(replicas, timeout);
         futures.add((RedisFuture) new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));
         return futures;
     }
 
     private void checkReplicas(Long actual) {
-        if (actual == null || actual < waitReplicas) {
+        if (actual == null || actual < replicas) {
             throw new RedisCommandExecutionException(errorMessage(actual));
         }
     }
 
     private String errorMessage(Long actual) {
-        return MessageFormat.format("Insufficient replication level ({0}/{1})", actual, waitReplicas);
+        return MessageFormat.format("Insufficient replication level ({0}/{1})", actual, replicas);
     }
 
 }

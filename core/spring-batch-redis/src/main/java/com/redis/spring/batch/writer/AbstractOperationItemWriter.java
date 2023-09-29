@@ -62,10 +62,7 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOpera
 
     private BatchWriteOperation<K, V, T> replicaWaitOperation(BatchWriteOperation<K, V, T> operation) {
         if (waitReplicas > 0) {
-            ReplicaWaitBatchWriteOperation<K, V, T> waitOperation = new ReplicaWaitBatchWriteOperation<>(operation);
-            waitOperation.setWaitReplicas(waitReplicas);
-            waitOperation.setWaitTimeout(waitTimeout);
-            return waitOperation;
+            return new ReplicaWaitBatchWriteOperation<>(operation, waitReplicas, waitTimeout);
         }
         return operation;
     }
