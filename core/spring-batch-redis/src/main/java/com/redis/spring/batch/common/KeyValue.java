@@ -1,5 +1,7 @@
 package com.redis.spring.batch.common;
 
+import java.util.Objects;
+
 public class KeyValue<K> {
 
     public static final long TTL_KEY_DOES_NOT_EXIST = -2;
@@ -64,6 +66,24 @@ public class KeyValue<K> {
 
     public boolean exists() {
         return type != DataType.NONE && ttl != KeyValue.TTL_KEY_DOES_NOT_EXIST;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(key, memoryUsage, ttl, type, value);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        KeyValue<?> other = (KeyValue<?>) obj;
+        return Objects.equals(key, other.key) && memoryUsage == other.memoryUsage && ttl == other.ttl && type == other.type
+                && Objects.equals(value, other.value);
     }
 
 }
