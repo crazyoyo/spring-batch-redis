@@ -19,7 +19,7 @@ import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class StructWriteOperation<K, V> implements BatchWriteOperation<K, V, KeyValue<K>> {
+public class StructBatchWriteOperation<K, V> implements BatchWriteOperation<K, V, KeyValue<K>> {
 
     private final Collector<KeyValue<K>, ?, Map<DataType, List<KeyValue<K>>>> groupByType = Collectors
             .groupingBy(KeyValue::getType);
@@ -52,7 +52,7 @@ public class StructWriteOperation<K, V> implements BatchWriteOperation<K, V, Key
 
     private final BatchWriteOperation<K, V, KeyValue<K>> noOperation = new Noop<>();
 
-    public StructWriteOperation(boolean overwrite) {
+    public StructBatchWriteOperation(boolean overwrite) {
         deletePredicate = overwrite ? Predicates.isTrue() : existPredicate.negate();
     }
 

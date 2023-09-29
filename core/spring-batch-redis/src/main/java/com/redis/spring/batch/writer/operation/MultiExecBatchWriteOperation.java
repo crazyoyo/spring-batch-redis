@@ -9,11 +9,11 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 
-public class MultiExecBatchOperation<K, V, T> implements BatchWriteOperation<K, V, T> {
+public class MultiExecBatchWriteOperation<K, V, T> implements BatchWriteOperation<K, V, T> {
 
     private final BatchWriteOperation<K, V, T> delegate;
 
-    public MultiExecBatchOperation(BatchWriteOperation<K, V, T> delegate) {
+    public MultiExecBatchWriteOperation(BatchWriteOperation<K, V, T> delegate) {
         this.delegate = delegate;
     }
 

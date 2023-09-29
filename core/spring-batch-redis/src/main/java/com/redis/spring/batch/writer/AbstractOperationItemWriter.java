@@ -6,7 +6,7 @@ import java.util.List;
 import org.springframework.batch.item.ItemStreamWriter;
 
 import com.redis.spring.batch.common.AbstractOperationExecutor;
-import com.redis.spring.batch.writer.operation.MultiExecBatchOperation;
+import com.redis.spring.batch.writer.operation.MultiExecBatchWriteOperation;
 import com.redis.spring.batch.writer.operation.ReplicaWaitBatchWriteOperation;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -55,7 +55,7 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOpera
 
     private BatchWriteOperation<K, V, T> multiExec(BatchWriteOperation<K, V, T> operation) {
         if (multiExec) {
-            return new MultiExecBatchOperation<>(operation);
+            return new MultiExecBatchWriteOperation<>(operation);
         }
         return operation;
     }

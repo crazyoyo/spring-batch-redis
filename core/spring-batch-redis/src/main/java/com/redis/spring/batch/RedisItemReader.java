@@ -1,10 +1,13 @@
 package com.redis.spring.batch;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -18,15 +21,21 @@ import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.support.AbstractJobRepositoryFactoryBean;
+import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.core.step.skip.NeverSkipItemSkipPolicy;
+import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.lang.NonNull;
+import org.springframework.retry.RetryPolicy;
+import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
 
@@ -78,6 +87,10 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     public static final ReaderMode DEFAULT_MODE = ReaderMode.SCAN;
 
+    public static final SkipPolicy DEFAULT_SKIP_POLICY = new NeverSkipItemSkipPolicy();
+
+    public static final RetryPolicy DEFAULT_RETRY_POLICY = new MaxAttemptsRetryPolicy();
+
     private final Log log = LogFactory.getLog(getClass());
 
     protected final AbstractRedisClient client;
@@ -85,6 +98,12 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     protected final RedisCodec<K, V> codec;
 
     private ReaderMode mode = DEFAULT_MODE;
+
+    private SkipPolicy skipPolicy = DEFAULT_SKIP_POLICY;
+
+    private RetryPolicy retryPolicy = DEFAULT_RETRY_POLICY;
+
+    private List<Class<? extends Throwable>> retriableExceptions = defaultRetriableExceptions();
 
     private int database;
 
@@ -134,6 +153,12 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         this.codec = codec;
     }
 
+    public static List<Class<? extends Throwable>> defaultRetriableExceptions() {
+        List<Class<? extends Throwable>> exceptions = new ArrayList<>();
+        exceptions.add(TimeoutException.class);
+        return exceptions;
+    }
+
     public AbstractRedisClient getClient() {
         return client;
     }
@@ -144,6 +169,18 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     public ReaderMode getMode() {
         return mode;
+    }
+
+    public void addRetriableException(Class<? extends Throwable> exception) {
+        retriableExceptions.add(exception);
+    }
+
+    public void setRetryPolicy(RetryPolicy retryPolicy) {
+        this.retryPolicy = retryPolicy;
+    }
+
+    public void setSkipPolicy(SkipPolicy skipPolicy) {
+        this.skipPolicy = skipPolicy;
     }
 
     public void setScanCount(long count) {
@@ -294,14 +331,10 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         SimpleStepBuilder<K, K> step = new StepBuilder(name).chunk(chunkSize);
         step.repository(jobRepository);
         step.transactionManager(transactionManager);
-        keyReader = keyReader();
+        keyReader = reader();
         step.reader(keyReader);
         step.processor(keyProcessor);
-        queue = new LinkedBlockingQueue<>(queueCapacity);
-        Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
-        BlockingQueueItemWriter<T> queueWriter = new BlockingQueueItemWriter<>(queue);
-        ProcessingItemWriter<K, T> writer = new ProcessingItemWriter<>(operationExecutor(), queueWriter);
-        step.writer(writer);
+        step.writer(writer());
         if (threads > 1) {
             step.taskExecutor(BatchUtils.threadPoolTaskExecutor(threads));
             step.throttleLimit(threads);
@@ -312,10 +345,20 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
             flushingStep.idleTimeout(idleTimeout);
             return flushingStep;
         }
-        return step;
+        FaultTolerantStepBuilder<K, K> ftStep = step.faultTolerant();
+        ftStep.skipPolicy(skipPolicy);
+        ftStep.retryPolicy(retryPolicy);
+        retriableExceptions.forEach(ftStep::retry);
+        return ftStep;
     }
 
-    private ItemReader<K> keyReader() {
+    private ItemWriter<? super K> writer() {
+        queue = new LinkedBlockingQueue<>(queueCapacity);
+        Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
+        return new ProcessingItemWriter<>(operationExecutor(), new BlockingQueueItemWriter<>(queue));
+    }
+
+    private ItemReader<K> reader() {
         if (isLive()) {
             return keyspaceNotificationReader();
         }

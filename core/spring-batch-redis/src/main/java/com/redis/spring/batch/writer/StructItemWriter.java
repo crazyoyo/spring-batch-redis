@@ -2,7 +2,7 @@ package com.redis.spring.batch.writer;
 
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.writer.operation.StructWriteOperation;
+import com.redis.spring.batch.writer.operation.StructBatchWriteOperation;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
@@ -20,8 +20,8 @@ public class StructItemWriter<K, V> extends RedisItemWriter<K, V, KeyValue<K>> {
     }
 
     @Override
-    protected StructWriteOperation<K, V> batchWriteOperation() {
-        return new StructWriteOperation<>(!merge);
+    protected StructBatchWriteOperation<K, V> batchWriteOperation() {
+        return new StructBatchWriteOperation<>(!merge);
     }
 
 }
