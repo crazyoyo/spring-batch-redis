@@ -17,7 +17,7 @@ public interface RedisContainerFactory {
     @SuppressWarnings("resource")
     static RedisEnterpriseContainer enterprise() {
         return new RedisEnterpriseContainer(RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
-                .withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(50)).ossCluster(true)
+                .withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(70)).ossCluster(true)
                         .modules(RedisModule.JSON, RedisModule.TIMESERIES, RedisModule.SEARCH).build());
     }
 

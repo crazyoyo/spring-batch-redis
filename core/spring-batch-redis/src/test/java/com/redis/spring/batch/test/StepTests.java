@@ -11,6 +11,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -128,7 +129,7 @@ class StepTests {
         for (int index = 1; index <= count; index++) {
             queue.offer("key" + index);
         }
-        BatchTests.awaitTermination(execution);
+        Awaitility.await().until(() -> !execution.isRunning());
         assertEquals(count, writer.getWrittenItems().size());
     }
 

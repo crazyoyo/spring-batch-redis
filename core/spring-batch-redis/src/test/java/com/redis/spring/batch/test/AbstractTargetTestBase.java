@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionTimeoutException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
@@ -70,7 +69,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
     }
 
     protected void awaitCompare(TestInfo info) {
-        Awaitility.await().timeout(COMPARE_TIMEOUT).until(() -> compare(info));
+        awaitUntil(() -> compare(info));
     }
 
     /**
@@ -123,6 +122,10 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         Job job = job(testInfo).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(testInfo, "flow")))
                 .split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
         JobExecution execution = runAsync(job);
+        awaitOpen(reader);
+        awaitOpen(writer);
+        awaitOpen(liveReader);
+        awaitOpen(liveWriter);
         GeneratorItemReader liveGen = new GeneratorItemReader();
         liveGen.setMaxItemCount(700);
         liveGen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET);

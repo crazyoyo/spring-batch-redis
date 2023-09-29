@@ -29,7 +29,6 @@ import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -41,6 +40,7 @@ import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean;
+import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
@@ -52,6 +52,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
+import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
@@ -72,9 +73,9 @@ import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.KeyTypeItemReader;
-import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
+import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
@@ -117,6 +118,12 @@ public abstract class AbstractTestBase {
     protected static final int DEFAULT_GENERATOR_COUNT = 100;
 
     private static final Range DEFAULT_GENERATOR_KEY_RANGE = Range.to(10000);
+
+    private Duration pollDelay = DEFAULT_POLL_DELAY;
+
+    private Duration pollInterval = DEFAULT_POLL_INTERVAL;
+
+    private Duration awaitTimeout = DEFAULT_AWAIT_TIMEOUT;
 
     @Value("${running-timeout:PT5S}")
     private Duration runningTimeout;
@@ -231,12 +238,12 @@ public abstract class AbstractTestBase {
         return UUID.randomUUID().toString();
     }
 
-    protected static void awaitOpen(Object object) {
+    protected void awaitOpen(Object object) {
         awaitUntil(() -> BatchUtils.isOpen(object));
     }
 
-    protected static void awaitClosed(Object object) {
-        awaitUntil(() -> !BatchUtils.isOpen(object));
+    protected void awaitClosed(Object object) {
+        awaitUntilFalse(() -> BatchUtils.isOpen(object));
     }
 
     protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer) {
@@ -267,38 +274,28 @@ public abstract class AbstractTestBase {
         return RedisModulesClient.create(server.getRedisURI());
     }
 
-    public static <T> void awaitEquals(Supplier<T> expected, Supplier<T> actual) {
+    public <T> void awaitEquals(Supplier<T> expected, Supplier<T> actual) {
         awaitUntil(() -> expected.get().equals(actual.get()));
     }
 
-    public static JobExecution awaitRunning(JobExecution jobExecution) {
-        Awaitility.await().pollDelay(DEFAULT_RUNNING_DELAY).until(() -> isRunning(jobExecution));
-        return jobExecution;
+    public void awaitRunning(JobExecution jobExecution) {
+        awaitUntil(jobExecution::isRunning);
     }
 
-    public static JobExecution awaitTermination(JobExecution jobExecution) {
-        Awaitility.await().until(() -> isTerminated(jobExecution));
-        return jobExecution;
+    public void awaitTermination(JobExecution jobExecution) {
+        awaitUntilFalse(jobExecution::isRunning);
     }
 
-    public static boolean isRunning(JobExecution jobExecution) {
-        return jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful()
-                || jobExecution.getStatus() != BatchStatus.STARTING;
+    protected void awaitUntilFalse(Callable<Boolean> evaluator) {
+        awaitUntil(negate(evaluator));
     }
 
-    public static boolean isTerminated(JobExecution jobExecution) {
-        return !jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful()
-                || jobExecution.getStatus() == BatchStatus.COMPLETED || jobExecution.getStatus() == BatchStatus.STOPPED
-                || jobExecution.getStatus().isGreaterThan(BatchStatus.STOPPED);
+    private static Callable<Boolean> negate(Callable<Boolean> evaluator) {
+        return () -> !evaluator.call();
     }
 
-    protected static void awaitUntilFalse(Callable<Boolean> conditionEvaluator) {
-        awaitUntil(() -> !conditionEvaluator.call());
-    }
-
-    protected static void awaitUntil(Callable<Boolean> conditionEvaluator) {
-        Awaitility.await().pollDelay(DEFAULT_POLL_DELAY).pollInterval(DEFAULT_POLL_INTERVAL).timeout(DEFAULT_AWAIT_TIMEOUT)
-                .until(conditionEvaluator);
+    protected void awaitUntil(Callable<Boolean> evaluator) {
+        Awaitility.await().pollDelay(pollDelay).pollInterval(pollInterval).timeout(awaitTimeout).until(evaluator);
     }
 
     protected JobBuilder job(TestInfo testInfo) {
@@ -422,8 +419,12 @@ public abstract class AbstractTestBase {
     protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemProcessor<I, O> processor,
             ItemWriter<O> writer) throws JobExecutionException {
         SimpleStepBuilder<I, O> step = step(testInfo, reader, processor, writer);
-        SimpleJobBuilder job = job(testInfo).start(step.faultTolerant().retryLimit(3).retry(TimeoutException.class).build());
+        SimpleJobBuilder job = job(testInfo).start(faultTolerant(step).build());
         return run(job.build());
+    }
+
+    private <I, O> FaultTolerantStepBuilder<I, O> faultTolerant(SimpleStepBuilder<I, O> step) {
+        return step.faultTolerant().retryPolicy(new MaxAttemptsRetryPolicy()).retry(TimeoutException.class);
     }
 
     protected JobExecution run(Job job) throws JobExecutionException {
