@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +38,7 @@ import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.ToGeoValueFunction;
+import com.redis.spring.batch.common.ToSampleFunction;
 import com.redis.spring.batch.common.ToScoredValueFunction;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.MapOptions;
@@ -59,6 +61,7 @@ import com.redis.spring.batch.writer.operation.Lpush;
 import com.redis.spring.batch.writer.operation.LpushAll;
 import com.redis.spring.batch.writer.operation.Rpush;
 import com.redis.spring.batch.writer.operation.Sadd;
+import com.redis.spring.batch.writer.operation.TsAdd;
 import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.spring.batch.writer.operation.Zadd;
 
@@ -316,6 +319,23 @@ abstract class BatchTests extends AbstractTargetTestBase {
         assertEquals(values.size(), commands.zcard(key));
         assertEquals(60, commands.zrangebyscore(key, io.lettuce.core.Range.from(io.lettuce.core.Range.Boundary.including(0),
                 io.lettuce.core.Range.Boundary.including(5))).size());
+    }
+
+    @Test
+    void writeTimeseries() throws Exception {
+        String key = "ts";
+        Map<Long, Double> samples = new HashMap<>();
+        for (int index = 0; index < 100; index++) {
+            samples.put(Instant.now().toEpochMilli() + index, (double) index);
+        }
+        TsAdd<String, String, Entry<Long, Double>> tsAdd = new TsAdd<>();
+        tsAdd.setKey(key);
+        tsAdd.setSampleFunction(new ToSampleFunction<>(e -> e.getKey(), e -> e.getValue()));
+        OperationItemWriter<String, String, Entry<Long, Double>> writer = writer(tsAdd);
+        writer.open(new ExecutionContext());
+        writer.write(new ArrayList<>(samples.entrySet()));
+        assertEquals(1, commands.dbsize());
+        writer.close();
     }
 
     @Test
