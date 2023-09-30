@@ -2,11 +2,16 @@ package com.redis.spring.batch.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
@@ -31,13 +36,13 @@ import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.SimpleOperationExecutor;
+import com.redis.spring.batch.common.ToSampleFunction;
 import com.redis.spring.batch.common.ToSuggestionFunction;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.TimeSeriesOptions;
@@ -55,6 +60,11 @@ import com.redis.spring.batch.writer.operation.TsAddAll;
 
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.StringCodec;
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.search.Search;
+import io.micrometer.core.instrument.simple.SimpleConfig;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 abstract class ModulesTests extends BatchTests {
 
@@ -62,15 +72,47 @@ abstract class ModulesTests extends BatchTests {
 
     private static final int BEER_COUNT = 1019;
 
+    private static final DataType[] GEN_TYPES = { DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING,
+            DataType.ZSET, DataType.TIMESERIES, DataType.JSON };
+
+    @Override
+    protected DataType[] generatorDataTypes() {
+        return GEN_TYPES;
+    }
+
+    @Test
+    void readMetrics(TestInfo info) throws Exception {
+        Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
+
+            @Override
+            public String get(String key) {
+                return null;
+            }
+
+            @Override
+            public Duration step() {
+                return Duration.ofMillis(1);
+            }
+
+        }, Clock.SYSTEM);
+        Metrics.addRegistry(registry);
+        generate(info);
+        RedisItemReader<String, String, KeyValue<String>> reader = structReader(info, client);
+        open(reader);
+        Search search = registry.find("redis.batch.reader.queue.size");
+        Assertions.assertNotNull(search.gauge());
+        reader.close();
+        registry.close();
+        Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
+    }
+
     @Test
     void readKeyspaceNotifications(TestInfo testInfo) throws Exception {
         enableKeyspaceNotifications(client);
         KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
         reader.open(new ExecutionContext());
-        GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setMaxItemCount(100);
-        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET,
-                DataType.TIMESERIES, DataType.JSON);
+        GeneratorItemReader gen = generator(100);
         generate(testInfo, gen);
         awaitUntil(() -> reader.getQueue().size() > 0);
         Assertions.assertEquals(KeyEvent.SET, reader.getQueue().remove().getEvent());
@@ -84,89 +126,6 @@ abstract class ModulesTests extends BatchTests {
     }
 
     @Test
-    void liveReaderWithType(TestInfo info) throws Exception {
-        enableKeyspaceNotifications(client);
-        RedisItemReader<String, String, KeyValue<String>> reader = liveStructReader(info, client);
-        reader.setKeyType(DataType.HASH);
-        reader.open(new ExecutionContext());
-        GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setMaxItemCount(100);
-        generate(info, gen);
-        reader.open(new ExecutionContext());
-        List<KeyValue<String>> keyValues = BatchUtils.readAll(reader);
-        reader.close();
-        Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType() == DataType.HASH));
-    }
-
-    @Test
-    void writeJsonSet(TestInfo testInfo) throws Exception {
-        JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>();
-        jsonSet.setKeyFunction(n -> "beer:" + n.get("id").asText());
-        jsonSet.setValueFunction(JsonNode::toString);
-        jsonSet.setPath(".");
-        OperationItemWriter<String, String, JsonNode> writer = writer(jsonSet);
-        IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
-        run(testInfo, reader, writer);
-        Assertions.assertEquals(BEER_COUNT, commands.keys("beer:*").size());
-        Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
-                new ObjectMapper().readTree(commands.jsonGet("beer:1", "$")));
-    }
-
-    @Test
-    void writeJsonDel(TestInfo testInfo) throws Exception {
-        GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setTypes(DataType.JSON);
-        gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
-        generate(testInfo, gen);
-        JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>();
-        jsonDel.setKeyFunction(KeyValue::getKey);
-        run(testInfo, gen, writer(jsonDel));
-        Assertions.assertEquals(0, commands.dbsize());
-    }
-
-    @Test
-    void writeTsAdd(TestInfo testInfo) throws Exception {
-        String key = "ts:1";
-        Random random = new Random();
-        int count = 100;
-        List<Sample> samples = new ArrayList<>(count);
-        for (int index = 0; index < count; index++) {
-            long timestamp = System.currentTimeMillis() - count + (index % (count / 2));
-            samples.add(Sample.of(timestamp, random.nextDouble()));
-        }
-        ListItemReader<Sample> reader = new ListItemReader<>(samples);
-        AddOptions<String, String> addOptions = AddOptions.<String, String> builder().policy(DuplicatePolicy.LAST).build();
-        TsAdd<String, String, Sample> tsadd = new TsAdd<>();
-        tsadd.setKey(key);
-        tsadd.setSampleFunction(Function.identity());
-        tsadd.setOptions(addOptions);
-        OperationItemWriter<String, String, Sample> writer = writer(tsadd);
-        run(testInfo, reader, writer);
-        Assertions.assertEquals(count / 2, commands.tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(),
-                2);
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    @Test
-    void writeTsAddAll(TestInfo testInfo) throws Exception {
-        int count = 10;
-        GeneratorItemReader reader = new GeneratorItemReader();
-        reader.setTypes(DataType.TIMESERIES);
-        reader.setMaxItemCount(count);
-        AddOptions<String, String> addOptions = AddOptions.<String, String> builder().policy(DuplicatePolicy.LAST).build();
-        TsAddAll<String, String, KeyValue<String>> tsadd = new TsAddAll<>();
-        tsadd.setKeyFunction(KeyValue::getKey);
-        tsadd.setSamplesFunction(t -> (Collection<Sample>) t.getValue());
-        tsadd.setOptions(addOptions);
-        OperationItemWriter<String, String, Sample> writer = new OperationItemWriter(client, StringCodec.UTF8, tsadd);
-        run(testInfo, reader, writer);
-        for (int index = 1; index <= count; index++) {
-            Assertions.assertEquals(TimeSeriesOptions.DEFAULT_SAMPLE_COUNT.getMin(),
-                    commands.tsRange(reader.key(index), TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
-        }
-    }
-
-    @Test
     void beerIndex() throws Exception {
         Beers.populateIndex(connection);
         IndexInfo indexInfo = RedisModulesUtils.indexInfo(commands.ftInfo(Beers.INDEX));
@@ -174,7 +133,7 @@ abstract class ModulesTests extends BatchTests {
     }
 
     @Test
-    void tsComparator(TestInfo info) throws Exception {
+    void compareTimeseries(TestInfo info) throws Exception {
         int count = 1000;
         for (int index = 0; index < count; index++) {
             commands.tsAdd("ts:" + index, Sample.of(123));
@@ -189,7 +148,7 @@ abstract class ModulesTests extends BatchTests {
     }
 
     @Test
-    void testLuaTimeSeries() throws Exception {
+    void readTimeseries() throws Exception {
         String key = "myts";
         Sample[] samples = { Sample.of(System.currentTimeMillis(), 1.1), Sample.of(System.currentTimeMillis() + 10, 2.2) };
         for (Sample sample : samples) {
@@ -204,7 +163,7 @@ abstract class ModulesTests extends BatchTests {
     }
 
     @Test
-    void testLuaTimeSeriesByteArray() throws Exception {
+    void readTimeseriesByteArray() throws Exception {
         String key = "myts";
         Sample[] samples = { Sample.of(System.currentTimeMillis(), 1.1), Sample.of(System.currentTimeMillis() + 10, 2.2) };
         for (Sample sample : samples) {
@@ -218,19 +177,6 @@ abstract class ModulesTests extends BatchTests {
         Assertions.assertEquals(DataType.TIMESERIES, ds.getType());
         Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
         executor.close();
-    }
-
-    @Test
-    void writeStructs(TestInfo info) throws Exception {
-        int count = 1000;
-        GeneratorItemReader reader = new GeneratorItemReader();
-        reader.setMaxItemCount(count);
-        reader.setTypes(DataType.values());
-        generate(info, client, reader);
-        RedisItemWriter<String, String, KeyValue<String>> writer = structWriter(client);
-        run(info, reader, writer);
-        List<String> keys = commands.keys("gen:*");
-        assertEquals(888, keys.size());
     }
 
     @Test
@@ -270,6 +216,87 @@ abstract class ModulesTests extends BatchTests {
         run(testInfo, reader, writer);
         assertEquals(1, commands.dbsize());
         assertEquals(values.size(), commands.ftSuglen(key));
+    }
+
+    @Test
+    void writeTimeseries() throws Exception {
+        String key = "ts";
+        Map<Long, Double> samples = new HashMap<>();
+        for (int index = 0; index < 100; index++) {
+            samples.put(Instant.now().toEpochMilli() + index, (double) index);
+        }
+        TsAdd<String, String, Entry<Long, Double>> tsAdd = new TsAdd<>();
+        tsAdd.setKey(key);
+        tsAdd.setSampleFunction(new ToSampleFunction<>(e -> e.getKey(), e -> e.getValue()));
+        OperationItemWriter<String, String, Entry<Long, Double>> writer = writer(tsAdd);
+        writer.open(new ExecutionContext());
+        writer.write(new ArrayList<>(samples.entrySet()));
+        assertEquals(1, commands.dbsize());
+        writer.close();
+    }
+
+    @Test
+    void writeJsonSet(TestInfo testInfo) throws Exception {
+        JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>();
+        jsonSet.setKeyFunction(n -> "beer:" + n.get("id").asText());
+        jsonSet.setValueFunction(JsonNode::toString);
+        jsonSet.setPath(".");
+        OperationItemWriter<String, String, JsonNode> writer = writer(jsonSet);
+        IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
+        run(testInfo, reader, writer);
+        Assertions.assertEquals(BEER_COUNT, commands.keys("beer:*").size());
+        Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
+                new ObjectMapper().readTree(commands.jsonGet("beer:1", "$")));
+    }
+
+    @Test
+    void writeJsonDel(TestInfo testInfo) throws Exception {
+        GeneratorItemReader gen = generator(DataType.JSON);
+        generate(testInfo, gen);
+        JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>();
+        jsonDel.setKeyFunction(KeyValue::getKey);
+        run(testInfo, gen, writer(jsonDel));
+        Assertions.assertEquals(0, commands.dbsize());
+    }
+
+    @Test
+    void writeTsAdd(TestInfo testInfo) throws Exception {
+        String key = "ts:1";
+        Random random = new Random();
+        int count = 100;
+        List<Sample> samples = new ArrayList<>(count);
+        for (int index = 0; index < count; index++) {
+            long timestamp = System.currentTimeMillis() - count + (index % (count / 2));
+            samples.add(Sample.of(timestamp, random.nextDouble()));
+        }
+        ListItemReader<Sample> reader = new ListItemReader<>(samples);
+        AddOptions<String, String> addOptions = AddOptions.<String, String> builder().policy(DuplicatePolicy.LAST).build();
+        TsAdd<String, String, Sample> tsadd = new TsAdd<>();
+        tsadd.setKey(key);
+        tsadd.setSampleFunction(Function.identity());
+        tsadd.setOptions(addOptions);
+        OperationItemWriter<String, String, Sample> writer = writer(tsadd);
+        run(testInfo, reader, writer);
+        Assertions.assertEquals(count / 2, commands.tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(),
+                2);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @Test
+    void writeTsAddAll(TestInfo testInfo) throws Exception {
+        int count = 10;
+        GeneratorItemReader reader = generator(count, DataType.TIMESERIES);
+        AddOptions<String, String> addOptions = AddOptions.<String, String> builder().policy(DuplicatePolicy.LAST).build();
+        TsAddAll<String, String, KeyValue<String>> tsadd = new TsAddAll<>();
+        tsadd.setKeyFunction(KeyValue::getKey);
+        tsadd.setSamplesFunction(t -> (Collection<Sample>) t.getValue());
+        tsadd.setOptions(addOptions);
+        OperationItemWriter<String, String, Sample> writer = new OperationItemWriter(client, StringCodec.UTF8, tsadd);
+        run(testInfo, reader, writer);
+        for (int index = 1; index <= count; index++) {
+            Assertions.assertEquals(TimeSeriesOptions.DEFAULT_SAMPLE_COUNT.getMin(),
+                    commands.tsRange(reader.key(index), TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
+        }
     }
 
 }

@@ -117,8 +117,6 @@ public abstract class AbstractTestBase {
 
     protected static final int DEFAULT_GENERATOR_COUNT = 100;
 
-    private static final Range DEFAULT_GENERATOR_KEY_RANGE = Range.to(10000);
-
     private Duration pollDelay = DEFAULT_POLL_DELAY;
 
     private Duration pollInterval = DEFAULT_POLL_INTERVAL;
@@ -234,7 +232,24 @@ public abstract class AbstractTestBase {
         Assertions.assertEquals(0, exitCode);
     }
 
-    protected String id() {
+    protected GeneratorItemReader generator(int count) {
+        return generator(count, generatorDataTypes());
+    }
+
+    protected abstract DataType[] generatorDataTypes();
+
+    protected GeneratorItemReader generator(DataType... types) {
+        return generator(DEFAULT_GENERATOR_COUNT, types);
+    }
+
+    protected GeneratorItemReader generator(int count, DataType... types) {
+        GeneratorItemReader gen = new GeneratorItemReader();
+        gen.setMaxItemCount(count);
+        gen.setTypes(types);
+        return gen;
+    }
+
+    protected static String id() {
         return UUID.randomUUID().toString();
     }
 
@@ -306,17 +321,8 @@ public abstract class AbstractTestBase {
         return generator(DEFAULT_GENERATOR_COUNT);
     }
 
-    protected GeneratorItemReader generator(int count) {
-        GeneratorItemReader generator = new GeneratorItemReader();
-        generator.setMaxItemCount(count);
-        generator.setKeyRange(DEFAULT_GENERATOR_KEY_RANGE);
-        return generator;
-    }
-
     protected void generate(TestInfo testInfo) throws JobExecutionException {
-        GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setMaxItemCount(DEFAULT_GENERATOR_COUNT);
-        generate(testInfo, gen);
+        generate(testInfo, generator(DEFAULT_GENERATOR_COUNT));
     }
 
     protected void generate(TestInfo testInfo, GeneratorItemReader reader) throws JobExecutionException {
@@ -446,9 +452,7 @@ public abstract class AbstractTestBase {
     }
 
     protected void generateStreams(TestInfo testInfo, int messageCount) throws JobExecutionException {
-        GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setTypes(DataType.STREAM);
-        gen.setMaxItemCount(3);
+        GeneratorItemReader gen = generator(3, DataType.STREAM);
         StreamOptions streamOptions = new StreamOptions();
         streamOptions.setMessageCount(Range.of(messageCount));
         gen.setStreamOptions(streamOptions);

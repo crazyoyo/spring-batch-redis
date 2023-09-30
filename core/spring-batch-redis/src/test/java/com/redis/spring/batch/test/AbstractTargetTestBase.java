@@ -110,9 +110,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
     protected <K, V, T extends KeyValue<K>> boolean replicateLive(TestInfo testInfo, RedisItemReader<K, V, T> reader,
             RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
             throws Exception {
-        GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setMaxItemCount(300);
-        gen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING, DataType.ZSET);
+        GeneratorItemReader gen = generator(300);
         generate(new SimpleTestInfo(testInfo, "generate"), gen);
         TaskletStep step = step(new SimpleTestInfo(testInfo, "step"), reader, writer).build();
         SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(testInfo, "snapshotFlow"))).start(step).build();
@@ -126,9 +124,8 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         awaitOpen(writer);
         awaitOpen(liveReader);
         awaitOpen(liveWriter);
-        GeneratorItemReader liveGen = new GeneratorItemReader();
-        liveGen.setMaxItemCount(700);
-        liveGen.setTypes(DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET);
+        GeneratorItemReader liveGen = generator(700, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
+                DataType.ZSET);
         liveGen.setExpiration(Range.of(100));
         liveGen.setKeyRange(Range.from(300));
         generate(new SimpleTestInfo(testInfo, "generateLive"), liveGen);

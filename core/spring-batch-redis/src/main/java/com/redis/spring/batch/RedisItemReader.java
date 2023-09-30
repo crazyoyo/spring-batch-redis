@@ -2,12 +2,12 @@ package com.redis.spring.batch;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -57,6 +57,8 @@ import com.redis.spring.batch.writer.BlockingQueueItemWriter;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
+import io.lettuce.core.RedisCommandExecutionException;
+import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 import io.micrometer.core.instrument.Metrics;
@@ -104,6 +106,8 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     private RetryPolicy retryPolicy = DEFAULT_RETRY_POLICY;
 
     private List<Class<? extends Throwable>> retriableExceptions = defaultRetriableExceptions();
+
+    private List<Class<? extends Throwable>> notRetriableExceptions = defaultNotRetriableExceptions();
 
     private int database;
 
@@ -153,10 +157,19 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         this.codec = codec;
     }
 
+    @SuppressWarnings("unchecked")
     public static List<Class<? extends Throwable>> defaultRetriableExceptions() {
-        List<Class<? extends Throwable>> exceptions = new ArrayList<>();
-        exceptions.add(TimeoutException.class);
-        return exceptions;
+        return modifiableList(RedisCommandTimeoutException.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<Class<? extends Throwable>> defaultNotRetriableExceptions() {
+        return modifiableList(RedisCommandExecutionException.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> List<T> modifiableList(T... elements) {
+        return new ArrayList<>(Arrays.asList(elements));
     }
 
     public AbstractRedisClient getClient() {
@@ -349,6 +362,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         ftStep.skipPolicy(skipPolicy);
         ftStep.retryPolicy(retryPolicy);
         retriableExceptions.forEach(ftStep::retry);
+        notRetriableExceptions.forEach(ftStep::noRetry);
         return ftStep;
     }
 

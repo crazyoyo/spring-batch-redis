@@ -115,9 +115,6 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
                 }
             }
             return results;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw Exceptions.fromSynchronization(e);
         } catch (Exception e) {
             throw Exceptions.fromSynchronization(e);
         }
