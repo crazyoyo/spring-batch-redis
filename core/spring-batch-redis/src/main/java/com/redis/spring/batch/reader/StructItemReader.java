@@ -1,7 +1,6 @@
 package com.redis.spring.batch.reader;
 
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.reader.operation.Evalsha;
 import com.redis.spring.batch.reader.operation.StructReadOperation;
 
@@ -17,7 +16,7 @@ public class StructItemReader<K, V> extends AbstractKeyValueItemReader<K, V, Key
     }
 
     @Override
-    protected Operation<K, V, K, KeyValue<K>> operation(Evalsha<K, V, K> evalsha) {
+    protected StructReadOperation<K, V> operation(Evalsha<K, V, K> evalsha) {
         return new StructReadOperation<>(codec, evalsha);
     }
 

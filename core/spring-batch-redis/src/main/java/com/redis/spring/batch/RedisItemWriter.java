@@ -25,12 +25,8 @@ public abstract class RedisItemWriter<K, V, T> extends AbstractOperationItemWrit
         return new StructItemWriter<>(client, codec);
     }
 
-    public static DumpItemWriter<String, String> dump(AbstractRedisClient client) {
-        return dump(client, StringCodec.UTF8);
-    }
-
-    public static <K, V> DumpItemWriter<K, V> dump(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return new DumpItemWriter<>(client, codec);
+    public static DumpItemWriter dump(AbstractRedisClient client) {
+        return new DumpItemWriter(client);
     }
 
     public static <T> OperationItemWriter<String, String, T> operation(AbstractRedisClient client,

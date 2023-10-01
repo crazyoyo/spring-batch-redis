@@ -6,16 +6,16 @@ import com.redis.spring.batch.common.SimpleBatchWriteOperation;
 import com.redis.spring.batch.writer.operation.DumpWriteOperation;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.ByteArrayCodec;
 
-public class DumpItemWriter<K, V> extends RedisItemWriter<K, V, KeyValue<K>> {
+public class DumpItemWriter extends RedisItemWriter<byte[], byte[], KeyValue<byte[]>> {
 
-    public DumpItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        super(client, codec);
+    public DumpItemWriter(AbstractRedisClient client) {
+        super(client, ByteArrayCodec.INSTANCE);
     }
 
     @Override
-    protected BatchWriteOperation<K, V, KeyValue<K>> batchWriteOperation() {
+    protected SimpleBatchWriteOperation<byte[], byte[], KeyValue<byte[]>> batchWriteOperation() {
         return new SimpleBatchWriteOperation<>(new DumpWriteOperation<>());
     }
 

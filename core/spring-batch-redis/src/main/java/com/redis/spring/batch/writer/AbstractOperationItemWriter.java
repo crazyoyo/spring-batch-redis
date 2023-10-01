@@ -10,6 +10,7 @@ import com.redis.spring.batch.writer.operation.MultiExecBatchWriteOperation;
 import com.redis.spring.batch.writer.operation.ReplicaWaitBatchWriteOperation;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
 
 public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOperationExecutor<K, V, T, Object>
@@ -55,6 +56,9 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOpera
 
     private BatchWriteOperation<K, V, T> multiExec(BatchWriteOperation<K, V, T> operation) {
         if (multiExec) {
+            if (client instanceof RedisClusterClient) {
+                throw new UnsupportedOperationException("Multi/exec is not supported on Redis Cluster");
+            }
             return new MultiExecBatchWriteOperation<>(operation);
         }
         return operation;

@@ -41,9 +41,16 @@ public class KeyComparisonItemReader extends AbstractItemStreamItemReader<KeyCom
 
     public KeyComparisonItemReader(RedisItemReader<String, String, KeyValue<String>> source,
             RedisItemReader<String, String, KeyValue<String>> target) {
-        setName(ClassUtils.getShortName(getClass()));
         this.source = source;
         this.target = target;
+        setName(ClassUtils.getShortName(getClass()));
+    }
+
+    @Override
+    public void setName(String name) {
+        source.setName(name + "-source");
+        target.setName(name + "-target");
+        super.setName(name);
     }
 
     public void setChunkSize(int chunkSize) {

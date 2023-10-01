@@ -418,12 +418,8 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         }
     }
 
-    public static DumpItemReader<String, String> dump(AbstractRedisClient client) {
-        return dump(client, StringCodec.UTF8);
-    }
-
-    public static <K, V> DumpItemReader<K, V> dump(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return new DumpItemReader<>(client, codec);
+    public static DumpItemReader dump(AbstractRedisClient client) {
+        return new DumpItemReader(client);
     }
 
     public static StructItemReader<String, String> struct(AbstractRedisClient client) {

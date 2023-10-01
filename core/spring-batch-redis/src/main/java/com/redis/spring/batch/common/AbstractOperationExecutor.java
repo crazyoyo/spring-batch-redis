@@ -29,7 +29,7 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
 
     public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
-    private final AbstractRedisClient client;
+    protected final AbstractRedisClient client;
 
     private final RedisCodec<K, V> codec;
 
