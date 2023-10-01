@@ -63,7 +63,6 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
@@ -72,10 +71,8 @@ import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.reader.DumpItemReader;
-import com.redis.spring.batch.reader.KeyTypeItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
-import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
@@ -267,11 +264,16 @@ public abstract class AbstractTestBase {
 
     protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
             ItemWriter<O> writer) {
+        return step(info, DEFAULT_CHUNK_SIZE, reader, processor, writer);
+    }
+
+    protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, int chunkSize, ItemReader<I> reader,
+            ItemProcessor<I, O> processor, ItemWriter<O> writer) {
         String name = name(info);
         if (reader instanceof ItemStreamSupport) {
             ((ItemStreamSupport) reader).setName(name + "-reader");
         }
-        SimpleStepBuilder<I, O> step = stepBuilderFactory.get(name).chunk(DEFAULT_CHUNK_SIZE);
+        SimpleStepBuilder<I, O> step = stepBuilderFactory.get(name).chunk(chunkSize);
         step.reader(reader);
         step.processor(processor);
         step.writer(writer);
@@ -313,102 +315,34 @@ public abstract class AbstractTestBase {
         Awaitility.await().pollDelay(pollDelay).pollInterval(pollInterval).timeout(awaitTimeout).until(evaluator);
     }
 
-    protected JobBuilder job(TestInfo testInfo) {
-        return jobBuilderFactory.get(name(testInfo));
+    protected JobBuilder job(TestInfo info) {
+        return jobBuilderFactory.get(name(info));
     }
 
     protected GeneratorItemReader generator() {
         return generator(DEFAULT_GENERATOR_COUNT);
     }
 
-    protected void generate(TestInfo testInfo) throws JobExecutionException {
-        generate(testInfo, generator(DEFAULT_GENERATOR_COUNT));
+    protected void generate(TestInfo info) throws JobExecutionException {
+        generate(info, generator(DEFAULT_GENERATOR_COUNT));
     }
 
-    protected void generate(TestInfo testInfo, GeneratorItemReader reader) throws JobExecutionException {
-        generate(testInfo, client, reader);
+    protected void generate(TestInfo info, GeneratorItemReader reader) throws JobExecutionException {
+        generate(info, client, reader);
     }
 
-    protected void generate(TestInfo testInfo, AbstractRedisClient client, GeneratorItemReader reader)
+    protected void generate(TestInfo info, AbstractRedisClient client, GeneratorItemReader reader)
             throws JobExecutionException {
-        TestInfo finalTestInfo = new SimpleTestInfo(testInfo, "generate", String.valueOf(client.hashCode()));
-        RedisItemWriter<String, String, KeyValue<String>> writer = structWriter(client);
+        TestInfo finalTestInfo = new SimpleTestInfo(info, "generate", String.valueOf(client.hashCode()));
+        RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct(client, StringCodec.UTF8);
         run(finalTestInfo, reader, writer);
     }
 
-    protected DumpItemReader<String, String> dumpReader(TestInfo info, AbstractRedisClient client) {
-        return dumpReader(info, client, StringCodec.UTF8);
-    }
-
-    protected <K, V> DumpItemReader<K, V> dumpReader(TestInfo info, AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return reader(info, RedisItemReader.dump(client, codec));
-    }
-
-    protected RedisItemWriter<String, String, KeyValue<String>> dumpWriter(AbstractRedisClient client) {
-        return dumpWriter(client, StringCodec.UTF8);
-    }
-
-    protected RedisItemWriter<String, String, KeyValue<String>> structWriter(AbstractRedisClient client) {
-        return structWriter(client, StringCodec.UTF8);
-    }
-
-    protected <K, V> RedisItemWriter<K, V, KeyValue<K>> dumpWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return RedisItemWriter.dump(client, codec);
-    }
-
-    protected <K, V> RedisItemWriter<K, V, KeyValue<K>> structWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return RedisItemWriter.struct(client, codec);
-    }
-
-    protected RedisItemReader<String, String, KeyValue<String>> liveStructReader(TestInfo testInfo,
-            AbstractRedisClient client) {
-        return liveStructReader(testInfo, client, StringCodec.UTF8);
-    }
-
-    protected <K, V> RedisItemReader<K, V, KeyValue<K>> liveStructReader(TestInfo info, AbstractRedisClient client,
-            RedisCodec<K, V> codec) {
-        return liveReader(info, RedisItemReader.struct(client, codec));
-    }
-
-    protected RedisItemReader<String, String, KeyValue<String>> liveDumpReader(TestInfo testInfo, AbstractRedisClient client) {
-        return liveDumpReader(testInfo, client, StringCodec.UTF8);
-    }
-
-    protected <K, V> RedisItemReader<K, V, KeyValue<K>> liveDumpReader(TestInfo info, AbstractRedisClient client,
-            RedisCodec<K, V> codec) {
-        return liveReader(info, RedisItemReader.dump(client, codec));
-    }
-
-    protected <K, V, T extends KeyValue<K>> RedisItemReader<K, V, T> liveReader(TestInfo info,
-            RedisItemReader<K, V, T> reader) {
-        reader(info, reader);
-        reader.setMode(ReaderMode.LIVE);
+    protected void configureReader(TestInfo info, RedisItemReader<?, ?, ?> reader) {
+        reader.setName(name(info));
         reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-        return reader;
-    }
-
-    protected StructItemReader<String, String> structReader(TestInfo testInfo, AbstractRedisClient client) {
-        return structReader(testInfo, client, StringCodec.UTF8);
-    }
-
-    protected KeyTypeItemReader<String, String> keyTypeReader(TestInfo testInfo, AbstractRedisClient client) {
-        return keyTypeReader(testInfo, client, StringCodec.UTF8);
-    }
-
-    protected <K, V> StructItemReader<K, V> structReader(TestInfo info, AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return reader(info, RedisItemReader.struct(client, codec));
-    }
-
-    protected <K, V> KeyTypeItemReader<K, V> keyTypeReader(TestInfo info, AbstractRedisClient client, RedisCodec<K, V> codec) {
-        return reader(info, RedisItemReader.keyType(client, codec));
-    }
-
-    @SuppressWarnings("rawtypes")
-    protected <R extends RedisItemReader> R reader(TestInfo info, R reader) {
         reader.setJobRepository(jobRepository);
         reader.setTransactionManager(transactionManager);
-        reader.setName(name(info));
-        return reader;
     }
 
     protected void flushAll(AbstractRedisClient client) {
@@ -422,10 +356,13 @@ public abstract class AbstractTestBase {
         return run(info, reader, null, writer);
     }
 
-    protected <I, O> JobExecution run(TestInfo testInfo, ItemReader<I> reader, ItemProcessor<I, O> processor,
-            ItemWriter<O> writer) throws JobExecutionException {
-        SimpleStepBuilder<I, O> step = step(testInfo, reader, processor, writer);
-        SimpleJobBuilder job = job(testInfo).start(faultTolerant(step).build());
+    protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor, ItemWriter<O> writer)
+            throws JobExecutionException {
+        return run(info, step(info, reader, processor, writer));
+    }
+
+    protected <I, O> JobExecution run(TestInfo info, SimpleStepBuilder<I, O> step) throws JobExecutionException {
+        SimpleJobBuilder job = job(info).start(faultTolerant(step).build());
         return run(job.build());
     }
 
@@ -451,12 +388,12 @@ public abstract class AbstractTestBase {
         return new FlushingStepBuilder<>(step(info, reader, writer)).idleTimeout(DEFAULT_IDLE_TIMEOUT);
     }
 
-    protected void generateStreams(TestInfo testInfo, int messageCount) throws JobExecutionException {
+    protected void generateStreams(TestInfo info, int messageCount) throws JobExecutionException {
         GeneratorItemReader gen = generator(3, DataType.STREAM);
         StreamOptions streamOptions = new StreamOptions();
         streamOptions.setMessageCount(Range.of(messageCount));
         gen.setStreamOptions(streamOptions);
-        generate(new SimpleTestInfo(testInfo, "streams"), gen);
+        generate(new SimpleTestInfo(info, "streams"), gen);
     }
 
     protected StreamItemReader<String, String> streamReader(String stream, Consumer<String> consumer) {
@@ -499,13 +436,9 @@ public abstract class AbstractTestBase {
         itemStream.open(new ExecutionContext());
     }
 
-    protected SimpleOperationExecutor<String, String, String, KeyValue<String>> dumpOperationExecutor() {
-        return dumpOperationExecutor(StringCodec.UTF8);
-    }
-
-    protected <K, V> SimpleOperationExecutor<K, V, K, KeyValue<K>> dumpOperationExecutor(RedisCodec<K, V> codec) {
-        RedisItemReader<K, V, KeyValue<K>> reader = RedisItemReader.dump(client, codec);
-        SimpleOperationExecutor<K, V, K, KeyValue<K>> executor = reader.operationExecutor();
+    protected SimpleOperationExecutor<byte[], byte[], byte[], KeyValue<byte[]>> dumpOperationExecutor() {
+        DumpItemReader reader = RedisItemReader.dump(client);
+        SimpleOperationExecutor<byte[], byte[], byte[], KeyValue<byte[]>> executor = reader.operationExecutor();
         executor.open(new ExecutionContext());
         return executor;
     }

@@ -8,11 +8,11 @@ import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
 
 @EnabledOnOs(OS.LINUX)
-class StackEnterpriseTests extends ModulesTests {
+class EnterpriseToStackTests extends ModulesTests {
 
-    private static final RedisStackContainer SOURCE = RedisContainerFactory.stack();
+    private static final RedisEnterpriseContainer SOURCE = RedisContainerFactory.enterprise();
 
-    private static final RedisEnterpriseContainer TARGET = RedisContainerFactory.enterprise();
+    private static final RedisStackContainer TARGET = RedisContainerFactory.stack();
 
     @Override
     protected RedisServer getRedisServer() {

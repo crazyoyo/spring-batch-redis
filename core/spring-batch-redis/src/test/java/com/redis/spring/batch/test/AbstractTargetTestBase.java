@@ -30,6 +30,7 @@ import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.gen.GeneratorItemReader;
+import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.testcontainers.RedisServer;
 
@@ -69,7 +70,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
     }
 
     protected void awaitCompare(TestInfo info) {
-        awaitUntil(() -> compare(info));
+        awaitUntil(() -> compare(info).isEmpty());
     }
 
     /**
@@ -80,14 +81,15 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
      * @return list of differences
      * @throws Exception
      */
-    protected boolean compare(TestInfo info) throws Exception {
+    protected List<KeyComparison> compare(TestInfo info) throws Exception {
         if (commands.dbsize().equals(0L)) {
-            log.info("Source database is empty");
-            return false;
+            Assertions.fail("Source database is empty");
         }
-        if (!commands.dbsize().equals(targetCommands.dbsize())) {
-            log.info("Source and target databases have different sizes");
-            return false;
+        Long sourceSize = commands.dbsize();
+        Long targetSize = targetCommands.dbsize();
+        if (!sourceSize.equals(targetSize)) {
+            Assertions.fail(String.format("Source and target databases have different sizes. Expected %s but was %s",
+                    sourceSize, targetSize));
         }
         KeyComparisonItemReader reader = comparisonReader(new SimpleTestInfo(info, "compare", "reader"));
         reader.open(new ExecutionContext());
@@ -96,20 +98,21 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         Assertions.assertFalse(comparisons.isEmpty());
         List<KeyComparison> diffs = comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
         diffs.forEach(this::logComparison);
-        return diffs.isEmpty();
+        return diffs;
     }
 
     protected KeyComparisonItemReader comparisonReader(TestInfo info) throws Exception {
-        KeyComparisonItemReader reader = new KeyComparisonItemReader(structReader(info, client),
-                structReader(info, targetClient));
+        StructItemReader<String, String> sourceReader = RedisItemReader.struct(client);
+        StructItemReader<String, String> targetReader = RedisItemReader.struct(targetClient);
+        KeyComparisonItemReader reader = new KeyComparisonItemReader(sourceReader, targetReader);
         reader.setName(name(info));
         reader.setTtlTolerance(Duration.ofMillis(100));
         return reader;
     }
 
-    protected <K, V, T extends KeyValue<K>> boolean replicateLive(TestInfo testInfo, RedisItemReader<K, V, T> reader,
-            RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
-            throws Exception {
+    protected <K, V, T extends KeyValue<K>> List<KeyComparison> replicateLive(TestInfo testInfo,
+            RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
+            RedisItemWriter<K, V, T> liveWriter) throws Exception {
         GeneratorItemReader gen = generator(300);
         generate(new SimpleTestInfo(testInfo, "generate"), gen);
         TaskletStep step = step(new SimpleTestInfo(testInfo, "step"), reader, writer).build();

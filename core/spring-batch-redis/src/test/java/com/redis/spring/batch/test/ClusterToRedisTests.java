@@ -9,22 +9,22 @@ import com.redis.testcontainers.RedisContainer;
 import com.redis.testcontainers.RedisServer;
 
 @EnabledOnOs(value = OS.MAC)
-public class StackClusterTests extends BatchTests {
+public class ClusterToRedisTests extends BatchTests {
 
     private static final RedisContainer redis = new RedisContainer(
             RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 
-    private static final RedisClusterContainer redisCluster = new RedisClusterContainer(
+    private static final RedisClusterContainer cluster = new RedisClusterContainer(
             DockerImageName.parse("neohq/redis-cluster").withTag("latest"));
 
     @Override
     protected RedisServer getRedisServer() {
-        return redis;
+        return cluster;
     }
 
     @Override
     protected RedisServer getTargetRedisServer() {
-        return redisCluster;
+        return redis;
     }
 
 }
