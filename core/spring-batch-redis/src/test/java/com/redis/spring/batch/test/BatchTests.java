@@ -641,8 +641,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
             connection.setAutoFlushCommands(true);
         }
 
-        replicate(info, RedisItemReader.struct(client, ByteArrayCodec.INSTANCE),
-                RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE));
+        assertEmpty(replicate(info, RedisItemReader.struct(client, ByteArrayCodec.INSTANCE),
+                RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE)));
     }
 
     protected <K, V> List<KeyComparison> replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
@@ -657,7 +657,15 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
     @Test
     void replicateStructEmptyCollections(TestInfo info) throws Exception {
-        // TODO
+        GeneratorItemReader gen = generator(1000);
+        Range cardinality = Range.of(0);
+        gen.getHashOptions().setFieldCount(cardinality);
+        gen.getSetOptions().setMemberCount(cardinality);
+        gen.getStreamOptions().setMessageCount(cardinality);
+        gen.getTimeSeriesOptions().setSampleCount(cardinality);
+        gen.getZsetOptions().setMemberCount(cardinality);
+        generate(info, gen);
+        assertEmpty(replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)));
     }
 
     @Test

@@ -96,9 +96,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         List<KeyComparison> comparisons = BatchUtils.readAll(reader);
         reader.close();
         Assertions.assertFalse(comparisons.isEmpty());
-        List<KeyComparison> diffs = comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
-        diffs.forEach(this::logComparison);
-        return diffs;
+        return comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
     }
 
     protected KeyComparisonItemReader comparisonReader(TestInfo info) throws Exception {
