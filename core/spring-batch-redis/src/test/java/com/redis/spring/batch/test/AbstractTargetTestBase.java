@@ -2,16 +2,16 @@ package com.redis.spring.batch.test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-import org.awaitility.core.ConditionTimeoutException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
@@ -22,8 +22,8 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader.ReaderMode;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
@@ -123,22 +123,20 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "liveFlow"))).start(liveStep).build();
         Job job = job(info).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "flow")))
                 .split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
-        JobExecution execution = runAsync(job);
-        awaitOpen(reader);
-        awaitOpen(writer);
-        awaitOpen(liveReader);
-        awaitOpen(liveWriter);
-        Thread.sleep(100);
-        GeneratorItemReader liveGen = generator(700, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
-                DataType.ZSET);
-        liveGen.setExpiration(Range.of(100));
-        liveGen.setKeyRange(Range.from(300));
-        generate(new SimpleTestInfo(info, "generateLive"), liveGen);
-        try {
-            awaitTermination(execution);
-        } catch (ConditionTimeoutException e) {
-            // ignore
-        }
+        Executors.newSingleThreadScheduledExecutor().execute(() -> {
+            awaitOpen(liveReader);
+            awaitOpen(liveWriter);
+            GeneratorItemReader liveGen = generator(700, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
+                    DataType.ZSET);
+            liveGen.setExpiration(Range.of(100));
+            liveGen.setKeyRange(Range.from(300));
+            try {
+                generate(new SimpleTestInfo(info, "generateLive"), liveGen);
+            } catch (JobExecutionException e) {
+                throw new RuntimeException("Could not execute data gen");
+            }
+        });
+        run(job);
         awaitClosed(reader);
         awaitClosed(writer);
         awaitClosed(liveReader);

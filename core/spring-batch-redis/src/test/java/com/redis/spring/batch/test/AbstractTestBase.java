@@ -50,7 +50,6 @@ import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -146,8 +145,6 @@ public abstract class AbstractTestBase {
 
     private SimpleJobLauncher jobLauncher;
 
-    private SimpleJobLauncher asyncJobLauncher;
-
     private JobBuilderFactory jobBuilderFactory;
 
     private StepBuilderFactory stepBuilderFactory;
@@ -173,10 +170,6 @@ public abstract class AbstractTestBase {
         jobLauncher.setJobRepository(jobRepository);
         jobLauncher.setTaskExecutor(new SyncTaskExecutor());
         jobLauncher.afterPropertiesSet();
-        asyncJobLauncher = new SimpleJobLauncher();
-        asyncJobLauncher.setJobRepository(jobRepository);
-        asyncJobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-        asyncJobLauncher.afterPropertiesSet();
         jobBuilderFactory = new JobBuilderFactory(jobRepository);
         stepBuilderFactory = new StepBuilderFactory(jobRepository, bean.getTransactionManager());
     }
@@ -380,12 +373,6 @@ public abstract class AbstractTestBase {
 
     protected JobExecution run(Job job) throws JobExecutionException {
         return jobLauncher.run(job, new JobParameters());
-    }
-
-    protected JobExecution runAsync(Job job) throws JobExecutionException {
-        JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
-        awaitRunning(execution);
-        return execution;
     }
 
     protected void enableKeyspaceNotifications(AbstractRedisClient client) {

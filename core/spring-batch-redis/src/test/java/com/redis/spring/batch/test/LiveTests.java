@@ -4,18 +4,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
-import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.item.ExecutionContext;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader.ReaderMode;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.gen.GeneratorItemReader;
@@ -77,7 +78,7 @@ abstract class LiveTests extends BatchTests {
         List<KeyValue<byte[]>> list = BatchUtils.readAll(reader);
         Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
         Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
-        Assertions.assertEquals(commands.dbsize(), keys.size());
+        Assertions.assertEquals(count, keys.size());
         reader.close();
     }
 
@@ -109,11 +110,19 @@ abstract class LiveTests extends BatchTests {
         reader.setMode(ReaderMode.LIVE);
         reader.setNotificationQueueCapacity(100000);
         DumpItemWriter writer = RedisItemWriter.dump(targetClient);
-        JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
-        awaitOpen(reader);
-        GeneratorItemReader gen = generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET);
-        generate(info, gen);
-        awaitTermination(execution);
+        Executors.newSingleThreadScheduledExecutor().execute(() -> {
+            awaitOpen(reader);
+            GeneratorItemReader gen = generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
+                    DataType.ZSET);
+            try {
+                generate(info, gen);
+            } catch (JobExecutionException e) {
+                throw new RuntimeException("Could not run data gen", e);
+            }
+        });
+        run(job(info).start(flushingStep(info, reader, writer).build()).build());
+        awaitClosed(reader);
+        awaitClosed(writer);
         assertEmpty(compare(info));
     }
 
@@ -127,11 +136,14 @@ abstract class LiveTests extends BatchTests {
         reader.setMode(ReaderMode.LIVE);
         reader.setNotificationQueueCapacity(100);
         StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-        JobExecution execution = runAsync(job(info).start(flushingStep(info, reader, writer).build()).build());
-        awaitOpen(reader);
-        awaitOpen(writer);
-        commands.srem(key, "5");
-        awaitTermination(execution);
+        Executors.newSingleThreadScheduledExecutor().execute(() -> {
+            awaitOpen(reader);
+            awaitOpen(writer);
+            commands.srem(key, "5");
+        });
+        run(job(info).start(flushingStep(info, reader, writer).build()).build());
+        awaitClosed(reader);
+        awaitClosed(writer);
         assertEquals(commands.smembers(key), targetCommands.smembers(key));
     }
 

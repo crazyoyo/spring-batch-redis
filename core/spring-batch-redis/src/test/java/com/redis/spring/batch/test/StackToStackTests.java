@@ -14,11 +14,14 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
-import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.job.builder.FlowBuilder;
+import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.RedisItemReader;
@@ -215,14 +218,16 @@ class StackToStackTests extends ModulesTests {
             reader2.setAckPolicy(StreamAckPolicy.MANUAL);
             ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
             TestInfo testInfo1 = new SimpleTestInfo(testInfo, key, "1");
-            JobExecution execution1 = runAsync(job(testInfo1).start(flushingStep(testInfo1, reader1, writer1).build()).build());
-            ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
+            TaskletStep step1 = flushingStep(testInfo1, reader1, writer1).build();
             TestInfo testInfo2 = new SimpleTestInfo(testInfo, key, "2");
-            JobExecution execution2 = runAsync(job(testInfo2).start(flushingStep(testInfo2, reader2, writer2).build()).build());
-            awaitTermination(execution1);
+            ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
+            TaskletStep step2 = flushingStep(testInfo2, reader2, writer2).build();
+            SimpleFlow flow1 = flow("flow1").start(step1).build();
+            SimpleFlow flow2 = flow("flow2").start(step2).build();
+            SimpleFlow flow = flow("replicate").split(new SimpleAsyncTaskExecutor()).add(flow1, flow2).build();
+            run(job(testInfo1).start(flow).build().build());
             awaitClosed(reader1);
             awaitClosed(writer1);
-            awaitTermination(execution2);
             awaitClosed(reader2);
             awaitClosed(writer2);
             Assertions.assertEquals(count, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
@@ -241,6 +246,10 @@ class StackToStackTests extends ModulesTests {
             reader2.close();
             Assertions.assertEquals(0, commands.xpending(key, consumerGroup).getCount());
         }
+    }
+
+    private static FlowBuilder<SimpleFlow> flow(String name) {
+        return new FlowBuilder<>(name);
     }
 
 }
