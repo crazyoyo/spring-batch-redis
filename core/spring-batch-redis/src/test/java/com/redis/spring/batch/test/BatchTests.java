@@ -24,7 +24,6 @@ import org.junit.jupiter.api.TestInfo;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.ListItemReader;
-import org.springframework.batch.item.support.ListItemWriter;
 
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
@@ -75,8 +74,6 @@ import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.models.stream.PendingMessages;
 
 abstract class BatchTests extends AbstractTargetTestBase {
-
-    private static final String DEFAULT_CONSUMER_GROUP = "consumerGroup";
 
     @Override
     protected DataType[] generatorDataTypes() {
@@ -935,47 +932,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
         run(info, reader, writer);
         List<String> keys = commands.keys("gen:*");
         assertEquals(count, keys.size());
-    }
-
-    @Test
-    void readMultipleStreams(TestInfo testInfo) throws Exception {
-        generateStreams(new SimpleTestInfo(testInfo, "streams"), 277);
-        final List<String> keys = ScanIterator.scan(commands, KeyScanArgs.Builder.type(DataType.STREAM.getString())).stream()
-                .collect(Collectors.toList());
-        for (String key : keys) {
-            long count = commands.xlen(key);
-            StreamItemReader<String, String> reader1 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
-            reader1.setAckPolicy(StreamAckPolicy.MANUAL);
-            StreamItemReader<String, String> reader2 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"));
-            reader2.setAckPolicy(StreamAckPolicy.MANUAL);
-            ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
-            TestInfo testInfo1 = new SimpleTestInfo(testInfo, key, "1");
-            JobExecution execution1 = runAsync(job(testInfo1).start(flushingStep(testInfo1, reader1, writer1).build()).build());
-            ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
-            TestInfo testInfo2 = new SimpleTestInfo(testInfo, key, "2");
-            JobExecution execution2 = runAsync(job(testInfo2).start(flushingStep(testInfo2, reader2, writer2).build()).build());
-            awaitTermination(execution1);
-            awaitClosed(reader1);
-            awaitClosed(writer1);
-            awaitTermination(execution2);
-            awaitClosed(reader2);
-            awaitClosed(writer2);
-            Assertions.assertEquals(count, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
-            assertMessageBody(writer1.getWrittenItems());
-            assertMessageBody(writer2.getWrittenItems());
-            Assertions.assertEquals(count, commands.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
-            reader1 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer1"));
-            reader1.setAckPolicy(StreamAckPolicy.MANUAL);
-            reader1.open(new ExecutionContext());
-            reader1.ack(writer1.getWrittenItems());
-            reader1.close();
-            reader2 = streamReader(key, Consumer.from(DEFAULT_CONSUMER_GROUP, "consumer2"));
-            reader2.setAckPolicy(StreamAckPolicy.MANUAL);
-            reader2.open(new ExecutionContext());
-            reader2.ack(writer2.getWrittenItems());
-            reader2.close();
-            Assertions.assertEquals(0, commands.xpending(key, DEFAULT_CONSUMER_GROUP).getCount());
-        }
     }
 
 }

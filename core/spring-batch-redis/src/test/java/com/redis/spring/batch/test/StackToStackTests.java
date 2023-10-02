@@ -14,9 +14,11 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.ListItemReader;
+import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.RedisItemReader;
@@ -27,6 +29,8 @@ import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.OperationItemProcessor;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.DumpItemReader;
+import com.redis.spring.batch.reader.StreamItemReader;
+import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.writer.DumpItemWriter;
@@ -36,6 +40,9 @@ import com.redis.spring.batch.writer.operation.Xadd;
 import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
 
+import io.lettuce.core.Consumer;
+import io.lettuce.core.KeyScanArgs;
+import io.lettuce.core.ScanIterator;
 import io.lettuce.core.StreamMessage;
 
 class StackToStackTests extends ModulesTests {
@@ -191,6 +198,48 @@ class StackToStackTests extends ModulesTests {
         for (int index = 0; index < xrange.size(); index++) {
             StreamMessage<String, String> message = xrange.get(index);
             Assertions.assertEquals(messages.get(index), message.getBody());
+        }
+    }
+
+    @Test
+    void readMultipleStreams(TestInfo testInfo) throws Exception {
+        String consumerGroup = "consumerGroup";
+        generateStreams(new SimpleTestInfo(testInfo, "streams"), 277);
+        KeyScanArgs args = KeyScanArgs.Builder.type(DataType.STREAM.getString());
+        final List<String> keys = ScanIterator.scan(commands, args).stream().collect(Collectors.toList());
+        for (String key : keys) {
+            long count = commands.xlen(key);
+            StreamItemReader<String, String> reader1 = streamReader(key, Consumer.from(consumerGroup, "consumer1"));
+            reader1.setAckPolicy(StreamAckPolicy.MANUAL);
+            StreamItemReader<String, String> reader2 = streamReader(key, Consumer.from(consumerGroup, "consumer2"));
+            reader2.setAckPolicy(StreamAckPolicy.MANUAL);
+            ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
+            TestInfo testInfo1 = new SimpleTestInfo(testInfo, key, "1");
+            JobExecution execution1 = runAsync(job(testInfo1).start(flushingStep(testInfo1, reader1, writer1).build()).build());
+            ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
+            TestInfo testInfo2 = new SimpleTestInfo(testInfo, key, "2");
+            JobExecution execution2 = runAsync(job(testInfo2).start(flushingStep(testInfo2, reader2, writer2).build()).build());
+            awaitTermination(execution1);
+            awaitClosed(reader1);
+            awaitClosed(writer1);
+            awaitTermination(execution2);
+            awaitClosed(reader2);
+            awaitClosed(writer2);
+            Assertions.assertEquals(count, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
+            assertMessageBody(writer1.getWrittenItems());
+            assertMessageBody(writer2.getWrittenItems());
+            Assertions.assertEquals(count, commands.xpending(key, consumerGroup).getCount());
+            reader1 = streamReader(key, Consumer.from(consumerGroup, "consumer1"));
+            reader1.setAckPolicy(StreamAckPolicy.MANUAL);
+            reader1.open(new ExecutionContext());
+            reader1.ack(writer1.getWrittenItems());
+            reader1.close();
+            reader2 = streamReader(key, Consumer.from(consumerGroup, "consumer2"));
+            reader2.setAckPolicy(StreamAckPolicy.MANUAL);
+            reader2.open(new ExecutionContext());
+            reader2.ack(writer2.getWrittenItems());
+            reader2.close();
+            Assertions.assertEquals(0, commands.xpending(key, consumerGroup).getCount());
         }
     }
 
