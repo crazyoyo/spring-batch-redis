@@ -38,10 +38,9 @@ import org.springframework.retry.RetryPolicy;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.common.DataType;
-import com.redis.spring.batch.common.Operation;
-import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.KeyTypeItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
@@ -77,8 +76,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     public static final int DEFAULT_CHUNK_SIZE = 50;
 
-    public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
-
     public static final Duration DEFAULT_FLUSH_INTERVAL = FlushingChunkProvider.DEFAULT_FLUSH_INTERVAL;
 
     public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(10);
@@ -92,6 +89,15 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     public static final SkipPolicy DEFAULT_SKIP_POLICY = new NeverSkipItemSkipPolicy();
 
     public static final RetryPolicy DEFAULT_RETRY_POLICY = new MaxAttemptsRetryPolicy();
+
+    /**
+     * Default to no memory usage calculation
+     */
+    public static final DataSize DEFAULT_MEMORY_USAGE_LIMIT = DataSize.ofBytes(0);
+
+    public static final int DEFAULT_MEMORY_USAGE_SAMPLES = 5;
+
+    public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
     private final Log log = LogFactory.getLog(getClass());
 
@@ -123,13 +129,11 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     private ItemProcessor<K, K> keyProcessor;
 
-    private ReadFrom readFrom;
+    protected ReadFrom readFrom;
 
     private int threads = DEFAULT_THREADS;
 
     private int chunkSize = DEFAULT_CHUNK_SIZE;
-
-    private int poolSize = DEFAULT_POOL_SIZE;
 
     private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
@@ -151,25 +155,16 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     private BlockingQueue<T> queue;
 
+    protected DataSize memLimit = DEFAULT_MEMORY_USAGE_LIMIT;
+
+    protected int memSamples = DEFAULT_MEMORY_USAGE_SAMPLES;
+
+    protected int poolSize = DEFAULT_POOL_SIZE;
+
     protected RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
         setName(ClassUtils.getShortName(getClass()));
         this.client = client;
         this.codec = codec;
-    }
-
-    @SuppressWarnings("unchecked")
-    public static List<Class<? extends Throwable>> defaultRetriableExceptions() {
-        return modifiableList(RedisCommandTimeoutException.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    public static List<Class<? extends Throwable>> defaultNotRetriableExceptions() {
-        return modifiableList(RedisCommandExecutionException.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> List<T> modifiableList(T... elements) {
-        return new ArrayList<>(Arrays.asList(elements));
     }
 
     public AbstractRedisClient getClient() {
@@ -240,10 +235,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         this.keyType = type;
     }
 
-    public void setPoolSize(int poolSize) {
-        this.poolSize = poolSize;
-    }
-
     public void setPollTimeout(Duration pollTimeout) {
         this.pollTimeout = pollTimeout;
     }
@@ -266,6 +257,18 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     public void setOrderingStrategy(OrderingStrategy orderingStrategy) {
         this.orderingStrategy = orderingStrategy;
+    }
+
+    public void setMemoryUsageLimit(DataSize limit) {
+        this.memLimit = limit;
+    }
+
+    public void setMemoryUsageSamples(int samples) {
+        this.memSamples = samples;
+    }
+
+    public void setPoolSize(int poolSize) {
+        this.poolSize = poolSize;
     }
 
     @Override
@@ -330,16 +333,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return jobRepository;
     }
 
-    public SimpleOperationExecutor<K, V, K, T> operationExecutor() {
-        Operation<K, V, K, T> operation = operation();
-        SimpleOperationExecutor<K, V, K, T> executor = new SimpleOperationExecutor<>(client, codec, operation);
-        executor.setPoolSize(poolSize);
-        executor.setReadFrom(readFrom);
-        return executor;
-    }
-
-    protected abstract Operation<K, V, K, T> operation();
-
     private SimpleStepBuilder<K, K> step() {
         SimpleStepBuilder<K, K> step = new StepBuilder(name).chunk(chunkSize);
         step.repository(jobRepository);
@@ -369,8 +362,10 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     private ItemWriter<? super K> writer() {
         queue = new LinkedBlockingQueue<>(queueCapacity);
         Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
-        return new ProcessingItemWriter<>(operationExecutor(), new BlockingQueueItemWriter<>(queue));
+        return new ProcessingItemWriter<>(processor(), new BlockingQueueItemWriter<>(queue));
     }
+
+    protected abstract ItemProcessor<List<? extends K>, List<T>> processor();
 
     private ItemReader<K> reader() {
         if (isLive()) {
@@ -430,11 +425,26 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return new StructItemReader<>(client, codec);
     }
 
-    public static KeyTypeItemReader<String, String> keyType(AbstractRedisClient client) {
-        return keyType(client, StringCodec.UTF8);
+    @SuppressWarnings("unchecked")
+    public static List<Class<? extends Throwable>> defaultRetriableExceptions() {
+        return modifiableList(RedisCommandTimeoutException.class);
     }
 
-    public static <K, V> KeyTypeItemReader<K, V> keyType(AbstractRedisClient client, RedisCodec<K, V> codec) {
+    @SuppressWarnings("unchecked")
+    public static List<Class<? extends Throwable>> defaultNotRetriableExceptions() {
+        return modifiableList(RedisCommandExecutionException.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> List<T> modifiableList(T... elements) {
+        return new ArrayList<>(Arrays.asList(elements));
+    }
+
+    public static KeyTypeItemReader<String, String> type(AbstractRedisClient client) {
+        return type(client, StringCodec.UTF8);
+    }
+
+    public static <K, V> KeyTypeItemReader<K, V> type(AbstractRedisClient client, RedisCodec<K, V> codec) {
         return new KeyTypeItemReader<>(client, codec);
     }
 

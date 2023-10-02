@@ -24,11 +24,12 @@ import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.SimpleOperationExecutor;
+import com.redis.spring.batch.common.OperationItemProcessor;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
 import com.redis.spring.batch.writer.operation.Xadd;
@@ -84,7 +85,7 @@ class StackToStackTests extends ModulesTests {
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
         configureReader(info, reader);
         reader.setMemoryUsageLimit(DataSize.ofBytes(-1));
-        SimpleOperationExecutor<String, String, String, KeyValue<String>> executor = reader.operationExecutor();
+        OperationItemProcessor<String, String, String, KeyValue<String>> executor = reader.operationProcessor();
         executor.open(new ExecutionContext());
         KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
@@ -99,7 +100,7 @@ class StackToStackTests extends ModulesTests {
         generate(info);
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
         reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
-        RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct(targetClient);
+        StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
         List<KeyComparison> diffs = replicate(info, reader, writer);
         assertEmpty(diffs);
     }
@@ -109,7 +110,7 @@ class StackToStackTests extends ModulesTests {
         generate(info);
         DumpItemReader reader = RedisItemReader.dump(client);
         reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
-        RedisItemWriter<byte[], byte[], KeyValue<byte[]>> writer = RedisItemWriter.dump(targetClient);
+        DumpItemWriter writer = RedisItemWriter.dump(targetClient);
         assertEmpty(replicate(info, reader, writer));
     }
 
@@ -121,7 +122,7 @@ class StackToStackTests extends ModulesTests {
         DumpItemReader reader = RedisItemReader.dump(client);
         configureReader(info, reader);
         reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
-        RedisItemWriter<byte[], byte[], KeyValue<byte[]>> writer = RedisItemWriter.dump(targetClient);
+        DumpItemWriter writer = RedisItemWriter.dump(targetClient);
         run(info, reader, writer);
         awaitClosed(reader);
         awaitClosed(writer);

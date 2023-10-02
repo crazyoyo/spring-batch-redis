@@ -34,8 +34,8 @@ import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.OperationItemProcessor;
 import com.redis.spring.batch.common.Range;
-import com.redis.spring.batch.common.SimpleOperationExecutor;
 import com.redis.spring.batch.common.ToGeoValueFunction;
 import com.redis.spring.batch.common.ToScoredValueFunction;
 import com.redis.spring.batch.gen.GeneratorItemReader;
@@ -112,8 +112,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
         for (int index = 1; index <= targetCount; index++) {
             targetCommands.set("key:" + index, "value:" + index);
         }
-        KeyTypeItemReader<String, String> source = RedisItemReader.keyType(client);
-        KeyTypeItemReader<String, String> target = RedisItemReader.keyType(targetClient);
+        KeyTypeItemReader<String, String> source = RedisItemReader.type(client);
+        KeyTypeItemReader<String, String> target = RedisItemReader.type(targetClient);
         KeyComparisonItemReader reader = new KeyComparisonItemReader(source, target);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
@@ -479,7 +479,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         commands.hset(key, hash);
         long ttl = System.currentTimeMillis() + 123456;
         commands.pexpireat(key, ttl);
-        SimpleOperationExecutor<String, String, String, KeyValue<String>> reader = structOperationExecutor();
+        OperationItemProcessor<String, String, String, KeyValue<String>> reader = structOperationExecutor();
         KeyValue<String> ds = reader.process(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(ttl, ds.getTtl());
@@ -494,7 +494,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         String key = "myzset";
         ScoredValue[] values = { ScoredValue.just(123.456, "value1"), ScoredValue.just(654.321, "value2") };
         commands.zadd(key, values);
-        SimpleOperationExecutor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+        OperationItemProcessor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
         KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(DataType.ZSET, ds.getType());
@@ -507,7 +507,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         String key = "mylist";
         List<String> values = Arrays.asList("value1", "value2");
         commands.rpush(key, values.toArray(new String[0]));
-        SimpleOperationExecutor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+        OperationItemProcessor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
         KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(DataType.LIST, ds.getType());
@@ -524,7 +524,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         body.put("field2", "value2");
         commands.xadd(key, body);
         commands.xadd(key, body);
-        SimpleOperationExecutor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+        OperationItemProcessor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
         KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(DataType.STREAM, ds.getType());
@@ -547,7 +547,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         commands.xadd(key, body);
         long ttl = System.currentTimeMillis() + 123456;
         commands.pexpireat(key, ttl);
-        SimpleOperationExecutor<byte[], byte[], byte[], KeyValue<byte[]>> executor = dumpOperationExecutor();
+        OperationItemProcessor<byte[], byte[], byte[], KeyValue<byte[]>> executor = dumpOperationExecutor();
         KeyValue<byte[]> dump = executor.process(Arrays.asList(toByteArray(key))).get(0);
         Assertions.assertArrayEquals(toByteArray(key), dump.getKey());
         Assertions.assertTrue(Math.abs(ttl - dump.getTtl()) <= 3);
@@ -566,7 +566,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         body.put("field2", "value2");
         commands.xadd(key, body);
         commands.xadd(key, body);
-        SimpleOperationExecutor<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
+        OperationItemProcessor<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
                 ByteArrayCodec.INSTANCE);
         KeyValue<byte[]> ds = executor.process(Arrays.asList(toByteArray(key))).get(0);
         Assertions.assertArrayEquals(toByteArray(key), ds.getKey());
@@ -589,7 +589,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         commands.pfadd(key1, "member:1", "member:2");
         String key2 = "hll:2";
         commands.pfadd(key2, "member:1", "member:2", "member:3");
-        SimpleOperationExecutor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+        OperationItemProcessor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
         KeyValue<String> ds1 = executor.process(Arrays.asList(key1)).get(0);
         Assertions.assertEquals(key1, ds1.getKey());
         Assertions.assertEquals(DataType.STRING, ds1.getType());

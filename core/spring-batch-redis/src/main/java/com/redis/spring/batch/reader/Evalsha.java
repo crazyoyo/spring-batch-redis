@@ -1,4 +1,4 @@
-package com.redis.spring.batch.reader.operation;
+package com.redis.spring.batch.reader;
 
 import java.util.List;
 import java.util.function.Function;
@@ -18,33 +18,44 @@ public class Evalsha<K, V, T> implements Operation<K, V, T, List<Object>> {
 
     private final String digest;
 
-    private final V[] encodedArgs;
+    private final Function<String, V> stringValueFunction;
 
     private Function<T, K> keyFunction;
 
-    @SuppressWarnings("unchecked")
-    public Evalsha(String filename, AbstractRedisClient client, RedisCodec<K, V> codec, Object... args) {
+    private Function<T, V[]> argsFunction;
+
+    public Evalsha(String filename, AbstractRedisClient client, RedisCodec<K, V> codec) {
         this.digest = ConnectionUtils.loadScript(client, filename);
-        Function<String, V> stringValueFunction = CodecUtils.stringValueFunction(codec);
-        this.encodedArgs = (V[]) new Object[args.length];
-        for (int index = 0; index < args.length; index++) {
-            this.encodedArgs[index] = stringValueFunction.apply(String.valueOf(args[index]));
-        }
+        this.stringValueFunction = CodecUtils.stringValueFunction(codec);
+    }
+
+    public void setKeys(K key) {
+        setKeyFunction(t -> key);
     }
 
     public void setKeyFunction(Function<T, K> function) {
         this.keyFunction = function;
     }
 
-    public void setKey(K key) {
-        this.keyFunction = t -> key;
+    public void setArgsFunction(Function<T, V[]> function) {
+        this.argsFunction = function;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void setArgs(Object... args) {
+        V[] encodedArgs = (V[]) new Object[args.length];
+        for (int index = 0; index < args.length; index++) {
+            encodedArgs[index] = stringValueFunction.apply(String.valueOf(args[index]));
+        }
+        setArgsFunction(t -> encodedArgs);
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public RedisFuture<List<Object>> execute(BaseRedisAsyncCommands<K, V> commands, T item) {
         K[] keys = (K[]) new Object[] { keyFunction.apply(item) };
-        return ((RedisScriptingAsyncCommands<K, V>) commands).evalsha(digest, ScriptOutputType.MULTI, keys, encodedArgs);
+        V[] args = argsFunction.apply(item);
+        return ((RedisScriptingAsyncCommands<K, V>) commands).evalsha(digest, ScriptOutputType.MULTI, keys, args);
     }
 
 }

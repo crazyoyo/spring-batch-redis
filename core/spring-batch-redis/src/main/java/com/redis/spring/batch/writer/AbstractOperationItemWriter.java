@@ -42,7 +42,7 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOpera
 
     @Override
     public void write(List<? extends T> items) throws Exception {
-        process(items);
+        execute(items);
     }
 
     @Override

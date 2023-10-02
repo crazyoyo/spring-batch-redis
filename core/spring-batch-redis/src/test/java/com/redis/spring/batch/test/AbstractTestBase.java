@@ -67,17 +67,19 @@ import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
-import com.redis.spring.batch.common.SimpleOperationExecutor;
+import com.redis.spring.batch.common.OperationItemProcessor;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
+import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.ConnectionUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
+import com.redis.spring.batch.writer.StructItemWriter;
 import com.redis.spring.batch.writer.WriteOperation;
 import com.redis.testcontainers.RedisServer;
 
@@ -98,9 +100,7 @@ public abstract class AbstractTestBase {
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
-    public static final int DEFAULT_CHUNK_SIZE = 50;
-
-    public static final Duration COMPARE_TIMEOUT = Duration.ofSeconds(3);
+    protected static final int DEFAULT_CHUNK_SIZE = 50;
 
     private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(1000);
 
@@ -334,7 +334,7 @@ public abstract class AbstractTestBase {
     protected void generate(TestInfo info, AbstractRedisClient client, GeneratorItemReader reader)
             throws JobExecutionException {
         TestInfo finalTestInfo = new SimpleTestInfo(info, "generate", String.valueOf(client.hashCode()));
-        RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct(client, StringCodec.UTF8);
+        StructItemWriter<String, String> writer = RedisItemWriter.struct(client, StringCodec.UTF8);
         run(finalTestInfo, reader, writer);
     }
 
@@ -436,20 +436,20 @@ public abstract class AbstractTestBase {
         itemStream.open(new ExecutionContext());
     }
 
-    protected SimpleOperationExecutor<byte[], byte[], byte[], KeyValue<byte[]>> dumpOperationExecutor() {
+    protected OperationItemProcessor<byte[], byte[], byte[], KeyValue<byte[]>> dumpOperationExecutor() {
         DumpItemReader reader = RedisItemReader.dump(client);
-        SimpleOperationExecutor<byte[], byte[], byte[], KeyValue<byte[]>> executor = reader.operationExecutor();
+        OperationItemProcessor<byte[], byte[], byte[], KeyValue<byte[]>> executor = reader.operationProcessor();
         executor.open(new ExecutionContext());
         return executor;
     }
 
-    protected SimpleOperationExecutor<String, String, String, KeyValue<String>> structOperationExecutor() {
+    protected OperationItemProcessor<String, String, String, KeyValue<String>> structOperationExecutor() {
         return structOperationExecutor(StringCodec.UTF8);
     }
 
-    protected <K, V> SimpleOperationExecutor<K, V, K, KeyValue<K>> structOperationExecutor(RedisCodec<K, V> codec) {
-        RedisItemReader<K, V, KeyValue<K>> reader = RedisItemReader.struct(client, codec);
-        SimpleOperationExecutor<K, V, K, KeyValue<K>> executor = reader.operationExecutor();
+    protected <K, V> OperationItemProcessor<K, V, K, KeyValue<K>> structOperationExecutor(RedisCodec<K, V> codec) {
+        StructItemReader<K, V> reader = RedisItemReader.struct(client, codec);
+        OperationItemProcessor<K, V, K, KeyValue<K>> executor = reader.operationProcessor();
         executor.open(new ExecutionContext());
         return executor;
     }

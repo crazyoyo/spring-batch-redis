@@ -23,6 +23,7 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
@@ -108,28 +109,31 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         return reader;
     }
 
-    protected <K, V, T extends KeyValue<K>> List<KeyComparison> replicateLive(TestInfo testInfo,
-            RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
-            RedisItemWriter<K, V, T> liveWriter) throws Exception {
+    protected <K, V, T extends KeyValue<K>> List<KeyComparison> replicateLive(TestInfo info, RedisItemReader<K, V, T> reader,
+            RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
+            throws Exception {
+        configureReader(new SimpleTestInfo(info, "reader"), reader);
+        configureReader(new SimpleTestInfo(info, "liveReader"), liveReader);
+        liveReader.setMode(ReaderMode.LIVE);
         GeneratorItemReader gen = generator(300);
-        generate(new SimpleTestInfo(testInfo, "generate"), gen);
-        TaskletStep step = step(new SimpleTestInfo(testInfo, "step"), reader, writer).build();
-        SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(testInfo, "snapshotFlow"))).start(step).build();
-        TaskletStep liveStep = flushingStep(new SimpleTestInfo(testInfo, "liveStep"), liveReader, liveWriter).build();
-        SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(testInfo, "liveFlow"))).start(liveStep)
-                .build();
-        Job job = job(testInfo).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(testInfo, "flow")))
+        generate(new SimpleTestInfo(info, "generate"), gen);
+        TaskletStep step = step(new SimpleTestInfo(info, "step"), reader, writer).build();
+        SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "snapshotFlow"))).start(step).build();
+        TaskletStep liveStep = flushingStep(new SimpleTestInfo(info, "liveStep"), liveReader, liveWriter).build();
+        SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "liveFlow"))).start(liveStep).build();
+        Job job = job(info).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "flow")))
                 .split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
         JobExecution execution = runAsync(job);
         awaitOpen(reader);
         awaitOpen(writer);
         awaitOpen(liveReader);
         awaitOpen(liveWriter);
+        Thread.sleep(100);
         GeneratorItemReader liveGen = generator(700, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
                 DataType.ZSET);
         liveGen.setExpiration(Range.of(100));
         liveGen.setKeyRange(Range.from(300));
-        generate(new SimpleTestInfo(testInfo, "generateLive"), liveGen);
+        generate(new SimpleTestInfo(info, "generateLive"), liveGen);
         try {
             awaitTermination(execution);
         } catch (ConditionTimeoutException e) {
@@ -139,14 +143,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         awaitClosed(writer);
         awaitClosed(liveReader);
         awaitClosed(liveWriter);
-        return compare(testInfo);
-    }
-
-    protected void logComparison(KeyComparison comparison) {
-        log.error(comparison.toString());
-        if (comparison.getStatus() == Status.VALUE) {
-            log.error("Expected {} but was {}", comparison.getSource().getValue(), comparison.getTarget().getValue());
-        }
+        return compare(info);
     }
 
 }

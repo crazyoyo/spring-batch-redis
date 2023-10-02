@@ -10,7 +10,6 @@ import java.util.function.Supplier;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamSupport;
 
 import com.redis.spring.batch.util.ConnectionUtils;
@@ -24,8 +23,7 @@ import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.internal.Exceptions;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
-public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSupport
-        implements ItemProcessor<List<? extends I>, List<O>> {
+public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSupport {
 
     public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
@@ -81,8 +79,7 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
         super.close();
     }
 
-    @Override
-    public List<O> process(List<? extends I> items) throws Exception {
+    protected List<O> execute(List<? extends I> items) throws Exception {
         try (StatefulConnection<K, V> connection = pool.borrowObject()) {
             BaseRedisAsyncCommands<K, V> commands = ConnectionUtils.async(connection);
             try {

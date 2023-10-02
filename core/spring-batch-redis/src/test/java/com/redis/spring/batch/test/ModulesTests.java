@@ -41,7 +41,7 @@ import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.SimpleOperationExecutor;
+import com.redis.spring.batch.common.OperationItemProcessor;
 import com.redis.spring.batch.common.ToSampleFunction;
 import com.redis.spring.batch.common.ToSuggestionFunction;
 import com.redis.spring.batch.gen.GeneratorItemReader;
@@ -49,6 +49,7 @@ import com.redis.spring.batch.gen.TimeSeriesOptions;
 import com.redis.spring.batch.reader.KeyEvent;
 import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
+import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
@@ -98,7 +99,7 @@ abstract class ModulesTests extends LiveTests {
         }, Clock.SYSTEM);
         Metrics.addRegistry(registry);
         generate(info);
-        RedisItemReader<String, String, KeyValue<String>> reader = RedisItemReader.struct(client);
+        StructItemReader<String, String> reader = RedisItemReader.struct(client);
         configureReader(info, reader);
         open(reader);
         Search search = registry.find("redis.batch.reader.queue.size");
@@ -155,7 +156,7 @@ abstract class ModulesTests extends LiveTests {
         for (Sample sample : samples) {
             commands.tsAdd(key, sample);
         }
-        SimpleOperationExecutor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+        OperationItemProcessor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
         KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(DataType.TIMESERIES, ds.getType());
@@ -170,7 +171,7 @@ abstract class ModulesTests extends LiveTests {
         for (Sample sample : samples) {
             commands.tsAdd(key, sample);
         }
-        SimpleOperationExecutor<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
+        OperationItemProcessor<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
                 ByteArrayCodec.INSTANCE);
         Function<String, byte[]> toByteArrayKeyFunction = CodecUtils.toByteArrayKeyFunction(StringCodec.UTF8);
         KeyValue<byte[]> ds = executor.process(Arrays.asList(toByteArrayKeyFunction.apply(key))).get(0);
