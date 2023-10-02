@@ -66,8 +66,8 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.common.OperationItemProcessor;
+import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.reader.DumpItemReader;
@@ -97,6 +97,12 @@ import io.lettuce.core.support.ConnectionPoolSupport;
 @RunWith(SpringRunner.class)
 @TestInstance(Lifecycle.PER_CLASS)
 public abstract class AbstractTestBase {
+
+    public static final DataType[] REDIS_GENERATOR_TYPES = { DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM,
+            DataType.STRING, DataType.ZSET };
+
+    public static final DataType[] REDIS_MODULES_GENERATOR_TYPES = { DataType.HASH, DataType.LIST, DataType.SET,
+            DataType.STREAM, DataType.STRING, DataType.ZSET, DataType.TIMESERIES, DataType.JSON };
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -336,6 +342,8 @@ public abstract class AbstractTestBase {
         TestInfo finalTestInfo = new SimpleTestInfo(info, "generate", String.valueOf(client.hashCode()));
         StructItemWriter<String, String> writer = RedisItemWriter.struct(client, StringCodec.UTF8);
         run(finalTestInfo, reader, writer);
+        awaitClosed(reader);
+        awaitClosed(writer);
     }
 
     protected void configureReader(TestInfo info, RedisItemReader<?, ?, ?> reader) {

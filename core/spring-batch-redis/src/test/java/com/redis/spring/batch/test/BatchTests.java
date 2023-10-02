@@ -78,12 +78,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
     private static final String DEFAULT_CONSUMER_GROUP = "consumerGroup";
 
-    private static final DataType[] GEN_TYPES = { DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING,
-            DataType.ZSET };
-
     @Override
     protected DataType[] generatorDataTypes() {
-        return GEN_TYPES;
+        return REDIS_GENERATOR_TYPES;
     }
 
     @Test
@@ -94,11 +91,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
         reader.setName(name(info));
         reader.open(new ExecutionContext());
         awaitOpen(reader);
-        log.info("readAll");
         List<KeyComparison> comparisons = BatchUtils.readAll(reader);
-        log.info("closing");
         reader.close();
-        log.info("assert");
         Assertions.assertEquals(KeyComparison.Status.OK, comparisons.get(0).getStatus());
     }
 

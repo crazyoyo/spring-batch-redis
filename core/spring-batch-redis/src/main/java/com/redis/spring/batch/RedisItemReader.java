@@ -9,9 +9,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -38,7 +35,6 @@ import org.springframework.retry.RetryPolicy;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
-import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.reader.DumpItemReader;
@@ -89,17 +85,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     public static final SkipPolicy DEFAULT_SKIP_POLICY = new NeverSkipItemSkipPolicy();
 
     public static final RetryPolicy DEFAULT_RETRY_POLICY = new MaxAttemptsRetryPolicy();
-
-    /**
-     * Default to no memory usage calculation
-     */
-    public static final DataSize DEFAULT_MEMORY_USAGE_LIMIT = DataSize.ofBytes(0);
-
-    public static final int DEFAULT_MEMORY_USAGE_SAMPLES = 5;
-
-    public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
-
-    private final Log log = LogFactory.getLog(getClass());
 
     protected final AbstractRedisClient client;
 
@@ -154,12 +139,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     private ItemReader<K> keyReader;
 
     private BlockingQueue<T> queue;
-
-    protected DataSize memLimit = DEFAULT_MEMORY_USAGE_LIMIT;
-
-    protected int memSamples = DEFAULT_MEMORY_USAGE_SAMPLES;
-
-    protected int poolSize = DEFAULT_POOL_SIZE;
 
     protected RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
         setName(ClassUtils.getShortName(getClass()));
@@ -259,18 +238,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         this.orderingStrategy = orderingStrategy;
     }
 
-    public void setMemoryUsageLimit(DataSize limit) {
-        this.memLimit = limit;
-    }
-
-    public void setMemoryUsageSamples(int samples) {
-        this.memSamples = samples;
-    }
-
-    public void setPoolSize(int poolSize) {
-        this.poolSize = poolSize;
-    }
-
     @Override
     public void setName(String name) {
         super.setName(name);
@@ -289,7 +256,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
         if (jobExecution == null) {
-            log.debug("Opening");
             initializeJobRepository();
             JobBuilderFactory jobBuilderFactory = new JobBuilderFactory(jobRepository);
             Job job = jobBuilderFactory.get(name).start(step().build()).build();
@@ -301,7 +267,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
             } catch (JobExecutionException e) {
                 throw new ItemStreamException("Job execution failed", e);
             }
-            log.debug("Open");
         }
     }
 
@@ -402,9 +367,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     public synchronized void close() {
         super.close();
         if (jobExecution != null) {
-            log.debug("Closing");
             if (jobExecution.isRunning()) {
-                log.debug("Stopping step executions");
                 for (StepExecution stepExecution : jobExecution.getStepExecutions()) {
                     stepExecution.setTerminateOnly();
                 }

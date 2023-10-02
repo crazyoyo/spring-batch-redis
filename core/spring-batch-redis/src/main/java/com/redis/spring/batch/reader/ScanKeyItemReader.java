@@ -97,7 +97,6 @@ public class ScanKeyItemReader<K> extends AbstractItemStreamItemReader<K> {
     @Override
     public synchronized void close() {
         if (iterator != null) {
-            log.debug("Closing");
             connection.close();
             iterator = null;
         }

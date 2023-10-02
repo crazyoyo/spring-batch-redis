@@ -73,12 +73,9 @@ abstract class ModulesTests extends LiveTests {
 
     private static final int BEER_COUNT = 1019;
 
-    private static final DataType[] GEN_TYPES = { DataType.HASH, DataType.LIST, DataType.SET, DataType.STREAM, DataType.STRING,
-            DataType.ZSET, DataType.TIMESERIES, DataType.JSON };
-
     @Override
     protected DataType[] generatorDataTypes() {
-        return GEN_TYPES;
+        return REDIS_MODULES_GENERATOR_TYPES;
     }
 
     @Test
