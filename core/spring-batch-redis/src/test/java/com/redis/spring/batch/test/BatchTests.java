@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.ListItemReader;
 
@@ -201,8 +202,10 @@ abstract class BatchTests extends AbstractTargetTestBase {
         configureReader(info, reader);
         SynchronizedListItemWriter<KeyValue<String>> writer = new SynchronizedListItemWriter<>();
         int threads = 4;
-        run(job(info).start(step(info, reader, writer).taskExecutor(BatchUtils.threadPoolTaskExecutor(threads))
-                .throttleLimit(threads).build()).build());
+        SimpleStepBuilder<KeyValue<String>, KeyValue<String>> step = step(info, reader, writer);
+        step.taskExecutor(BatchUtils.threadPoolTaskExecutor(threads));
+        step.throttleLimit(threads);
+        run(info, step);
         awaitUntilFalse(reader::isOpen);
         awaitUntilFalse(writer::isOpen);
         assertEquals(commands.dbsize(), writer.getItems().stream().map(KeyValue::getKey).collect(Collectors.toSet()).size());
@@ -679,6 +682,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         geoadd.setValueFunction(new ToGeoValueFunction<>(Geo::getMember, Geo::getLongitude, Geo::getLatitude));
         OperationItemWriter<String, String, Geo> writer = writer(geoadd);
         run(info, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         Set<String> radius1 = commands.georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
         assertEquals(1, radius1.size());
         assertTrue(radius1.contains("Venice Breakwater"));
@@ -702,6 +706,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         hset.setMapFunction(Entry::getValue);
         OperationItemWriter<String, String, Entry<String, Map<String, String>>> writer = writer(hset);
         run(info, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(100, commands.keys("hash:*").size());
         assertEquals(2, commands.hgetall("hash:50").size());
     }
@@ -719,6 +724,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         zadd.setValueFunction(new ToScoredValueFunction<>(ZValue::getMember, ZValue::getScore));
         OperationItemWriter<String, String, ZValue> writer = writer(zadd);
         run(info, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(1, commands.dbsize());
         assertEquals(values.size(), commands.zcard(key));
         assertEquals(60, commands.zrangebyscore(key, io.lettuce.core.Range.from(io.lettuce.core.Range.Boundary.including(0),
@@ -738,6 +744,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         sadd.setValueFunction(Function.identity());
         OperationItemWriter<String, String, String> writer = writer(sadd);
         run(info, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(1, commands.dbsize());
         assertEquals(values.size(), commands.scard(key));
     }
@@ -798,6 +805,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         writer.setWaitReplicas(1);
         writer.setWaitTimeout(Duration.ofMillis(300));
         JobExecution execution = run(info, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         List<Throwable> exceptions = execution.getAllFailureExceptions();
         assertEquals("Insufficient replication level (0/1)", exceptions.get(0).getCause().getCause().getMessage());
     }
@@ -818,6 +826,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         hset.setMapFunction(Function.identity());
         OperationItemWriter<String, String, Map<String, String>> writer = writer(hset);
         run(info, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(maps.size(), commands.keys("hash:*").size());
         for (int index = 0; index < maps.size(); index++) {
             Map<String, String> hash = commands.hgetall("hash:" + index);
@@ -831,7 +840,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
         GeneratorItemReader gen = generator(DEFAULT_GENERATOR_COUNT);
         Del<String, String, KeyValue<String>> del = new Del<>();
         del.setKeyFunction(KeyValue::getKey);
-        run(info, gen, writer(del));
+        OperationItemWriter<String, String, KeyValue<String>> writer = writer(del);
+        run(info, gen, writer);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(0, commands.keys(GeneratorItemReader.DEFAULT_KEYSPACE + "*").size());
     }
 
@@ -841,7 +852,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
         Lpush<String, String, KeyValue<String>> lpush = new Lpush<>();
         lpush.setKeyFunction(KeyValue::getKey);
         lpush.setValueFunction(v -> (String) v.getValue());
-        run(info, gen, writer(lpush));
+        OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpush);
+        run(info, gen, writer);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
         for (String key : commands.keys("*")) {
             assertEquals(DataType.LIST.getString(), commands.type(key));
@@ -854,7 +867,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
         Rpush<String, String, KeyValue<String>> rpush = new Rpush<>();
         rpush.setKeyFunction(KeyValue::getKey);
         rpush.setValueFunction(v -> (String) v.getValue());
-        run(info, gen, writer(rpush));
+        OperationItemWriter<String, String, KeyValue<String>> writer = writer(rpush);
+        run(info, gen, writer);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
         for (String key : commands.keys("*")) {
             assertEquals(DataType.LIST.getString(), commands.type(key));
@@ -868,7 +883,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
         LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>();
         lpushAll.setKeyFunction(KeyValue::getKey);
         lpushAll.setValuesFunction(v -> (Collection<String>) v.getValue());
-        run(info, gen, writer(lpushAll));
+        OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpushAll);
+        run(info, gen, writer);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
         for (String key : commands.keys("*")) {
             assertEquals(DataType.LIST.getString(), commands.type(key));
@@ -882,7 +899,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
         Expire<String, String, KeyValue<String>> expire = new Expire<>();
         expire.setKeyFunction(KeyValue::getKey);
         expire.setTtl(ttl);
-        run(info, gen, writer(expire));
+        OperationItemWriter<String, String, KeyValue<String>> writer = writer(expire);
+        run(info, gen, writer);
+        awaitUntilFalse(writer::isOpen);
         awaitUntil(() -> commands.keys("*").isEmpty());
         assertEquals(0, commands.dbsize());
     }
@@ -893,7 +912,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
         ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>();
         expireAt.setKeyFunction(KeyValue::getKey);
         expireAt.setEpochFunction(v -> System.currentTimeMillis());
-        run(info, gen, writer(expireAt));
+        OperationItemWriter<String, String, KeyValue<String>> writer = writer(expireAt);
+        run(info, gen, writer);
+        awaitUntilFalse(writer::isOpen);
         awaitUntil(() -> commands.keys("*").isEmpty());
         assertEquals(0, commands.dbsize());
     }
@@ -914,6 +935,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         xadd.setBodyFunction(Function.identity());
         OperationItemWriter<String, String, Map<String, String>> writer = writer(xadd);
         run(info, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         Assertions.assertEquals(messages.size(), commands.xlen(stream));
         List<StreamMessage<String, String>> xrange = commands.xrange(stream, io.lettuce.core.Range.create("-", "+"));
         for (int index = 0; index < xrange.size(); index++) {

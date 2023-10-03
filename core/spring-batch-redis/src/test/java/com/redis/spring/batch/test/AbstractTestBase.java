@@ -358,7 +358,7 @@ public abstract class AbstractTestBase {
         return run(job.build());
     }
 
-    private <I, O> FaultTolerantStepBuilder<I, O> faultTolerant(SimpleStepBuilder<I, O> step) {
+    protected <I, O> FaultTolerantStepBuilder<I, O> faultTolerant(SimpleStepBuilder<I, O> step) {
         return step.faultTolerant().retryPolicy(new MaxAttemptsRetryPolicy()).retry(TimeoutException.class);
     }
 

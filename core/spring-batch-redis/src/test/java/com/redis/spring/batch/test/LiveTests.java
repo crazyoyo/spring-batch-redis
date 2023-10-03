@@ -119,7 +119,7 @@ abstract class LiveTests extends BatchTests {
                 throw new RuntimeException("Could not run data gen", e);
             }
         });
-        run(job(info).start(flushingStep(info, reader, writer).build()).build());
+        run(info, flushingStep(info, reader, writer));
         awaitUntilFalse(reader::isOpen);
         awaitUntilFalse(writer::isOpen);
         assertEmpty(compare(info));
@@ -140,7 +140,7 @@ abstract class LiveTests extends BatchTests {
             awaitUntil(writer::isOpen);
             commands.srem(key, "5");
         });
-        run(job(info).start(flushingStep(info, reader, writer).build()).build());
+        run(info, flushingStep(info, reader, writer));
         awaitUntilFalse(reader::isOpen);
         awaitUntilFalse(writer::isOpen);
         assertEquals(commands.smembers(key), targetCommands.smembers(key));

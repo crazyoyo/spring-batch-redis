@@ -218,10 +218,10 @@ class StackToStackTests extends ModulesTests {
             reader2.setAckPolicy(StreamAckPolicy.MANUAL);
             ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
             TestInfo testInfo1 = new SimpleTestInfo(testInfo, key, "1");
-            TaskletStep step1 = flushingStep(testInfo1, reader1, writer1).build();
+            TaskletStep step1 = faultTolerant(flushingStep(testInfo1, reader1, writer1)).build();
             TestInfo testInfo2 = new SimpleTestInfo(testInfo, key, "2");
             ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
-            TaskletStep step2 = flushingStep(testInfo2, reader2, writer2).build();
+            TaskletStep step2 = faultTolerant(flushingStep(testInfo2, reader2, writer2)).build();
             SimpleFlow flow1 = flow("flow1").start(step1).build();
             SimpleFlow flow2 = flow("flow2").start(step2).build();
             SimpleFlow flow = flow("replicate").split(new SimpleAsyncTaskExecutor()).add(flow1, flow2).build();

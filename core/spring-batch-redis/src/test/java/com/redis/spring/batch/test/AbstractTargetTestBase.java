@@ -117,9 +117,10 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         liveReader.setMode(ReaderMode.LIVE);
         GeneratorItemReader gen = generator(300);
         generate(new SimpleTestInfo(info, "generate"), gen);
-        TaskletStep step = step(new SimpleTestInfo(info, "step"), reader, writer).build();
+        TaskletStep step = faultTolerant(step(new SimpleTestInfo(info, "step"), reader, writer)).build();
         SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "snapshotFlow"))).start(step).build();
-        TaskletStep liveStep = flushingStep(new SimpleTestInfo(info, "liveStep"), liveReader, liveWriter).build();
+        TaskletStep liveStep = faultTolerant(flushingStep(new SimpleTestInfo(info, "liveStep"), liveReader, liveWriter))
+                .build();
         SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "liveFlow"))).start(liveStep).build();
         Job job = job(info).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "flow")))
                 .split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();

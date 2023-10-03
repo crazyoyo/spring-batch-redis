@@ -191,6 +191,7 @@ abstract class ModulesTests extends LiveTests {
                 new ToSuggestionFunction<>(Suggestion::getString, Suggestion::getScore, Suggestion::getPayload));
         OperationItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
         run(testInfo, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         RedisModulesCommands<String, String> sync = commands;
         assertEquals(1, sync.dbsize());
         assertEquals(values.size(), sync.ftSuglen(key));
@@ -212,12 +213,13 @@ abstract class ModulesTests extends LiveTests {
         sugadd.setIncr(true);
         OperationItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
         run(testInfo, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(1, commands.dbsize());
         assertEquals(values.size(), commands.ftSuglen(key));
     }
 
     @Test
-    void writeTimeseries() throws Exception {
+    void writeTimeseries(TestInfo info) throws Exception {
         String key = "ts";
         Map<Long, Double> samples = new HashMap<>();
         for (int index = 0; index < 100; index++) {
@@ -226,11 +228,11 @@ abstract class ModulesTests extends LiveTests {
         TsAdd<String, String, Entry<Long, Double>> tsAdd = new TsAdd<>();
         tsAdd.setKey(key);
         tsAdd.setSampleFunction(new ToSampleFunction<>(e -> e.getKey(), e -> e.getValue()));
+        ListItemReader<Entry<Long, Double>> reader = new ListItemReader<>(new ArrayList<>(samples.entrySet()));
         OperationItemWriter<String, String, Entry<Long, Double>> writer = writer(tsAdd);
-        writer.open(new ExecutionContext());
-        writer.write(new ArrayList<>(samples.entrySet()));
+        run(info, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(1, commands.dbsize());
-        writer.close();
     }
 
     @Test
@@ -242,6 +244,7 @@ abstract class ModulesTests extends LiveTests {
         OperationItemWriter<String, String, JsonNode> writer = writer(jsonSet);
         IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
         run(testInfo, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         Assertions.assertEquals(BEER_COUNT, commands.keys("beer:*").size());
         Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
                 new ObjectMapper().readTree(commands.jsonGet("beer:1", "$")));
@@ -253,7 +256,9 @@ abstract class ModulesTests extends LiveTests {
         generate(testInfo, gen);
         JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>();
         jsonDel.setKeyFunction(KeyValue::getKey);
-        run(testInfo, gen, writer(jsonDel));
+        OperationItemWriter<String, String, KeyValue<String>> writer = writer(jsonDel);
+        run(testInfo, gen, writer);
+        awaitUntilFalse(writer::isOpen);
         Assertions.assertEquals(0, commands.dbsize());
     }
 
@@ -275,6 +280,7 @@ abstract class ModulesTests extends LiveTests {
         tsadd.setOptions(addOptions);
         OperationItemWriter<String, String, Sample> writer = writer(tsadd);
         run(testInfo, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         Assertions.assertEquals(count / 2, commands.tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(),
                 2);
     }
@@ -291,6 +297,7 @@ abstract class ModulesTests extends LiveTests {
         tsadd.setOptions(addOptions);
         OperationItemWriter<String, String, Sample> writer = new OperationItemWriter(client, StringCodec.UTF8, tsadd);
         run(testInfo, reader, writer);
+        awaitUntilFalse(writer::isOpen);
         for (int index = 1; index <= count; index++) {
             Assertions.assertEquals(TimeSeriesOptions.DEFAULT_SAMPLE_COUNT.getMin(),
                     commands.tsRange(reader.key(index), TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
