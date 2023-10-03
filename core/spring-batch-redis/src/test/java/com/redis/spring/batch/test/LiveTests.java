@@ -71,7 +71,6 @@ abstract class LiveTests extends BatchTests {
         reader.setMode(ReaderMode.LIVE);
         reader.setNotificationQueueCapacity(10000);
         reader.open(new ExecutionContext());
-        awaitOpen(reader);
         int count = 123;
         GeneratorItemReader gen = generator(count, DataType.HASH, DataType.STRING);
         generate(info, gen);
@@ -111,7 +110,7 @@ abstract class LiveTests extends BatchTests {
         reader.setNotificationQueueCapacity(100000);
         DumpItemWriter writer = RedisItemWriter.dump(targetClient);
         Executors.newSingleThreadScheduledExecutor().execute(() -> {
-            awaitOpen(reader);
+            awaitUntil(reader::isOpen);
             GeneratorItemReader gen = generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
                     DataType.ZSET);
             try {
@@ -121,8 +120,8 @@ abstract class LiveTests extends BatchTests {
             }
         });
         run(job(info).start(flushingStep(info, reader, writer).build()).build());
-        awaitClosed(reader);
-        awaitClosed(writer);
+        awaitUntilFalse(reader::isOpen);
+        awaitUntilFalse(writer::isOpen);
         assertEmpty(compare(info));
     }
 
@@ -137,13 +136,13 @@ abstract class LiveTests extends BatchTests {
         reader.setNotificationQueueCapacity(100);
         StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
         Executors.newSingleThreadScheduledExecutor().execute(() -> {
-            awaitOpen(reader);
-            awaitOpen(writer);
+            awaitUntil(reader::isOpen);
+            awaitUntil(writer::isOpen);
             commands.srem(key, "5");
         });
         run(job(info).start(flushingStep(info, reader, writer).build()).build());
-        awaitClosed(reader);
-        awaitClosed(writer);
+        awaitUntilFalse(reader::isOpen);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(commands.smembers(key), targetCommands.smembers(key));
     }
 

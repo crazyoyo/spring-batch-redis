@@ -140,7 +140,6 @@ abstract class ModulesTests extends LiveTests {
         KeyComparisonItemReader reader = comparisonReader(info);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
-        awaitOpen(reader);
         List<KeyComparison> comparisons = BatchUtils.readAll(reader);
         reader.close();
         Assertions.assertEquals(count, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());

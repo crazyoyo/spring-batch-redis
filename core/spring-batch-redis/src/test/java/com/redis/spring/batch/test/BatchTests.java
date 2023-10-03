@@ -87,7 +87,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
         KeyComparisonItemReader reader = comparisonReader(info);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
-        awaitOpen(reader);
         List<KeyComparison> comparisons = BatchUtils.readAll(reader);
         reader.close();
         Assertions.assertEquals(KeyComparison.Status.OK, comparisons.get(0).getStatus());
@@ -108,7 +107,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
         KeyComparisonItemReader reader = new KeyComparisonItemReader(source, target);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
-        awaitOpen(reader);
         List<KeyComparison> comparisons = BatchUtils.readAll(reader);
         reader.close();
         List<KeyComparison> missing = comparisons.stream().filter(c -> c.getStatus() == Status.MISSING)
@@ -205,8 +203,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
         int threads = 4;
         run(job(info).start(step(info, reader, writer).taskExecutor(BatchUtils.threadPoolTaskExecutor(threads))
                 .throttleLimit(threads).build()).build());
-        awaitClosed(reader);
-        awaitClosed(writer);
+        awaitUntilFalse(reader::isOpen);
+        awaitUntilFalse(writer::isOpen);
         assertEquals(commands.dbsize(), writer.getItems().stream().map(KeyValue::getKey).collect(Collectors.toSet()).size());
     }
 
@@ -608,8 +606,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
     void replicateStructByteArray(TestInfo info) throws Exception {
         GeneratorItemReader gen = generator(1000);
         generate(info, gen);
-        List<KeyComparison> diffs = replicate(info, RedisItemReader.struct(client, ByteArrayCodec.INSTANCE),
-                RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE));
+        StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
+        StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
+        List<KeyComparison> diffs = replicate(info, reader, writer);
         Assertions.assertTrue(diffs.isEmpty());
     }
 
@@ -640,8 +639,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
             RedisItemWriter<K, V, KeyValue<K>> writer) throws Exception {
         configureReader(info, reader);
         run(info, reader, writer);
-        awaitClosed(reader);
-        awaitClosed(writer);
+        awaitUntilFalse(reader::isOpen);
+        awaitUntilFalse(writer::isOpen);
         return compare(info);
 
     }

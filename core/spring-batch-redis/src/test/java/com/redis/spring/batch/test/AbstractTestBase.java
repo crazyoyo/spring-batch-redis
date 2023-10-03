@@ -74,7 +74,6 @@ import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
-import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.ConnectionUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
@@ -249,14 +248,6 @@ public abstract class AbstractTestBase {
         return UUID.randomUUID().toString();
     }
 
-    protected void awaitOpen(Object object) {
-        awaitUntil(() -> BatchUtils.isOpen(object));
-    }
-
-    protected void awaitClosed(Object object) {
-        awaitUntilFalse(() -> BatchUtils.isOpen(object));
-    }
-
     protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer) {
         return step(info, reader, null, writer);
     }
@@ -335,8 +326,8 @@ public abstract class AbstractTestBase {
         TestInfo finalTestInfo = new SimpleTestInfo(info, "generate", String.valueOf(client.hashCode()));
         StructItemWriter<String, String> writer = RedisItemWriter.struct(client, StringCodec.UTF8);
         run(finalTestInfo, reader, writer);
-        awaitClosed(reader);
-        awaitClosed(writer);
+        awaitUntilFalse(reader::isOpen);
+        awaitUntilFalse(writer::isOpen);
     }
 
     protected void configureReader(TestInfo info, RedisItemReader<?, ?, ?> reader) {

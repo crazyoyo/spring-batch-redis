@@ -14,14 +14,6 @@ import org.springframework.batch.item.support.CompositeItemWriter;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.common.AbstractOperationExecutor;
-import com.redis.spring.batch.common.KeyComparisonItemReader;
-import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
-import com.redis.spring.batch.reader.ScanKeyItemReader;
-import com.redis.spring.batch.reader.StreamItemReader;
-
 public abstract class BatchUtils {
 
     public static final long SIZE_UNKNOWN = -1;
@@ -36,32 +28,6 @@ public abstract class BatchUtils {
         taskExecutor.setQueueCapacity(threads);
         taskExecutor.afterPropertiesSet();
         return taskExecutor;
-    }
-
-    @SuppressWarnings("rawtypes")
-    public static boolean isOpen(Object object) {
-        if (object instanceof KeyspaceNotificationItemReader) {
-            return ((KeyspaceNotificationItemReader) object).isOpen();
-        }
-        if (object instanceof ScanKeyItemReader) {
-            return ((ScanKeyItemReader) object).isOpen();
-        }
-        if (object instanceof RedisItemReader) {
-            return ((RedisItemReader) object).isOpen();
-        }
-        if (object instanceof KeyComparisonItemReader) {
-            return ((KeyComparisonItemReader) object).isOpen();
-        }
-        if (object instanceof GeneratorItemReader) {
-            return ((GeneratorItemReader) object).isOpen();
-        }
-        if (object instanceof StreamItemReader) {
-            return ((StreamItemReader) object).isOpen();
-        }
-        if (object instanceof AbstractOperationExecutor) {
-            return ((AbstractOperationExecutor) object).isOpen();
-        }
-        return false;
     }
 
     public static boolean isPositive(Duration duration) {

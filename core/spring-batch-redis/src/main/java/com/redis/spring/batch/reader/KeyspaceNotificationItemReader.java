@@ -23,7 +23,8 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
 import io.micrometer.core.instrument.Metrics;
 
-public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemReader<K> implements PollableItemReader<K> {
+public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemReader<K>
+        implements KeyItemReader<K>, PollableItemReader<K> {
 
     public enum OrderingStrategy {
         FIFO, PRIORITY
@@ -134,6 +135,7 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
         return new LinkedBlockingQueue<>(queueCapacity);
     }
 
+    @Override
     public boolean isOpen() {
         return publisher != null;
     }

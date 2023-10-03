@@ -17,14 +17,14 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
     private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-    private final KeyValueItemReader<String, String> source;
+    private final OperationItemProcessor<String, String, String, KeyValue<String>> source;
 
-    private final KeyValueItemReader<String, String> target;
+    private final OperationItemProcessor<String, String, String, KeyValue<String>> target;
 
     public KeyComparisonItemReader(KeyValueItemReader<String, String> source, KeyValueItemReader<String, String> target) {
         super(source.getClient(), StringCodec.UTF8);
-        this.source = source;
-        this.target = target;
+        this.source = source.operationProcessor();
+        this.target = target.operationProcessor();
     }
 
     @Override
@@ -44,7 +44,7 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
     @Override
     public ItemProcessor<List<? extends String>, List<KeyComparison>> processor() {
-        return new KeyComparisonItemProcessor(source.operationProcessor(), target.operationProcessor(), ttlTolerance);
+        return new KeyComparisonItemProcessor(source, target, ttlTolerance);
     }
 
 }

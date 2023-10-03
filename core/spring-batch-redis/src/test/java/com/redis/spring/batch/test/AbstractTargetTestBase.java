@@ -124,8 +124,8 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         Job job = job(info).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "flow")))
                 .split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
         Executors.newSingleThreadScheduledExecutor().execute(() -> {
-            awaitOpen(liveReader);
-            awaitOpen(liveWriter);
+            awaitUntil(liveReader::isOpen);
+            awaitUntil(liveWriter::isOpen);
             GeneratorItemReader liveGen = generator(700, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
                     DataType.ZSET);
             liveGen.setExpiration(Range.of(100));
@@ -137,10 +137,10 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
             }
         });
         run(job);
-        awaitClosed(reader);
-        awaitClosed(writer);
-        awaitClosed(liveReader);
-        awaitClosed(liveWriter);
+        awaitUntilFalse(reader::isOpen);
+        awaitUntilFalse(writer::isOpen);
+        awaitUntilFalse(liveReader::isOpen);
+        awaitUntilFalse(liveWriter::isOpen);
         return compare(info);
     }
 

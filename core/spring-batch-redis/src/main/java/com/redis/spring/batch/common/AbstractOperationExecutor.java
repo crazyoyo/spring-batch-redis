@@ -64,11 +64,11 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
         }
     }
 
-    protected abstract BatchOperation<K, V, I, O> batchOperation();
-
     public boolean isOpen() {
         return batchOperation != null;
     }
+
+    protected abstract BatchOperation<K, V, I, O> batchOperation();
 
     @Override
     public synchronized void close() {
