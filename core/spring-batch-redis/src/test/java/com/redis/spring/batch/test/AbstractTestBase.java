@@ -13,7 +13,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -83,6 +82,7 @@ import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
+import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.ByteArrayCodec;
@@ -359,7 +359,7 @@ public abstract class AbstractTestBase {
     }
 
     protected <I, O> FaultTolerantStepBuilder<I, O> faultTolerant(SimpleStepBuilder<I, O> step) {
-        return step.faultTolerant().retryPolicy(new MaxAttemptsRetryPolicy()).retry(TimeoutException.class);
+        return step.faultTolerant().retryPolicy(new MaxAttemptsRetryPolicy()).retry(RedisCommandTimeoutException.class);
     }
 
     protected JobExecution run(Job job) throws JobExecutionException {

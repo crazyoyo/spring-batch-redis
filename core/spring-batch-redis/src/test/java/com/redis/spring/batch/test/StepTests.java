@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -42,6 +41,8 @@ import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.step.FlushingFaultTolerantStepBuilder;
 import com.redis.spring.batch.step.FlushingStepBuilder;
+
+import io.lettuce.core.RedisCommandTimeoutException;
 
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
@@ -87,7 +88,7 @@ class StepTests {
         step.writer(writer);
         step.idleTimeout(Duration.ofMillis(300));
         FlushingFaultTolerantStepBuilder<KeyValue<String>, KeyValue<String>> ftStep = step.faultTolerant();
-        ftStep.skip(TimeoutException.class);
+        ftStep.skip(RedisCommandTimeoutException.class);
         ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
         Job job = jobBuilderFactory.get(name).start(ftStep.build()).build();
         jobLauncher.run(job, new JobParameters());
@@ -105,7 +106,7 @@ class StepTests {
         step.writer(writer);
         FlushingFaultTolerantStepBuilder<Integer, Integer> ftStep = new FlushingFaultTolerantStepBuilder<>(step);
         ftStep.idleTimeout(Duration.ofMillis(300));
-        ftStep.skip(TimeoutException.class);
+        ftStep.skip(RedisCommandTimeoutException.class);
         ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
         Job job = jobBuilderFactory.get(name).start(ftStep.build()).build();
         jobLauncher.run(job, new JobParameters());

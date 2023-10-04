@@ -399,7 +399,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         super.close();
         if (isOpen()) {
             jobExecution = null;

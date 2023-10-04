@@ -64,7 +64,7 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
         }
     }
 
-    public boolean isOpen() {
+    public synchronized boolean isOpen() {
         return pool != null;
     }
 
