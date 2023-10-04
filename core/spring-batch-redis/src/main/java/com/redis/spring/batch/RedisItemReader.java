@@ -26,7 +26,6 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -48,7 +47,6 @@ import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.Await;
 import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.writer.BlockingQueueItemWriter;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -413,7 +411,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         T item;
         do {
             item = poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
-        } while (item == null && jobExecution.isRunning());
+        } while (item == null && keyReader.isOpen());
         return item;
     }
 
@@ -470,30 +468,24 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return step;
     }
 
-    private ProcessingItemWriter<K, T> writer() {
+    private ProcessingItemWriter writer() {
         queue = new LinkedBlockingQueue<>(queueCapacity);
         Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
-        return new ProcessingItemWriter<>(processor(), new BlockingQueueItemWriter<>(queue));
+        return new ProcessingItemWriter(processor());
     }
 
-    private static class ProcessingItemWriter<K, T> extends AbstractItemStreamItemWriter<K> {
+    private class ProcessingItemWriter extends AbstractItemStreamItemWriter<K> {
 
         private final ItemProcessor<List<? extends K>, List<T>> processor;
 
-        private final ItemWriter<T> writer;
-
-        public ProcessingItemWriter(ItemProcessor<List<? extends K>, List<T>> processor, ItemWriter<T> writer) {
+        public ProcessingItemWriter(ItemProcessor<List<? extends K>, List<T>> processor) {
             this.processor = processor;
-            this.writer = writer;
         }
 
         @Override
         public void open(ExecutionContext executionContext) {
             if (processor instanceof ItemStream) {
                 ((ItemStream) processor).open(executionContext);
-            }
-            if (writer instanceof ItemStream) {
-                ((ItemStream) writer).open(executionContext);
             }
             super.open(executionContext);
         }
@@ -503,9 +495,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
             if (processor instanceof ItemStream) {
                 ((ItemStream) processor).update(executionContext);
             }
-            if (writer instanceof ItemStream) {
-                ((ItemStream) writer).update(executionContext);
-            }
             super.update(executionContext);
         }
 
@@ -514,9 +503,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
             if (processor instanceof ItemStream) {
                 ((ItemStream) processor).close();
             }
-            if (writer instanceof ItemStream) {
-                ((ItemStream) writer).close();
-            }
             super.close();
         }
 
@@ -524,7 +510,9 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         public void write(List<? extends K> items) throws Exception {
             List<T> values = processor.process(items);
             if (values != null) {
-                writer.write(values);
+                for (T item : values) {
+                    queue.put(item);
+                }
             }
         }
 
