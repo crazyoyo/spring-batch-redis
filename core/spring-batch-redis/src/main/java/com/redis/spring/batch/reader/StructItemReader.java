@@ -15,8 +15,9 @@ public class StructItemReader<K, V> extends KeyValueItemReader<K, V> {
 
     @Override
     protected Operation<K, V, K, KeyValue<K>> operation() {
-        KeyValueReadOperation<K, V> operation = new KeyValueReadOperation<>(client, codec, memLimit, memSamples, Type.STRUCT);
-        operation.setPostOperator(new StructPostOperator<>(codec));
+        KeyValueReadOperation<K, V> operation = new KeyValueReadOperation<>(getClient(), getCodec(), memLimit, memSamples,
+                Type.STRUCT);
+        operation.setPostOperator(new StructPostOperator<>(getCodec()));
         return operation;
     }
 

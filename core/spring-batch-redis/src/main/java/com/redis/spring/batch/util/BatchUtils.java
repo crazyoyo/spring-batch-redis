@@ -1,6 +1,5 @@
 package com.redis.spring.batch.util;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -28,10 +27,6 @@ public abstract class BatchUtils {
         taskExecutor.setQueueCapacity(threads);
         taskExecutor.afterPropertiesSet();
         return taskExecutor;
-    }
-
-    public static boolean isPositive(Duration duration) {
-        return duration != null && !duration.isNegative() && !duration.isZero();
     }
 
     public static <T> List<T> readAll(ItemReader<T> reader) throws Exception {

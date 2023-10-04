@@ -54,10 +54,11 @@ public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, Key
     }
 
     public OperationItemProcessor<K, V, K, KeyValue<K>> operationProcessor() {
-        SimpleBatchOperation<K, V, K, KeyValue<K>> batchOperation = new SimpleBatchOperation<>(operation());
-        OperationItemProcessor<K, V, K, KeyValue<K>> executor = new OperationItemProcessor<>(client, codec, batchOperation);
+        SimpleBatchOperation<K, V, K, KeyValue<K>> operation = new SimpleBatchOperation<>(operation());
+        OperationItemProcessor<K, V, K, KeyValue<K>> executor = new OperationItemProcessor<>(getClient(), getCodec(),
+                operation);
         executor.setPoolSize(poolSize);
-        executor.setReadFrom(readFrom);
+        executor.setReadFrom(getReadFrom());
         return executor;
     }
 

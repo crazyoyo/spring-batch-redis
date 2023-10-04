@@ -55,26 +55,26 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
     @Override
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
-        if (batchOperation == null) {
+        if (!isOpen()) {
             Supplier<StatefulConnection<K, V>> connectionSupplier = ConnectionUtils.supplier(client, codec, readFrom);
             GenericObjectPoolConfig<StatefulConnection<K, V>> config = new GenericObjectPoolConfig<>();
             config.setMaxTotal(poolSize);
-            pool = ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config);
             batchOperation = batchOperation();
+            pool = ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config);
         }
     }
 
     public boolean isOpen() {
-        return batchOperation != null;
+        return pool != null;
     }
 
     protected abstract BatchOperation<K, V, I, O> batchOperation();
 
     @Override
     public synchronized void close() {
-        if (batchOperation != null) {
+        if (isOpen()) {
             pool.close();
-            batchOperation = null;
+            pool = null;
         }
         super.close();
     }

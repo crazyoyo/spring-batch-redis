@@ -4,28 +4,32 @@ import io.lettuce.core.RedisClient;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
-public class RedisChannelMessagePublisher extends AbstractKeyspaceNotificationPublisher
+public class RedisKeyspaceNotificationPublisher extends AbstractKeyspaceNotificationPublisher
         implements RedisPubSubListener<String, String> {
 
     private final RedisClient client;
 
+    private final String pattern;
+
     private StatefulRedisPubSubConnection<String, String> connection;
 
-    public RedisChannelMessagePublisher(RedisClient client) {
+    public RedisKeyspaceNotificationPublisher(RedisClient client, String pattern) {
         this.client = client;
+        this.pattern = pattern;
     }
 
     @Override
-    protected void subscribe(String... patterns) {
+    public void open() {
         connection = client.connectPubSub();
         connection.addListener(this);
-        connection.sync().psubscribe(patterns);
+        connection.sync().psubscribe(pattern);
     }
 
     @Override
-    protected void unsubscribe(String... patterns) {
-        connection.sync().punsubscribe(patterns);
+    public void close() {
+        connection.sync().punsubscribe(pattern);
         connection.removeListener(this);
+        connection.close();
     }
 
     @Override
@@ -35,7 +39,7 @@ public class RedisChannelMessagePublisher extends AbstractKeyspaceNotificationPu
 
     @Override
     public void message(String pattern, String channel, String message) {
-        channelMessage(pattern, channel, message);
+        notification(channel, message);
     }
 
     @Override

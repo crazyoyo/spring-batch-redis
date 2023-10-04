@@ -1,41 +1,21 @@
 package com.redis.spring.batch.reader;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Consumer;
 
-public abstract class AbstractKeyspaceNotificationPublisher implements ChannelMessagePublisher {
+public abstract class AbstractKeyspaceNotificationPublisher implements KeyspaceNotificationPublisher {
 
-    private final Map<String, List<ChannelMessageConsumer>> subscriptions = new HashMap<>();
-
-    @Override
-    public void subscribe(ChannelMessageConsumer consumer, String pattern) {
-        subscriptions.computeIfAbsent(pattern, p -> new ArrayList<>()).add(consumer);
-    }
+    private final List<Consumer<KeyspaceNotification>> consumers = new ArrayList<>();
 
     @Override
-    public void open() {
-        subscribe(patterns());
+    public void addConsumer(Consumer<KeyspaceNotification> consumer) {
+        consumers.add(consumer);
     }
 
-    protected abstract void subscribe(String... patterns);
-
-    private String[] patterns() {
-        return subscriptions.keySet().toArray(new String[0]);
-    }
-
-    @Override
-    public void close() {
-        unsubscribe(patterns());
-    }
-
-    protected abstract void unsubscribe(String... patterns);
-
-    protected void channelMessage(String pattern, String channel, String message) {
-        if (subscriptions.containsKey(pattern)) {
-            subscriptions.get(pattern).forEach(c -> c.message(channel, message));
-        }
+    protected void notification(String channel, String message) {
+        KeyspaceNotification notification = KeyspaceNotification.of(channel, message);
+        consumers.forEach(c -> c.accept(notification));
     }
 
 }

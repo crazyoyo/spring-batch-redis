@@ -15,7 +15,7 @@ public class DumpItemReader extends KeyValueItemReader<byte[], byte[]> {
 
     @Override
     protected Operation<byte[], byte[], byte[], KeyValue<byte[]>> operation() {
-        return new KeyValueReadOperation<>(client, codec, memLimit, memSamples, Type.DUMP);
+        return new KeyValueReadOperation<>(getClient(), getCodec(), memLimit, memSamples, Type.DUMP);
     }
 
 }

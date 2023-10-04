@@ -17,7 +17,6 @@ import org.springframework.util.Assert;
 
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.PollingException;
-import com.redis.spring.batch.util.BatchUtils;
 
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Tag;
@@ -32,11 +31,16 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 
     public static final Duration DEFAULT_FLUSH_INTERVAL = Duration.ofMillis(50);
 
+    /**
+     * No idle stream detection by default
+     */
+    public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ZERO;
+
     private final RepeatOperations repeatOperations;
 
     private Duration interval = DEFAULT_FLUSH_INTERVAL;
 
-    private Duration idleTimeout; // no idle stream detection by default
+    private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
 
     private long lastActivity = 0;
 
@@ -97,10 +101,10 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
     }
 
     private boolean isTimeout() {
-        if (BatchUtils.isPositive(idleTimeout)) {
-            return millisSinceLastActivity() > idleTimeout.toMillis();
+        if (idleTimeout.isNegative() || idleTimeout.isZero()) {
+            return false;
         }
-        return false;
+        return millisSinceLastActivity() > idleTimeout.toMillis();
     }
 
     private long millisSinceLastActivity() {

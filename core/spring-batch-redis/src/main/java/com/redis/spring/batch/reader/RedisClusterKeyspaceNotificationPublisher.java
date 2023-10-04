@@ -5,29 +5,33 @@ import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 
-public class RedisClusterChannelMessagePublisher extends AbstractKeyspaceNotificationPublisher
+public class RedisClusterKeyspaceNotificationPublisher extends AbstractKeyspaceNotificationPublisher
         implements RedisClusterPubSubListener<String, String> {
 
     private final RedisClusterClient client;
 
+    private final String pattern;
+
     private StatefulRedisClusterPubSubConnection<String, String> connection;
 
-    public RedisClusterChannelMessagePublisher(RedisClusterClient client) {
+    public RedisClusterKeyspaceNotificationPublisher(RedisClusterClient client, String pattern) {
         this.client = client;
+        this.pattern = pattern;
     }
 
     @Override
-    protected void subscribe(String... patterns) {
+    public void open() {
         connection = client.connectPubSub();
         connection.setNodeMessagePropagation(true);
         connection.addListener(this);
-        connection.sync().upstream().commands().psubscribe(patterns);
+        connection.sync().upstream().commands().psubscribe(pattern);
     }
 
     @Override
-    protected void unsubscribe(String... patterns) {
-        connection.sync().upstream().commands().punsubscribe(patterns);
+    public void close() {
+        connection.sync().upstream().commands().punsubscribe(pattern);
         connection.removeListener(this);
+        connection.close();
     }
 
     @Override
@@ -37,7 +41,7 @@ public class RedisClusterChannelMessagePublisher extends AbstractKeyspaceNotific
 
     @Override
     public void message(RedisClusterNode node, String pattern, String channel, String message) {
-        channelMessage(pattern, channel, message);
+        notification(channel, message);
     }
 
     @Override

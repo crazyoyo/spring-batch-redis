@@ -3,8 +3,6 @@ package com.redis.spring.batch.writer.operation;
 import java.time.Duration;
 import java.util.function.Function;
 
-import com.redis.spring.batch.util.BatchUtils;
-
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
@@ -25,10 +23,11 @@ public class Expire<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
     @Override
     protected RedisFuture<Boolean> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
         Duration duration = ttlFunction.apply(item);
-        if (BatchUtils.isPositive(duration)) {
-            return ((RedisKeyAsyncCommands<K, V>) commands).pexpire(key, duration);
+        if (duration == null || duration.isNegative() || duration.isZero()) {
+            return null;
         }
-        return null;
+        return ((RedisKeyAsyncCommands<K, V>) commands).pexpire(key, duration);
+
     }
 
 }

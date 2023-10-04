@@ -21,6 +21,7 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Metrics;
 
 public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemReader<K>
@@ -39,6 +40,8 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
     public static final OrderingStrategy DEFAULT_ORDERING = OrderingStrategy.PRIORITY;
 
     public static final String QUEUE_METER = "redis.batch.notification.queue.size";
+
+    public static final String QUEUE_MISS_COUNTER = "redis.batch.notification.queue.misses";
 
     private static final KeyspaceNotificationComparator NOTIFICATION_COMPARATOR = new KeyspaceNotificationComparator();
 
@@ -60,7 +63,9 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 
     private BlockingQueue<KeyspaceNotification> queue;
 
-    private ChannelMessagePublisher publisher;
+    private Counter queueMissCounter;
+
+    private KeyspaceNotificationPublisher notificationPublisher;
 
     public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, ?> codec) {
         this.client = client;
@@ -97,28 +102,36 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 
     @Override
     public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
-        if (publisher == null) {
+        if (notificationPublisher == null) {
             queue = new SetBlockingQueue<>(notificationQueue(), queueCapacity);
             Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
-            KeyspaceNotificationEnqueuer enqueuer = new KeyspaceNotificationEnqueuer(queue);
-            enqueuer.setType(keyType);
-            publisher = publisher(enqueuer);
+            queueMissCounter = Metrics.globalRegistry.counter(QUEUE_MISS_COUNTER);
+            notificationPublisher = publisher();
         }
     }
 
-    private ChannelMessagePublisher publisher(ChannelMessageConsumer consumer) {
-        ChannelMessagePublisher messagePublisher = publisher();
+    private KeyspaceNotificationPublisher publisher() {
         String pattern = String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern());
-        messagePublisher.subscribe(consumer, pattern);
-        messagePublisher.open();
-        return messagePublisher;
+        KeyspaceNotificationPublisher publisher = publisher(pattern);
+        publisher.addConsumer(this::acceptKeyspaceNotification);
+        publisher.open();
+        return publisher;
     }
 
-    private ChannelMessagePublisher publisher() {
-        if (client instanceof RedisClusterClient) {
-            return new RedisClusterChannelMessagePublisher((RedisClusterClient) client);
+    private void acceptKeyspaceNotification(KeyspaceNotification notification) {
+        if ((keyType == null || notification.getEvent().getType() == keyType) && queue.remainingCapacity() > 0) {
+            boolean added = queue.offer(notification);
+            if (!added) {
+                queueMissCounter.increment();
+            }
         }
-        return new RedisChannelMessagePublisher((RedisClient) client);
+    }
+
+    private AbstractKeyspaceNotificationPublisher publisher(String pattern) {
+        if (client instanceof RedisClusterClient) {
+            return new RedisClusterKeyspaceNotificationPublisher((RedisClusterClient) client, pattern);
+        }
+        return new RedisKeyspaceNotificationPublisher((RedisClient) client, pattern);
     }
 
     private String keyPattern() {
@@ -137,14 +150,14 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 
     @Override
     public boolean isOpen() {
-        return publisher != null;
+        return notificationPublisher != null;
     }
 
     @Override
     public synchronized void close() {
-        if (publisher != null) {
-            publisher.close();
-            publisher = null;
+        if (notificationPublisher != null) {
+            notificationPublisher.close();
+            notificationPublisher = null;
         }
         super.close();
     }

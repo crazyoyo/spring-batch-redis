@@ -6,9 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.core.BatchStatus;
@@ -17,14 +15,12 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.support.AbstractJobRepositoryFactoryBean;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.core.step.skip.NeverSkipItemSkipPolicy;
-import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
@@ -34,8 +30,6 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
-import org.springframework.lang.NonNull;
-import org.springframework.retry.RetryPolicy;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
@@ -52,6 +46,7 @@ import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
+import com.redis.spring.batch.util.Await;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.writer.BlockingQueueItemWriter;
 
@@ -87,25 +82,29 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     public static final ReaderMode DEFAULT_MODE = ReaderMode.SCAN;
 
-    public static final SkipPolicy DEFAULT_SKIP_POLICY = new NeverSkipItemSkipPolicy();
+    public static final int DEFAULT_SKIP_LIMIT = 0;
 
-    public static final RetryPolicy DEFAULT_RETRY_POLICY = new MaxAttemptsRetryPolicy();
+    public static final int DEFAULT_RETRY_LIMIT = MaxAttemptsRetryPolicy.DEFAULT_MAX_ATTEMPTS;
 
     private static final Duration DEFAULT_OPEN_TIMEOUT = Duration.ofSeconds(3);
 
-    protected final AbstractRedisClient client;
+    private final AbstractRedisClient client;
 
-    protected final RedisCodec<K, V> codec;
+    private final RedisCodec<K, V> codec;
 
     private ReaderMode mode = DEFAULT_MODE;
 
-    private SkipPolicy skipPolicy = DEFAULT_SKIP_POLICY;
+    private int skipLimit = DEFAULT_SKIP_LIMIT;
 
-    private RetryPolicy retryPolicy = DEFAULT_RETRY_POLICY;
+    private int retryLimit = DEFAULT_RETRY_LIMIT;
+
+    private List<Class<? extends Throwable>> skippableExceptions = defaultNonRetriableExceptions();
+
+    private List<Class<? extends Throwable>> nonSkippableExceptions = defaultRetriableExceptions();
 
     private List<Class<? extends Throwable>> retriableExceptions = defaultRetriableExceptions();
 
-    private List<Class<? extends Throwable>> notRetriableExceptions = defaultNotRetriableExceptions();
+    private List<Class<? extends Throwable>> nonRetriableExceptions = defaultNonRetriableExceptions();
 
     private int database;
 
@@ -121,7 +120,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     private ItemProcessor<K, K> keyProcessor;
 
-    protected ReadFrom readFrom;
+    private ReadFrom readFrom;
 
     private int threads = DEFAULT_THREADS;
 
@@ -141,17 +140,19 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     private PlatformTransactionManager transactionManager;
 
+    private JobBuilderFactory jobBuilderFactory;
+
+    private StepBuilderFactory stepBuilderFactory;
+
+    private SimpleJobLauncher jobLauncher;
+
     private String name;
 
     private JobExecution jobExecution;
 
     private KeyItemReader<K> keyReader;
 
-    private ProcessingItemWriter<K, T> writer;
-
     private BlockingQueue<T> queue;
-
-    private boolean open;
 
     protected RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
         setName(ClassUtils.getShortName(getClass()));
@@ -171,16 +172,28 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return mode;
     }
 
+    public void addSkippableException(Class<? extends Throwable> exception) {
+        skippableExceptions.add(exception);
+    }
+
+    public void addNonSkippableException(Class<? extends Throwable> exception) {
+        nonSkippableExceptions.add(exception);
+    }
+
     public void addRetriableException(Class<? extends Throwable> exception) {
         retriableExceptions.add(exception);
     }
 
-    public void setRetryPolicy(RetryPolicy policy) {
-        this.retryPolicy = policy;
+    public void addNonRetriableException(Class<? extends Throwable> exception) {
+        nonRetriableExceptions.add(exception);
     }
 
-    public void setSkipPolicy(SkipPolicy policy) {
-        this.skipPolicy = policy;
+    public void setRetryLimit(int retryLimit) {
+        this.retryLimit = retryLimit;
+    }
+
+    public void setSkipLimit(int skipLimit) {
+        this.skipLimit = skipLimit;
     }
 
     public void setScanCount(long count) {
@@ -239,6 +252,86 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         this.idleTimeout = timeout;
     }
 
+    public List<Class<? extends Throwable>> getRetriableExceptions() {
+        return retriableExceptions;
+    }
+
+    public void setRetriableExceptions(List<Class<? extends Throwable>> retriableExceptions) {
+        this.retriableExceptions = retriableExceptions;
+    }
+
+    public List<Class<? extends Throwable>> getNonRetriableExceptions() {
+        return nonRetriableExceptions;
+    }
+
+    public void setNonRetriableExceptions(List<Class<? extends Throwable>> nonRetriableExceptions) {
+        this.nonRetriableExceptions = nonRetriableExceptions;
+    }
+
+    public int getRetryLimit() {
+        return retryLimit;
+    }
+
+    public int getSkipLimit() {
+        return skipLimit;
+    }
+
+    public int getDatabase() {
+        return database;
+    }
+
+    public OrderingStrategy getOrderingStrategy() {
+        return orderingStrategy;
+    }
+
+    public int getNotificationQueueCapacity() {
+        return notificationQueueCapacity;
+    }
+
+    public Duration getFlushInterval() {
+        return flushInterval;
+    }
+
+    public Duration getIdleTimeout() {
+        return idleTimeout;
+    }
+
+    public long getScanCount() {
+        return scanCount;
+    }
+
+    public ReadFrom getReadFrom() {
+        return readFrom;
+    }
+
+    public int getThreads() {
+        return threads;
+    }
+
+    public int getChunkSize() {
+        return chunkSize;
+    }
+
+    public int getQueueCapacity() {
+        return queueCapacity;
+    }
+
+    public String getKeyPattern() {
+        return keyPattern;
+    }
+
+    public DataType getKeyType() {
+        return keyType;
+    }
+
+    public Duration getPollTimeout() {
+        return pollTimeout;
+    }
+
+    public Duration getOpenTimeout() {
+        return openTimeout;
+    }
+
     public void setFlushInterval(Duration interval) {
         this.flushInterval = interval;
     }
@@ -268,48 +361,51 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     @Override
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
-        if (jobExecution == null) {
-            initializeJobRepository();
-            JobBuilderFactory jobBuilderFactory = new JobBuilderFactory(jobRepository);
+        if (!isOpen()) {
+            initializeJobInfrastructure();
             Job job = jobBuilderFactory.get(name).start(step().build()).build();
-            SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
-            jobLauncher.setJobRepository(jobRepository);
-            jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-            try {
-                jobExecution = jobLauncher.run(job, new JobParameters());
-            } catch (JobExecutionException e) {
-                throw new ItemStreamException("Job execution failed", e);
-            }
-            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-            executor.scheduleWithFixedDelay(() -> {
-                if (jobExecution.isRunning() && keyReader.isOpen() || jobExecution.getStatus().isUnsuccessful()
-                        || jobExecution.getStatus().equals(BatchStatus.COMPLETED)) {
-                    executor.shutdown();
-                }
-            }, 0, pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
-            try {
-                boolean terminated = executor.awaitTermination(openTimeout.toMillis(), TimeUnit.MILLISECONDS);
-                if (!terminated) {
-                    throw new ItemStreamException("Timeout waiting for job to run");
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new ItemStreamException("Interruped while waiting for job to start", e);
-            }
-            if (jobExecution.getStatus().isUnsuccessful()) {
-                if (CollectionUtils.isEmpty(jobExecution.getAllFailureExceptions())) {
-                    throw new ItemStreamException("Could not run job");
-                }
-                throw new ItemStreamException("Could not run job", jobExecution.getAllFailureExceptions().get(0));
-            }
-            open = true;
+            jobExecution = launch(job);
         }
+    }
+
+    private JobExecution launch(Job job) {
+        JobExecution execution;
+        try {
+            execution = jobLauncher.run(job, new JobParameters());
+        } catch (JobExecutionException e) {
+            throw new ItemStreamException("Job execution failed", e);
+        }
+        Await await = new Await();
+        boolean executed;
+        try {
+            executed = await.await(() -> isRunning(execution), openTimeout);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ItemStreamException("Interruped while waiting for job to start", e);
+        }
+        if (!executed) {
+            throw new ItemStreamException("Timeout waiting for job to run");
+        }
+        if (execution.getStatus().isUnsuccessful()) {
+            if (CollectionUtils.isEmpty(execution.getAllFailureExceptions())) {
+                throw new ItemStreamException("Could not run job");
+            }
+            throw new ItemStreamException("Could not run job", execution.getAllFailureExceptions().get(0));
+        }
+        return execution;
+    }
+
+    private boolean isRunning(JobExecution execution) {
+        return execution.isRunning() && keyReader.isOpen() || execution.getStatus().isUnsuccessful()
+                || execution.getStatus().equals(BatchStatus.COMPLETED);
     }
 
     @Override
     public void close() {
         super.close();
-        open = false;
+        if (isOpen()) {
+            jobExecution = null;
+        }
     }
 
     @Override
@@ -326,7 +422,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return queue.poll(timeout, unit);
     }
 
-    private @NonNull JobRepository initializeJobRepository() {
+    private void initializeJobInfrastructure() {
         if (jobRepository == null || transactionManager == null) {
             @SuppressWarnings("deprecation")
             AbstractJobRepositoryFactoryBean bean = new org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean();
@@ -337,34 +433,41 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
                 throw new ItemStreamException("Could not initialize job repository");
             }
         }
-        return jobRepository;
+        jobBuilderFactory = new JobBuilderFactory(jobRepository);
+        stepBuilderFactory = new StepBuilderFactory(jobRepository, transactionManager);
+        jobLauncher = new SimpleJobLauncher();
+        jobLauncher.setJobRepository(jobRepository);
+        jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
     }
 
     private SimpleStepBuilder<K, K> step() {
-        SimpleStepBuilder<K, K> step = new StepBuilder(name).chunk(chunkSize);
-        step.repository(jobRepository);
-        step.transactionManager(transactionManager);
-        keyReader = reader();
+        FaultTolerantStepBuilder<K, K> step = simpleStep().faultTolerant();
+        keyReader = keyReader();
         step.reader(keyReader);
         step.processor(keyProcessor);
-        writer = writer();
-        step.writer(writer);
+        step.writer(writer());
         if (threads > 1) {
             step.taskExecutor(BatchUtils.threadPoolTaskExecutor(threads));
             step.throttleLimit(threads);
         }
+        step.skipLimit(skipLimit);
+        step.retryLimit(retryLimit);
+        skippableExceptions.forEach(step::skip);
+        nonSkippableExceptions.forEach(step::noSkip);
+        retriableExceptions.forEach(step::retry);
+        nonRetriableExceptions.forEach(step::noRetry);
+        return step;
+    }
+
+    private SimpleStepBuilder<K, K> simpleStep() {
+        SimpleStepBuilder<K, K> step = stepBuilderFactory.get(name).chunk(chunkSize);
         if (isLive()) {
             FlushingStepBuilder<K, K> flushingStep = new FlushingStepBuilder<>(step);
             flushingStep.interval(flushInterval);
             flushingStep.idleTimeout(idleTimeout);
-            step = flushingStep;
+            return flushingStep;
         }
-        FaultTolerantStepBuilder<K, K> ftStep = step.faultTolerant();
-        ftStep.skipPolicy(skipPolicy);
-        ftStep.retryPolicy(retryPolicy);
-        retriableExceptions.forEach(ftStep::retry);
-        notRetriableExceptions.forEach(ftStep::noRetry);
-        return ftStep;
+        return step;
     }
 
     private ProcessingItemWriter<K, T> writer() {
@@ -429,7 +532,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     protected abstract ItemProcessor<List<? extends K>, List<T>> processor();
 
-    private KeyItemReader<K> reader() {
+    private KeyItemReader<K> keyReader() {
         if (isLive()) {
             return keyspaceNotificationReader();
         }
@@ -456,12 +559,12 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return reader;
     }
 
-    private boolean isLive() {
+    public boolean isLive() {
         return mode == ReaderMode.LIVE;
     }
 
     public synchronized boolean isOpen() {
-        return open;
+        return jobExecution != null;
     }
 
     public static DumpItemReader dump(AbstractRedisClient client) {
@@ -482,7 +585,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     }
 
     @SuppressWarnings("unchecked")
-    public static List<Class<? extends Throwable>> defaultNotRetriableExceptions() {
+    public static List<Class<? extends Throwable>> defaultNonRetriableExceptions() {
         return modifiableList(RedisCommandExecutionException.class);
     }
 
