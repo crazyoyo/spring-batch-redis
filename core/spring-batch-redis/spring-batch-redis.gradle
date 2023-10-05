@@ -19,7 +19,7 @@ dependencies {
         exclude group: 'com.redis', module: 'lettucemod'
     }
     testImplementation group: 'com.redis', name: 'lettucemod', version: lettucemodVersion, classifier: 'tests'
-    testImplementation group: 'org.awaitility', name: 'awaitility', version: awaitilityVersion
+    testImplementation 'org.awaitility:awaitility'
     testImplementation 'io.micrometer:micrometer-core'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.batch:spring-batch-test'
