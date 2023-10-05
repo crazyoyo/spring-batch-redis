@@ -207,7 +207,7 @@ class StackToStackTests extends ModulesTests {
     @Test
     void readMultipleStreams(TestInfo testInfo) throws Exception {
         String consumerGroup = "consumerGroup";
-        generateStreams(new SimpleTestInfo(testInfo, "streams"), 277);
+        generateStreams(testInfo(testInfo, "streams"), 277);
         KeyScanArgs args = KeyScanArgs.Builder.type(DataType.STREAM.getString());
         final List<String> keys = ScanIterator.scan(commands, args).stream().collect(Collectors.toList());
         for (String key : keys) {

@@ -67,11 +67,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
     @BeforeEach
     void targetFlushAll() {
         targetCommands.flushall();
-        awaitEquals(() -> 0L, targetCommands::dbsize);
-    }
-
-    protected void awaitCompare(TestInfo info) {
-        awaitUntil(() -> compare(info).isEmpty());
+        awaitUntil(() -> targetCommands.dbsize().equals(0L));
     }
 
     /**
@@ -92,7 +88,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
             Assertions.fail(String.format("Source and target databases have different sizes. Expected %s but was %s",
                     sourceSize, targetSize));
         }
-        KeyComparisonItemReader reader = comparisonReader(new SimpleTestInfo(info, "compare", "reader"));
+        KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare", "reader"));
         reader.open(new ExecutionContext());
         List<KeyComparison> comparisons = BatchUtils.readAll(reader);
         reader.close();
@@ -132,7 +128,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
             liveGen.setExpiration(Range.of(100));
             liveGen.setKeyRange(Range.from(300));
             try {
-                generate(new SimpleTestInfo(info, "generateLive"), liveGen);
+                generate(testInfo(info, "generateLive"), liveGen);
             } catch (JobExecutionException e) {
                 throw new RuntimeException("Could not execute data gen");
             }

@@ -26,7 +26,6 @@ import org.springframework.batch.item.support.ListItemReader;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.Beers;
-import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.search.IndexInfo;
 import com.redis.lettucemod.search.Suggestion;
 import com.redis.lettucemod.timeseries.AddOptions;
@@ -39,7 +38,6 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
-import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.OperationItemProcessor;
 import com.redis.spring.batch.common.ToSampleFunction;
@@ -50,7 +48,6 @@ import com.redis.spring.batch.reader.KeyEvent;
 import com.redis.spring.batch.reader.KeyspaceNotification;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.operation.JsonDel;
@@ -137,11 +134,7 @@ abstract class ModulesTests extends LiveTests {
         for (int index = 0; index < count; index++) {
             commands.tsAdd("ts:" + index, Sample.of(123));
         }
-        KeyComparisonItemReader reader = comparisonReader(info);
-        reader.setName(name(info));
-        reader.open(new ExecutionContext());
-        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
-        reader.close();
+        List<KeyComparison> comparisons = compare(info);
         Assertions.assertEquals(count, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());
     }
 
@@ -192,9 +185,8 @@ abstract class ModulesTests extends LiveTests {
         OperationItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
         run(testInfo, reader, writer);
         awaitUntilFalse(writer::isOpen);
-        RedisModulesCommands<String, String> sync = commands;
-        assertEquals(1, sync.dbsize());
-        assertEquals(values.size(), sync.ftSuglen(key));
+        assertEquals(1, commands.dbsize());
+        assertEquals(values.size(), commands.ftSuglen(key));
     }
 
     @Test

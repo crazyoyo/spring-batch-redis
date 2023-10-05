@@ -21,10 +21,13 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.runner.RunWith;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.ListItemReader;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.junit4.SpringRunner;
 
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
@@ -74,6 +77,8 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.models.stream.PendingMessages;
 
+@SpringBootTest(classes = BatchTestApplication.class)
+@RunWith(SpringRunner.class)
 abstract class BatchTests extends AbstractTargetTestBase {
 
     @Override

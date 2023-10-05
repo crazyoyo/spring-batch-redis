@@ -2,18 +2,11 @@ package com.redis.spring.batch.test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.lang.reflect.Method;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.Callable;
-import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
@@ -25,7 +18,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
-import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
@@ -38,7 +30,6 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
@@ -48,10 +39,8 @@ import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
-import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 
@@ -90,9 +79,6 @@ import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
-@SuppressWarnings("deprecation")
-@SpringBootTest(classes = BatchTestApplication.class)
-@RunWith(SpringRunner.class)
 @TestInstance(Lifecycle.PER_CLASS)
 public abstract class AbstractTestBase {
 
@@ -101,6 +87,10 @@ public abstract class AbstractTestBase {
 
     public static final DataType[] REDIS_MODULES_GENERATOR_TYPES = { DataType.HASH, DataType.LIST, DataType.SET,
             DataType.STREAM, DataType.STRING, DataType.ZSET, DataType.TIMESERIES, DataType.JSON };
+
+    public static TestInfo testInfo(TestInfo info, String... suffixes) {
+        return new SimpleTestInfo(info, suffixes);
+    }
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -152,7 +142,6 @@ public abstract class AbstractTestBase {
 
     @BeforeAll
     void setup() throws Exception {
-
         // Source Redis setup
         getRedisServer().start();
         client = client(getRedisServer());
@@ -161,7 +150,8 @@ public abstract class AbstractTestBase {
         commands = connection.sync();
 
         // Job infra setup
-        MapJobRepositoryFactoryBean bean = new MapJobRepositoryFactoryBean();
+        @SuppressWarnings("deprecation")
+        org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean bean = new org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean();
         bean.afterPropertiesSet();
         jobRepository = bean.getObject();
         transactionManager = bean.getTransactionManager();
@@ -187,46 +177,6 @@ public abstract class AbstractTestBase {
         commands.flushall();
     }
 
-    public static class SimpleTestInfo implements TestInfo {
-
-        private final TestInfo delegate;
-
-        private final String[] suffixes;
-
-        public SimpleTestInfo(TestInfo delegate, String... suffixes) {
-            this.delegate = delegate;
-            this.suffixes = suffixes;
-        }
-
-        @Override
-        public String getDisplayName() {
-            List<String> elements = new ArrayList<>();
-            elements.add(delegate.getDisplayName());
-            elements.addAll(Arrays.asList(suffixes));
-            return String.join("-", elements);
-        }
-
-        @Override
-        public Set<String> getTags() {
-            return delegate.getTags();
-        }
-
-        @Override
-        public Optional<Class<?>> getTestClass() {
-            return delegate.getTestClass();
-        }
-
-        @Override
-        public Optional<Method> getTestMethod() {
-            return delegate.getTestMethod();
-        }
-
-    }
-
-    protected static void assertExecutionSuccessful(int exitCode) {
-        Assertions.assertEquals(0, exitCode);
-    }
-
     protected GeneratorItemReader generator(int count) {
         return generator(count, generatorDataTypes());
     }
@@ -242,10 +192,6 @@ public abstract class AbstractTestBase {
         gen.setMaxItemCount(count);
         gen.setTypes(types);
         return gen;
-    }
-
-    protected static String id() {
-        return UUID.randomUUID().toString();
     }
 
     protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer) {
@@ -281,10 +227,6 @@ public abstract class AbstractTestBase {
         return RedisModulesClient.create(server.getRedisURI());
     }
 
-    public <T> void awaitEquals(Supplier<T> expected, Supplier<T> actual) {
-        awaitUntil(() -> expected.get().equals(actual.get()));
-    }
-
     public void awaitRunning(JobExecution jobExecution) {
         awaitUntil(jobExecution::isRunning);
     }
@@ -294,11 +236,7 @@ public abstract class AbstractTestBase {
     }
 
     protected void awaitUntilFalse(Callable<Boolean> evaluator) {
-        awaitUntil(negate(evaluator));
-    }
-
-    private static Callable<Boolean> negate(Callable<Boolean> evaluator) {
-        return () -> !evaluator.call();
+        awaitUntil(() -> !evaluator.call());
     }
 
     protected void awaitUntil(Callable<Boolean> evaluator) {
@@ -323,7 +261,7 @@ public abstract class AbstractTestBase {
 
     protected void generate(TestInfo info, AbstractRedisClient client, GeneratorItemReader reader)
             throws JobExecutionException {
-        TestInfo finalTestInfo = new SimpleTestInfo(info, "generate", String.valueOf(client.hashCode()));
+        TestInfo finalTestInfo = testInfo(info, "generate", String.valueOf(client.hashCode()));
         StructItemWriter<String, String> writer = RedisItemWriter.struct(client, StringCodec.UTF8);
         run(finalTestInfo, reader, writer);
         awaitUntilFalse(reader::isOpen);
@@ -367,7 +305,7 @@ public abstract class AbstractTestBase {
     }
 
     protected void enableKeyspaceNotifications(AbstractRedisClient client) {
-        RedisModulesUtils.connection(client).sync().configSet("notify-keyspace-events", "AK");
+        commands.configSet("notify-keyspace-events", "AK");
     }
 
     protected <I, O> FlushingStepBuilder<I, O> flushingStep(TestInfo info, PollableItemReader<I> reader, ItemWriter<O> writer) {
@@ -379,7 +317,7 @@ public abstract class AbstractTestBase {
         StreamOptions streamOptions = new StreamOptions();
         streamOptions.setMessageCount(Range.of(messageCount));
         gen.setStreamOptions(streamOptions);
-        generate(new SimpleTestInfo(info, "streams"), gen);
+        generate(testInfo(info, "streams"), gen);
     }
 
     protected StreamItemReader<String, String> streamReader(String stream, Consumer<String> consumer) {
@@ -441,7 +379,7 @@ public abstract class AbstractTestBase {
     }
 
     protected <T> OperationItemWriter<String, String, T> writer(WriteOperation<String, String, T> operation) {
-        return new OperationItemWriter<>(client, StringCodec.UTF8, operation);
+        return RedisItemWriter.operation(client, StringCodec.UTF8, operation);
     }
 
 }
