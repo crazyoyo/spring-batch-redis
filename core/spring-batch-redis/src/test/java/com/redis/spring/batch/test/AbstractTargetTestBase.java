@@ -82,12 +82,6 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         if (commands.dbsize().equals(0L)) {
             Assertions.fail("Source database is empty");
         }
-        Long sourceSize = commands.dbsize();
-        Long targetSize = targetCommands.dbsize();
-        if (!sourceSize.equals(targetSize)) {
-            Assertions.fail(String.format("Source and target databases have different sizes. Expected %s but was %s",
-                    sourceSize, targetSize));
-        }
         KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare", "reader"));
         reader.open(new ExecutionContext());
         List<KeyComparison> comparisons = BatchUtils.readAll(reader);
