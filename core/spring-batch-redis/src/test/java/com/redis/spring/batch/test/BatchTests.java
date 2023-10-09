@@ -27,6 +27,7 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import com.redis.lettucemod.util.RedisModulesUtils;
@@ -48,7 +49,6 @@ import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
 import com.redis.spring.batch.writer.operation.Del;
@@ -93,7 +93,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         KeyComparisonItemReader reader = comparisonReader(info);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
-        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
+        List<KeyComparison> comparisons = readAll(reader);
         reader.close();
         Assertions.assertEquals(KeyComparison.Status.OK, comparisons.get(0).getStatus());
     }
@@ -113,7 +113,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         KeyComparisonItemReader reader = new KeyComparisonItemReader(source, target);
         reader.setName(name(info));
         reader.open(new ExecutionContext());
-        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
+        List<KeyComparison> comparisons = readAll(reader);
         reader.close();
         List<KeyComparison> missing = comparisons.stream().filter(c -> c.getStatus() == Status.MISSING)
                 .collect(Collectors.toList());
@@ -163,7 +163,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         KeyComparisonItemReader comparator = comparisonReader(info);
         comparator.setName(name(info));
         comparator.open(new ExecutionContext());
-        List<KeyComparison> comparisons = BatchUtils.readAll(comparator);
+        List<KeyComparison> comparisons = readAll(comparator);
         comparator.close();
         long sourceCount = commands.dbsize();
         assertEquals(sourceCount, comparisons.size());
@@ -195,7 +195,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
         configureReader(info, reader);
         reader.open(new ExecutionContext());
-        List<KeyValue<String>> list = BatchUtils.readAll(reader);
+        List<KeyValue<String>> list = readAll(reader);
         reader.close();
         assertEquals(commands.dbsize(), list.size());
     }
@@ -203,12 +203,17 @@ abstract class BatchTests extends AbstractTargetTestBase {
     @Test
     void readStructMultiThreaded(TestInfo info) throws Exception {
         generate(info);
+        int threads = 4;
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
         configureReader(info, reader);
         SynchronizedListItemWriter<KeyValue<String>> writer = new SynchronizedListItemWriter<>();
-        int threads = 4;
         SimpleStepBuilder<KeyValue<String>, KeyValue<String>> step = step(info, reader, writer);
-        step.taskExecutor(BatchUtils.threadPoolTaskExecutor(threads));
+        ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+        taskExecutor.setMaxPoolSize(threads);
+        taskExecutor.setCorePoolSize(threads);
+        taskExecutor.setQueueCapacity(threads);
+        taskExecutor.afterPropertiesSet();
+        step.taskExecutor(taskExecutor);
         step.throttleLimit(threads);
         run(info, step);
         awaitUntilFalse(reader::isOpen);
@@ -441,7 +446,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
             StreamItemReader<String, String> reader = streamReader(key, consumer);
             reader.setName(name(info) + "-reader");
             reader.open(new ExecutionContext());
-            List<StreamMessage<String, String>> messages = BatchUtils.readAll(reader);
+            List<StreamMessage<String, String>> messages = readAll(reader);
             assertEquals(count, messages.size());
             assertMessageBody(messages);
             awaitUntil(() -> reader.ack(reader.readMessages()) == 0);
@@ -460,7 +465,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
             StreamItemReader<String, String> reader = streamReader(key, consumer);
             reader.setName(name(info) + "-reader");
             reader.open(new ExecutionContext());
-            List<StreamMessage<String, String>> messages = BatchUtils.readAll(reader);
+            List<StreamMessage<String, String>> messages = readAll(reader);
             reader.close();
             Assertions.assertEquals(count, messages.size());
             assertMessageBody(messages);

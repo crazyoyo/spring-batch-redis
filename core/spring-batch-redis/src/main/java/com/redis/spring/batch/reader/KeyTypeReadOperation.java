@@ -1,5 +1,6 @@
 package com.redis.spring.batch.reader;
 
+import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Operation;
 
@@ -11,9 +12,16 @@ public class KeyTypeReadOperation<K, V> implements Operation<K, V, K, KeyValue<K
 
     @SuppressWarnings("unchecked")
     @Override
-    public RedisFuture<KeyValue<K>> execute(BaseRedisAsyncCommands<K, V> commands, K item) {
-        RedisFuture<String> future = ((RedisKeyAsyncCommands<K, V>) commands).type(item);
-        return new MappingRedisFuture<>(future.toCompletableFuture(), t -> KeyValue.key(item).type(t).build());
+    public RedisFuture<KeyValue<K>> execute(BaseRedisAsyncCommands<K, V> commands, K key) {
+        RedisFuture<String> future = ((RedisKeyAsyncCommands<K, V>) commands).type(key);
+        return new MappingRedisFuture<>(future.toCompletableFuture(), t -> keyValue(key, t));
+    }
+
+    private KeyValue<K> keyValue(K key, String type) {
+        KeyValue<K> keyValue = new KeyValue<>();
+        keyValue.setKey(key);
+        keyValue.setType(DataType.of(type));
+        return keyValue;
     }
 
 }

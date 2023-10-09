@@ -15,7 +15,7 @@ public class SimpleBatchOperation<K, V, I, O> implements BatchOperation<K, V, I,
     }
 
     @Override
-    public List<RedisFuture<O>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends I> items) {
+    public List<RedisFuture<O>> execute(BaseRedisAsyncCommands<K, V> commands, List<I> items) {
         List<RedisFuture<O>> futures = new ArrayList<>();
         for (I item : items) {
             RedisFuture<O> future = operation.execute(commands, item);

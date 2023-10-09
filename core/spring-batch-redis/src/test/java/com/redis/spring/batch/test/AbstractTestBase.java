@@ -3,6 +3,7 @@ package com.redis.spring.batch.test;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +91,15 @@ public abstract class AbstractTestBase {
 
     public static TestInfo testInfo(TestInfo info, String... suffixes) {
         return new SimpleTestInfo(info, suffixes);
+    }
+
+    public static <T> List<T> readAll(ItemReader<T> reader) throws Exception {
+        List<T> list = new ArrayList<>();
+        T element;
+        while ((element = reader.read()) != null) {
+            list.add(element);
+        }
+        return list;
     }
 
     protected final Logger log = LoggerFactory.getLogger(getClass());

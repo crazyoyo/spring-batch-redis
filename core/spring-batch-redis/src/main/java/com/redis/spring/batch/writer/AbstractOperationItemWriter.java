@@ -40,9 +40,10 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOpera
         this.multiExec = multiExec;
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
     public void write(List<? extends T> items) throws Exception {
-        execute(items);
+        process((List) items);
     }
 
     @Override

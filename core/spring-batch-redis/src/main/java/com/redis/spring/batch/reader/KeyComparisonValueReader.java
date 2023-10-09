@@ -6,50 +6,85 @@ import java.util.List;
 import java.util.Objects;
 
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.ItemStreamSupport;
+import org.springframework.batch.item.support.PassThroughItemProcessor;
 import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationValueReader;
 
-public class KeyComparisonValueReader extends ItemStreamSupport implements ValueReader<String, KeyComparison> {
+public class KeyComparisonValueReader implements ItemProcessor<List<String>, List<KeyComparison>>, ItemStream {
 
-    private final OperationValueReader<String, String, String, KeyValue<String>> source;
+    public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
-    private final OperationValueReader<String, String, String, KeyValue<String>> target;
+    private final ItemProcessor<List<String>, List<KeyValue<String>>> source;
 
-    private final long ttlTolerance;
+    private final ItemProcessor<List<String>, List<KeyValue<String>>> target;
 
-    public KeyComparisonValueReader(OperationValueReader<String, String, String, KeyValue<String>> source,
-            OperationValueReader<String, String, String, KeyValue<String>> target, Duration ttlTolerance) {
+    private ItemProcessor<KeyValue<String>, KeyValue<String>> processor = new PassThroughItemProcessor<>();
+
+    private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
+
+    public KeyComparisonValueReader(ItemProcessor<List<String>, List<KeyValue<String>>> source,
+            ItemProcessor<List<String>, List<KeyValue<String>>> target) {
         this.source = source;
         this.target = target;
-        this.ttlTolerance = ttlTolerance.toMillis();
+    }
+
+    public void setProcessor(ItemProcessor<KeyValue<String>, KeyValue<String>> processor) {
+        this.processor = processor;
+    }
+
+    public void setTtlTolerance(Duration ttlTolerance) {
+        this.ttlTolerance = ttlTolerance;
     }
 
     @Override
     public void open(ExecutionContext executionContext) throws ItemStreamException {
-        source.open(executionContext);
-        target.open(executionContext);
+        if (source instanceof ItemStream) {
+            ((ItemStream) source).open(executionContext);
+        }
+        if (processor instanceof ItemStream) {
+            ((ItemStream) processor).open(executionContext);
+        }
+        if (target instanceof ItemStream) {
+            ((ItemStream) target).open(executionContext);
+        }
     }
 
     @Override
     public void update(ExecutionContext executionContext) throws ItemStreamException {
-        source.update(executionContext);
-        target.update(executionContext);
+        if (source instanceof ItemStream) {
+            ((ItemStream) source).update(executionContext);
+        }
+        if (processor instanceof ItemStream) {
+            ((ItemStream) processor).update(executionContext);
+        }
+        if (target instanceof ItemStream) {
+            ((ItemStream) target).update(executionContext);
+        }
+
     }
 
     @Override
     public void close() throws ItemStreamException {
-        target.close();
-        source.close();
+        if (source instanceof ItemStream) {
+            ((ItemStream) source).close();
+        }
+        if (processor instanceof ItemStream) {
+            ((ItemStream) processor).close();
+        }
+        if (target instanceof ItemStream) {
+            ((ItemStream) target).close();
+        }
+
     }
 
     @Override
-    public List<KeyComparison> process(List<? extends String> keys) throws Exception {
+    public List<KeyComparison> process(List<String> keys) throws Exception {
         List<KeyValue<String>> sourceItems = source.process(keys);
         List<KeyValue<String>> targetItems = target.process(keys);
         List<KeyComparison> comparisons = new ArrayList<>();
@@ -61,7 +96,7 @@ public class KeyComparisonValueReader extends ItemStreamSupport implements Value
         }
         for (int index = 0; index < sourceItems.size(); index++) {
             KeyComparison comparison = new KeyComparison();
-            KeyValue<String> sourceItem = sourceItems.get(index);
+            KeyValue<String> sourceItem = processor.process(sourceItems.get(index));
             KeyValue<String> targetItem = index < targetItems.size() ? targetItems.get(index) : null;
             comparison.setSource(sourceItem);
             comparison.setTarget(targetItem);
@@ -83,7 +118,7 @@ public class KeyComparisonValueReader extends ItemStreamSupport implements Value
         }
         if (source.getTtl() != target.getTtl()) {
             long delta = Math.abs(source.getTtl() - target.getTtl());
-            if (delta > ttlTolerance) {
+            if (delta > ttlTolerance.toMillis()) {
                 return Status.TTL;
             }
         }

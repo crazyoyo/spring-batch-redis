@@ -30,6 +30,7 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.CollectionUtils;
@@ -43,11 +44,9 @@ import com.redis.spring.batch.reader.KeyspaceNotificationItemReader.OrderingStra
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.spring.batch.reader.ValueReader;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.Await;
-import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.writer.ProcessingItemWriter;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -458,7 +457,12 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         writer = writer();
         step.writer(writer);
         if (threads > 1) {
-            step.taskExecutor(BatchUtils.threadPoolTaskExecutor(threads));
+            ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+            taskExecutor.setMaxPoolSize(threads);
+            taskExecutor.setCorePoolSize(threads);
+            taskExecutor.setQueueCapacity(threads);
+            taskExecutor.afterPropertiesSet();
+            step.taskExecutor(taskExecutor);
             step.throttleLimit(threads);
         }
         step.skipLimit(skipLimit);
@@ -487,7 +491,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return new ProcessingItemWriter<>(valueReader(), queue);
     }
 
-    protected abstract ValueReader<K, T> valueReader();
+    protected abstract ItemProcessor<List<K>, List<T>> valueReader();
 
     private KeyItemReader<K> keyReader() {
         if (isLive()) {

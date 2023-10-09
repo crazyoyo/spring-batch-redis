@@ -2,6 +2,10 @@ package com.redis.spring.batch.common;
 
 import java.time.Duration;
 
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemStreamSupport;
+import org.springframework.batch.item.support.PassThroughItemProcessor;
+
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.reader.KeyComparisonValueReader;
 import com.redis.spring.batch.reader.KeyValueItemReader;
@@ -10,11 +14,11 @@ import io.lettuce.core.codec.StringCodec;
 
 public class KeyComparisonItemReader extends RedisItemReader<String, String, KeyComparison> {
 
-    public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
-
-    private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
+    private Duration ttlTolerance = KeyComparisonValueReader.DEFAULT_TTL_TOLERANCE;
 
     private final OperationValueReader<String, String, String, KeyValue<String>> source;
+
+    private ItemProcessor<KeyValue<String>, KeyValue<String>> processor = new PassThroughItemProcessor<>();
 
     private final OperationValueReader<String, String, String, KeyValue<String>> target;
 
@@ -30,9 +34,16 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
         if (source != null) {
             source.setName(name + "-source");
         }
+        if (processor instanceof ItemStreamSupport) {
+            ((ItemStreamSupport) processor).setName(name + "-processor");
+        }
         if (target != null) {
             target.setName(name + "-target");
         }
+    }
+
+    public void setProcessor(ItemProcessor<KeyValue<String>, KeyValue<String>> processor) {
+        this.processor = processor;
     }
 
     public void setTtlTolerance(Duration ttlTolerance) {
@@ -41,7 +52,10 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
     @Override
     public KeyComparisonValueReader valueReader() {
-        return new KeyComparisonValueReader(source, target, ttlTolerance);
+        KeyComparisonValueReader valueReader = new KeyComparisonValueReader(source, target);
+        valueReader.setTtlTolerance(ttlTolerance);
+        valueReader.setProcessor(processor);
+        return valueReader;
     }
 
 }

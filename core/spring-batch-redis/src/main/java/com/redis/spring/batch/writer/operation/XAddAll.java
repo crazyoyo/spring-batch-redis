@@ -36,7 +36,7 @@ public class XAddAll<K, V, T> implements BatchWriteOperation<K, V, T> {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
+    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<T> items) {
         if (CollectionUtils.isEmpty(items)) {
             return Collections.emptyList();
         }

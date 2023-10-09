@@ -10,7 +10,7 @@ public class TimeSeriesOptions {
 
     private Range sampleCount = DEFAULT_SAMPLE_COUNT;
 
-    private Instant startTime;
+    private Instant startTime = Instant.now();
 
     public Range getSampleCount() {
         return sampleCount;

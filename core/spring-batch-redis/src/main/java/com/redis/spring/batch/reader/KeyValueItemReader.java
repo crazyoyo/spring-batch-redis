@@ -46,7 +46,7 @@ public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, Key
     }
 
     @Override
-    protected ValueReader<K, KeyValue<K>> valueReader() {
+    protected OperationValueReader<K, V, K, KeyValue<K>> valueReader() {
         return operationValueReader();
     }
 

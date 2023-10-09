@@ -35,7 +35,6 @@ import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
 import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
@@ -72,7 +71,7 @@ class StackToStackTests extends ModulesTests {
         configureReader(info, reader);
         reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
         reader.open(new ExecutionContext());
-        List<KeyValue<String>> keyValues = BatchUtils.readAll(reader);
+        List<KeyValue<String>> keyValues = readAll(reader);
         reader.close();
         Assertions.assertFalse(keyValues.isEmpty());
         for (KeyValue<String> keyValue : keyValues) {
@@ -117,7 +116,7 @@ class StackToStackTests extends ModulesTests {
         reader.setName(name(info) + "-reader");
         reader.setMemoryUsageLimit(limit);
         reader.open(new ExecutionContext());
-        List<KeyValue<String>> keyValues = BatchUtils.readAll(reader);
+        List<KeyValue<String>> keyValues = readAll(reader);
         reader.close();
         Map<String, KeyValue<String>> map = keyValues.stream().collect(Collectors.toMap(s -> s.getKey(), s -> s));
         Assertions.assertNull(map.get(key2).getValue());
@@ -161,7 +160,7 @@ class StackToStackTests extends ModulesTests {
         fullReader.setTransactionManager(transactionManager);
         fullReader.setMemoryUsageLimit(DataSize.ofBytes(-1));
         fullReader.open(new ExecutionContext());
-        List<KeyValue<String>> items = BatchUtils.readAll(fullReader);
+        List<KeyValue<String>> items = readAll(fullReader);
         fullReader.close();
         Predicate<KeyValue<String>> isMemKey = v -> v.getMemoryUsage() > memLimit;
         List<KeyValue<String>> bigkeys = items.stream().filter(isMemKey).collect(Collectors.toList());

@@ -226,17 +226,15 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
     private List<Sample> samples() {
         List<Sample> samples = new ArrayList<>();
         long size = randomLong(timeSeriesOptions.getSampleCount());
+        long startTime = timeSeriesStartTime();
         for (int index = 0; index < size; index++) {
-            long time = timeSeriesStartTime() + index() + index;
+            long time = startTime + index() + index;
             samples.add(Sample.of(time, random.nextDouble()));
         }
         return samples;
     }
 
     private long timeSeriesStartTime() {
-        if (timeSeriesOptions.getStartTime() == null) {
-            return System.currentTimeMillis();
-        }
         return timeSeriesOptions.getStartTime().toEpochMilli();
     }
 

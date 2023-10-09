@@ -50,22 +50,26 @@ public class StructBatchWriteOperation<K, V> implements BatchWriteOperation<K, V
 
     private final BatchWriteOperation<K, V, KeyValue<K>> zsetOperation = zsetOperation();
 
-    private final BatchWriteOperation<K, V, KeyValue<K>> noOperation = new Noop<>();
+    private final BatchWriteOperation<K, V, KeyValue<K>> noOperation = noOperation();
 
     public StructBatchWriteOperation(boolean overwrite) {
         deletePredicate = overwrite ? Predicates.isTrue() : existPredicate.negate();
     }
 
+    private BatchWriteOperation<K, V, KeyValue<K>> noOperation() {
+        return new SimpleBatchWriteOperation<>(new Noop<>());
+    }
+
     @Override
-    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends KeyValue<K>> items) {
+    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<KeyValue<K>> items) {
         List<RedisFuture<Object>> futures = new ArrayList<>();
-        List<? extends KeyValue<K>> toDelete = items.stream().filter(deletePredicate).collect(Collectors.toList());
+        List<KeyValue<K>> toDelete = items.stream().filter(deletePredicate).collect(Collectors.toList());
         futures.addAll(deleteOperation.execute(commands, toDelete));
         Map<DataType, List<KeyValue<K>>> toWrite = items.stream().filter(KeyValue::exists).collect(groupByType);
         for (Entry<DataType, List<KeyValue<K>>> entry : toWrite.entrySet()) {
             futures.addAll(operation(entry.getKey()).execute(commands, entry.getValue()));
         }
-        List<? extends KeyValue<K>> toExpire = items.stream().filter(expirePredicate).collect(Collectors.toList());
+        List<KeyValue<K>> toExpire = items.stream().filter(expirePredicate).collect(Collectors.toList());
         futures.addAll(expireOperation.execute(commands, toExpire));
         return futures;
     }

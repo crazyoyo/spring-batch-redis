@@ -8,6 +8,7 @@ import java.util.function.UnaryOperator;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.unit.DataSize;
 
+import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.util.CodecUtils;
@@ -58,20 +59,21 @@ public class KeyValueReadOperation<K, V> implements Operation<K, V, K, KeyValue<
         if (!iterator.hasNext()) {
             return null;
         }
-        KeyValue.Builder<K> builder = KeyValue.key((K) iterator.next());
+        KeyValue<K> keyValue = new KeyValue<>();
+        keyValue.setKey((K) iterator.next());
         if (iterator.hasNext()) {
-            builder.ttl((Long) iterator.next());
+            keyValue.setTtl((Long) iterator.next());
         }
         if (iterator.hasNext()) {
-            builder.memoryUsage((Long) iterator.next());
+            keyValue.setMemoryUsage((Long) iterator.next());
         }
         if (iterator.hasNext()) {
-            builder.type(toString(iterator.next()));
+            keyValue.setType(DataType.of(toString(iterator.next())));
         }
         if (iterator.hasNext()) {
-            builder.value(iterator.next());
+            keyValue.setValue(iterator.next());
         }
-        return postOperator.apply(builder.build());
+        return postOperator.apply(keyValue);
     }
 
     @SuppressWarnings("unchecked")

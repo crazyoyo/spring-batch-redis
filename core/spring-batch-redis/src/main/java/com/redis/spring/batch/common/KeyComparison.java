@@ -1,7 +1,5 @@
 package com.redis.spring.batch.common;
 
-import java.util.Objects;
-
 public class KeyComparison {
 
     public enum Status {
@@ -40,31 +38,6 @@ public class KeyComparison {
 
     public void setStatus(Status status) {
         this.status = status;
-    }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + Objects.hash(source, status, target);
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        KeyComparison other = (KeyComparison) obj;
-        return Objects.equals(source, other.source) && status == other.status && Objects.equals(target, other.target);
-    }
-
-    @Override
-    public String toString() {
-        return "KeyComparison [source=" + source + ", target=" + target + ", status=" + status + "]";
     }
 
 }

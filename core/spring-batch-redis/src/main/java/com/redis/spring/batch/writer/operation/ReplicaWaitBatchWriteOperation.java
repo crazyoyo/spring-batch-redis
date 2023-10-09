@@ -28,7 +28,7 @@ public class ReplicaWaitBatchWriteOperation<K, V, I> implements BatchWriteOperat
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends I> items) {
+    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<I> items) {
         List<RedisFuture<Object>> futures = new ArrayList<>();
         futures.addAll(delegate.execute(commands, items));
         RedisFuture<Long> waitFuture = commands.waitForReplication(replicas, timeout);

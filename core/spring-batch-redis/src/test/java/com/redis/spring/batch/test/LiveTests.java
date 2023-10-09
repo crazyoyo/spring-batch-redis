@@ -23,7 +23,6 @@ import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
@@ -58,7 +57,7 @@ abstract class LiveTests extends BatchTests {
         GeneratorItemReader gen = generator(100);
         generate(info, gen);
         reader.open(new ExecutionContext());
-        List<KeyValue<String>> keyValues = BatchUtils.readAll(reader);
+        List<KeyValue<String>> keyValues = readAll(reader);
         reader.close();
         Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType() == DataType.HASH));
     }
@@ -74,7 +73,7 @@ abstract class LiveTests extends BatchTests {
         int count = 123;
         GeneratorItemReader gen = generator(count, DataType.HASH, DataType.STRING);
         generate(info, gen);
-        List<KeyValue<byte[]>> list = BatchUtils.readAll(reader);
+        List<KeyValue<byte[]>> list = readAll(reader);
         Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
         Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
         Assertions.assertEquals(count, keys.size());

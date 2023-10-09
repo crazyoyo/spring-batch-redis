@@ -19,7 +19,7 @@ public class MultiExecBatchWriteOperation<K, V, T> implements BatchWriteOperatio
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<? extends T> items) {
+    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<T> items) {
         List<RedisFuture<Object>> futures = new ArrayList<>();
         RedisTransactionalAsyncCommands<K, V> transactionalCommands = (RedisTransactionalAsyncCommands<K, V>) commands;
         futures.add((RedisFuture) transactionalCommands.multi());

@@ -11,13 +11,13 @@ import org.springframework.util.ClassUtils;
 
 public class ProcessingItemWriter<K, T> extends AbstractItemStreamItemWriter<K> {
 
-    private final ItemProcessor<List<? extends K>, List<T>> processor;
+    private final ItemProcessor<List<K>, List<T>> processor;
 
     private final BlockingQueue<T> queue;
 
     private boolean open;
 
-    public ProcessingItemWriter(ItemProcessor<List<? extends K>, List<T>> processor, BlockingQueue<T> queue) {
+    public ProcessingItemWriter(ItemProcessor<List<K>, List<T>> processor, BlockingQueue<T> queue) {
         setName(ClassUtils.getShortName(getClass()));
         this.processor = processor;
         this.queue = queue;
@@ -49,9 +49,10 @@ public class ProcessingItemWriter<K, T> extends AbstractItemStreamItemWriter<K> 
         open = false;
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
     public void write(List<? extends K> items) throws Exception {
-        List<T> values = processor.process(items);
+        List<T> values = processor.process((List) items);
         if (values != null) {
             for (T item : values) {
                 queue.put(item);

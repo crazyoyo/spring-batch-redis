@@ -32,7 +32,6 @@ import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.spring.batch.util.BatchUtils;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -84,7 +83,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         }
         KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare", "reader"));
         reader.open(new ExecutionContext());
-        List<KeyComparison> comparisons = BatchUtils.readAll(reader);
+        List<KeyComparison> comparisons = readAll(reader);
         reader.close();
         Assertions.assertFalse(comparisons.isEmpty());
         return comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
