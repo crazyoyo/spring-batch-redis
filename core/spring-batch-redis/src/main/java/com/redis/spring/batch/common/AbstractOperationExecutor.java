@@ -7,10 +7,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamSupport;
+import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.util.ConnectionUtils;
 
@@ -27,6 +30,8 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
 
     public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
+    private final Log log = LogFactory.getLog(getClass());
+
     protected final AbstractRedisClient client;
 
     private final RedisCodec<K, V> codec;
@@ -39,7 +44,10 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
 
     private BatchOperation<K, V, I, O> batchOperation;
 
+    private String name;
+
     protected AbstractOperationExecutor(AbstractRedisClient client, RedisCodec<K, V> codec) {
+        setName(ClassUtils.getShortName(getClass()));
         this.client = client;
         this.codec = codec;
     }
@@ -53,14 +61,22 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
     }
 
     @Override
+    public void setName(String name) {
+        super.setName(name);
+        this.name = name;
+    }
+
+    @Override
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
         if (!isOpen()) {
+            log.debug(String.format("Opening %s", name));
             Supplier<StatefulConnection<K, V>> connectionSupplier = ConnectionUtils.supplier(client, codec, readFrom);
             GenericObjectPoolConfig<StatefulConnection<K, V>> config = new GenericObjectPoolConfig<>();
             config.setMaxTotal(poolSize);
             batchOperation = batchOperation();
             pool = ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config);
+            log.debug(String.format("Opened %s", name));
         }
     }
 
@@ -73,8 +89,10 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
     @Override
     public synchronized void close() {
         if (isOpen()) {
+            log.debug(String.format("Closing %s", name));
             pool.close();
             pool = null;
+            log.debug(String.format("Closed %s", name));
         }
         super.close();
     }

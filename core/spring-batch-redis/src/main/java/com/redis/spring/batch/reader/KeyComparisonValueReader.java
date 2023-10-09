@@ -6,26 +6,25 @@ import java.util.List;
 import java.util.Objects;
 
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationItemProcessor;
+import com.redis.spring.batch.common.OperationValueReader;
 
-public class KeyComparisonItemProcessor implements ItemProcessor<List<? extends String>, List<KeyComparison>>, ItemStream {
+public class KeyComparisonValueReader extends ItemStreamSupport implements ValueReader<String, KeyComparison> {
 
-    private final OperationItemProcessor<String, String, String, KeyValue<String>> source;
+    private final OperationValueReader<String, String, String, KeyValue<String>> source;
 
-    private final OperationItemProcessor<String, String, String, KeyValue<String>> target;
+    private final OperationValueReader<String, String, String, KeyValue<String>> target;
 
     private final long ttlTolerance;
 
-    public KeyComparisonItemProcessor(OperationItemProcessor<String, String, String, KeyValue<String>> source,
-            OperationItemProcessor<String, String, String, KeyValue<String>> target, Duration ttlTolerance) {
+    public KeyComparisonValueReader(OperationValueReader<String, String, String, KeyValue<String>> source,
+            OperationValueReader<String, String, String, KeyValue<String>> target, Duration ttlTolerance) {
         this.source = source;
         this.target = target;
         this.ttlTolerance = ttlTolerance.toMillis();

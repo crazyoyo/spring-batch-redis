@@ -29,7 +29,7 @@ import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationItemProcessor;
+import com.redis.spring.batch.common.OperationValueReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
@@ -95,7 +95,7 @@ class StackToStackTests extends ModulesTests {
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
         configureReader(info, reader);
         reader.setMemoryUsageLimit(DataSize.ofBytes(-1));
-        OperationItemProcessor<String, String, String, KeyValue<String>> executor = reader.operationProcessor();
+        OperationValueReader<String, String, String, KeyValue<String>> executor = reader.operationValueReader();
         executor.open(new ExecutionContext());
         KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());

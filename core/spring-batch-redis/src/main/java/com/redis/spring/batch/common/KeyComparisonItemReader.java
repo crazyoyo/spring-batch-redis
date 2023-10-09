@@ -1,12 +1,9 @@
 package com.redis.spring.batch.common;
 
 import java.time.Duration;
-import java.util.List;
-
-import org.springframework.batch.item.ItemProcessor;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.reader.KeyComparisonItemProcessor;
+import com.redis.spring.batch.reader.KeyComparisonValueReader;
 import com.redis.spring.batch.reader.KeyValueItemReader;
 
 import io.lettuce.core.codec.StringCodec;
@@ -17,14 +14,14 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
     private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-    private final OperationItemProcessor<String, String, String, KeyValue<String>> source;
+    private final OperationValueReader<String, String, String, KeyValue<String>> source;
 
-    private final OperationItemProcessor<String, String, String, KeyValue<String>> target;
+    private final OperationValueReader<String, String, String, KeyValue<String>> target;
 
     public KeyComparisonItemReader(KeyValueItemReader<String, String> source, KeyValueItemReader<String, String> target) {
         super(source.getClient(), StringCodec.UTF8);
-        this.source = source.operationProcessor();
-        this.target = target.operationProcessor();
+        this.source = source.operationValueReader();
+        this.target = target.operationValueReader();
     }
 
     @Override
@@ -43,8 +40,8 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
     }
 
     @Override
-    public ItemProcessor<List<? extends String>, List<KeyComparison>> processor() {
-        return new KeyComparisonItemProcessor(source, target, ttlTolerance);
+    public KeyComparisonValueReader valueReader() {
+        return new KeyComparisonValueReader(source, target, ttlTolerance);
     }
 
 }

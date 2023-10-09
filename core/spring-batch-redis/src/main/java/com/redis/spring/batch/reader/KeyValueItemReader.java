@@ -1,15 +1,12 @@
 package com.redis.spring.batch.reader;
 
-import java.util.List;
-
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Operation;
-import com.redis.spring.batch.common.OperationItemProcessor;
+import com.redis.spring.batch.common.OperationValueReader;
 import com.redis.spring.batch.common.SimpleBatchOperation;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -49,14 +46,13 @@ public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, Key
     }
 
     @Override
-    protected ItemProcessor<List<? extends K>, List<KeyValue<K>>> processor() {
-        return operationProcessor();
+    protected ValueReader<K, KeyValue<K>> valueReader() {
+        return operationValueReader();
     }
 
-    public OperationItemProcessor<K, V, K, KeyValue<K>> operationProcessor() {
+    public OperationValueReader<K, V, K, KeyValue<K>> operationValueReader() {
         SimpleBatchOperation<K, V, K, KeyValue<K>> operation = new SimpleBatchOperation<>(operation());
-        OperationItemProcessor<K, V, K, KeyValue<K>> executor = new OperationItemProcessor<>(getClient(), getCodec(),
-                operation);
+        OperationValueReader<K, V, K, KeyValue<K>> executor = new OperationValueReader<>(getClient(), getCodec(), operation);
         executor.setPoolSize(poolSize);
         executor.setReadFrom(getReadFrom());
         return executor;

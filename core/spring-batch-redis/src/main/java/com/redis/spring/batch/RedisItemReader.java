@@ -9,6 +9,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
@@ -24,10 +26,8 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
-import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -43,10 +43,12 @@ import com.redis.spring.batch.reader.KeyspaceNotificationItemReader.OrderingStra
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
+import com.redis.spring.batch.reader.ValueReader;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.Await;
 import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.writer.ProcessingItemWriter;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -57,6 +59,8 @@ import io.lettuce.core.codec.StringCodec;
 import io.micrometer.core.instrument.Metrics;
 
 public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
+
+    private final Log log = LogFactory.getLog(getClass());
 
     public enum ReaderMode {
         SCAN, LIVE
@@ -150,7 +154,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     private KeyItemReader<K> keyReader;
 
-    private BlockingQueue<T> queue;
+    private ProcessingItemWriter<K, T> writer;
 
     protected RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
         setName(ClassUtils.getShortName(getClass()));
@@ -360,9 +364,11 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
         if (!isOpen()) {
+            log.debug(String.format("Opening %s", name));
             initializeJobInfrastructure();
             Job job = jobBuilderFactory.get(name).start(step().build()).build();
             jobExecution = launch(job);
+            log.debug(String.format("Opened %s", name));
         }
     }
 
@@ -394,7 +400,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     }
 
     private boolean isRunning(JobExecution execution) {
-        return execution.isRunning() && keyReader.isOpen() || execution.getStatus().isUnsuccessful()
+        return execution.isRunning() && keyReader.isOpen() && writer.isOpen() || execution.getStatus().isUnsuccessful()
                 || execution.getStatus().equals(BatchStatus.COMPLETED);
     }
 
@@ -402,7 +408,9 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     public synchronized void close() {
         super.close();
         if (isOpen()) {
+            log.debug(String.format("Closing %s", name));
             jobExecution = null;
+            log.debug(String.format("Closed %s", name));
         }
     }
 
@@ -411,24 +419,28 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         T item;
         do {
             item = poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
-        } while (item == null && keyReader.isOpen());
+        } while (item == null && writer.isOpen());
         return item;
     }
 
     @Override
     public T poll(long timeout, TimeUnit unit) throws InterruptedException {
-        return queue.poll(timeout, unit);
+        return writer.getQueue().poll(timeout, unit);
     }
 
     private void initializeJobInfrastructure() {
         if (jobRepository == null || transactionManager == null) {
             @SuppressWarnings("deprecation")
             AbstractJobRepositoryFactoryBean bean = new org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean();
-            try {
-                jobRepository = bean.getObject();
+            if (jobRepository == null) {
+                try {
+                    jobRepository = bean.getObject();
+                } catch (Exception e) {
+                    throw new ItemStreamException("Could not initialize job repository");
+                }
+            }
+            if (transactionManager == null) {
                 transactionManager = bean.getTransactionManager();
-            } catch (Exception e) {
-                throw new ItemStreamException("Could not initialize job repository");
             }
         }
         jobBuilderFactory = new JobBuilderFactory(jobRepository);
@@ -443,7 +455,8 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         keyReader = keyReader();
         step.reader(keyReader);
         step.processor(keyProcessor);
-        step.writer(writer());
+        writer = writer();
+        step.writer(writer);
         if (threads > 1) {
             step.taskExecutor(BatchUtils.threadPoolTaskExecutor(threads));
             step.throttleLimit(threads);
@@ -468,57 +481,13 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return step;
     }
 
-    private ProcessingItemWriter writer() {
-        queue = new LinkedBlockingQueue<>(queueCapacity);
+    private ProcessingItemWriter<K, T> writer() {
+        BlockingQueue<T> queue = new LinkedBlockingQueue<>(queueCapacity);
         Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
-        return new ProcessingItemWriter(processor());
+        return new ProcessingItemWriter<>(valueReader(), queue);
     }
 
-    private class ProcessingItemWriter extends AbstractItemStreamItemWriter<K> {
-
-        private final ItemProcessor<List<? extends K>, List<T>> processor;
-
-        public ProcessingItemWriter(ItemProcessor<List<? extends K>, List<T>> processor) {
-            this.processor = processor;
-        }
-
-        @Override
-        public void open(ExecutionContext executionContext) {
-            if (processor instanceof ItemStream) {
-                ((ItemStream) processor).open(executionContext);
-            }
-            super.open(executionContext);
-        }
-
-        @Override
-        public void update(ExecutionContext executionContext) {
-            if (processor instanceof ItemStream) {
-                ((ItemStream) processor).update(executionContext);
-            }
-            super.update(executionContext);
-        }
-
-        @Override
-        public void close() {
-            if (processor instanceof ItemStream) {
-                ((ItemStream) processor).close();
-            }
-            super.close();
-        }
-
-        @Override
-        public void write(List<? extends K> items) throws Exception {
-            List<T> values = processor.process(items);
-            if (values != null) {
-                for (T item : values) {
-                    queue.put(item);
-                }
-            }
-        }
-
-    }
-
-    protected abstract ItemProcessor<List<? extends K>, List<T>> processor();
+    protected abstract ValueReader<K, T> valueReader();
 
     private KeyItemReader<K> keyReader() {
         if (isLive()) {

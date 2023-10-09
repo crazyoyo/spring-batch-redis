@@ -2,17 +2,16 @@ package com.redis.spring.batch.common;
 
 import java.util.List;
 
-import org.springframework.batch.item.ItemProcessor;
+import com.redis.spring.batch.reader.ValueReader;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public class OperationItemProcessor<K, V, I, O> extends AbstractOperationExecutor<K, V, I, O>
-        implements ItemProcessor<List<? extends I>, List<O>> {
+public class OperationValueReader<K, V, I, O> extends AbstractOperationExecutor<K, V, I, O> implements ValueReader<I, O> {
 
     private final BatchOperation<K, V, I, O> operation;
 
-    public OperationItemProcessor(AbstractRedisClient client, RedisCodec<K, V> codec, BatchOperation<K, V, I, O> operation) {
+    public OperationValueReader(AbstractRedisClient client, RedisCodec<K, V> codec, BatchOperation<K, V, I, O> operation) {
         super(client, codec);
         this.operation = operation;
     }

@@ -39,7 +39,7 @@ import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationItemProcessor;
+import com.redis.spring.batch.common.OperationValueReader;
 import com.redis.spring.batch.common.ToSampleFunction;
 import com.redis.spring.batch.common.ToSuggestionFunction;
 import com.redis.spring.batch.gen.GeneratorItemReader;
@@ -145,7 +145,7 @@ abstract class ModulesTests extends LiveTests {
         for (Sample sample : samples) {
             commands.tsAdd(key, sample);
         }
-        OperationItemProcessor<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+        OperationValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
         KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
         Assertions.assertEquals(key, ds.getKey());
         Assertions.assertEquals(DataType.TIMESERIES, ds.getType());
@@ -160,7 +160,7 @@ abstract class ModulesTests extends LiveTests {
         for (Sample sample : samples) {
             commands.tsAdd(key, sample);
         }
-        OperationItemProcessor<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
+        OperationValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
                 ByteArrayCodec.INSTANCE);
         Function<String, byte[]> toByteArrayKeyFunction = CodecUtils.toByteArrayKeyFunction(StringCodec.UTF8);
         KeyValue<byte[]> ds = executor.process(Arrays.asList(toByteArrayKeyFunction.apply(key))).get(0);

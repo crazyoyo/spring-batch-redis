@@ -15,8 +15,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 public abstract class BatchUtils {
 
-    public static final long SIZE_UNKNOWN = -1;
-
     private BatchUtils() {
     }
 

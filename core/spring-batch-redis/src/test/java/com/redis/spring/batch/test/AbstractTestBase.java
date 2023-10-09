@@ -53,7 +53,7 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationItemProcessor;
+import com.redis.spring.batch.common.OperationValueReader;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
@@ -360,20 +360,20 @@ public abstract class AbstractTestBase {
         itemStream.open(new ExecutionContext());
     }
 
-    protected OperationItemProcessor<byte[], byte[], byte[], KeyValue<byte[]>> dumpOperationExecutor() {
+    protected OperationValueReader<byte[], byte[], byte[], KeyValue<byte[]>> dumpOperationExecutor() {
         DumpItemReader reader = RedisItemReader.dump(client);
-        OperationItemProcessor<byte[], byte[], byte[], KeyValue<byte[]>> executor = reader.operationProcessor();
+        OperationValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = reader.operationValueReader();
         executor.open(new ExecutionContext());
         return executor;
     }
 
-    protected OperationItemProcessor<String, String, String, KeyValue<String>> structOperationExecutor() {
+    protected OperationValueReader<String, String, String, KeyValue<String>> structOperationExecutor() {
         return structOperationExecutor(StringCodec.UTF8);
     }
 
-    protected <K, V> OperationItemProcessor<K, V, K, KeyValue<K>> structOperationExecutor(RedisCodec<K, V> codec) {
+    protected <K, V> OperationValueReader<K, V, K, KeyValue<K>> structOperationExecutor(RedisCodec<K, V> codec) {
         StructItemReader<K, V> reader = RedisItemReader.struct(client, codec);
-        OperationItemProcessor<K, V, K, KeyValue<K>> executor = reader.operationProcessor();
+        OperationValueReader<K, V, K, KeyValue<K>> executor = reader.operationValueReader();
         executor.open(new ExecutionContext());
         return executor;
     }

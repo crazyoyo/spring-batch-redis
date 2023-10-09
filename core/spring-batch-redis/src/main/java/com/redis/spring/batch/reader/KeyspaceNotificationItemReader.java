@@ -8,9 +8,12 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
+import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.DataType;
@@ -45,6 +48,8 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 
     private static final KeyspaceNotificationComparator NOTIFICATION_COMPARATOR = new KeyspaceNotificationComparator();
 
+    private final Log log = LogFactory.getLog(getClass());
+
     private final AbstractRedisClient client;
 
     private final Function<String, K> stringKeyEncoder;
@@ -67,9 +72,18 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
 
     private KeyspaceNotificationPublisher notificationPublisher;
 
+    private String name;
+
     public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, ?> codec) {
+        setName(ClassUtils.getShortName(getClass()));
         this.client = client;
         this.stringKeyEncoder = CodecUtils.stringKeyFunction(codec);
+    }
+
+    @Override
+    public void setName(String name) {
+        super.setName(name);
+        this.name = name;
     }
 
     public BlockingQueue<KeyspaceNotification> getQueue() {
@@ -103,10 +117,12 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
     @Override
     public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
         if (notificationPublisher == null) {
+            log.debug(String.format("Opening %s", name));
             queue = new SetBlockingQueue<>(notificationQueue(), queueCapacity);
             Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
             queueMissCounter = Metrics.globalRegistry.counter(QUEUE_MISS_COUNTER);
             notificationPublisher = publisher();
+            log.debug(String.format("Opened %s", name));
         }
     }
 
@@ -156,8 +172,10 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
     @Override
     public synchronized void close() {
         if (notificationPublisher != null) {
+            log.debug(String.format("Closing %s", name));
             notificationPublisher.close();
             notificationPublisher = null;
+            log.debug(String.format("Closed %s", name));
         }
         super.close();
     }

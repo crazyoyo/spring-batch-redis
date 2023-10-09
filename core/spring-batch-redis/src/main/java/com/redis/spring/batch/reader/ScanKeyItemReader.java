@@ -7,6 +7,7 @@ import org.springframework.batch.item.NonTransientResourceException;
 import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
+import org.springframework.util.ClassUtils;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.util.ConnectionUtils;
@@ -37,9 +38,18 @@ public class ScanKeyItemReader<K> extends AbstractItemStreamItemReader<K> implem
 
     private ScanIterator<K> iterator;
 
+    private String name;
+
     public ScanKeyItemReader(AbstractRedisClient client, RedisCodec<K, ?> codec) {
+        setName(ClassUtils.getShortName(getClass()));
         this.client = client;
         this.codec = codec;
+    }
+    
+    @Override
+    public void setName(String name) {
+        super.setName(name);
+        this.name = name;
     }
 
     public void setReadFrom(ReadFrom readFrom) {
@@ -62,9 +72,10 @@ public class ScanKeyItemReader<K> extends AbstractItemStreamItemReader<K> implem
     public synchronized void open(ExecutionContext executionContext) {
         super.open(executionContext);
         if (iterator == null) {
-            log.debug("Opening");
+            log.debug(String.format("Opening %s", name));
             connection = ConnectionUtils.connection(client, codec, readFrom);
             iterator = ScanIterator.scan(ConnectionUtils.sync(connection), scanArgs());
+            log.debug(String.format("Opened %s", name));
         }
     }
 
@@ -98,8 +109,10 @@ public class ScanKeyItemReader<K> extends AbstractItemStreamItemReader<K> implem
     @Override
     public synchronized void close() {
         if (iterator != null) {
+            log.debug(String.format("Closing %s", name));
             connection.close();
             iterator = null;
+            log.debug(String.format("Closed %s", name));
         }
         super.close();
     }
