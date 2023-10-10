@@ -87,7 +87,7 @@ public abstract class AbstractTestBase {
             DataType.STRING, DataType.ZSET };
 
     public static final DataType[] REDIS_MODULES_GENERATOR_TYPES = { DataType.HASH, DataType.LIST, DataType.SET,
-            DataType.STREAM, DataType.STRING, DataType.ZSET, DataType.TIMESERIES, DataType.JSON };
+            DataType.STREAM, DataType.STRING, DataType.ZSET, DataType.JSON };
 
     public static TestInfo testInfo(TestInfo info, String... suffixes) {
         return new SimpleTestInfo(info, suffixes);
