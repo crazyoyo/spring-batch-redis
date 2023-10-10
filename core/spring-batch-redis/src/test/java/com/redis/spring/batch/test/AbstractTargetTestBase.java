@@ -81,7 +81,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         if (commands.dbsize().equals(0L)) {
             Assertions.fail("Source database is empty");
         }
-        KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare", "reader"));
+        KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare-reader"));
         reader.open(new ExecutionContext());
         List<KeyComparison> comparisons = readAll(reader);
         reader.close();

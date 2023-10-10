@@ -86,4 +86,10 @@ public class KeyValue<K> {
                 && Objects.equals(value, other.value);
     }
 
+    @Override
+    public String toString() {
+        return "KeyValue [key=" + key + ", type=" + type + ", value=" + value + ", ttl=" + ttl + ", memoryUsage=" + memoryUsage
+                + "]";
+    }
+
 }

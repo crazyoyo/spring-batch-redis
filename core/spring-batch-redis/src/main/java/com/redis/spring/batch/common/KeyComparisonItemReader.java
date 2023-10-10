@@ -18,9 +18,11 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
     private final OperationValueReader<String, String, String, KeyValue<String>> source;
 
+    private final OperationValueReader<String, String, String, KeyValue<String>> target;
+
     private ItemProcessor<KeyValue<String>, KeyValue<String>> processor = new PassThroughItemProcessor<>();
 
-    private final OperationValueReader<String, String, String, KeyValue<String>> target;
+    private boolean compareStreamMessageIds;
 
     public KeyComparisonItemReader(KeyValueItemReader<String, String> source, KeyValueItemReader<String, String> target) {
         super(source.getClient(), StringCodec.UTF8);
@@ -42,6 +44,10 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
         }
     }
 
+    public void setCompareStreamMessageIds(boolean enable) {
+        this.compareStreamMessageIds = enable;
+    }
+
     public void setProcessor(ItemProcessor<KeyValue<String>, KeyValue<String>> processor) {
         this.processor = processor;
     }
@@ -53,8 +59,9 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
     @Override
     public KeyComparisonValueReader valueReader() {
         KeyComparisonValueReader valueReader = new KeyComparisonValueReader(source, target);
-        valueReader.setTtlTolerance(ttlTolerance);
+        valueReader.setCompareStreamMessageIds(compareStreamMessageIds);
         valueReader.setProcessor(processor);
+        valueReader.setTtlTolerance(ttlTolerance);
         return valueReader;
     }
 

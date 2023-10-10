@@ -8,6 +8,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import com.redis.lettucemod.timeseries.AddOptions;
+import com.redis.lettucemod.timeseries.DuplicatePolicy;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.SimpleBatchWriteOperation;
@@ -24,11 +26,14 @@ public class StructBatchWriteOperation<K, V> implements BatchWriteOperation<K, V
     private final Collector<KeyValue<K>, ?, Map<DataType, List<KeyValue<K>>>> groupByType = Collectors
             .groupingBy(KeyValue::getType);
 
-    private final Predicate<KeyValue<K>> existPredicate = KeyValue::exists;
+    private Predicate<KeyValue<K>> existPredicate() {
+        return KeyValue::exists;
+    }
 
-    private final Predicate<KeyValue<K>> expirePredicate = existPredicate.and(k -> k.getTtl() > 0);
+    @SuppressWarnings("unchecked")
+    private final Predicate<KeyValue<K>> expirePredicate = Predicates.and(existPredicate(), k -> k.getTtl() > 0);
 
-    private final Predicate<KeyValue<K>> deletePredicate;
+    private Predicate<KeyValue<K>> deletePredicate = Predicates.negate(existPredicate());
 
     private final BatchWriteOperation<K, V, KeyValue<K>> deleteOperation = deleteOperation();
 
@@ -52,12 +57,14 @@ public class StructBatchWriteOperation<K, V> implements BatchWriteOperation<K, V
 
     private final BatchWriteOperation<K, V, KeyValue<K>> noOperation = noOperation();
 
-    public StructBatchWriteOperation(boolean overwrite) {
-        deletePredicate = overwrite ? Predicates.isTrue() : existPredicate.negate();
-    }
-
     private BatchWriteOperation<K, V, KeyValue<K>> noOperation() {
         return new SimpleBatchWriteOperation<>(new Noop<>());
+    }
+
+    public void setOverwrite(boolean overwrite) {
+        if (overwrite) {
+            deletePredicate = Predicates.isTrue();
+        }
     }
 
     @Override
@@ -97,14 +104,14 @@ public class StructBatchWriteOperation<K, V> implements BatchWriteOperation<K, V
         }
     }
 
-    private BatchWriteOperation<K, V, KeyValue<K>> hashOperation() {
+    private SimpleBatchWriteOperation<K, V, KeyValue<K>> hashOperation() {
         Hset<K, V, KeyValue<K>> operation = new Hset<>();
         operation.setKeyFunction(KeyValue::getKey);
         operation.setMapFunction(this::value);
         return new SimpleBatchWriteOperation<>(operation);
     }
 
-    private BatchWriteOperation<K, V, KeyValue<K>> stringOperation() {
+    private SimpleBatchWriteOperation<K, V, KeyValue<K>> stringOperation() {
         Set<K, V, KeyValue<K>> operation = new Set<>();
         operation.setKeyFunction(KeyValue::getKey);
         operation.setValueFunction(this::value);
@@ -119,55 +126,56 @@ public class StructBatchWriteOperation<K, V> implements BatchWriteOperation<K, V
         return args;
     }
 
-    private BatchWriteOperation<K, V, KeyValue<K>> streamOperation() {
+    private XAddAll<K, V, KeyValue<K>> streamOperation() {
         XAddAll<K, V, KeyValue<K>> operation = new XAddAll<>();
         operation.setMessagesFunction(this::value);
         operation.setArgsFunction(this::xaddArgs);
         return operation;
     }
 
-    private BatchWriteOperation<K, V, KeyValue<K>> timeseriesOperation() {
+    private TsAddAll<K, V, KeyValue<K>> timeseriesOperation() {
         TsAddAll<K, V, KeyValue<K>> operation = new TsAddAll<>();
         operation.setKeyFunction(KeyValue::getKey);
+        operation.setOptions(AddOptions.<K, V> builder().policy(DuplicatePolicy.LAST).build());
         operation.setSamplesFunction(this::value);
         return operation;
     }
 
-    private BatchWriteOperation<K, V, KeyValue<K>> zsetOperation() {
+    private SimpleBatchWriteOperation<K, V, KeyValue<K>> zsetOperation() {
         ZaddAll<K, V, KeyValue<K>> operation = new ZaddAll<>();
         operation.setKeyFunction(KeyValue::getKey);
         operation.setValuesFunction(this::value);
         return new SimpleBatchWriteOperation<>(operation);
     }
 
-    private BatchWriteOperation<K, V, KeyValue<K>> setOperation() {
+    private SimpleBatchWriteOperation<K, V, KeyValue<K>> setOperation() {
         SaddAll<K, V, KeyValue<K>> operation = new SaddAll<>();
         operation.setKeyFunction(KeyValue::getKey);
         operation.setValuesFunction(this::value);
         return new SimpleBatchWriteOperation<>(operation);
     }
 
-    private BatchWriteOperation<K, V, KeyValue<K>> listOperation() {
+    private SimpleBatchWriteOperation<K, V, KeyValue<K>> listOperation() {
         RpushAll<K, V, KeyValue<K>> operation = new RpushAll<>();
         operation.setKeyFunction(KeyValue::getKey);
         operation.setValuesFunction(this::value);
         return new SimpleBatchWriteOperation<>(operation);
     }
 
-    private BatchWriteOperation<K, V, KeyValue<K>> jsonOperation() {
+    private SimpleBatchWriteOperation<K, V, KeyValue<K>> jsonOperation() {
         JsonSet<K, V, KeyValue<K>> operation = new JsonSet<>();
         operation.setKeyFunction(KeyValue::getKey);
         operation.setValueFunction(this::value);
         return new SimpleBatchWriteOperation<>(operation);
     }
 
-    private BatchWriteOperation<K, V, KeyValue<K>> deleteOperation() {
+    private SimpleBatchWriteOperation<K, V, KeyValue<K>> deleteOperation() {
         Del<K, V, KeyValue<K>> operation = new Del<>();
         operation.setKeyFunction(KeyValue::getKey);
         return new SimpleBatchWriteOperation<>(operation);
     }
 
-    private BatchWriteOperation<K, V, KeyValue<K>> expireOperation() {
+    private SimpleBatchWriteOperation<K, V, KeyValue<K>> expireOperation() {
         ExpireAt<K, V, KeyValue<K>> operation = new ExpireAt<>();
         operation.setKeyFunction(KeyValue::getKey);
         operation.setEpochFunction(KeyValue::getTtl);

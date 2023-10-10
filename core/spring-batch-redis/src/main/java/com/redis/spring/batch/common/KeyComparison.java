@@ -40,4 +40,9 @@ public class KeyComparison {
         this.status = status;
     }
 
+    @Override
+    public String toString() {
+        return "KeyComparison [source=" + source + ", target=" + target + ", status=" + status + "]";
+    }
+
 }

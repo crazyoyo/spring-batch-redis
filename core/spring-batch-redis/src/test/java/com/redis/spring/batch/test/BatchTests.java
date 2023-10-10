@@ -121,6 +121,16 @@ abstract class BatchTests extends AbstractTargetTestBase {
     }
 
     @Test
+    void compareStreams(TestInfo info) throws Exception {
+        GeneratorItemReader gen = generator(10);
+        gen.setTypes(DataType.STREAM);
+        generate(info, gen);
+        replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient));
+        List<KeyComparison> diffs = compare(info);
+        assertEmpty(diffs);
+    }
+
+    @Test
     void compareStatus(TestInfo info) throws Exception {
         GeneratorItemReader gen = generator(120);
         generate(info, gen);
@@ -655,7 +665,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
         awaitUntilFalse(reader::isOpen);
         awaitUntilFalse(writer::isOpen);
         return compare(info);
-
     }
 
     @Test
@@ -905,7 +914,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
     @Test
     void writeExpire(TestInfo info) throws Exception {
         GeneratorItemReader gen = generator(DataType.STRING);
-        Duration ttl = Duration.ofMillis(1L);
+        Duration ttl = Duration.ofMillis(1);
         Expire<String, String, KeyValue<String>> expire = new Expire<>();
         expire.setKeyFunction(KeyValue::getKey);
         expire.setTtl(ttl);
