@@ -1,6 +1,7 @@
 package com.redis.spring.batch.test;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -86,11 +87,13 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         List<KeyComparison> comparisons = readAll(reader);
         reader.close();
         Assertions.assertFalse(comparisons.isEmpty());
-        List<KeyComparison> diffs = comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
+        return comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
+    }
+
+    protected void logDiffs(Collection<KeyComparison> diffs) {
         for (KeyComparison diff : diffs) {
             log.error("{}: {} {}", diff.getStatus(), diff.getSource().getKey(), diff.getSource().getType());
         }
-        return diffs;
     }
 
     protected KeyComparisonItemReader comparisonReader(TestInfo info) throws Exception {

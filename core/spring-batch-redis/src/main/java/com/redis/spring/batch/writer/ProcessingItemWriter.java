@@ -6,6 +6,7 @@ import java.util.concurrent.BlockingQueue;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStream;
+import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.ClassUtils;
 
@@ -18,9 +19,17 @@ public class ProcessingItemWriter<K, T> extends AbstractItemStreamItemWriter<K> 
     private boolean open;
 
     public ProcessingItemWriter(ItemProcessor<List<K>, List<T>> processor, BlockingQueue<T> queue) {
-        setName(ClassUtils.getShortName(getClass()));
         this.processor = processor;
         this.queue = queue;
+        setName(ClassUtils.getShortName(getClass()));
+    }
+
+    @Override
+    public void setName(String name) {
+        super.setName(name);
+        if (processor instanceof ItemStreamSupport) {
+            ((ItemStreamSupport) processor).setName(name + "-processor");
+        }
     }
 
     @Override

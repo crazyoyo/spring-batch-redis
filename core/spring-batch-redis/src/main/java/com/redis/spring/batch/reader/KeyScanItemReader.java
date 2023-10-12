@@ -18,7 +18,7 @@ import io.lettuce.core.ReadFrom;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.codec.RedisCodec;
 
-public class ScanKeyItemReader<K> extends AbstractItemStreamItemReader<K> implements KeyItemReader<K> {
+public class KeyScanItemReader<K> extends AbstractItemStreamItemReader<K> implements KeyItemReader<K> {
 
     private final Log log = LogFactory.getLog(getClass());
 
@@ -40,7 +40,7 @@ public class ScanKeyItemReader<K> extends AbstractItemStreamItemReader<K> implem
 
     private String name;
 
-    public ScanKeyItemReader(AbstractRedisClient client, RedisCodec<K, ?> codec) {
+    public KeyScanItemReader(AbstractRedisClient client, RedisCodec<K, ?> codec) {
         setName(ClassUtils.getShortName(getClass()));
         this.client = client;
         this.codec = codec;

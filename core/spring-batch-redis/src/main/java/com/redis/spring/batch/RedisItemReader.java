@@ -16,6 +16,7 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.support.SimpleJobLauncher;
@@ -38,11 +39,11 @@ import org.springframework.util.CollectionUtils;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.KeyItemReader;
+import com.redis.spring.batch.reader.KeyScanItemReader;
 import com.redis.spring.batch.reader.KeyTypeItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader.OrderingStrategy;
 import com.redis.spring.batch.reader.PollableItemReader;
-import com.redis.spring.batch.reader.ScanKeyItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
@@ -88,6 +89,8 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     public static final int DEFAULT_RETRY_LIMIT = MaxAttemptsRetryPolicy.DEFAULT_MAX_ATTEMPTS;
 
     private static final Duration DEFAULT_OPEN_TIMEOUT = Duration.ofSeconds(3);
+
+    private static final Duration DEFAULT_CLOSE_TIMEOUT = Duration.ofSeconds(3);
 
     private final AbstractRedisClient client;
 
@@ -136,6 +139,8 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
 
     private Duration openTimeout = DEFAULT_OPEN_TIMEOUT;
+
+    private Duration closeTimeout = DEFAULT_CLOSE_TIMEOUT;
 
     private JobRepository jobRepository;
 
@@ -199,6 +204,10 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     public void setScanCount(long count) {
         this.scanCount = count;
+    }
+
+    public void setCloseTimeout(Duration closeTimeout) {
+        this.closeTimeout = closeTimeout;
     }
 
     public void setOpenTimeout(Duration timeout) {
@@ -366,12 +375,12 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
             log.debug(String.format("Opening %s", name));
             initializeJobInfrastructure();
             Job job = jobBuilderFactory.get(name).start(step().build()).build();
-            jobExecution = launch(job);
+            jobExecution = execute(job);
             log.debug(String.format("Opened %s", name));
         }
     }
 
-    private JobExecution launch(Job job) {
+    private JobExecution execute(Job job) {
         JobExecution execution;
         try {
             execution = jobLauncher.run(job, new JobParameters());
@@ -381,7 +390,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         Await await = new Await();
         boolean executed;
         try {
-            executed = await.await(() -> isRunning(execution), openTimeout);
+            executed = await.await(() -> isRunning(execution) || isCompleted(execution), openTimeout);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new ItemStreamException("Interruped while waiting for job to start", e);
@@ -398,9 +407,12 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return execution;
     }
 
+    private boolean isCompleted(JobExecution execution) {
+        return execution.getStatus().isUnsuccessful() || execution.getStatus().equals(BatchStatus.COMPLETED);
+    }
+
     private boolean isRunning(JobExecution execution) {
-        return execution.isRunning() && keyReader.isOpen() && writer.isOpen() || execution.getStatus().isUnsuccessful()
-                || execution.getStatus().equals(BatchStatus.COMPLETED);
+        return execution.isRunning() && keyReader.isOpen() && writer.isOpen();
     }
 
     @Override
@@ -408,6 +420,20 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         super.close();
         if (isOpen()) {
             log.debug(String.format("Closing %s", name));
+            if (jobExecution.isRunning()) {
+                Await await = new Await();
+                boolean executed;
+                try {
+                    executed = await.await(() -> !isRunning(jobExecution), closeTimeout);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new ItemStreamException("Interruped while waiting for job to start", e);
+                }
+                if (!executed) {
+                    log.debug("Terminating step executions");
+                    jobExecution.getStepExecutions().forEach(StepExecution::setTerminateOnly);
+                }
+            }
             jobExecution = null;
             log.debug(String.format("Closed %s", name));
         }
@@ -488,7 +514,9 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     private ProcessingItemWriter<K, T> writer() {
         BlockingQueue<T> queue = new LinkedBlockingQueue<>(queueCapacity);
         Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
-        return new ProcessingItemWriter<>(valueReader(), queue);
+        ProcessingItemWriter<K, T> processingWriter = new ProcessingItemWriter<>(valueReader(), queue);
+        processingWriter.setName(name("writer"));
+        return processingWriter;
     }
 
     protected abstract ItemProcessor<List<K>, List<T>> valueReader();
@@ -502,6 +530,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
     private KeyspaceNotificationItemReader<K> keyspaceNotificationReader() {
         KeyspaceNotificationItemReader<K> reader = new KeyspaceNotificationItemReader<>(client, codec);
+        reader.setName(name("keyspaceNotificationReader"));
         reader.setDatabase(database);
         reader.setKeyPattern(keyPattern);
         reader.setKeyType(keyType);
@@ -511,8 +540,16 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return reader;
     }
 
-    public ScanKeyItemReader<K> scanKeyReader() {
-        ScanKeyItemReader<K> reader = new ScanKeyItemReader<>(client, codec);
+    private String name(String... suffixes) {
+        List<String> elements = new ArrayList<>();
+        elements.add(name);
+        elements.addAll(Arrays.asList(suffixes));
+        return String.join("-", elements);
+    }
+
+    public KeyScanItemReader<K> scanKeyReader() {
+        KeyScanItemReader<K> reader = new KeyScanItemReader<>(client, codec);
+        reader.setName(name("keyScanReader"));
         reader.setReadFrom(readFrom);
         reader.setLimit(scanCount);
         reader.setMatch(keyPattern);
