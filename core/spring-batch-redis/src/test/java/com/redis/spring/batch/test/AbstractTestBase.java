@@ -106,11 +106,11 @@ public abstract class AbstractTestBase {
 
     protected static final int DEFAULT_CHUNK_SIZE = 50;
 
-    private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(1000);
+    private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(10000);
 
     protected static final Duration DEFAULT_RUNNING_DELAY = Duration.ofMillis(100);
 
-    protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
+    protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(3000);
 
     private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(1);
 

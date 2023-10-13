@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -34,7 +35,6 @@ import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
-import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.reader.DumpItemReader;
@@ -222,6 +222,10 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         this.transactionManager = transactionManager;
     }
 
+    public ItemProcessor<K, K> getKeyProcessor() {
+        return keyProcessor;
+    }
+
     public void setKeyProcessor(ItemProcessor<K, K> processor) {
         this.keyProcessor = processor;
     }
@@ -398,8 +402,8 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         if (!executed) {
             throw new ItemStreamException("Timeout waiting for job to run");
         }
-        if (execution.getStatus().isUnsuccessful()) {
-            if (CollectionUtils.isEmpty(execution.getAllFailureExceptions())) {
+        if (execution.getExitStatus().getExitCode().equals(ExitStatus.FAILED.getExitCode())) {
+            if (execution.getAllFailureExceptions().isEmpty()) {
                 throw new ItemStreamException("Could not run job");
             }
             throw new ItemStreamException("Could not run job", execution.getAllFailureExceptions().get(0));
