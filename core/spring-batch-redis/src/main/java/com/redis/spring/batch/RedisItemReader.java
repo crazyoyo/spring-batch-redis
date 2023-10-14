@@ -452,6 +452,17 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
         return item;
     }
 
+    /**
+     * 
+     * @param count number of items to read at once
+     * @return up to <code>count</code> items from the queue
+     */
+    public synchronized List<T> read(int count) {
+        List<T> items = new ArrayList<>(count);
+        writer.getQueue().drainTo(items);
+        return items;
+    }
+
     @Override
     public T poll(long timeout, TimeUnit unit) throws InterruptedException {
         return writer.getQueue().poll(timeout, unit);
