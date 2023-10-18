@@ -9,8 +9,7 @@ import org.springframework.batch.item.support.PassThroughItemProcessor;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.reader.KeyComparisonValueReader;
 import com.redis.spring.batch.reader.KeyValueItemReader;
-
-import io.lettuce.core.codec.StringCodec;
+import com.redis.spring.batch.util.CodecUtils;
 
 public class KeyComparisonItemReader extends RedisItemReader<String, String, KeyComparison> {
 
@@ -27,7 +26,7 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
     private boolean compareStreamMessageIds;
 
     public KeyComparisonItemReader(KeyValueItemReader<String, String> source, KeyValueItemReader<String, String> target) {
-        super(source.getClient(), StringCodec.UTF8);
+        super(source.getClient(), CodecUtils.STRING_CODEC);
         this.source = source.operationValueReader();
         this.sourceKeyProcessor = source.getKeyProcessor();
         this.target = target.operationValueReader();

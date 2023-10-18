@@ -19,7 +19,6 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisScriptingCommands;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 
 public abstract class ConnectionUtils {
 
@@ -27,11 +26,11 @@ public abstract class ConnectionUtils {
     }
 
     public static Supplier<StatefulConnection<String, String>> supplier(AbstractRedisClient client) {
-        return supplier(client, StringCodec.UTF8);
+        return supplier(client, CodecUtils.STRING_CODEC);
     }
 
     public static Supplier<StatefulConnection<String, String>> supplier(AbstractRedisClient client, ReadFrom readFrom) {
-        return supplier(client, StringCodec.UTF8, readFrom);
+        return supplier(client, CodecUtils.STRING_CODEC, readFrom);
     }
 
     public static <K, V> Supplier<StatefulConnection<K, V>> supplier(AbstractRedisClient client, RedisCodec<K, V> codec) {
@@ -91,7 +90,7 @@ public abstract class ConnectionUtils {
         } catch (IOException e) {
             throw new ItemStreamException("Could not read LUA script file " + filename);
         }
-        try (StatefulConnection<String, String> connection = supplier(client, StringCodec.UTF8).get()) {
+        try (StatefulConnection<String, String> connection = supplier(client, CodecUtils.STRING_CODEC).get()) {
             return ((RedisScriptingCommands<String, String>) sync(connection)).scriptLoad(bytes);
         }
     }

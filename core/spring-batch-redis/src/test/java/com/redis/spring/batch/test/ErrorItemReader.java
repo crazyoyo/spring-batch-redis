@@ -18,7 +18,6 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.reader.PollableItemReader;
-import com.redis.spring.batch.reader.PollingException;
 
 public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
@@ -56,11 +55,11 @@ public class ErrorItemReader<T> extends AbstractItemStreamItemReader<T> implemen
     }
 
     @Override
-    public T poll(long timeout, TimeUnit unit) throws PollingException {
+    public T poll(long timeout, TimeUnit unit) {
         try {
             return read();
         } catch (Exception e) {
-            throw new PollingException(e);
+            throw new ItemStreamException(e);
         }
     }
 

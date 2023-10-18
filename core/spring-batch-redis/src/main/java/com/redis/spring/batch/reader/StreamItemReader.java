@@ -180,12 +180,12 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
     }
 
     @Override
-    public StreamMessage<K, V> read() throws Exception {
+    public StreamMessage<K, V> read() {
         return poll(DEFAULT_POLL_DURATION.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @Override
-    public synchronized StreamMessage<K, V> poll(long timeout, TimeUnit unit) throws PollingException {
+    public synchronized StreamMessage<K, V> poll(long timeout, TimeUnit unit) {
         if (!iterator.hasNext()) {
             List<StreamMessage<K, V>> messages = messageReader.read(unit.toMillis(timeout));
             if (messages == null || messages.isEmpty()) {

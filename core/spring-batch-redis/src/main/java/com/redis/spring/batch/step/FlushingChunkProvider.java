@@ -16,7 +16,6 @@ import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.util.Assert;
 
 import com.redis.spring.batch.reader.PollableItemReader;
-import com.redis.spring.batch.reader.PollingException;
 
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Tag;
@@ -111,8 +110,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
         return System.currentTimeMillis() - lastActivity;
     }
 
-    protected I read(StepContribution contribution, Chunk<I> chunk, long timeout)
-            throws InterruptedException, PollingException {
+    protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) throws InterruptedException {
         while (true) {
             try {
                 return doRead(timeout);
@@ -124,7 +122,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
     }
 
     @SuppressWarnings("unchecked")
-    protected final I doRead(long timeout) throws InterruptedException, PollingException {
+    protected final I doRead(long timeout) throws InterruptedException {
         try {
             getListener().beforeRead();
             I item = ((PollableItemReader<I>) itemReader).poll(timeout, TimeUnit.MILLISECONDS);
@@ -135,7 +133,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw e;
-        } catch (PollingException e) {
+        } catch (Exception e) {
             getListener().onReadError(e);
             throw e;
         }

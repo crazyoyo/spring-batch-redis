@@ -77,7 +77,6 @@ import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
 @TestInstance(Lifecycle.PER_CLASS)
@@ -272,7 +271,7 @@ public abstract class AbstractTestBase {
     protected void generate(TestInfo info, AbstractRedisClient client, GeneratorItemReader reader)
             throws JobExecutionException {
         TestInfo finalTestInfo = testInfo(info, "generate", String.valueOf(client.hashCode()));
-        StructItemWriter<String, String> writer = RedisItemWriter.struct(client, StringCodec.UTF8);
+        StructItemWriter<String, String> writer = RedisItemWriter.struct(client, CodecUtils.STRING_CODEC);
         run(finalTestInfo, reader, writer);
         awaitUntilFalse(reader::isOpen);
         awaitUntilFalse(writer::isOpen);
@@ -331,7 +330,7 @@ public abstract class AbstractTestBase {
     }
 
     protected StreamItemReader<String, String> streamReader(String stream, Consumer<String> consumer) {
-        return new StreamItemReader<>(client, StringCodec.UTF8, stream, consumer);
+        return new StreamItemReader<>(client, CodecUtils.STRING_CODEC, stream, consumer);
     }
 
     protected void assertMessageBody(List<? extends StreamMessage<String, String>> items) {
@@ -359,7 +358,7 @@ public abstract class AbstractTestBase {
     }
 
     protected byte[] toByteArray(String key) {
-        return CodecUtils.toByteArrayKeyFunction(StringCodec.UTF8).apply(key);
+        return CodecUtils.toByteArrayKeyFunction(CodecUtils.STRING_CODEC).apply(key);
     }
 
     protected String toString(byte[] key) {
@@ -378,7 +377,7 @@ public abstract class AbstractTestBase {
     }
 
     protected OperationValueReader<String, String, String, KeyValue<String>> structOperationExecutor() {
-        return structOperationExecutor(StringCodec.UTF8);
+        return structOperationExecutor(CodecUtils.STRING_CODEC);
     }
 
     protected <K, V> OperationValueReader<K, V, K, KeyValue<K>> structOperationExecutor(RedisCodec<K, V> codec) {
@@ -389,7 +388,7 @@ public abstract class AbstractTestBase {
     }
 
     protected <T> OperationItemWriter<String, String, T> writer(WriteOperation<String, String, T> operation) {
-        return RedisItemWriter.operation(client, StringCodec.UTF8, operation);
+        return RedisItemWriter.operation(client, CodecUtils.STRING_CODEC, operation);
     }
 
 }

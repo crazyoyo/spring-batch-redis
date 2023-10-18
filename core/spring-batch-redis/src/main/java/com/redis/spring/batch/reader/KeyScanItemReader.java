@@ -3,9 +3,6 @@ package com.redis.spring.batch.reader;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.NonTransientResourceException;
-import org.springframework.batch.item.ParseException;
-import org.springframework.batch.item.UnexpectedInputException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
@@ -45,7 +42,7 @@ public class KeyScanItemReader<K> extends AbstractItemStreamItemReader<K> implem
         this.client = client;
         this.codec = codec;
     }
-    
+
     @Override
     public void setName(String name) {
         super.setName(name);
@@ -99,7 +96,7 @@ public class KeyScanItemReader<K> extends AbstractItemStreamItemReader<K> implem
     }
 
     @Override
-    public K read() throws Exception, UnexpectedInputException, ParseException, NonTransientResourceException {
+    public K read() {
         if (iterator.hasNext()) {
             return iterator.next();
         }

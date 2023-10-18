@@ -20,6 +20,7 @@ import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.OperationValueReader;
 
 import io.lettuce.core.StreamMessage;
 
@@ -28,11 +29,11 @@ public class KeyComparisonValueReader implements ItemProcessor<List<String>, Lis
 
     public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
-    private final ItemProcessor<List<String>, List<KeyValue<String>>> source;
+    private final OperationValueReader<String, String, String, KeyValue<String>> source;
 
     private ItemProcessor<String, String> keyProcessor;
 
-    private final ItemProcessor<List<String>, List<KeyValue<String>>> target;
+    private final OperationValueReader<String, String, String, KeyValue<String>> target;
 
     private ItemProcessor<KeyValue<String>, KeyValue<String>> processor;
 
@@ -40,8 +41,8 @@ public class KeyComparisonValueReader implements ItemProcessor<List<String>, Lis
 
     private boolean compareStreamMessageIds;
 
-    public KeyComparisonValueReader(ItemProcessor<List<String>, List<KeyValue<String>>> source,
-            ItemProcessor<List<String>, List<KeyValue<String>>> target) {
+    public KeyComparisonValueReader(OperationValueReader<String, String, String, KeyValue<String>> source,
+            OperationValueReader<String, String, String, KeyValue<String>> target) {
         this.source = source;
         this.target = target;
     }
@@ -105,7 +106,8 @@ public class KeyComparisonValueReader implements ItemProcessor<List<String>, Lis
 
     @Override
     public List<KeyComparison> process(List<String> keys) throws Exception {
-        List<KeyValue<String>> sourceItems = source.process(processKeys(keys));
+        List<String> processedKeys = processKeys(keys);
+        List<KeyValue<String>> sourceItems = source.process(processedKeys);
         if (CollectionUtils.isEmpty(sourceItems)) {
             return Collections.emptyList();
         }

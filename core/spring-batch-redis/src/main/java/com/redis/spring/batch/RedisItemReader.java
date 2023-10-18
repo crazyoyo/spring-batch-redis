@@ -48,6 +48,7 @@ import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.Await;
+import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.writer.ProcessingItemWriter;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -55,7 +56,6 @@ import io.lettuce.core.ReadFrom;
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 import io.micrometer.core.instrument.Metrics;
 
 public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
@@ -444,7 +444,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     }
 
     @Override
-    public synchronized T read() throws Exception {
+    public synchronized T read() throws InterruptedException {
         T item;
         do {
             item = poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -477,6 +477,9 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
                     jobRepository = bean.getObject();
                 } catch (Exception e) {
                     throw new ItemStreamException("Could not initialize job repository");
+                }
+                if (jobRepository == null) {
+                    throw new ItemStreamException("Job repository is null");
                 }
             }
             if (transactionManager == null) {
@@ -585,7 +588,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     }
 
     public static StructItemReader<String, String> struct(AbstractRedisClient client) {
-        return struct(client, StringCodec.UTF8);
+        return struct(client, CodecUtils.STRING_CODEC);
     }
 
     public static <K, V> StructItemReader<K, V> struct(AbstractRedisClient client, RedisCodec<K, V> codec) {
@@ -608,7 +611,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
     }
 
     public static KeyTypeItemReader<String, String> type(AbstractRedisClient client) {
-        return type(client, StringCodec.UTF8);
+        return type(client, CodecUtils.STRING_CODEC);
     }
 
     public static <K, V> KeyTypeItemReader<K, V> type(AbstractRedisClient client, RedisCodec<K, V> codec) {

@@ -57,7 +57,6 @@ import com.redis.spring.batch.writer.operation.TsAdd;
 import com.redis.spring.batch.writer.operation.TsAddAll;
 
 import io.lettuce.core.codec.ByteArrayCodec;
-import io.lettuce.core.codec.StringCodec;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.search.Search;
@@ -106,7 +105,7 @@ abstract class ModulesTests extends LiveTests {
     @Test
     void readKeyspaceNotifications(TestInfo testInfo) throws Exception {
         enableKeyspaceNotifications(client);
-        KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
+        KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client, CodecUtils.STRING_CODEC);
         reader.open(new ExecutionContext());
         GeneratorItemReader gen = generator(100);
         generate(testInfo, gen);
@@ -162,7 +161,7 @@ abstract class ModulesTests extends LiveTests {
         }
         OperationValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
                 ByteArrayCodec.INSTANCE);
-        Function<String, byte[]> toByteArrayKeyFunction = CodecUtils.toByteArrayKeyFunction(StringCodec.UTF8);
+        Function<String, byte[]> toByteArrayKeyFunction = CodecUtils.toByteArrayKeyFunction(CodecUtils.STRING_CODEC);
         KeyValue<byte[]> ds = executor.process(Arrays.asList(toByteArrayKeyFunction.apply(key))).get(0);
         Assertions.assertArrayEquals(toByteArrayKeyFunction.apply(key), ds.getKey());
         Assertions.assertEquals(DataType.TIMESERIES, ds.getType());
@@ -287,7 +286,7 @@ abstract class ModulesTests extends LiveTests {
         tsadd.setKeyFunction(KeyValue::getKey);
         tsadd.setSamplesFunction(t -> (Collection<Sample>) t.getValue());
         tsadd.setOptions(addOptions);
-        OperationItemWriter<String, String, Sample> writer = new OperationItemWriter(client, StringCodec.UTF8, tsadd);
+        OperationItemWriter<String, String, Sample> writer = new OperationItemWriter(client, CodecUtils.STRING_CODEC, tsadd);
         run(testInfo, reader, writer);
         awaitUntilFalse(writer::isOpen);
         for (int index = 1; index <= count; index++) {

@@ -1,5 +1,6 @@
 package com.redis.spring.batch;
 
+import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.writer.AbstractOperationItemWriter;
 import com.redis.spring.batch.writer.BatchWriteOperation;
 import com.redis.spring.batch.writer.DumpItemWriter;
@@ -9,7 +10,6 @@ import com.redis.spring.batch.writer.WriteOperation;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 
 public abstract class RedisItemWriter<K, V, T> extends AbstractOperationItemWriter<K, V, T> {
 
@@ -18,7 +18,7 @@ public abstract class RedisItemWriter<K, V, T> extends AbstractOperationItemWrit
     }
 
     public static StructItemWriter<String, String> struct(AbstractRedisClient client) {
-        return struct(client, StringCodec.UTF8);
+        return struct(client, CodecUtils.STRING_CODEC);
     }
 
     public static <K, V> StructItemWriter<K, V> struct(AbstractRedisClient client, RedisCodec<K, V> codec) {
@@ -31,7 +31,7 @@ public abstract class RedisItemWriter<K, V, T> extends AbstractOperationItemWrit
 
     public static <T> OperationItemWriter<String, String, T> operation(AbstractRedisClient client,
             WriteOperation<String, String, T> operation) {
-        return operation(client, StringCodec.UTF8, operation);
+        return operation(client, CodecUtils.STRING_CODEC, operation);
     }
 
     public static <K, V, T> OperationItemWriter<K, V, T> operation(AbstractRedisClient client, RedisCodec<K, V> codec,
@@ -41,7 +41,7 @@ public abstract class RedisItemWriter<K, V, T> extends AbstractOperationItemWrit
 
     public static <T> OperationItemWriter<String, String, T> operation(AbstractRedisClient client,
             BatchWriteOperation<String, String, T> operation) {
-        return operation(client, StringCodec.UTF8, operation);
+        return operation(client, CodecUtils.STRING_CODEC, operation);
     }
 
     public static <K, V, T> OperationItemWriter<K, V, T> operation(AbstractRedisClient client, RedisCodec<K, V> codec,

@@ -1,79 +1,59 @@
 package com.redis.spring.batch.util;
 
+import java.nio.ByteBuffer;
 import java.util.function.Function;
 
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-@SuppressWarnings("rawtypes")
 public abstract class CodecUtils {
+
+    public static final StringCodec STRING_CODEC = StringCodec.UTF8;
+
+    public static final ByteArrayCodec BYTE_ARRAY_CODEC = ByteArrayCodec.INSTANCE;
 
     private CodecUtils() {
     }
 
-    @SuppressWarnings("unchecked")
     public static <K> Function<String, K> stringKeyFunction(RedisCodec<K, ?> codec) {
-        if (codec instanceof StringCodec) {
-            return (Function) Function.identity();
-        }
-        return key -> codec.decodeKey(StringCodec.UTF8.encodeKey(key));
+        Function<String, ByteBuffer> encode = STRING_CODEC::encodeKey;
+        return encode.andThen(codec::decodeKey);
     }
 
-    @SuppressWarnings("unchecked")
     public static <K> Function<K, String> toStringKeyFunction(RedisCodec<K, ?> codec) {
-        if (codec instanceof StringCodec) {
-            return (Function) Function.identity();
-        }
-        return key -> StringCodec.UTF8.decodeKey(codec.encodeKey(key));
+        Function<K, ByteBuffer> encode = codec::encodeKey;
+        return encode.andThen(STRING_CODEC::decodeKey);
     }
 
-    @SuppressWarnings("unchecked")
     public static <V> Function<String, V> stringValueFunction(RedisCodec<?, V> codec) {
-        if (codec instanceof StringCodec) {
-            return (Function) Function.identity();
-        }
-        return value -> codec.decodeValue(StringCodec.UTF8.encodeValue(value));
+        Function<String, ByteBuffer> encode = STRING_CODEC::encodeValue;
+        return encode.andThen(codec::decodeValue);
     }
 
-    @SuppressWarnings("unchecked")
     public static <V> Function<V, String> toStringValueFunction(RedisCodec<?, V> codec) {
-        if (codec instanceof StringCodec) {
-            return (Function) Function.identity();
-        }
-        return value -> StringCodec.UTF8.decodeValue(codec.encodeValue(value));
+        Function<V, ByteBuffer> encode = codec::encodeValue;
+        return encode.andThen(STRING_CODEC::decodeValue);
     }
 
-    @SuppressWarnings("unchecked")
     public static <K> Function<byte[], K> byteArrayKeyFunction(RedisCodec<K, ?> codec) {
-        if (codec instanceof ByteArrayCodec) {
-            return (Function) Function.identity();
-        }
-        return key -> codec.decodeKey(ByteArrayCodec.INSTANCE.encodeKey(key));
+        Function<byte[], ByteBuffer> encode = BYTE_ARRAY_CODEC::encodeKey;
+        return encode.andThen(codec::decodeKey);
     }
 
-    @SuppressWarnings("unchecked")
     public static <K> Function<K, byte[]> toByteArrayKeyFunction(RedisCodec<K, ?> codec) {
-        if (codec instanceof ByteArrayCodec) {
-            return (Function) Function.identity();
-        }
-        return key -> ByteArrayCodec.INSTANCE.decodeKey(codec.encodeKey(key));
+        Function<K, ByteBuffer> encode = codec::encodeKey;
+        return encode.andThen(BYTE_ARRAY_CODEC::decodeKey);
     }
 
-    @SuppressWarnings("unchecked")
     public static <V> Function<byte[], V> byteArrayValueFunction(RedisCodec<?, V> codec) {
-        if (codec instanceof ByteArrayCodec) {
-            return (Function) Function.identity();
-        }
-        return value -> codec.decodeValue(ByteArrayCodec.INSTANCE.encodeValue(value));
+        Function<byte[], ByteBuffer> encode = BYTE_ARRAY_CODEC::encodeValue;
+        return encode.andThen(codec::decodeValue);
     }
 
-    @SuppressWarnings("unchecked")
     public static <V> Function<V, byte[]> toByteArrayValueFunction(RedisCodec<?, V> codec) {
-        if (codec instanceof ByteArrayCodec) {
-            return (Function) Function.identity();
-        }
-        return value -> ByteArrayCodec.INSTANCE.decodeValue(codec.encodeValue(value));
+        Function<V, ByteBuffer> encode = codec::encodeValue;
+        return encode.andThen(BYTE_ARRAY_CODEC::decodeValue);
     }
 
 }

@@ -18,7 +18,6 @@ import com.redis.spring.batch.common.Range;
 
 import io.lettuce.core.cluster.SlotHash;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
 
 public interface Predicates {
 
@@ -99,7 +98,7 @@ public interface Predicates {
     }
 
     static Predicate<String> slots(Collection<Range> ranges) {
-        return slots(StringCodec.UTF8, ranges);
+        return slots(CodecUtils.STRING_CODEC, ranges);
     }
 
     static <K> Predicate<K> slots(RedisCodec<K, ?> codec, Collection<Range> ranges) {
@@ -114,7 +113,7 @@ public interface Predicates {
     }
 
     static Predicate<String> slots(Range... ranges) {
-        return slots(StringCodec.UTF8, ranges);
+        return slots(CodecUtils.STRING_CODEC, ranges);
     }
 
     static <K> Predicate<K> slots(RedisCodec<K, ?> codec, Stream<Range> ranges) {

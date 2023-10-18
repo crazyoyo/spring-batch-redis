@@ -28,14 +28,13 @@ import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
 
 import io.lettuce.core.codec.ByteArrayCodec;
-import io.lettuce.core.codec.StringCodec;
 
 abstract class LiveTests extends BatchTests {
 
     @Test
     void readKeyspaceNotificationsDedupe() throws Exception {
         enableKeyspaceNotifications(client);
-        KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client, StringCodec.UTF8);
+        KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client, CodecUtils.STRING_CODEC);
         reader.open(new ExecutionContext());
         String key = "key1";
         commands.zadd(key, 1, "member1");

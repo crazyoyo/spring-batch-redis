@@ -10,6 +10,7 @@ import com.redis.spring.batch.writer.operation.MultiExecBatchWriteOperation;
 import com.redis.spring.batch.writer.operation.ReplicaWaitBatchWriteOperation;
 
 import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisException;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
 
@@ -42,7 +43,7 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOpera
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void write(List<? extends T> items) throws Exception {
+    public void write(List<? extends T> items) throws RedisException {
         process((List) items);
     }
 

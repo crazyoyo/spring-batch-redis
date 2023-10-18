@@ -3,6 +3,7 @@ package com.redis.spring.batch.common;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
@@ -20,6 +21,9 @@ import com.redis.spring.batch.util.ConnectionUtils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
+import io.lettuce.core.RedisCommandInterruptedException;
+import io.lettuce.core.RedisConnectionException;
+import io.lettuce.core.RedisException;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -100,42 +104,49 @@ public abstract class AbstractOperationExecutor<K, V, I, O> extends ItemStreamSu
     }
 
     @Override
-    public List<O> process(List<I> items) throws Exception {
-        try (StatefulConnection<K, V> connection = pool.borrowObject()) {
+    public List<O> process(List<I> items) throws RedisException {
+        StatefulConnection<K, V> connection;
+        try {
+            connection = pool.borrowObject();
+        } catch (Exception e) {
+            throw new RedisConnectionException("Could not get connection from pool", e);
+        }
+        try {
+            connection.setAutoFlushCommands(false);
             BaseRedisAsyncCommands<K, V> commands = ConnectionUtils.async(connection);
-            try {
-                connection.setAutoFlushCommands(false);
-                List<RedisFuture<O>> futures = batchOperation.execute(commands, items);
-                connection.flushCommands();
-                return getAll(connection.getTimeout(), futures);
-            } finally {
-                connection.setAutoFlushCommands(true);
-            }
+            List<RedisFuture<O>> futures = batchOperation.execute(commands, items);
+            connection.flushCommands();
+            return getAll(connection.getTimeout(), futures);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RedisCommandInterruptedException(e);
+        } catch (Exception e) {
+            throw Exceptions.fromSynchronization(e);
+        } finally {
+            connection.setAutoFlushCommands(true);
+            connection.close();
         }
     }
 
-    public static <T> List<T> getAll(Duration timeout, List<RedisFuture<T>> futures) {
+    public static <T> List<T> getAll(Duration timeout, List<RedisFuture<T>> futures)
+            throws TimeoutException, InterruptedException, ExecutionException {
         List<T> results = new ArrayList<>(futures.size());
-        try {
-            long nanos = timeout.toNanos();
-            long time = System.nanoTime();
-            for (RedisFuture<T> f : futures) {
-                if (timeout.isNegative()) {
-                    results.add(f.get());
-                } else {
-                    if (nanos < 0) {
-                        throw new TimeoutException(String.format("Timed out after %s", timeout));
-                    }
-                    results.add(f.get(nanos, TimeUnit.NANOSECONDS));
-                    long now = System.nanoTime();
-                    nanos -= now - time;
-                    time = now;
+        long nanos = timeout.toNanos();
+        long time = System.nanoTime();
+        for (RedisFuture<T> f : futures) {
+            if (timeout.isNegative()) {
+                results.add(f.get());
+            } else {
+                if (nanos < 0) {
+                    throw new TimeoutException(String.format("Timed out after %s", timeout));
                 }
+                results.add(f.get(nanos, TimeUnit.NANOSECONDS));
+                long now = System.nanoTime();
+                nanos -= now - time;
+                time = now;
             }
-            return results;
-        } catch (Exception e) {
-            throw Exceptions.fromSynchronization(e);
         }
+        return results;
     }
 
 }

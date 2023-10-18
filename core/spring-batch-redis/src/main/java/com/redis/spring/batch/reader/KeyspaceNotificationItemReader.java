@@ -181,7 +181,7 @@ public class KeyspaceNotificationItemReader<K> extends AbstractItemStreamItemRea
     }
 
     @Override
-    public K read() throws Exception {
+    public K read() throws InterruptedException {
         return poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
     }
 
