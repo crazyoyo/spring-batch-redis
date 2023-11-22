@@ -127,7 +127,6 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
 
     @Override
     public synchronized void open(ExecutionContext executionContext) {
-        super.open(executionContext);
         if (!isOpen()) {
             doOpen();
         }
@@ -156,7 +155,6 @@ public class StreamItemReader<K, V> extends AbstractItemStreamItemReader<StreamM
         if (isOpen()) {
             doClose();
         }
-        super.close();
     }
 
     private void doClose() {

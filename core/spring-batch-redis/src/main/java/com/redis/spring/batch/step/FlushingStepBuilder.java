@@ -2,7 +2,6 @@ package com.redis.spring.batch.step;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.function.Function;
 
 import org.springframework.batch.core.ItemProcessListener;
 import org.springframework.batch.core.ItemReadListener;
@@ -24,128 +23,123 @@ import com.redis.spring.batch.reader.PollableItemReader;
 
 public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 
-    private Duration interval = FlushingChunkProvider.DEFAULT_FLUSH_INTERVAL;
+	private Duration interval = FlushingChunkProvider.DEFAULT_FLUSH_INTERVAL;
 
-    private Duration idleTimeout;
+	private Duration idleTimeout;
 
-    public FlushingStepBuilder(StepBuilderHelper<?> parent) {
-        super(parent);
-    }
+	public FlushingStepBuilder(StepBuilderHelper<?> parent) {
+		super(parent);
+	}
 
-    public FlushingStepBuilder(SimpleStepBuilder<I, O> parent) {
-        super(parent);
-    }
+	public FlushingStepBuilder(SimpleStepBuilder<I, O> parent) {
+		super(parent);
+	}
 
-    @Override
-    public FlushingFaultTolerantStepBuilder<I, O> faultTolerant() {
-        return new FlushingFaultTolerantStepBuilder<>(this);
-    }
+	@Override
+	public FlushingFaultTolerantStepBuilder<I, O> faultTolerant() {
+		return new FlushingFaultTolerantStepBuilder<>(this);
+	}
 
-    @Override
-    protected Tasklet createTasklet() {
-        ItemReader<? extends I> reader = getReader();
-        ItemWriter<? super O> writer = getWriter();
-        Assert.state(reader != null, "ItemReader must be provided");
-        Assert.state(writer != null, "ItemWriter must be provided");
-        FlushingChunkProvider<I> chunkProvider = createChunkProvider();
-        SimpleChunkProcessor<I, O> chunkProcessor = createChunkProcessor();
-        ChunkOrientedTasklet<I> tasklet = new ChunkOrientedTasklet<>(chunkProvider, chunkProcessor);
-        tasklet.setBuffering(!isReaderTransactionalQueue());
-        return tasklet;
-    }
+	@Override
+	protected Tasklet createTasklet() {
+		ItemReader<? extends I> reader = getReader();
+		ItemWriter<? super O> writer = getWriter();
+		Assert.state(reader != null, "ItemReader must be provided");
+		Assert.state(writer != null, "ItemWriter must be provided");
+		FlushingChunkProvider<I> chunkProvider = createChunkProvider();
+		SimpleChunkProcessor<I, O> chunkProcessor = createChunkProcessor();
+		ChunkOrientedTasklet<I> tasklet = new ChunkOrientedTasklet<>(chunkProvider, chunkProcessor);
+		tasklet.setBuffering(!isReaderTransactionalQueue());
+		return tasklet;
+	}
 
-    private SimpleChunkProcessor<I, O> createChunkProcessor() {
-        SimpleChunkProcessor<I, O> chunkProcessor = new SimpleChunkProcessor<>(getProcessor(), getWriter());
-        chunkProcessor.setListeners(new ArrayList<>(getItemListeners()));
-        return chunkProcessor;
-    }
+	private SimpleChunkProcessor<I, O> createChunkProcessor() {
+		SimpleChunkProcessor<I, O> chunkProcessor = new SimpleChunkProcessor<>(getProcessor(), getWriter());
+		chunkProcessor.setListeners(new ArrayList<>(getItemListeners()));
+		return chunkProcessor;
+	}
 
-    protected FlushingChunkProvider<I> createChunkProvider() {
-        FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>(getReader(), createChunkOperations());
-        chunkProvider.setInterval(interval);
-        chunkProvider.setIdleTimeout(idleTimeout);
-        ArrayList<StepListener> listeners = new ArrayList<>(getItemListeners());
-        chunkProvider.setListeners(listeners);
-        return chunkProvider;
-    }
+	protected FlushingChunkProvider<I> createChunkProvider() {
+		FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>(getReader(), createChunkOperations());
+		chunkProvider.setInterval(interval);
+		chunkProvider.setIdleTimeout(idleTimeout);
+		ArrayList<StepListener> listeners = new ArrayList<>(getItemListeners());
+		chunkProvider.setListeners(listeners);
+		return chunkProvider;
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> chunk(int chunkSize) {
-        return (FlushingStepBuilder<I, O>) super.chunk(chunkSize);
-    }
+	@Override
+	public FlushingStepBuilder<I, O> chunk(int chunkSize) {
+		return (FlushingStepBuilder<I, O>) super.chunk(chunkSize);
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> chunk(CompletionPolicy completionPolicy) {
-        return (FlushingStepBuilder<I, O>) super.chunk(completionPolicy);
-    }
+	@Override
+	public FlushingStepBuilder<I, O> chunk(CompletionPolicy completionPolicy) {
+		return (FlushingStepBuilder<I, O>) super.chunk(completionPolicy);
+	}
 
-    public FlushingStepBuilder<I, O> idleTimeout(Duration timeout) {
-        this.idleTimeout = timeout;
-        return this;
-    }
+	public FlushingStepBuilder<I, O> idleTimeout(Duration timeout) {
+		this.idleTimeout = timeout;
+		return this;
+	}
 
-    public FlushingStepBuilder<I, O> interval(Duration interval) {
-        this.interval = interval;
-        return this;
-    }
+	public FlushingStepBuilder<I, O> interval(Duration interval) {
+		this.interval = interval;
+		return this;
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> reader(ItemReader<? extends I> reader) {
-        Assert.state(reader instanceof PollableItemReader, "Reader must be an instance of PollableItemReader");
-        return (FlushingStepBuilder<I, O>) super.reader(reader);
-    }
+	@Override
+	public FlushingStepBuilder<I, O> reader(ItemReader<? extends I> reader) {
+		Assert.state(reader instanceof PollableItemReader, "Reader must be an instance of PollableItemReader");
+		return (FlushingStepBuilder<I, O>) super.reader(reader);
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> writer(ItemWriter<? super O> writer) {
-        return (FlushingStepBuilder<I, O>) super.writer(writer);
-    }
+	@Override
+	public FlushingStepBuilder<I, O> writer(ItemWriter<? super O> writer) {
+		return (FlushingStepBuilder<I, O>) super.writer(writer);
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> processor(Function<? super I, ? extends O> function) {
-        return (FlushingStepBuilder<I, O>) super.processor(function);
-    }
+	@Override
+	public FlushingStepBuilder<I, O> processor(ItemProcessor<? super I, ? extends O> processor) {
+		return (FlushingStepBuilder<I, O>) super.processor(processor);
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> processor(ItemProcessor<? super I, ? extends O> processor) {
-        return (FlushingStepBuilder<I, O>) super.processor(processor);
-    }
+	@Override
+	public FlushingStepBuilder<I, O> readerIsTransactionalQueue() {
+		return (FlushingStepBuilder<I, O>) super.readerIsTransactionalQueue();
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> readerIsTransactionalQueue() {
-        return (FlushingStepBuilder<I, O>) super.readerIsTransactionalQueue();
-    }
+	@Override
+	public FlushingStepBuilder<I, O> listener(Object listener) {
+		return (FlushingStepBuilder<I, O>) super.listener(listener);
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> listener(Object listener) {
-        return (FlushingStepBuilder<I, O>) super.listener(listener);
-    }
+	@Override
+	public FlushingStepBuilder<I, O> listener(ItemReadListener<? super I> listener) {
+		return (FlushingStepBuilder<I, O>) super.listener(listener);
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> listener(ItemReadListener<? super I> listener) {
-        return (FlushingStepBuilder<I, O>) super.listener(listener);
-    }
+	@Override
+	public FlushingStepBuilder<I, O> listener(ItemWriteListener<? super O> listener) {
+		return (FlushingStepBuilder<I, O>) super.listener(listener);
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> listener(ItemWriteListener<? super O> listener) {
-        return (FlushingStepBuilder<I, O>) super.listener(listener);
-    }
+	@Override
+	public FlushingStepBuilder<I, O> listener(ItemProcessListener<? super I, ? super O> listener) {
+		return (FlushingStepBuilder<I, O>) super.listener(listener);
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> listener(ItemProcessListener<? super I, ? super O> listener) {
-        return (FlushingStepBuilder<I, O>) super.listener(listener);
-    }
+	@Override
+	public FlushingStepBuilder<I, O> chunkOperations(RepeatOperations repeatTemplate) {
+		return (FlushingStepBuilder<I, O>) super.chunkOperations(repeatTemplate);
+	}
 
-    @Override
-    public FlushingStepBuilder<I, O> chunkOperations(RepeatOperations repeatTemplate) {
-        return (FlushingStepBuilder<I, O>) super.chunkOperations(repeatTemplate);
-    }
+	public Duration getInterval() {
+		return interval;
+	}
 
-    public Duration getInterval() {
-        return interval;
-    }
-
-    public Duration getIdleTimeout() {
-        return idleTimeout;
-    }
+	public Duration getIdleTimeout() {
+		return idleTimeout;
+	}
 
 }

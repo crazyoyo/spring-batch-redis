@@ -7,6 +7,7 @@ import java.util.Map.Entry;
 import java.util.function.Predicate;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import com.redis.lettucemod.timeseries.AddOptions;
 import com.redis.lettucemod.timeseries.DuplicatePolicy;
@@ -68,15 +69,15 @@ public class StructBatchWriteOperation<K, V> implements BatchWriteOperation<K, V
     }
 
     @Override
-    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<KeyValue<K>> items) {
+    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, Iterable<KeyValue<K>> items) {
         List<RedisFuture<Object>> futures = new ArrayList<>();
-        List<KeyValue<K>> toDelete = items.stream().filter(deletePredicate).collect(Collectors.toList());
+        List<KeyValue<K>> toDelete = StreamSupport.stream(items.spliterator(), false).filter(deletePredicate).collect(Collectors.toList());
         futures.addAll(deleteOperation.execute(commands, toDelete));
-        Map<DataType, List<KeyValue<K>>> toWrite = items.stream().filter(KeyValue::exists).collect(groupByType);
+        Map<DataType, List<KeyValue<K>>> toWrite = StreamSupport.stream(items.spliterator(), false).filter(KeyValue::exists).collect(groupByType);
         for (Entry<DataType, List<KeyValue<K>>> entry : toWrite.entrySet()) {
             futures.addAll(operation(entry.getKey()).execute(commands, entry.getValue()));
         }
-        List<KeyValue<K>> toExpire = items.stream().filter(expirePredicate).collect(Collectors.toList());
+        List<KeyValue<K>> toExpire = StreamSupport.stream(items.spliterator(), false).filter(expirePredicate).collect(Collectors.toList());
         futures.addAll(expireOperation.execute(commands, toExpire));
         return futures;
     }

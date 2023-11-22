@@ -11,21 +11,21 @@ import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 
 public class MultiExecBatchWriteOperation<K, V, T> implements BatchWriteOperation<K, V, T> {
 
-    private final BatchWriteOperation<K, V, T> delegate;
+	private final BatchWriteOperation<K, V, T> delegate;
 
-    public MultiExecBatchWriteOperation(BatchWriteOperation<K, V, T> delegate) {
-        this.delegate = delegate;
-    }
+	public MultiExecBatchWriteOperation(BatchWriteOperation<K, V, T> delegate) {
+		this.delegate = delegate;
+	}
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    @Override
-    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<T> items) {
-        List<RedisFuture<Object>> futures = new ArrayList<>();
-        RedisTransactionalAsyncCommands<K, V> transactionalCommands = (RedisTransactionalAsyncCommands<K, V>) commands;
-        futures.add((RedisFuture) transactionalCommands.multi());
-        futures.addAll(delegate.execute(commands, items));
-        futures.add((RedisFuture) transactionalCommands.exec());
-        return futures;
-    }
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@Override
+	public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, Iterable<T> items) {
+		List<RedisFuture<Object>> futures = new ArrayList<>();
+		RedisTransactionalAsyncCommands<K, V> transactionalCommands = (RedisTransactionalAsyncCommands<K, V>) commands;
+		futures.add((RedisFuture) transactionalCommands.multi());
+		futures.addAll(delegate.execute(commands, items));
+		futures.add((RedisFuture) transactionalCommands.exec());
+		return futures;
+	}
 
 }

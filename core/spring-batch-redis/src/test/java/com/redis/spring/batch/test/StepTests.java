@@ -19,12 +19,12 @@ import org.junit.runner.RunWith;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
-import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.launch.support.SimpleJobLauncher;
+import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.batch.item.support.ListItemReader;
@@ -49,112 +49,107 @@ import io.lettuce.core.RedisCommandTimeoutException;
 @TestInstance(Lifecycle.PER_CLASS)
 class StepTests {
 
-    @Autowired
-    protected JobRepository jobRepository;
+	@Autowired
+	protected JobRepository jobRepository;
 
-    @Autowired
-    protected PlatformTransactionManager transactionManager;
+	@Autowired
+	protected PlatformTransactionManager transactionManager;
 
-    @Autowired
-    protected JobBuilderFactory jobBuilderFactory;
+	@Autowired
+	private JobLauncher jobLauncher;
 
-    @Autowired
-    protected StepBuilderFactory stepBuilderFactory;
+	private TaskExecutorJobLauncher asyncJobLauncher;
 
-    @Autowired
-    private JobLauncher jobLauncher;
+	@BeforeAll
+	void initialize() {
+		asyncJobLauncher = new TaskExecutorJobLauncher();
+		asyncJobLauncher.setJobRepository(jobRepository);
+		asyncJobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+	}
 
-    private SimpleJobLauncher asyncJobLauncher;
+	@Test
+	void flushingFaultTolerantStep() throws Exception {
+		int count = 100;
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(count);
+		gen.setTypes(DataType.STRING);
+		ErrorItemReader<KeyValue<String>> reader = new ErrorItemReader<>(gen);
+		ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
+		String name = "readKeyValueFaultTolerance";
+		FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = new FlushingStepBuilder<>(
+				new StepBuilder(name, jobRepository));
+		step.chunk(1);
+		step.reader(reader);
+		step.writer(writer);
+		step.idleTimeout(Duration.ofMillis(300));
+		FlushingFaultTolerantStepBuilder<KeyValue<String>, KeyValue<String>> ftStep = step.faultTolerant();
+		ftStep.skip(RedisCommandTimeoutException.class);
+		ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
+		Job job = new JobBuilder(name, jobRepository).start(ftStep.build()).build();
+		jobLauncher.run(job, new JobParameters());
+		assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getWrittenItems().size());
+	}
 
-    @BeforeAll
-    void initialize() {
-        asyncJobLauncher = new SimpleJobLauncher();
-        asyncJobLauncher.setJobRepository(jobRepository);
-        asyncJobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-    }
+	@Test
+	void readerSkipPolicy() throws Exception {
+		String name = "skip-policy";
+		List<Integer> items = IntStream.range(0, 100).boxed().collect(Collectors.toList());
+		ErrorItemReader<Integer> reader = new ErrorItemReader<>(new ListItemReader<>(items));
+		ListItemWriter<Integer> writer = new ListItemWriter<>();
+		SimpleStepBuilder<Integer, Integer> step = new StepBuilder(name, jobRepository).chunk(1, transactionManager);
+		step.reader(reader);
+		step.writer(writer);
+		FlushingFaultTolerantStepBuilder<Integer, Integer> ftStep = new FlushingFaultTolerantStepBuilder<>(step);
+		ftStep.idleTimeout(Duration.ofMillis(300));
+		ftStep.skip(RedisCommandTimeoutException.class);
+		ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
+		Job job = new JobBuilder(name, jobRepository).start(ftStep.build()).build();
+		jobLauncher.run(job, new JobParameters());
+		assertEquals(items.size(), writer.getWrittenItems().size() * 2);
+	}
 
-    @Test
-    void flushingFaultTolerantStep() throws Exception {
-        int count = 100;
-        GeneratorItemReader gen = new GeneratorItemReader();
-        gen.setMaxItemCount(count);
-        gen.setTypes(DataType.STRING);
-        ErrorItemReader<KeyValue<String>> reader = new ErrorItemReader<>(gen);
-        ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
-        String name = "readKeyValueFaultTolerance";
-        FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = new FlushingStepBuilder<>(stepBuilderFactory.get(name));
-        step.chunk(1);
-        step.reader(reader);
-        step.writer(writer);
-        step.idleTimeout(Duration.ofMillis(300));
-        FlushingFaultTolerantStepBuilder<KeyValue<String>, KeyValue<String>> ftStep = step.faultTolerant();
-        ftStep.skip(RedisCommandTimeoutException.class);
-        ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
-        Job job = jobBuilderFactory.get(name).start(ftStep.build()).build();
-        jobLauncher.run(job, new JobParameters());
-        assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getWrittenItems().size());
-    }
+	@Test
+	void flushingStep() throws Exception {
+		String name = "flushingStep";
+		int count = 100;
+		BlockingQueue<String> queue = new LinkedBlockingDeque<>(count);
+		QueueItemReader<String> reader = new QueueItemReader<>(queue, Duration.ofMillis(10));
+		ListItemWriter<String> writer = new ListItemWriter<>();
+		SimpleStepBuilder<String, String> step = new StepBuilder(name, jobRepository).chunk(50, transactionManager);
+		step.reader(reader);
+		step.writer(writer);
+		FlushingStepBuilder<String, String> flushingStep = new FlushingStepBuilder<>(step);
+		flushingStep.idleTimeout(Duration.ofMillis(500));
+		Job job = new JobBuilder(name, jobRepository).start(flushingStep.build()).build();
+		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
+		for (int index = 1; index <= count; index++) {
+			queue.offer("key" + index);
+		}
+		Awaitility.await().until(() -> !execution.isRunning());
+		assertEquals(count, writer.getWrittenItems().size());
+	}
 
-    @Test
-    void readerSkipPolicy() throws Exception {
-        String name = "skip-policy";
-        List<Integer> items = IntStream.range(0, 100).boxed().collect(Collectors.toList());
-        ErrorItemReader<Integer> reader = new ErrorItemReader<>(new ListItemReader<>(items));
-        ListItemWriter<Integer> writer = new ListItemWriter<>();
-        SimpleStepBuilder<Integer, Integer> step = stepBuilderFactory.get(name).chunk(1);
-        step.reader(reader);
-        step.writer(writer);
-        FlushingFaultTolerantStepBuilder<Integer, Integer> ftStep = new FlushingFaultTolerantStepBuilder<>(step);
-        ftStep.idleTimeout(Duration.ofMillis(300));
-        ftStep.skip(RedisCommandTimeoutException.class);
-        ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
-        Job job = jobBuilderFactory.get(name).start(ftStep.build()).build();
-        jobLauncher.run(job, new JobParameters());
-        assertEquals(items.size(), writer.getWrittenItems().size() * 2);
-    }
+	private static class QueueItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
 
-    @Test
-    void flushingStep() throws Exception {
-        String name = "flushingStep";
-        int count = 100;
-        BlockingQueue<String> queue = new LinkedBlockingDeque<>(count);
-        QueueItemReader<String> reader = new QueueItemReader<>(queue, Duration.ofMillis(10));
-        ListItemWriter<String> writer = new ListItemWriter<>();
-        SimpleStepBuilder<String, String> step = stepBuilderFactory.get(name).chunk(50);
-        step.reader(reader);
-        step.writer(writer);
-        FlushingStepBuilder<String, String> flushingStep = new FlushingStepBuilder<>(step);
-        flushingStep.idleTimeout(Duration.ofMillis(500));
-        Job job = jobBuilderFactory.get(name).start(flushingStep.build()).build();
-        JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
-        for (int index = 1; index <= count; index++) {
-            queue.offer("key" + index);
-        }
-        Awaitility.await().until(() -> !execution.isRunning());
-        assertEquals(count, writer.getWrittenItems().size());
-    }
+		private final BlockingQueue<T> queue;
 
-    private static class QueueItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
+		private final long timeout;
 
-        private final BlockingQueue<T> queue;
+		public QueueItemReader(BlockingQueue<T> queue, Duration timeout) {
+			this.queue = queue;
+			this.timeout = timeout.toMillis();
+		}
 
-        private final long timeout;
+		@Override
+		public T read() throws InterruptedException {
+			return poll(timeout, TimeUnit.MILLISECONDS);
+		}
 
-        public QueueItemReader(BlockingQueue<T> queue, Duration timeout) {
-            this.queue = queue;
-            this.timeout = timeout.toMillis();
-        }
+		@Override
+		public T poll(long timeout, TimeUnit unit) throws InterruptedException {
+			return queue.poll(timeout, unit);
+		}
 
-        @Override
-        public T read() throws InterruptedException {
-            return poll(timeout, TimeUnit.MILLISECONDS);
-        }
-
-        @Override
-        public T poll(long timeout, TimeUnit unit) throws InterruptedException {
-            return queue.poll(timeout, unit);
-        }
-
-    }
+	}
 
 }

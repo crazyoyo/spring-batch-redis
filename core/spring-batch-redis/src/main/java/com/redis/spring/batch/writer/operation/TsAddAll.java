@@ -2,7 +2,6 @@ package com.redis.spring.batch.writer.operation;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -46,10 +45,7 @@ public class TsAddAll<K, V, T> implements BatchWriteOperation<K, V, T> {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, List<T> items) {
-        if (CollectionUtils.isEmpty(items)) {
-            return Collections.emptyList();
-        }
+    public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, Iterable<T> items) {
         List<RedisFuture<Object>> futures = new ArrayList<>();
         RedisTimeSeriesAsyncCommands<K, V> timeseriesCommands = (RedisTimeSeriesAsyncCommands<K, V>) commands;
         for (T item : items) {

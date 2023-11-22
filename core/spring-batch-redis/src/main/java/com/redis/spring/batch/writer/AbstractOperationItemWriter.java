@@ -1,8 +1,8 @@
 package com.redis.spring.batch.writer;
 
 import java.time.Duration;
-import java.util.List;
 
+import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemStreamWriter;
 
 import com.redis.spring.batch.common.AbstractOperationExecutor;
@@ -43,8 +43,8 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOpera
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public void write(List<? extends T> items) throws RedisException {
-        process((List) items);
+    public void write(Chunk<? extends T> items) throws RedisException {
+        process((Iterable) items);
     }
 
     @Override

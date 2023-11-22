@@ -7,6 +7,6 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public interface BatchOperation<K, V, I, O> {
 
-    List<RedisFuture<O>> execute(BaseRedisAsyncCommands<K, V> commands, List<I> items);
+	List<RedisFuture<O>> execute(BaseRedisAsyncCommands<K, V> commands, Iterable<I> items);
 
 }

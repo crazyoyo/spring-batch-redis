@@ -1,7 +1,7 @@
 package com.redis.spring.batch.step;
 
 import org.springframework.batch.core.StepContribution;
-import org.springframework.batch.core.step.item.Chunk;
+import org.springframework.batch.item.Chunk;
 import org.springframework.batch.core.step.item.SkipOverflowException;
 import org.springframework.batch.core.step.skip.LimitCheckingItemSkipPolicy;
 import org.springframework.batch.core.step.skip.NonSkippableReadException;
@@ -104,7 +104,7 @@ public class FlushingFaultTolerantChunkProvider<I> extends FlushingChunkProvider
      * @param e the cause of the skip
      * @param skipCount the current skip count
      */
-    private boolean shouldSkip(SkipPolicy policy, Throwable e, int skipCount) {
+    private boolean shouldSkip(SkipPolicy policy, Throwable e, long skipCount) {
         try {
             return policy.shouldSkip(e, skipCount);
         } catch (SkipException ex) {
