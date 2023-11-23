@@ -13,59 +13,54 @@ import com.redis.spring.batch.util.CodecUtils;
 
 public class KeyComparisonItemReader extends RedisItemReader<String, String, KeyComparison> {
 
-    private Duration ttlTolerance = KeyComparisonValueReader.DEFAULT_TTL_TOLERANCE;
+	private Duration ttlTolerance = KeyComparisonValueReader.DEFAULT_TTL_TOLERANCE;
 
-    private final OperationValueReader<String, String, String, KeyValue<String>> source;
+	private final OperationValueReader<String, String, String, KeyValue<String>> source;
 
-    private final ItemProcessor<String, String> sourceKeyProcessor;
+	private final ItemProcessor<String, String> sourceKeyProcessor;
 
-    private final OperationValueReader<String, String, String, KeyValue<String>> target;
+	private final OperationValueReader<String, String, String, KeyValue<String>> target;
 
-    private ItemProcessor<KeyValue<String>, KeyValue<String>> processor = new PassThroughItemProcessor<>();
+	private ItemProcessor<KeyValue<String>, KeyValue<String>> processor = new PassThroughItemProcessor<>();
 
-    private boolean compareStreamMessageIds;
+	private boolean compareStreamMessageIds;
 
-    public KeyComparisonItemReader(KeyValueItemReader<String, String> source, KeyValueItemReader<String, String> target) {
-        super(source.getClient(), CodecUtils.STRING_CODEC);
-        this.source = source.operationValueReader();
-        this.sourceKeyProcessor = source.getKeyProcessor();
-        this.target = target.operationValueReader();
-    }
+	public KeyComparisonItemReader(KeyValueItemReader<String, String> source,
+			KeyValueItemReader<String, String> target) {
+		super(source.getClient(), CodecUtils.STRING_CODEC);
+		this.source = source.operationValueReader();
+		this.sourceKeyProcessor = source.getKeyProcessor();
+		this.target = target.operationValueReader();
+	}
 
-    @Override
-    public void setName(String name) {
-        super.setName(name);
-        if (source != null) {
-            source.setName(name + "-source");
-        }
-        if (processor instanceof ItemStreamSupport) {
-            ((ItemStreamSupport) processor).setName(name + "-processor");
-        }
-        if (target != null) {
-            target.setName(name + "-target");
-        }
-    }
+	@Override
+	public void setName(String name) {
+		super.setName(name);
+		if (processor instanceof ItemStreamSupport) {
+			((ItemStreamSupport) processor).setName(name + "-processor");
+		}
+	}
 
-    public void setCompareStreamMessageIds(boolean enable) {
-        this.compareStreamMessageIds = enable;
-    }
+	public void setCompareStreamMessageIds(boolean enable) {
+		this.compareStreamMessageIds = enable;
+	}
 
-    public void setProcessor(ItemProcessor<KeyValue<String>, KeyValue<String>> processor) {
-        this.processor = processor;
-    }
+	public void setProcessor(ItemProcessor<KeyValue<String>, KeyValue<String>> processor) {
+		this.processor = processor;
+	}
 
-    public void setTtlTolerance(Duration ttlTolerance) {
-        this.ttlTolerance = ttlTolerance;
-    }
+	public void setTtlTolerance(Duration ttlTolerance) {
+		this.ttlTolerance = ttlTolerance;
+	}
 
-    @Override
-    public KeyComparisonValueReader valueReader() {
-        KeyComparisonValueReader valueReader = new KeyComparisonValueReader(source, target);
-        valueReader.setCompareStreamMessageIds(compareStreamMessageIds);
-        valueReader.setKeyProcessor(sourceKeyProcessor);
-        valueReader.setProcessor(processor);
-        valueReader.setTtlTolerance(ttlTolerance);
-        return valueReader;
-    }
+	@Override
+	public KeyComparisonValueReader valueReader() {
+		KeyComparisonValueReader valueReader = new KeyComparisonValueReader(source, target);
+		valueReader.setCompareStreamMessageIds(compareStreamMessageIds);
+		valueReader.setKeyProcessor(sourceKeyProcessor);
+		valueReader.setProcessor(processor);
+		valueReader.setTtlTolerance(ttlTolerance);
+		return valueReader;
+	}
 
 }
