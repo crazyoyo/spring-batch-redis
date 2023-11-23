@@ -172,7 +172,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			targetCommands.set(key, "blah");
 		}
 		KeyComparisonItemReader comparator = comparisonReader(info);
-		comparator.setName(name(info)+"-compare-reader");
+		comparator.setName(name(info)+"-compare-reader-status");
 		comparator.open(new ExecutionContext());
 		List<KeyComparison> comparisons = readAll(comparator);
 		comparator.close();

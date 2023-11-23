@@ -10,7 +10,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import javax.sql.DataSource;
+
 import org.awaitility.Awaitility;
+import org.hsqldb.jdbc.JDBCDataSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -23,15 +26,22 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
+import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.batch.BatchDataSourceScriptDatabaseInitializer;
+import org.springframework.boot.autoconfigure.batch.BatchProperties;
+import org.springframework.boot.sql.init.DatabaseInitializationMode;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -49,19 +59,44 @@ import io.lettuce.core.RedisCommandTimeoutException;
 @TestInstance(Lifecycle.PER_CLASS)
 class StepTests {
 
-	@Autowired
 	protected JobRepository jobRepository;
-
-	@Autowired
 	protected PlatformTransactionManager transactionManager;
 
-	@Autowired
-	private JobLauncher jobLauncher;
-
+	private TaskExecutorJobLauncher jobLauncher;
 	private TaskExecutorJobLauncher asyncJobLauncher;
 
+	private DataSource dataSource() throws Exception {
+		JDBCDataSource dataSource = new JDBCDataSource();
+		dataSource.setURL("jdbc:hsqldb:mem:steptests");
+		BatchProperties.Jdbc jdbc = new BatchProperties.Jdbc();
+		jdbc.setInitializeSchema(DatabaseInitializationMode.ALWAYS);
+		BatchDataSourceScriptDatabaseInitializer initializer = new BatchDataSourceScriptDatabaseInitializer(dataSource,
+				jdbc);
+		initializer.afterPropertiesSet();
+		initializer.initializeDatabase();
+		return dataSource;
+	}
+
 	@BeforeAll
-	void initialize() {
+	void initialize() throws Exception {
+		transactionManager = new ResourcelessTransactionManager();
+		JobRepositoryFactoryBean bean = new JobRepositoryFactoryBean();
+		bean.setDataSource(dataSource());
+		bean.setTransactionManager(transactionManager);
+		bean.afterPropertiesSet();
+		if (jobRepository == null) {
+			try {
+				jobRepository = bean.getObject();
+			} catch (Exception e) {
+				throw new ItemStreamException("Could not initialize job repository");
+			}
+			if (jobRepository == null) {
+				throw new ItemStreamException("Job repository is null");
+			}
+		}
+		jobLauncher = new TaskExecutorJobLauncher();
+		jobLauncher.setJobRepository(jobRepository);
+		jobLauncher.setTaskExecutor(new SyncTaskExecutor());
 		asyncJobLauncher = new TaskExecutorJobLauncher();
 		asyncJobLauncher.setJobRepository(jobRepository);
 		asyncJobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
@@ -78,6 +113,7 @@ class StepTests {
 		String name = "readKeyValueFaultTolerance";
 		FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = new FlushingStepBuilder<>(
 				new StepBuilder(name, jobRepository));
+		step.transactionManager(transactionManager);
 		step.chunk(1);
 		step.reader(reader);
 		step.writer(writer);
@@ -97,6 +133,7 @@ class StepTests {
 		ErrorItemReader<Integer> reader = new ErrorItemReader<>(new ListItemReader<>(items));
 		ListItemWriter<Integer> writer = new ListItemWriter<>();
 		SimpleStepBuilder<Integer, Integer> step = new StepBuilder(name, jobRepository).chunk(1, transactionManager);
+		step.transactionManager(transactionManager);
 		step.reader(reader);
 		step.writer(writer);
 		FlushingFaultTolerantStepBuilder<Integer, Integer> ftStep = new FlushingFaultTolerantStepBuilder<>(step);
@@ -116,6 +153,7 @@ class StepTests {
 		QueueItemReader<String> reader = new QueueItemReader<>(queue, Duration.ofMillis(10));
 		ListItemWriter<String> writer = new ListItemWriter<>();
 		SimpleStepBuilder<String, String> step = new StepBuilder(name, jobRepository).chunk(50, transactionManager);
+		step.transactionManager(transactionManager);
 		step.reader(reader);
 		step.writer(writer);
 		FlushingStepBuilder<String, String> flushingStep = new FlushingStepBuilder<>(step);

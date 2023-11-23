@@ -50,6 +50,7 @@ import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
@@ -235,8 +236,12 @@ public abstract class AbstractTestBase {
 		return step;
 	}
 
-	public static String name(TestInfo info) {
-		return info.getDisplayName().replace("(TestInfo)", "");
+	public String name(TestInfo info) {
+		String displayName = info.getDisplayName().replace("(TestInfo)", "");
+		if (info.getTestClass().isPresent()) {
+			displayName += ClassUtils.getShortName(info.getTestClass().get());
+		}
+		return displayName;
 	}
 
 	protected AbstractRedisClient client(RedisServer server) {
