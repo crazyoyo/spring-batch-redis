@@ -73,21 +73,23 @@ Item writers support two different data types:
 
 === Key Dump
 
-In this mode, `RedisItemWriter` accepts key dumps (`KeyValue<String, byte[]>`) and calls the RESTORE command with the byte array and TTL if any.
+`DumpItemWriter` accepts key dumps (`KeyValue` with a `byte[]` value) and calls the RESTORE command with the byte array and TTL if any.
 
-=== `DataStructureItemWriter`
+=== Struct
 
-In this mode, `RedisItemWriter` accepts `DataStructure` objects and calls the write command specific to the data type:
+`StructItemWriter` takes `KeyValue` objects and calls the write command specific to the data type:
 
 * Hash -> HSET
+* JSON -> JSON.SET
 * List -> LPUSH
 * Set -> SADD
 * Stream -> XADD
 * String -> SET
 * Sorted Set -> ZADD
+* TimeSeries -> TS.ADD
 
 If TTL >= 0 then an additional call is made to `EXPIRE` command.
 
 == Usage
 
-Refer to https://github.com/redis-developer/spring-batch-redis/tree/master/subprojects/spring-batch-redis/src/test/java/com/redis/spring/batch[unit tests] for usage examples
+Refer to https://github.com/redis-developer/spring-batch-redis/blob/master/core/spring-batch-redis/src/test/java/com/redis/spring/batch/test/BatchTests.java[unit tests] for usage examples.
