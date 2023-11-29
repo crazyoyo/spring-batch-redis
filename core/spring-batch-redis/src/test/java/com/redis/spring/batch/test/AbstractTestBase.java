@@ -39,7 +39,6 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStream;
-import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.beans.factory.annotation.Value;
@@ -226,8 +225,8 @@ public abstract class AbstractTestBase {
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, int chunkSize, ItemReader<I> reader,
 			ItemProcessor<I, O> processor, ItemWriter<O> writer) {
 		String name = name(info);
-		if (reader instanceof ItemStreamSupport) {
-			((ItemStreamSupport) reader).setName(name + "-reader");
+		if (reader instanceof RedisItemReader) {
+			((RedisItemReader<?, ?, ?>) reader).setName(name + "-reader");
 		}
 		SimpleStepBuilder<I, O> step = new StepBuilder(name, jobRepository).chunk(chunkSize, transactionManager);
 		step.reader(reader);

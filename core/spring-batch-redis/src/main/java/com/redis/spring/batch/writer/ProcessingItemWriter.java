@@ -6,11 +6,9 @@ import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStream;
-import org.springframework.batch.item.ItemStreamSupport;
-import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
-import org.springframework.util.ClassUtils;
+import org.springframework.batch.item.ItemStreamWriter;
 
-public class ProcessingItemWriter<K, T> extends AbstractItemStreamItemWriter<K> {
+public class ProcessingItemWriter<K, T> implements ItemStreamWriter<K> {
 
 	private final ItemProcessor<Iterable<K>, Iterable<T>> processor;
 
@@ -21,15 +19,6 @@ public class ProcessingItemWriter<K, T> extends AbstractItemStreamItemWriter<K> 
 	public ProcessingItemWriter(ItemProcessor<Iterable<K>, Iterable<T>> processor, BlockingQueue<T> queue) {
 		this.processor = processor;
 		this.queue = queue;
-		setName(ClassUtils.getShortName(getClass()));
-	}
-
-	@Override
-	public void setName(String name) {
-		super.setName(name);
-		if (processor instanceof ItemStreamSupport) {
-			((ItemStreamSupport) processor).setName(name + "-processor");
-		}
 	}
 
 	@Override

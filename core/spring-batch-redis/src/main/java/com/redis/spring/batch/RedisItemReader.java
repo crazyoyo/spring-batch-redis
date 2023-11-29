@@ -32,7 +32,7 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.support.AbstractItemStreamItemReader;
+import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.boot.autoconfigure.batch.BatchDataSourceScriptDatabaseInitializer;
 import org.springframework.boot.autoconfigure.batch.BatchProperties;
@@ -65,8 +65,7 @@ import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.codec.RedisCodec;
 import io.micrometer.core.instrument.Metrics;
 
-public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemReader<T>
-		implements PollableItemReader<T> {
+public abstract class RedisItemReader<K, V, T> implements ItemStreamReader<T>, PollableItemReader<T> {
 
 	private final Log log = LogFactory.getLog(getClass());
 
@@ -366,9 +365,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 		this.orderingStrategy = strategy;
 	}
 
-	@Override
 	public void setName(String name) {
-		super.setName(name);
 		this.name = name;
 	}
 
@@ -550,7 +547,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 		BlockingQueue<T> queue = new LinkedBlockingQueue<>(queueCapacity);
 		Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
 		ProcessingItemWriter<K, T> processingWriter = new ProcessingItemWriter<>(valueReader(), queue);
-		processingWriter.setName(name("writer"));
 		return processingWriter;
 	}
 
@@ -565,7 +561,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 
 	private KeyspaceNotificationItemReader<K> keyspaceNotificationReader() {
 		KeyspaceNotificationItemReader<K> reader = new KeyspaceNotificationItemReader<>(client, codec);
-		reader.setName(name("keyspaceNotificationReader"));
 		reader.setDatabase(database);
 		reader.setKeyPattern(keyPattern);
 		reader.setKeyType(keyType);
@@ -575,16 +570,8 @@ public abstract class RedisItemReader<K, V, T> extends AbstractItemStreamItemRea
 		return reader;
 	}
 
-	private String name(String... suffixes) {
-		List<String> elements = new ArrayList<>();
-		elements.add(name);
-		elements.addAll(Arrays.asList(suffixes));
-		return String.join("-", elements);
-	}
-
 	public KeyScanItemReader<K> scanKeyReader() {
 		KeyScanItemReader<K> reader = new KeyScanItemReader<>(client, codec);
-		reader.setName(name("keyScanReader"));
 		reader.setReadFrom(readFrom);
 		reader.setLimit(scanCount);
 		reader.setMatch(keyPattern);

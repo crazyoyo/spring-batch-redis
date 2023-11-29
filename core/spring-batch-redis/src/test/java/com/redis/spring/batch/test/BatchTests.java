@@ -172,7 +172,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			targetCommands.set(key, "blah");
 		}
 		KeyComparisonItemReader comparator = comparisonReader(info);
-		comparator.setName(name(info)+"-compare-reader-status");
+		comparator.setName(name(info) + "-compare-reader-status");
 		comparator.open(new ExecutionContext());
 		List<KeyComparison> comparisons = readAll(comparator);
 		comparator.close();
@@ -454,7 +454,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		for (String key : keys) {
 			long count = commands.xlen(key);
 			StreamItemReader<String, String> reader = streamReader(key, consumer);
-			reader.setName(name(info) + "-reader");
 			reader.open(new ExecutionContext());
 			List<StreamMessage<String, String>> messages = readAll(reader);
 			assertEquals(count, messages.size());
@@ -473,7 +472,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		for (String key : keys) {
 			long count = commands.xlen(key);
 			StreamItemReader<String, String> reader = streamReader(key, consumer);
-			reader.setName(name(info) + "-reader");
 			reader.open(new ExecutionContext());
 			List<StreamMessage<String, String>> messages = readAll(reader);
 			reader.close();

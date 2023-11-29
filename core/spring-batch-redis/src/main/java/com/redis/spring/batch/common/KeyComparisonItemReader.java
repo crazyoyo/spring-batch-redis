@@ -3,7 +3,6 @@ package com.redis.spring.batch.common;
 import java.time.Duration;
 
 import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.support.PassThroughItemProcessor;
 
 import com.redis.spring.batch.RedisItemReader;
@@ -31,14 +30,6 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 		this.source = source.operationValueReader();
 		this.sourceKeyProcessor = source.getKeyProcessor();
 		this.target = target.operationValueReader();
-	}
-
-	@Override
-	public void setName(String name) {
-		super.setName(name);
-		if (processor instanceof ItemStreamSupport) {
-			((ItemStreamSupport) processor).setName(name + "-processor");
-		}
 	}
 
 	public void setCompareStreamMessageIds(boolean enable) {
