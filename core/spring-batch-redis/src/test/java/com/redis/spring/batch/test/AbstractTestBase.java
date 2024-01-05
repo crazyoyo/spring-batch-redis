@@ -74,7 +74,7 @@ import com.redis.spring.batch.util.ConnectionUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
 import com.redis.spring.batch.writer.WriteOperation;
-import com.redis.testcontainers.RedisServer;
+import com.redis.testcontainers.AbstractRedisContainer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
@@ -149,13 +149,13 @@ public abstract class AbstractTestBase {
 
 	private TaskExecutorJobLauncher jobLauncher;
 
-	protected abstract RedisServer getRedisServer();
+	protected abstract AbstractRedisContainer<?> getRedisContainer();
 
 	@BeforeAll
 	void setup() throws Exception {
 		// Source Redis setup
-		getRedisServer().start();
-		client = client(getRedisServer());
+		getRedisContainer().start();
+		client = client(getRedisContainer());
 		pool = ConnectionPoolSupport.createGenericObjectPool(ConnectionUtils.supplier(client),
 				new GenericObjectPoolConfig<>());
 		connection = RedisModulesUtils.connection(client);
@@ -188,7 +188,7 @@ public abstract class AbstractTestBase {
 		pool.close();
 		client.shutdown();
 		client.getResources().shutdown();
-		getRedisServer().close();
+		getRedisContainer().close();
 	}
 
 	@BeforeEach
@@ -243,7 +243,7 @@ public abstract class AbstractTestBase {
 		return displayName;
 	}
 
-	protected AbstractRedisClient client(RedisServer server) {
+	protected AbstractRedisClient client(AbstractRedisContainer<?> server) {
 		if (server.isCluster()) {
 			return RedisModulesClusterClient.create(server.getRedisURI());
 		}

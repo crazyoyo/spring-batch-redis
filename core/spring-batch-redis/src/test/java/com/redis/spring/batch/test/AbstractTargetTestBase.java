@@ -33,13 +33,13 @@ import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.testcontainers.RedisServer;
+import com.redis.testcontainers.AbstractRedisContainer;
 
 import io.lettuce.core.AbstractRedisClient;
 
 public abstract class AbstractTargetTestBase extends AbstractTestBase {
 
-    protected abstract RedisServer getTargetRedisServer();
+    protected abstract AbstractRedisContainer<?> getTargetRedisContainer();
 
     protected AbstractRedisClient targetClient;
 
@@ -50,8 +50,8 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
     @BeforeAll
     void targetSetup() throws Exception {
         // Target Redis setup
-        getTargetRedisServer().start();
-        targetClient = client(getTargetRedisServer());
+        getTargetRedisContainer().start();
+        targetClient = client(getTargetRedisContainer());
         targetConnection = RedisModulesUtils.connection(targetClient);
         targetCommands = targetConnection.sync();
     }
@@ -61,7 +61,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
         targetConnection.close();
         targetClient.shutdown();
         targetClient.getResources().shutdown();
-        getTargetRedisServer().close();
+        getTargetRedisContainer().close();
     }
 
     @BeforeEach

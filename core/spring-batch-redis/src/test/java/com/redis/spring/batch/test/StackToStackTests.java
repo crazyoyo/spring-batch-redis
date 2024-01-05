@@ -39,7 +39,6 @@ import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
 import com.redis.spring.batch.writer.operation.Xadd;
-import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
 
 import io.lettuce.core.Consumer;
@@ -54,12 +53,12 @@ class StackToStackTests extends ModulesTests {
     private static final RedisStackContainer TARGET = RedisContainerFactory.stack();
 
     @Override
-    protected RedisServer getRedisServer() {
+    protected RedisStackContainer getRedisContainer() {
         return SOURCE;
     }
 
     @Override
-    protected RedisServer getTargetRedisServer() {
+    protected RedisStackContainer getTargetRedisContainer() {
         return TARGET;
     }
 
