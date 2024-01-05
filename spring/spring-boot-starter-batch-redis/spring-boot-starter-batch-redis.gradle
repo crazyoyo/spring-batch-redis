@@ -6,3 +6,9 @@ dependencies {
     api group: 'com.redis', name: 'lettucemod', version: lettucemodVersion
     api 'org.apache.commons:commons-pool2'
 }
+
+eclipse {
+    project {
+        name = 'spring-batch-redis-starter'
+    }
+}
