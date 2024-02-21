@@ -93,7 +93,6 @@ abstract class ModulesTests extends LiveTests {
         Metrics.addRegistry(registry);
         generate(info);
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
-        configureReader(info, reader);
         open(reader);
         Search search = registry.find("redis.batch.reader.queue.size");
         Assertions.assertNotNull(search.gauge());

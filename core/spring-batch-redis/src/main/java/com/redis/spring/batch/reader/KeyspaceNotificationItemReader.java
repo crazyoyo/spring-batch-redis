@@ -23,7 +23,7 @@ import io.lettuce.core.codec.RedisCodec;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Metrics;
 
-public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K>, PollableItemReader<K> {
+public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K> {
 
 	public enum OrderingStrategy {
 		FIFO, PRIORITY
@@ -33,7 +33,10 @@ public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K>, Poll
 
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 
-	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
+	// No idle timeout by default, use max duration
+	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofSeconds(Long.MAX_VALUE);
+
+	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 
 	public static final OrderingStrategy DEFAULT_ORDERING = OrderingStrategy.PRIORITY;
 
@@ -57,7 +60,7 @@ public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K>, Poll
 
 	private int queueCapacity = RedisItemReader.DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
 
-	private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
+	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
 
 	private BlockingQueue<KeyspaceNotification> queue;
 
@@ -82,8 +85,8 @@ public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K>, Poll
 		this.keyPattern = keyPattern;
 	}
 
-	public void setPollTimeout(Duration pollTimeout) {
-		this.pollTimeout = pollTimeout;
+	public void setIdleTimeout(Duration timeout) {
+		this.idleTimeout = timeout;
 	}
 
 	public void setQueueCapacity(int queueCapacity) {
@@ -161,12 +164,7 @@ public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K>, Poll
 
 	@Override
 	public K read() throws InterruptedException {
-		return poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
-	}
-
-	@Override
-	public K poll(long timeout, TimeUnit unit) throws InterruptedException {
-		KeyspaceNotification notification = queue.poll(timeout, unit);
+		KeyspaceNotification notification = queue.poll(idleTimeout.toSeconds(), TimeUnit.SECONDS);
 		if (notification == null) {
 			return null;
 		}

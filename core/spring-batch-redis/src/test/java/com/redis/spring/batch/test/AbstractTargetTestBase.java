@@ -39,106 +39,106 @@ import io.lettuce.core.AbstractRedisClient;
 
 public abstract class AbstractTargetTestBase extends AbstractTestBase {
 
-    protected abstract AbstractRedisContainer<?> getTargetRedisContainer();
+	protected abstract AbstractRedisContainer<?> getTargetRedisContainer();
 
-    protected AbstractRedisClient targetClient;
+	protected AbstractRedisClient targetClient;
 
-    protected StatefulRedisModulesConnection<String, String> targetConnection;
+	protected StatefulRedisModulesConnection<String, String> targetConnection;
 
-    protected RedisModulesCommands<String, String> targetCommands;
+	protected RedisModulesCommands<String, String> targetCommands;
 
-    @BeforeAll
-    void targetSetup() throws Exception {
-        // Target Redis setup
-        getTargetRedisContainer().start();
-        targetClient = client(getTargetRedisContainer());
-        targetConnection = RedisModulesUtils.connection(targetClient);
-        targetCommands = targetConnection.sync();
-    }
+	@BeforeAll
+	void targetSetup() throws Exception {
+		// Target Redis setup
+		getTargetRedisContainer().start();
+		targetClient = client(getTargetRedisContainer());
+		targetConnection = RedisModulesUtils.connection(targetClient);
+		targetCommands = targetConnection.sync();
+	}
 
-    @AfterAll
-    void targetTeardown() {
-        targetConnection.close();
-        targetClient.shutdown();
-        targetClient.getResources().shutdown();
-        getTargetRedisContainer().close();
-    }
+	@AfterAll
+	void targetTeardown() {
+		targetConnection.close();
+		targetClient.shutdown();
+		targetClient.getResources().shutdown();
+		getTargetRedisContainer().close();
+	}
 
-    @BeforeEach
-    void targetFlushAll() {
-        targetCommands.flushall();
-        awaitUntil(() -> targetCommands.dbsize().equals(0L));
-    }
+	@BeforeEach
+	void targetFlushAll() {
+		targetCommands.flushall();
+		awaitUntil(() -> targetCommands.dbsize().equals(0L));
+	}
 
-    /**
-     * 
-     * @param left
-     * @param right
-     * @return
-     * @return list of differences
-     * @throws Exception
-     */
-    protected List<KeyComparison> compare(TestInfo info) throws Exception {
-        if (commands.dbsize().equals(0L)) {
-            Assertions.fail("Source database is empty");
-        }
-        KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare-reader"));
-        reader.open(new ExecutionContext());
-        List<KeyComparison> comparisons = readAll(reader);
-        reader.close();
-        Assertions.assertFalse(comparisons.isEmpty());
-        return comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
-    }
+	/**
+	 * 
+	 * @param left
+	 * @param right
+	 * @return
+	 * @return list of differences
+	 * @throws Exception
+	 */
+	protected List<KeyComparison> compare(TestInfo info) throws Exception {
+		if (commands.dbsize().equals(0L)) {
+			Assertions.fail("Source database is empty");
+		}
+		KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare-reader"));
+		reader.open(new ExecutionContext());
+		List<KeyComparison> comparisons = readAll(reader);
+		reader.close();
+		Assertions.assertFalse(comparisons.isEmpty());
+		return comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
+	}
 
-    protected void logDiffs(Collection<KeyComparison> diffs) {
-        for (KeyComparison diff : diffs) {
-            log.error("{}: {} {}", diff.getStatus(), diff.getSource().getKey(), diff.getSource().getType());
-        }
-    }
+	protected void logDiffs(Collection<KeyComparison> diffs) {
+		for (KeyComparison diff : diffs) {
+			log.error("{}: {} {}", diff.getStatus(), diff.getSource().getKey(), diff.getSource().getType());
+		}
+	}
 
-    protected KeyComparisonItemReader comparisonReader(TestInfo info) throws Exception {
-        StructItemReader<String, String> sourceReader = RedisItemReader.struct(client);
-        StructItemReader<String, String> targetReader = RedisItemReader.struct(targetClient);
-        KeyComparisonItemReader reader = new KeyComparisonItemReader(sourceReader, targetReader);
-        reader.setName(name(info));
-        reader.setTtlTolerance(Duration.ofMillis(100));
-        return reader;
-    }
+	protected KeyComparisonItemReader comparisonReader(TestInfo info) throws Exception {
+		StructItemReader<String, String> sourceReader = RedisItemReader.struct(client);
+		StructItemReader<String, String> targetReader = RedisItemReader.struct(targetClient);
+		KeyComparisonItemReader reader = new KeyComparisonItemReader(sourceReader, targetReader);
+		reader.setTtlTolerance(Duration.ofMillis(100));
+		return reader;
+	}
 
-    protected <K, V, T extends KeyValue<K>> List<KeyComparison> replicateLive(TestInfo info, RedisItemReader<K, V, T> reader,
-            RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
-            throws Exception {
-        configureReader(new SimpleTestInfo(info, "reader"), reader);
-        configureReader(new SimpleTestInfo(info, "liveReader"), liveReader);
-        liveReader.setMode(ReaderMode.LIVE);
-        GeneratorItemReader gen = generator(300);
-        generate(new SimpleTestInfo(info, "generate"), gen);
-        TaskletStep step = faultTolerant(step(new SimpleTestInfo(info, "step"), reader, writer)).build();
-        SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "snapshotFlow"))).start(step).build();
-        TaskletStep liveStep = faultTolerant(flushingStep(new SimpleTestInfo(info, "liveStep"), liveReader, liveWriter))
-                .build();
-        SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "liveFlow"))).start(liveStep).build();
-        Job job = job(info).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "flow")))
-                .split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
-        Executors.newSingleThreadScheduledExecutor().execute(() -> {
-            awaitUntil(liveReader::isOpen);
-            awaitUntil(liveWriter::isOpen);
-            GeneratorItemReader liveGen = generator(700, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
-                    DataType.ZSET);
-            liveGen.setExpiration(Range.of(100));
-            liveGen.setKeyRange(Range.from(300));
-            try {
-                generate(testInfo(info, "generateLive"), liveGen);
-            } catch (JobExecutionException e) {
-                throw new RuntimeException("Could not execute data gen");
-            }
-        });
-        run(job);
-        awaitUntilFalse(reader::isOpen);
-        awaitUntilFalse(writer::isOpen);
-        awaitUntilFalse(liveReader::isOpen);
-        awaitUntilFalse(liveWriter::isOpen);
-        return compare(info);
-    }
+	protected <K, V, T extends KeyValue<K>> List<KeyComparison> replicateLive(TestInfo info,
+			RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
+			RedisItemWriter<K, V, T> liveWriter) throws Exception {
+		liveReader.setMode(ReaderMode.LIVE);
+		liveReader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+		GeneratorItemReader gen = generator(300);
+		generate(new SimpleTestInfo(info, "generate"), gen);
+		TaskletStep step = faultTolerant(step(new SimpleTestInfo(info, "step"), reader, writer)).build();
+		SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "snapshotFlow"))).start(step)
+				.build();
+		TaskletStep liveStep = faultTolerant(flushingStep(new SimpleTestInfo(info, "liveStep"), liveReader, liveWriter))
+				.build();
+		SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "liveFlow"))).start(liveStep)
+				.build();
+		Job job = job(info).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "flow")))
+				.split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
+		Executors.newSingleThreadScheduledExecutor().execute(() -> {
+			awaitUntil(liveReader::isOpen);
+			awaitUntil(liveWriter::isOpen);
+			GeneratorItemReader liveGen = generator(700, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
+					DataType.ZSET);
+			liveGen.setExpiration(Range.of(100));
+			liveGen.setKeyRange(Range.from(300));
+			try {
+				generate(testInfo(info, "generateLive"), liveGen);
+			} catch (JobExecutionException e) {
+				throw new RuntimeException("Could not execute data gen");
+			}
+		});
+		run(job);
+		awaitUntilFalse(reader::isOpen);
+		awaitUntilFalse(writer::isOpen);
+		awaitUntilFalse(liveReader::isOpen);
+		awaitUntilFalse(liveWriter::isOpen);
+		return compare(info);
+	}
 
 }

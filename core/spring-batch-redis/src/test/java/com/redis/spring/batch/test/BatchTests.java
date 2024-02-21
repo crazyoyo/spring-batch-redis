@@ -92,7 +92,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		commands.sadd("set:1", "value1", "value2");
 		targetCommands.sadd("set:1", "value2", "value1");
 		KeyComparisonItemReader reader = comparisonReader(info);
-		reader.setName(name(info));
 		reader.open(new ExecutionContext());
 		List<KeyComparison> comparisons = readAll(reader);
 		reader.close();
@@ -112,7 +111,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		KeyTypeItemReader<String, String> source = RedisItemReader.type(client);
 		KeyTypeItemReader<String, String> target = RedisItemReader.type(targetClient);
 		KeyComparisonItemReader reader = new KeyComparisonItemReader(source, target);
-		reader.setName(name(info));
 		reader.open(new ExecutionContext());
 		List<KeyComparison> comparisons = readAll(reader);
 		reader.close();
@@ -172,7 +170,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			targetCommands.set(key, "blah");
 		}
 		KeyComparisonItemReader comparator = comparisonReader(info);
-		comparator.setName(name(info) + "-compare-reader-status");
 		comparator.open(new ExecutionContext());
 		List<KeyComparison> comparisons = readAll(comparator);
 		comparator.close();
@@ -204,7 +201,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void readStruct(TestInfo info) throws Exception {
 		generate(info);
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
-		configureReader(info, reader);
 		reader.open(new ExecutionContext());
 		List<KeyValue<String>> list = readAll(reader);
 		reader.close();
@@ -216,7 +212,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		generate(info);
 		int threads = 4;
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
-		configureReader(info, reader);
 		ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
 		SimpleStepBuilder<KeyValue<String>, KeyValue<String>> step = step(info, reader, writer);
 		ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
@@ -659,7 +654,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 	protected <K, V> List<KeyComparison> replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
 			RedisItemWriter<K, V, KeyValue<K>> writer) throws Exception {
-		configureReader(info, reader);
 		run(info, reader, writer);
 		awaitUntilFalse(reader::isOpen);
 		awaitUntilFalse(writer::isOpen);

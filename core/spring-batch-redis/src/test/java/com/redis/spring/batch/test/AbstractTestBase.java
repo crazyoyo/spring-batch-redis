@@ -115,7 +115,7 @@ public abstract class AbstractTestBase {
 
 	protected static final Duration DEFAULT_RUNNING_DELAY = Duration.ofMillis(100);
 
-	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(3000);
+	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(1000);
 
 	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(1);
 
@@ -225,9 +225,6 @@ public abstract class AbstractTestBase {
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, int chunkSize, ItemReader<I> reader,
 			ItemProcessor<I, O> processor, ItemWriter<O> writer) {
 		String name = name(info);
-		if (reader instanceof RedisItemReader) {
-			((RedisItemReader<?, ?, ?>) reader).setName(name + "-reader");
-		}
 		SimpleStepBuilder<I, O> step = new StepBuilder(name, jobRepository).chunk(chunkSize, transactionManager);
 		step.reader(reader);
 		step.processor(processor);
@@ -289,13 +286,6 @@ public abstract class AbstractTestBase {
 		run(finalTestInfo, reader, writer);
 		awaitUntilFalse(reader::isOpen);
 		awaitUntilFalse(writer::isOpen);
-	}
-
-	protected void configureReader(TestInfo info, RedisItemReader<?, ?, ?> reader) {
-		reader.setName(name(info));
-		reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-		reader.setJobRepository(jobRepository);
-		reader.setTransactionManager(transactionManager);
 	}
 
 	protected void flushAll(AbstractRedisClient client) {

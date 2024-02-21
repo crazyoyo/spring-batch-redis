@@ -49,8 +49,8 @@ abstract class LiveTests extends BatchTests {
     void readLiveType(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
-        configureReader(info, reader);
         reader.setMode(ReaderMode.LIVE);
+        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
         reader.setKeyType(DataType.HASH);
         reader.open(new ExecutionContext());
         GeneratorItemReader gen = generator(100);
@@ -65,8 +65,8 @@ abstract class LiveTests extends BatchTests {
     void readStructLive(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
         StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
-        configureReader(info, reader);
         reader.setMode(ReaderMode.LIVE);
+        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
         reader.setNotificationQueueCapacity(10000);
         reader.open(new ExecutionContext());
         int count = 123;
@@ -103,8 +103,8 @@ abstract class LiveTests extends BatchTests {
     void replicateDumpLiveOnly(TestInfo info) throws Exception {
         enableKeyspaceNotifications(client);
         DumpItemReader reader = RedisItemReader.dump(client);
-        configureReader(info, reader);
         reader.setMode(ReaderMode.LIVE);
+        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
         reader.setNotificationQueueCapacity(100000);
         DumpItemWriter writer = RedisItemWriter.dump(targetClient);
         Executors.newSingleThreadScheduledExecutor().execute(() -> {
@@ -129,8 +129,8 @@ abstract class LiveTests extends BatchTests {
         String key = "myset";
         commands.sadd(key, "1", "2", "3", "4", "5");
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
-        configureReader(info, reader);
         reader.setMode(ReaderMode.LIVE);
+        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
         reader.setNotificationQueueCapacity(100);
         StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
         Executors.newSingleThreadScheduledExecutor().execute(() -> {

@@ -12,16 +12,27 @@ public class Await {
 
     public static final Duration DEFAULT_DELAY = Duration.ofMillis(1);
 
+    public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(3);
+
     private Duration initialDelay = DEFAULT_INITIAL_DELAY;
 
     private Duration delay = DEFAULT_DELAY;
 
-    public void setDelay(Duration delay) {
+    private Duration timeout = DEFAULT_TIMEOUT;
+
+    public Await delay(Duration delay) {
         this.delay = delay;
+        return this;
     }
 
-    public void setInitialDelay(Duration initialDelay) {
+    public Await initialDelay(Duration initialDelay) {
         this.initialDelay = initialDelay;
+        return this;
+    }
+
+    public Await timeout(Duration timeout) {
+        this.timeout = timeout;
+        return this;
     }
 
     /**
@@ -41,6 +52,10 @@ public class Await {
             }
         }, initialDelay.toMillis(), delay.toMillis(), TimeUnit.MILLISECONDS);
         return executor.awaitTermination(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    public boolean await(BooleanSupplier test) throws InterruptedException {
+        return await(test, timeout);
     }
 
 }

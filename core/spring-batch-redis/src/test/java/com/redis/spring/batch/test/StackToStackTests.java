@@ -67,7 +67,6 @@ class StackToStackTests extends ModulesTests {
         generate(info);
         long memLimit = 200;
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
-        configureReader(info, reader);
         reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
         reader.open(new ExecutionContext());
         List<KeyValue<String>> keyValues = readAll(reader);
@@ -91,7 +90,6 @@ class StackToStackTests extends ModulesTests {
         long ttl = System.currentTimeMillis() + 123456;
         commands.pexpireat(key, ttl);
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
-        configureReader(info, reader);
         reader.setMemoryUsageLimit(DataSize.ofBytes(-1));
         OperationValueReader<String, String, String, KeyValue<String>> executor = reader.operationValueReader();
         executor.open(new ExecutionContext());
@@ -111,8 +109,6 @@ class StackToStackTests extends ModulesTests {
         String key2 = "key:2";
         commands.set(key2, GeneratorItemReader.string(Math.toIntExact(limit.toBytes() * 2)));
         StructItemReader<String, String> reader = RedisItemReader.struct(client);
-        configureReader(info, reader);
-        reader.setName(name(info) + "-reader");
         reader.setMemoryUsageLimit(limit);
         reader.open(new ExecutionContext());
         List<KeyValue<String>> keyValues = readAll(reader);
@@ -146,17 +142,12 @@ class StackToStackTests extends ModulesTests {
         Assertions.assertTrue(commands.dbsize() > 10);
         long memLimit = 1500;
         DumpItemReader reader = RedisItemReader.dump(client);
-        configureReader(info, reader);
         reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
         DumpItemWriter writer = RedisItemWriter.dump(targetClient);
         run(info, reader, writer);
         awaitUntilFalse(reader::isOpen);
         awaitUntilFalse(writer::isOpen);
         StructItemReader<String, String> fullReader = RedisItemReader.struct(client);
-        configureReader(info, reader);
-        fullReader.setName(name(info) + "-fullReader");
-        fullReader.setJobRepository(jobRepository);
-        fullReader.setTransactionManager(transactionManager);
         fullReader.setMemoryUsageLimit(DataSize.ofBytes(-1));
         fullReader.open(new ExecutionContext());
         List<KeyValue<String>> items = readAll(fullReader);

@@ -1,6 +1,8 @@
 package com.redis.spring.batch.reader;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.RedisItemReader;
@@ -14,50 +16,70 @@ import io.lettuce.core.codec.RedisCodec;
 
 public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, KeyValue<K>> {
 
-    /**
-     * Default to no memory usage calculation
-     */
-    public static final DataSize DEFAULT_MEMORY_USAGE_LIMIT = DataSize.ofBytes(0);
+	/**
+	 * Default to no memory usage calculation
+	 */
+	public static final DataSize DEFAULT_MEMORY_USAGE_LIMIT = DataSize.ofBytes(0);
 
-    public static final int DEFAULT_MEMORY_USAGE_SAMPLES = 5;
+	public static final int DEFAULT_MEMORY_USAGE_SAMPLES = 5;
 
-    public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
+	public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
-    private int poolSize = DEFAULT_POOL_SIZE;
+	private int poolSize = DEFAULT_POOL_SIZE;
 
-    protected DataSize memLimit = DEFAULT_MEMORY_USAGE_LIMIT;
+	protected DataSize memLimit = DEFAULT_MEMORY_USAGE_LIMIT;
 
-    protected int memSamples = DEFAULT_MEMORY_USAGE_SAMPLES;
+	protected int memSamples = DEFAULT_MEMORY_USAGE_SAMPLES;
 
-    public void setMemoryUsageLimit(DataSize limit) {
-        this.memLimit = limit;
-    }
+	private OperationValueReader<K, V, K, KeyValue<K>> valueReader;
 
-    public void setMemoryUsageSamples(int samples) {
-        this.memSamples = samples;
-    }
+	public void setMemoryUsageLimit(DataSize limit) {
+		this.memLimit = limit;
+	}
 
-    public void setPoolSize(int poolSize) {
-        this.poolSize = poolSize;
-    }
+	public void setMemoryUsageSamples(int samples) {
+		this.memSamples = samples;
+	}
 
-    protected KeyValueItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
-        super(client, codec);
-    }
+	public void setPoolSize(int poolSize) {
+		this.poolSize = poolSize;
+	}
 
-    @Override
-    protected OperationValueReader<K, V, K, KeyValue<K>> valueReader() {
-        return operationValueReader();
-    }
+	protected KeyValueItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		super(client, codec);
+	}
 
-    public OperationValueReader<K, V, K, KeyValue<K>> operationValueReader() {
-        SimpleBatchOperation<K, V, K, KeyValue<K>> operation = new SimpleBatchOperation<>(operation());
-        OperationValueReader<K, V, K, KeyValue<K>> executor = new OperationValueReader<>(getClient(), getCodec(), operation);
-        executor.setPoolSize(poolSize);
-        executor.setReadFrom(getReadFrom());
-        return executor;
-    }
+	@Override
+	public synchronized void open(ExecutionContext executionContext) {
+		if (valueReader == null) {
+			this.valueReader = operationValueReader();
+			valueReader.open(executionContext);
+		}
+		super.open(executionContext);
+	}
 
-    protected abstract Operation<K, V, K, KeyValue<K>> operation();
+	@Override
+	public void close() throws ItemStreamException {
+		super.close();
+		if (valueReader != null) {
+			valueReader.close();
+		}
+	}
+
+	public OperationValueReader<K, V, K, KeyValue<K>> operationValueReader() {
+		SimpleBatchOperation<K, V, K, KeyValue<K>> operation = new SimpleBatchOperation<>(operation());
+		OperationValueReader<K, V, K, KeyValue<K>> executor = new OperationValueReader<>(getClient(), getCodec(),
+				operation);
+		executor.setPoolSize(poolSize);
+		executor.setReadFrom(getReadFrom());
+		return executor;
+	}
+
+	@Override
+	public Iterable<KeyValue<K>> process(Iterable<K> chunk) throws Exception {
+		return valueReader.process(chunk);
+	}
+
+	protected abstract Operation<K, V, K, KeyValue<K>> operation();
 
 }
