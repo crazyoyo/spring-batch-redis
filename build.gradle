@@ -106,11 +106,4 @@ subprojects {
         archiveClassifier = ''
     }
 
-    configurations.all {
-        resolutionStrategy.eachDependency { DependencyResolveDetails details ->
-            if (details.requested.name == 'lettuce-core' ) {
-                details.useVersion lettuceVersion
-            }
-        }
-    }
 }
