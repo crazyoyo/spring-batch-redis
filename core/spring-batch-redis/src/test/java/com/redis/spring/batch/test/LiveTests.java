@@ -31,117 +31,118 @@ import io.lettuce.core.codec.ByteArrayCodec;
 
 abstract class LiveTests extends BatchTests {
 
-    @Test
-    void readKeyspaceNotificationsDedupe() throws Exception {
-        enableKeyspaceNotifications(client);
-        KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client, CodecUtils.STRING_CODEC);
-        reader.open(new ExecutionContext());
-        String key = "key1";
-        commands.zadd(key, 1, "member1");
-        commands.zadd(key, 2, "member2");
-        commands.zadd(key, 3, "member3");
-        awaitUntil(() -> reader.getQueue().size() == 1);
-        Assertions.assertEquals(key, reader.read());
-        reader.close();
-    }
+	@Test
+	void readKeyspaceNotificationsDedupe() throws Exception {
+		enableKeyspaceNotifications(client);
+		KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client,
+				CodecUtils.STRING_CODEC);
+		reader.open(new ExecutionContext());
+		String key = "key1";
+		commands.zadd(key, 1, "member1");
+		commands.zadd(key, 2, "member2");
+		commands.zadd(key, 3, "member3");
+		awaitUntil(() -> reader.getQueue().size() == 1);
+		Assertions.assertEquals(key, reader.read());
+		reader.close();
+	}
 
-    @Test
-    void readLiveType(TestInfo info) throws Exception {
-        enableKeyspaceNotifications(client);
-        StructItemReader<String, String> reader = RedisItemReader.struct(client);
-        reader.setMode(ReaderMode.LIVE);
-        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-        reader.setKeyType(DataType.HASH);
-        reader.open(new ExecutionContext());
-        GeneratorItemReader gen = generator(100);
-        generate(info, gen);
-        reader.open(new ExecutionContext());
-        List<KeyValue<String>> keyValues = readAll(reader);
-        reader.close();
-        Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType() == DataType.HASH));
-    }
+	@Test
+	void readLiveType(TestInfo info) throws Exception {
+		enableKeyspaceNotifications(client);
+		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		reader.setMode(ReaderMode.LIVE);
+		reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+		reader.setKeyType(DataType.HASH);
+		reader.open(new ExecutionContext());
+		GeneratorItemReader gen = generator(100);
+		generate(info, gen);
+		reader.open(new ExecutionContext());
+		List<KeyValue<String>> keyValues = readAll(reader);
+		reader.close();
+		Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType() == DataType.HASH));
+	}
 
-    @Test
-    void readStructLive(TestInfo info) throws Exception {
-        enableKeyspaceNotifications(client);
-        StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
-        reader.setMode(ReaderMode.LIVE);
-        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-        reader.setNotificationQueueCapacity(10000);
-        reader.open(new ExecutionContext());
-        int count = 123;
-        GeneratorItemReader gen = generator(count, DataType.HASH, DataType.STRING);
-        generate(info, gen);
-        List<KeyValue<byte[]>> list = readAll(reader);
-        Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
-        Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
-        Assertions.assertEquals(count, keys.size());
-        reader.close();
-    }
+	@Test
+	void readStructLive(TestInfo info) throws Exception {
+		enableKeyspaceNotifications(client);
+		StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
+		reader.setMode(ReaderMode.LIVE);
+		reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+		reader.setNotificationQueueCapacity(10000);
+		reader.open(new ExecutionContext());
+		int count = 123;
+		GeneratorItemReader gen = generator(count, DataType.HASH, DataType.STRING);
+		generate(info, gen);
+		List<KeyValue<byte[]>> list = readAll(reader);
+		Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
+		Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
+		Assertions.assertEquals(count, keys.size());
+		reader.close();
+	}
 
-    @Test
-    void replicateDumpLive(TestInfo info) throws Exception {
-        enableKeyspaceNotifications(client);
-        DumpItemReader reader = RedisItemReader.dump(client);
-        DumpItemWriter writer = RedisItemWriter.dump(targetClient);
-        DumpItemReader liveReader = RedisItemReader.dump(client);
-        DumpItemWriter liveWriter = RedisItemWriter.dump(targetClient);
-        assertEmpty(replicateLive(info, reader, writer, liveReader, liveWriter));
-    }
+	@Test
+	void replicateDumpLive(TestInfo info) throws Exception {
+		enableKeyspaceNotifications(client);
+		DumpItemReader reader = RedisItemReader.dump(client);
+		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
+		DumpItemReader liveReader = RedisItemReader.dump(client);
+		DumpItemWriter liveWriter = RedisItemWriter.dump(targetClient);
+		Assertions.assertTrue(replicateLive(info, reader, writer, liveReader, liveWriter).isOk());
+	}
 
-    @Test
-    void replicateStructLive(TestInfo info) throws Exception {
-        enableKeyspaceNotifications(client);
-        StructItemReader<String, String> reader = RedisItemReader.struct(client);
-        StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-        StructItemReader<String, String> liveReader = RedisItemReader.struct(client);
-        StructItemWriter<String, String> liveWriter = RedisItemWriter.struct(targetClient);
-        assertEmpty(replicateLive(info, reader, writer, liveReader, liveWriter));
-    }
+	@Test
+	void replicateStructLive(TestInfo info) throws Exception {
+		enableKeyspaceNotifications(client);
+		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
+		StructItemReader<String, String> liveReader = RedisItemReader.struct(client);
+		StructItemWriter<String, String> liveWriter = RedisItemWriter.struct(targetClient);
+		Assertions.assertTrue(replicateLive(info, reader, writer, liveReader, liveWriter).isOk());
+	}
 
-    @Test
-    void replicateDumpLiveOnly(TestInfo info) throws Exception {
-        enableKeyspaceNotifications(client);
-        DumpItemReader reader = RedisItemReader.dump(client);
-        reader.setMode(ReaderMode.LIVE);
-        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-        reader.setNotificationQueueCapacity(100000);
-        DumpItemWriter writer = RedisItemWriter.dump(targetClient);
-        Executors.newSingleThreadScheduledExecutor().execute(() -> {
-            awaitUntil(reader::isOpen);
-            GeneratorItemReader gen = generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
-                    DataType.ZSET);
-            try {
-                generate(info, gen);
-            } catch (JobExecutionException e) {
-                throw new RuntimeException("Could not run data gen", e);
-            }
-        });
-        run(info, flushingStep(info, reader, writer));
-        awaitUntilFalse(reader::isOpen);
-        awaitUntilFalse(writer::isOpen);
-        assertEmpty(compare(info));
-    }
+	@Test
+	void replicateDumpLiveOnly(TestInfo info) throws Exception {
+		enableKeyspaceNotifications(client);
+		DumpItemReader reader = RedisItemReader.dump(client);
+		reader.setMode(ReaderMode.LIVE);
+		reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+		reader.setNotificationQueueCapacity(100000);
+		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
+		Executors.newSingleThreadScheduledExecutor().execute(() -> {
+			awaitUntil(reader::isOpen);
+			GeneratorItemReader gen = generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
+					DataType.ZSET);
+			try {
+				generate(info, gen);
+			} catch (JobExecutionException e) {
+				throw new RuntimeException("Could not run data gen", e);
+			}
+		});
+		run(info, flushingStep(info, reader, writer));
+		awaitUntilFalse(reader::isOpen);
+		awaitUntilFalse(writer::isOpen);
+		Assertions.assertTrue(compare(info).isOk());
+	}
 
-    @Test
-    void replicateSetLiveOnly(TestInfo info) throws Exception {
-        enableKeyspaceNotifications(client);
-        String key = "myset";
-        commands.sadd(key, "1", "2", "3", "4", "5");
-        StructItemReader<String, String> reader = RedisItemReader.struct(client);
-        reader.setMode(ReaderMode.LIVE);
-        reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
-        reader.setNotificationQueueCapacity(100);
-        StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-        Executors.newSingleThreadScheduledExecutor().execute(() -> {
-            awaitUntil(reader::isOpen);
-            awaitUntil(writer::isOpen);
-            commands.srem(key, "5");
-        });
-        run(info, flushingStep(info, reader, writer));
-        awaitUntilFalse(reader::isOpen);
-        awaitUntilFalse(writer::isOpen);
-        assertEquals(commands.smembers(key), targetCommands.smembers(key));
-    }
+	@Test
+	void replicateSetLiveOnly(TestInfo info) throws Exception {
+		enableKeyspaceNotifications(client);
+		String key = "myset";
+		commands.sadd(key, "1", "2", "3", "4", "5");
+		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		reader.setMode(ReaderMode.LIVE);
+		reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+		reader.setNotificationQueueCapacity(100);
+		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
+		Executors.newSingleThreadScheduledExecutor().execute(() -> {
+			awaitUntil(reader::isOpen);
+			awaitUntil(writer::isOpen);
+			commands.srem(key, "5");
+		});
+		run(info, flushingStep(info, reader, writer));
+		awaitUntilFalse(reader::isOpen);
+		awaitUntilFalse(writer::isOpen);
+		assertEquals(commands.smembers(key), targetCommands.smembers(key));
+	}
 
 }

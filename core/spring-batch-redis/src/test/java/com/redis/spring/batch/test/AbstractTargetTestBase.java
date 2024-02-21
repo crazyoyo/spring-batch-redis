@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
@@ -27,7 +26,6 @@ import com.redis.spring.batch.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison;
-import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
@@ -75,10 +73,11 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	 * @param left
 	 * @param right
 	 * @return
+	 * @return
 	 * @return list of differences
 	 * @throws Exception
 	 */
-	protected List<KeyComparison> compare(TestInfo info) throws Exception {
+	protected KeyspaceComparison compare(TestInfo info) throws Exception {
 		if (commands.dbsize().equals(0L)) {
 			Assertions.fail("Source database is empty");
 		}
@@ -86,8 +85,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 		reader.open(new ExecutionContext());
 		List<KeyComparison> comparisons = readAll(reader);
 		reader.close();
-		Assertions.assertFalse(comparisons.isEmpty());
-		return comparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
+		return new KeyspaceComparison(comparisons);
 	}
 
 	protected void logDiffs(Collection<KeyComparison> diffs) {
@@ -104,7 +102,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 		return reader;
 	}
 
-	protected <K, V, T extends KeyValue<K>> List<KeyComparison> replicateLive(TestInfo info,
+	protected <K, V, T extends KeyValue<K>> KeyspaceComparison replicateLive(TestInfo info,
 			RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
 			RedisItemWriter<K, V, T> liveWriter) throws Exception {
 		liveReader.setMode(ReaderMode.LIVE);

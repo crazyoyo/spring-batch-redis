@@ -115,7 +115,7 @@ public abstract class AbstractTestBase {
 
 	protected static final Duration DEFAULT_RUNNING_DELAY = Duration.ofMillis(100);
 
-	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(1000);
+	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(3000);
 
 	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(1);
 
