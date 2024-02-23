@@ -74,7 +74,7 @@ abstract class ModulesTests extends LiveTests {
 	}
 
 	@Test
-	void readMetrics(TestInfo info) throws Exception {
+	void readMetrics() throws Exception {
 		Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
 		SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
 
@@ -90,7 +90,7 @@ abstract class ModulesTests extends LiveTests {
 
 		}, Clock.SYSTEM);
 		Metrics.addRegistry(registry);
-		generate(info);
+		generate();
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		open(reader);
 		Search search = registry.find("redis.batch.reader.queue.size");
@@ -101,13 +101,13 @@ abstract class ModulesTests extends LiveTests {
 	}
 
 	@Test
-	void readKeyspaceNotifications(TestInfo testInfo) throws Exception {
+	void readKeyspaceNotifications() throws Exception {
 		enableKeyspaceNotifications(client);
 		KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client,
 				CodecUtils.STRING_CODEC);
 		reader.open(new ExecutionContext());
 		GeneratorItemReader gen = generator(100);
-		generate(testInfo, gen);
+		generate(gen);
 		awaitUntil(() -> reader.getQueue().size() > 0);
 		Assertions.assertEquals(KeyEvent.SET, reader.getQueue().remove().getEvent());
 		Set<KeyEvent> eventTypes = new LinkedHashSet<>(Arrays.asList(KeyEvent.SET, KeyEvent.HSET, KeyEvent.JSON_SET,
@@ -184,7 +184,6 @@ abstract class ModulesTests extends LiveTests {
 				new ToSuggestionFunction<>(Suggestion::getString, Suggestion::getScore, Suggestion::getPayload));
 		OperationItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
 		run(testInfo, reader, writer);
-		awaitUntilFalse(writer::isOpen);
 		assertEquals(1, commands.dbsize());
 		assertEquals(values.size(), commands.ftSuglen(key));
 	}
@@ -205,7 +204,6 @@ abstract class ModulesTests extends LiveTests {
 		sugadd.setIncr(true);
 		OperationItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
 		run(testInfo, reader, writer);
-		awaitUntilFalse(writer::isOpen);
 		assertEquals(1, commands.dbsize());
 		assertEquals(values.size(), commands.ftSuglen(key));
 	}
@@ -223,7 +221,6 @@ abstract class ModulesTests extends LiveTests {
 		ListItemReader<Entry<Long, Double>> reader = new ListItemReader<>(new ArrayList<>(samples.entrySet()));
 		OperationItemWriter<String, String, Entry<Long, Double>> writer = writer(tsAdd);
 		run(info, reader, writer);
-		awaitUntilFalse(writer::isOpen);
 		assertEquals(1, commands.dbsize());
 	}
 
@@ -236,7 +233,6 @@ abstract class ModulesTests extends LiveTests {
 		OperationItemWriter<String, String, JsonNode> writer = writer(jsonSet);
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
 		run(testInfo, reader, writer);
-		awaitUntilFalse(writer::isOpen);
 		Assertions.assertEquals(BEER_COUNT, commands.keys("beer:*").size());
 		Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
 				new ObjectMapper().readTree(commands.jsonGet("beer:1", "$")));
@@ -245,12 +241,11 @@ abstract class ModulesTests extends LiveTests {
 	@Test
 	void writeJsonDel(TestInfo testInfo) throws Exception {
 		GeneratorItemReader gen = generator(DataType.JSON);
-		generate(testInfo, gen);
+		generate(gen);
 		JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>();
 		jsonDel.setKeyFunction(KeyValue::getKey);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(jsonDel);
 		run(testInfo, gen, writer);
-		awaitUntilFalse(writer::isOpen);
 		Assertions.assertEquals(0, commands.dbsize());
 	}
 
@@ -273,7 +268,6 @@ abstract class ModulesTests extends LiveTests {
 		tsadd.setOptions(addOptions);
 		OperationItemWriter<String, String, Sample> writer = writer(tsadd);
 		run(testInfo, reader, writer);
-		awaitUntilFalse(writer::isOpen);
 		Assertions.assertEquals(count / 2,
 				commands.tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
 	}
@@ -292,7 +286,6 @@ abstract class ModulesTests extends LiveTests {
 		OperationItemWriter<String, String, Sample> writer = new OperationItemWriter(client, CodecUtils.STRING_CODEC,
 				tsadd);
 		run(testInfo, reader, writer);
-		awaitUntilFalse(writer::isOpen);
 		for (int index = 1; index <= count; index++) {
 			Assertions.assertEquals(TimeSeriesOptions.DEFAULT_SAMPLE_COUNT.getMin(),
 					commands.tsRange(reader.key(index), TimeRange.unbounded(), RangeOptions.builder().build()).size(),

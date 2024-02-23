@@ -58,7 +58,7 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements ItemStrea
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
-		if (!isOpen()) {
+		if (pool == null) {
 			Supplier<StatefulConnection<K, V>> connectionSupplier = ConnectionUtils.supplier(client, codec, readFrom);
 			GenericObjectPoolConfig<StatefulConnection<K, V>> config = new GenericObjectPoolConfig<>();
 			config.setMaxTotal(poolSize);
@@ -67,15 +67,11 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements ItemStrea
 		}
 	}
 
-	public synchronized boolean isOpen() {
-		return pool != null;
-	}
-
 	protected abstract BatchOperation<K, V, I, O> batchOperation();
 
 	@Override
 	public synchronized void close() {
-		if (isOpen()) {
+		if (pool != null) {
 			pool.close();
 			pool = null;
 		}

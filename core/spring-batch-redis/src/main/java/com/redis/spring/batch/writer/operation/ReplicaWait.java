@@ -12,7 +12,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.PipelinedRedisFuture;
 
-public class ReplicaWaitBatchWriteOperation<K, V, I> implements BatchWriteOperation<K, V, I> {
+public class ReplicaWait<K, V, I> implements BatchWriteOperation<K, V, I> {
 
 	private final BatchWriteOperation<K, V, I> delegate;
 
@@ -20,7 +20,7 @@ public class ReplicaWaitBatchWriteOperation<K, V, I> implements BatchWriteOperat
 
 	private final long timeout;
 
-	public ReplicaWaitBatchWriteOperation(BatchWriteOperation<K, V, I> delegate, int replicas, Duration timeout) {
+	public ReplicaWait(BatchWriteOperation<K, V, I> delegate, int replicas, Duration timeout) {
 		this.delegate = delegate;
 		this.replicas = replicas;
 		this.timeout = timeout.toMillis();

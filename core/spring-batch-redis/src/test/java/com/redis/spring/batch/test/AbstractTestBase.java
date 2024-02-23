@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.ItemReadListener;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -35,6 +38,7 @@ import org.springframework.batch.core.repository.support.JobRepositoryFactoryBea
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
@@ -58,6 +62,7 @@ import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.OperationValueReader;
@@ -107,15 +112,13 @@ public abstract class AbstractTestBase {
 		return list;
 	}
 
-	protected final Logger log = LoggerFactory.getLogger(getClass());
+	private static final Logger log = LoggerFactory.getLogger(AbstractTestBase.class);
 
 	protected static final int DEFAULT_CHUNK_SIZE = 50;
 
-	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(10000);
+	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(3000);
 
-	protected static final Duration DEFAULT_RUNNING_DELAY = Duration.ofMillis(100);
-
-	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(3000);
+	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
 
 	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(1);
 
@@ -123,9 +126,9 @@ public abstract class AbstractTestBase {
 
 	protected static final int DEFAULT_GENERATOR_COUNT = 100;
 
-	private Duration pollDelay = DEFAULT_POLL_DELAY;
+	private Duration awaitPollDelay = DEFAULT_POLL_DELAY;
 
-	private Duration pollInterval = DEFAULT_POLL_INTERVAL;
+	private Duration awaitPollInterval = DEFAULT_POLL_INTERVAL;
 
 	private Duration awaitTimeout = DEFAULT_AWAIT_TIMEOUT;
 
@@ -260,7 +263,8 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void awaitUntil(Callable<Boolean> evaluator) {
-		Awaitility.await().pollDelay(pollDelay).pollInterval(pollInterval).timeout(awaitTimeout).until(evaluator);
+		Awaitility.await().pollDelay(awaitPollDelay).pollInterval(awaitPollInterval).timeout(awaitTimeout)
+				.until(evaluator);
 	}
 
 	protected JobBuilder job(TestInfo info) {
@@ -271,21 +275,55 @@ public abstract class AbstractTestBase {
 		return generator(DEFAULT_GENERATOR_COUNT);
 	}
 
-	protected void generate(TestInfo info) throws JobExecutionException {
-		generate(info, generator(DEFAULT_GENERATOR_COUNT));
+	protected <I, O> void generateAsync(FlushingStepBuilder<I, O> step, GeneratorItemReader reader) {
+		AtomicBoolean flag = new AtomicBoolean();
+		step.listener(new ItemReadListener<>() {
+
+			@Override
+			public void beforeRead() {
+				if (flag.get()) {
+					return;
+				}
+				Executors.newSingleThreadExecutor().execute(() -> {
+					try {
+						generate(reader);
+					} catch (Exception e) {
+						log.error("Could not run data gen", e);
+						throw new RuntimeException("Could not run data gen", e);
+					}
+				});
+				flag.set(true);
+			}
+		});
 	}
 
-	protected void generate(TestInfo info, GeneratorItemReader reader) throws JobExecutionException {
-		generate(info, client, reader);
+	protected void generate() throws Exception {
+		generate(generator(DEFAULT_GENERATOR_COUNT));
 	}
 
-	protected void generate(TestInfo info, AbstractRedisClient client, GeneratorItemReader reader)
-			throws JobExecutionException {
-		TestInfo finalTestInfo = testInfo(info, "generate", String.valueOf(client.hashCode()));
+	protected void generate(GeneratorItemReader reader) throws Exception {
+		generate(client, reader);
+	}
+
+	protected void generate(AbstractRedisClient client, GeneratorItemReader reader) throws Exception {
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(client, CodecUtils.STRING_CODEC);
-		run(finalTestInfo, reader, writer);
-		awaitUntilFalse(reader::isOpen);
-		awaitUntilFalse(writer::isOpen);
+		writer.open(new ExecutionContext());
+		reader.open(new ExecutionContext());
+		Chunk<KeyValue<String>> chunk = new Chunk<>();
+		log.info("Generator started");
+		KeyValue<String> value;
+		while ((value = reader.read()) != null) {
+			chunk.add(value);
+			if (chunk.size() >= RedisItemReader.DEFAULT_CHUNK_SIZE) {
+				writer.write(chunk);
+				chunk.clear();
+			}
+		}
+		writer.write(chunk);
+		chunk.clear();
+		reader.close();
+		writer.close();
+		log.info("Generator done");
 	}
 
 	protected void flushAll(AbstractRedisClient client) {
@@ -293,6 +331,12 @@ public abstract class AbstractTestBase {
 			commands.flushall();
 			awaitUntil(() -> commands.dbsize() == 0);
 		}
+	}
+
+	protected <R extends RedisItemReader<?, ?, ?>> R live(R reader) {
+		reader.setMode(ReaderMode.LIVE);
+		reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+		return reader;
 	}
 
 	protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer)
@@ -327,12 +371,12 @@ public abstract class AbstractTestBase {
 		return new FlushingStepBuilder<>(step(info, reader, writer)).idleTimeout(DEFAULT_IDLE_TIMEOUT);
 	}
 
-	protected void generateStreams(TestInfo info, int messageCount) throws JobExecutionException {
+	protected void generateStreams(int messageCount) throws Exception {
 		GeneratorItemReader gen = generator(3, DataType.STREAM);
 		StreamOptions streamOptions = new StreamOptions();
 		streamOptions.setMessageCount(Range.of(messageCount));
 		gen.setStreamOptions(streamOptions);
-		generate(testInfo(info, "streams"), gen);
+		generate(gen);
 	}
 
 	protected StreamItemReader<String, String> streamReader(String stream, Consumer<String> consumer) {

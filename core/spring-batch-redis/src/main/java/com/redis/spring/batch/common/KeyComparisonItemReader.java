@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.PassThroughItemProcessor;
 import org.springframework.util.CollectionUtils;
@@ -26,7 +25,9 @@ import io.lettuce.core.StreamMessage;
 
 public class KeyComparisonItemReader extends RedisItemReader<String, String, KeyComparison> {
 
-	private Duration ttlTolerance = Duration.ofMillis(100);
+	public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
+
+	private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
 	private final OperationValueReader<String, String, String, KeyValue<String>> source;
 
@@ -70,17 +71,10 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 	}
 
 	@Override
-	public void close() throws ItemStreamException {
+	public synchronized void close() throws ItemStreamException {
 		super.close();
-		if (source instanceof ItemStream) {
-			((ItemStream) source).close();
-		}
-		if (processor instanceof ItemStream) {
-			((ItemStream) processor).close();
-		}
-		if (target instanceof ItemStream) {
-			((ItemStream) target).close();
-		}
+		source.close();
+		target.close();
 	}
 
 	@Override

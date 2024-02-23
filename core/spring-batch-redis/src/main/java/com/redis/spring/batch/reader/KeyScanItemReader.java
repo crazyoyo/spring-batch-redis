@@ -1,6 +1,7 @@
 package com.redis.spring.batch.reader;
 
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemStreamReader;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.util.ConnectionUtils;
@@ -11,7 +12,7 @@ import io.lettuce.core.ReadFrom;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.codec.RedisCodec;
 
-public class KeyScanItemReader<K> implements KeyItemReader<K> {
+public class KeyScanItemReader<K> implements ItemStreamReader<K> {
 
 	private final AbstractRedisClient client;
 
@@ -56,11 +57,6 @@ public class KeyScanItemReader<K> implements KeyItemReader<K> {
 			connection = ConnectionUtils.connection(client, codec, readFrom);
 			iterator = ScanIterator.scan(ConnectionUtils.sync(connection), scanArgs());
 		}
-	}
-
-	@Override
-	public boolean isOpen() {
-		return iterator != null;
 	}
 
 	private KeyScanArgs scanArgs() {

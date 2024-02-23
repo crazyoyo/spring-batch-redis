@@ -22,7 +22,7 @@ import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class StructBatchWriteOperation<K, V> implements BatchWriteOperation<K, V, KeyValue<K>> {
+public class StructWrite<K, V> implements BatchWriteOperation<K, V, KeyValue<K>> {
 
     private final Collector<KeyValue<K>, ?, Map<DataType, List<KeyValue<K>>>> groupByType = Collectors
             .groupingBy(KeyValue::getType);

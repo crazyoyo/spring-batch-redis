@@ -125,42 +125,30 @@ public class StreamItemReader<K, V>
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
-		if (!isOpen()) {
-			doOpen();
+		if (messageReader == null) {
+			connection = ConnectionUtils.supplier(client, codec, readFrom).get();
+			commands = ConnectionUtils.sync(connection);
+			StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
+			XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
+			try {
+				commands.xgroupCreate(streamOffset, consumer.getGroup(), args);
+			} catch (RedisBusyException e) {
+				// Consumer Group name already exists, ignore
+			}
+			lastId = offset;
+			messageReader = reader();
 		}
-	}
-
-	private void doOpen() {
-		connection = ConnectionUtils.supplier(client, codec, readFrom).get();
-		commands = ConnectionUtils.sync(connection);
-		StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
-		XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
-		try {
-			commands.xgroupCreate(streamOffset, consumer.getGroup(), args);
-		} catch (RedisBusyException e) {
-			// Consumer Group name already exists, ignore
-		}
-		lastId = offset;
-		messageReader = reader();
-	}
-
-	public boolean isOpen() {
-		return messageReader != null;
 	}
 
 	@Override
 	public synchronized void close() {
-		if (isOpen()) {
-			doClose();
+		if (messageReader != null) {
+			messageReader = null;
+			lastId = null;
+			connection.close();
+			connection = null;
+			commands = null;
 		}
-	}
-
-	private void doClose() {
-		messageReader = null;
-		lastId = null;
-		connection.close();
-		connection = null;
-		commands = null;
 	}
 
 	private MessageReader<K, V> reader() {

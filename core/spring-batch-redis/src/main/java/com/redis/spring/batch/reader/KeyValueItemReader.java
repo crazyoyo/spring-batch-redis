@@ -52,14 +52,14 @@ public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, Key
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		if (valueReader == null) {
-			this.valueReader = operationValueReader();
+			valueReader = operationValueReader();
 			valueReader.open(executionContext);
 		}
 		super.open(executionContext);
 	}
 
 	@Override
-	public void close() throws ItemStreamException {
+	public synchronized void close() throws ItemStreamException {
 		super.close();
 		if (valueReader != null) {
 			valueReader.close();

@@ -10,9 +10,9 @@ import java.util.function.Function;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.ItemStreamReader;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.SetBlockingQueue;
 import com.redis.spring.batch.util.CodecUtils;
 
@@ -23,49 +23,33 @@ import io.lettuce.core.codec.RedisCodec;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Metrics;
 
-public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K> {
+public class KeyspaceNotificationItemReader<K> implements ItemStreamReader<K> {
 
 	public enum OrderingStrategy {
 		FIFO, PRIORITY
 	}
 
 	public static final String MATCH_ALL = "*";
-
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
-
-	// No idle timeout by default, use max duration
-	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofSeconds(Long.MAX_VALUE);
-
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
-
 	public static final OrderingStrategy DEFAULT_ORDERING = OrderingStrategy.PRIORITY;
-
 	public static final String QUEUE_METER = "redis.batch.notification.queue.size";
-
 	public static final String QUEUE_MISS_COUNTER = "redis.batch.notification.queue.misses";
-
 	private static final KeyspaceNotificationComparator NOTIFICATION_COMPARATOR = new KeyspaceNotificationComparator();
+	// No idle timeout by default
+	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(Long.MAX_VALUE);
 
 	private final AbstractRedisClient client;
-
 	private final Function<String, K> stringKeyEncoder;
 
 	private int database;
-
 	private String keyPattern;
-
 	private OrderingStrategy orderingStrategy = DEFAULT_ORDERING;
-
-	private DataType keyType;
-
+	private String keyType;
 	private int queueCapacity = RedisItemReader.DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
-
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
-
 	private BlockingQueue<KeyspaceNotification> queue;
-
 	private Counter queueMissCounter;
-
 	private KeyspaceNotificationPublisher notificationPublisher;
 
 	public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, ?> codec) {
@@ -81,20 +65,20 @@ public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K> {
 		this.database = database;
 	}
 
-	public void setKeyPattern(String keyPattern) {
-		this.keyPattern = keyPattern;
+	public void setIdleTimeout(Duration idleTimeout) {
+		this.idleTimeout = idleTimeout;
 	}
 
-	public void setIdleTimeout(Duration timeout) {
-		this.idleTimeout = timeout;
+	public void setKeyPattern(String keyPattern) {
+		this.keyPattern = keyPattern;
 	}
 
 	public void setQueueCapacity(int queueCapacity) {
 		this.queueCapacity = queueCapacity;
 	}
 
-	public void setKeyType(DataType keyType) {
-		this.keyType = keyType;
+	public void setKeyType(String type) {
+		this.keyType = type;
 	}
 
 	public void setOrderingStrategy(OrderingStrategy orderingStrategy) {
@@ -107,25 +91,27 @@ public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K> {
 			queue = new SetBlockingQueue<>(notificationQueue(), queueCapacity);
 			Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
 			queueMissCounter = Metrics.globalRegistry.counter(QUEUE_MISS_COUNTER);
-			notificationPublisher = publisher();
+			String pattern = String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern());
+			notificationPublisher = publisher(pattern);
+			notificationPublisher.addConsumer(this::acceptKeyspaceNotification);
+			notificationPublisher.open();
 		}
 	}
 
-	private KeyspaceNotificationPublisher publisher() {
-		String pattern = String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern());
-		KeyspaceNotificationPublisher publisher = publisher(pattern);
-		publisher.addConsumer(this::acceptKeyspaceNotification);
-		publisher.open();
-		return publisher;
-	}
-
 	private void acceptKeyspaceNotification(KeyspaceNotification notification) {
-		if ((keyType == null || notification.getEvent().getType() == keyType) && queue.remainingCapacity() > 0) {
+		if (accept(notification) && queue.remainingCapacity() > 0) {
 			boolean added = queue.offer(notification);
 			if (!added) {
 				queueMissCounter.increment();
 			}
 		}
+	}
+
+	private boolean accept(KeyspaceNotification notification) {
+		if (keyType == null) {
+			return true;
+		}
+		return keyType.equalsIgnoreCase(notification.getEvent().getType().getString());
 	}
 
 	private AbstractKeyspaceNotificationPublisher publisher(String pattern) {
@@ -150,11 +136,6 @@ public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K> {
 	}
 
 	@Override
-	public boolean isOpen() {
-		return notificationPublisher != null;
-	}
-
-	@Override
 	public synchronized void close() {
 		if (notificationPublisher != null) {
 			notificationPublisher.close();
@@ -164,7 +145,7 @@ public class KeyspaceNotificationItemReader<K> implements KeyItemReader<K> {
 
 	@Override
 	public K read() throws InterruptedException {
-		KeyspaceNotification notification = queue.poll(idleTimeout.toSeconds(), TimeUnit.SECONDS);
+		KeyspaceNotification notification = queue.poll(idleTimeout.toMillis(), TimeUnit.MILLISECONDS);
 		if (notification == null) {
 			return null;
 		}

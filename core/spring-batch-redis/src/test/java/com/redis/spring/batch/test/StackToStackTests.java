@@ -62,8 +62,8 @@ class StackToStackTests extends ModulesTests {
 	}
 
 	@Test
-	void readStructMemoryUsage(TestInfo info) throws Exception {
-		generate(info);
+	void readStructMemoryUsage() throws Exception {
+		generate();
 		long memLimit = 200;
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
@@ -80,7 +80,7 @@ class StackToStackTests extends ModulesTests {
 	}
 
 	@Test
-	void readStructMemoryUsageTTL(TestInfo info) throws Exception {
+	void readStructMemoryUsageTTL() throws Exception {
 		String key = "myhash";
 		Map<String, String> hash = new HashMap<>();
 		hash.put("field1", "value1");
@@ -101,7 +101,7 @@ class StackToStackTests extends ModulesTests {
 	}
 
 	@Test
-	void readStructMemLimit(TestInfo info) throws Exception {
+	void readStructMemLimit() throws Exception {
 		DataSize limit = DataSize.ofBytes(500);
 		String key1 = "key:1";
 		commands.set(key1, "bar");
@@ -118,7 +118,7 @@ class StackToStackTests extends ModulesTests {
 
 	@Test
 	void replicateStructMemLimit(TestInfo info) throws Exception {
-		generate(info);
+		generate();
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
@@ -127,7 +127,7 @@ class StackToStackTests extends ModulesTests {
 
 	@Test
 	void replicateDumpMemLimitHigh(TestInfo info) throws Exception {
-		generate(info);
+		generate();
 		DumpItemReader reader = RedisItemReader.dump(client);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
@@ -136,15 +136,13 @@ class StackToStackTests extends ModulesTests {
 
 	@Test
 	void replicateDumpMemLimitLow(TestInfo info) throws Exception {
-		generate(info);
+		generate();
 		Assertions.assertTrue(commands.dbsize() > 10);
 		long memLimit = 1500;
 		DumpItemReader reader = RedisItemReader.dump(client);
 		reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
 		run(info, reader, writer);
-		awaitUntilFalse(reader::isOpen);
-		awaitUntilFalse(writer::isOpen);
 		StructItemReader<String, String> fullReader = RedisItemReader.struct(client);
 		fullReader.setMemoryUsageLimit(DataSize.ofBytes(-1));
 		fullReader.open(new ExecutionContext());
@@ -194,7 +192,7 @@ class StackToStackTests extends ModulesTests {
 	@Test
 	void readMultipleStreams(TestInfo testInfo) throws Exception {
 		String consumerGroup = "consumerGroup";
-		generateStreams(testInfo(testInfo, "streams"), 277);
+		generateStreams(277);
 		KeyScanArgs args = KeyScanArgs.Builder.type(DataType.STREAM.getString());
 		final List<String> keys = ScanIterator.scan(commands, args).stream().collect(Collectors.toList());
 		for (String key : keys) {
@@ -213,8 +211,6 @@ class StackToStackTests extends ModulesTests {
 			SimpleFlow flow2 = flow("flow2").start(step2).build();
 			SimpleFlow flow = flow("replicate").split(new SimpleAsyncTaskExecutor()).add(flow1, flow2).build();
 			run(job(testInfo1).start(flow).build().build());
-			awaitUntilFalse(reader1::isOpen);
-			awaitUntilFalse(reader2::isOpen);
 			Assertions.assertEquals(count, writer1.getWrittenItems().size() + writer2.getWrittenItems().size());
 			assertMessageBody(writer1.getWrittenItems());
 			assertMessageBody(writer2.getWrittenItems());

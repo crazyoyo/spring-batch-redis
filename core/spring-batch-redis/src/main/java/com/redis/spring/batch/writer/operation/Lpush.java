@@ -3,7 +3,7 @@ package com.redis.spring.batch.writer.operation;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 
-public class Lpush<K, V, T> extends AbstractPushOperation<K, V, T> {
+public class Lpush<K, V, T> extends AbstractPush<K, V, T> {
 
     @SuppressWarnings("unchecked")
     @Override

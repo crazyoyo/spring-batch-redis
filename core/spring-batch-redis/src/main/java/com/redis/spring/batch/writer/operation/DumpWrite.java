@@ -8,7 +8,7 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class DumpWriteOperation<K, V> implements WriteOperation<K, V, KeyValue<K>> {
+public class DumpWrite<K, V> implements WriteOperation<K, V, KeyValue<K>> {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
