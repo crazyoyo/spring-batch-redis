@@ -671,17 +671,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void replicateHLL(TestInfo info) throws Exception {
-		String key1 = "hll:1";
-		commands.pfadd(key1, "member:1", "member:2");
-		String key2 = "hll:2";
-		commands.pfadd(key2, "member:1", "member:2", "member:3");
-		replicate(info, RedisItemReader.struct(client, ByteArrayCodec.INSTANCE),
-				RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE));
-		assertEquals(commands.pfcount(key1), targetCommands.pfcount(key1));
-	}
-
-	@Test
 	void writeGeo(TestInfo info) throws Exception {
 		ListItemReader<Geo> reader = new ListItemReader<>(
 				Arrays.asList(new Geo("Venice Breakwater", -118.476056, 33.985728),

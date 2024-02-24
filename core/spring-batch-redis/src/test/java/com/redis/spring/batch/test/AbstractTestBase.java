@@ -23,8 +23,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ItemReadListener;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
@@ -61,8 +59,8 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader.ReaderMode;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.OperationValueReader;
@@ -111,8 +109,6 @@ public abstract class AbstractTestBase {
 		}
 		return list;
 	}
-
-	private static final Logger log = LoggerFactory.getLogger(AbstractTestBase.class);
 
 	protected static final int DEFAULT_CHUNK_SIZE = 50;
 
@@ -288,7 +284,6 @@ public abstract class AbstractTestBase {
 					try {
 						generate(reader);
 					} catch (Exception e) {
-						log.error("Could not run data gen", e);
 						throw new RuntimeException("Could not run data gen", e);
 					}
 				});
@@ -310,7 +305,6 @@ public abstract class AbstractTestBase {
 		writer.open(new ExecutionContext());
 		reader.open(new ExecutionContext());
 		Chunk<KeyValue<String>> chunk = new Chunk<>();
-		log.info("Generator started");
 		KeyValue<String> value;
 		while ((value = reader.read()) != null) {
 			chunk.add(value);
@@ -323,7 +317,6 @@ public abstract class AbstractTestBase {
 		chunk.clear();
 		reader.close();
 		writer.close();
-		log.info("Generator done");
 	}
 
 	protected void flushAll(AbstractRedisClient client) {

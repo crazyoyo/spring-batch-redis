@@ -40,8 +40,7 @@ abstract class LiveTests extends BatchTests {
 			RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
 			RedisItemWriter<K, V, T> liveWriter) throws Exception {
 		live(liveReader);
-		GeneratorItemReader gen = generator(300);
-		generate(gen);
+		generate(generator(300));
 		TaskletStep step = faultTolerant(step(new SimpleTestInfo(info, "step"), reader, writer)).build();
 		SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "snapshotFlow"))).start(step)
 				.build();
@@ -77,28 +76,13 @@ abstract class LiveTests extends BatchTests {
 	}
 
 	@Test
-	void readLiveType() throws Exception {
-		enableKeyspaceNotifications(client);
-		StructItemReader<String, String> reader = live(RedisItemReader.struct(client));
-		reader.setKeyType(DataType.HASH.getString());
-		reader.open(new ExecutionContext());
-		GeneratorItemReader gen = generator(100);
-		generate(gen);
-		reader.open(new ExecutionContext());
-		List<KeyValue<String>> keyValues = readAll(reader);
-		reader.close();
-		Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType() == DataType.HASH));
-	}
-
-	@Test
 	void readStructLive() throws Exception {
 		enableKeyspaceNotifications(client);
 		StructItemReader<byte[], byte[]> reader = live(RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
 		reader.setNotificationQueueCapacity(10000);
 		reader.open(new ExecutionContext());
 		int count = 123;
-		GeneratorItemReader gen = generator(count, DataType.HASH, DataType.STRING);
-		generate(gen);
+		generate(generator(count, DataType.HASH, DataType.STRING));
 		List<KeyValue<byte[]>> list = readAll(reader);
 		Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
 		Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());

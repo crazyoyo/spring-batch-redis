@@ -44,6 +44,7 @@ import io.lettuce.core.Consumer;
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.StreamMessage;
+import io.lettuce.core.codec.ByteArrayCodec;
 
 class StackToStackTests extends ModulesTests {
 
@@ -59,6 +60,30 @@ class StackToStackTests extends ModulesTests {
 	@Override
 	protected RedisStackContainer getTargetRedisContainer() {
 		return TARGET;
+	}
+
+	@Test
+	void replicateHLL(TestInfo info) throws Exception {
+		String key1 = "hll:1";
+		commands.pfadd(key1, "member:1", "member:2");
+		String key2 = "hll:2";
+		commands.pfadd(key2, "member:1", "member:2", "member:3");
+		replicate(info, RedisItemReader.struct(client, ByteArrayCodec.INSTANCE),
+				RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE));
+		assertEquals(commands.pfcount(key1), targetCommands.pfcount(key1));
+	}
+
+	@Test
+	void readLiveType() throws Exception {
+		enableKeyspaceNotifications(client);
+		StructItemReader<String, String> reader = live(RedisItemReader.struct(client));
+		reader.setKeyType(DataType.HASH.getString());
+		reader.open(new ExecutionContext());
+		generate(generator(100));
+		reader.open(new ExecutionContext());
+		List<KeyValue<String>> keyValues = readAll(reader);
+		reader.close();
+		Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType() == DataType.HASH));
 	}
 
 	@Test
