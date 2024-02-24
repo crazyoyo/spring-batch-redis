@@ -10,19 +10,19 @@ import com.redis.testcontainers.RedisStackContainer;
 
 public interface RedisContainerFactory {
 
-    static RedisStackContainer stack() {
-        return new RedisStackContainer(RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
-    }
+	static RedisStackContainer stack() {
+		return new RedisStackContainer(RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
+	}
 
-    @SuppressWarnings("resource")
-    static RedisEnterpriseContainer enterprise() {
-        return new RedisEnterpriseContainer(RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
-                .withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(70)).ossCluster(true)
-                        .modules(RedisModule.JSON, RedisModule.TIMESERIES, RedisModule.SEARCH).build());
-    }
+	@SuppressWarnings("resource")
+	static RedisEnterpriseContainer enterprise() {
+		return new RedisEnterpriseContainer(RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
+				.withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(90)).ossCluster(true)
+						.modules(RedisModule.JSON, RedisModule.TIMESERIES, RedisModule.SEARCH).build());
+	}
 
-    static RedisContainer redis(String tag) {
-        return new RedisContainer(RedisContainer.DEFAULT_IMAGE_NAME.withTag(tag));
-    }
+	static RedisContainer redis(String tag) {
+		return new RedisContainer(RedisContainer.DEFAULT_IMAGE_NAME.withTag(tag));
+	}
 
 }
