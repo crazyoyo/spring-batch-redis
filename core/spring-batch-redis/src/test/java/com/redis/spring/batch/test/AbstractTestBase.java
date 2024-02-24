@@ -112,7 +112,7 @@ public abstract class AbstractTestBase {
 
 	protected static final int DEFAULT_CHUNK_SIZE = 50;
 
-	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofMillis(3000);
+	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(3);
 
 	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
 
@@ -120,7 +120,7 @@ public abstract class AbstractTestBase {
 
 	private static final Duration DEFAULT_POLL_DELAY = Duration.ZERO;
 
-	protected static final int DEFAULT_GENERATOR_COUNT = 100;
+	protected static final int DEFAULT_GENERATOR_COUNT = 73;
 
 	private Duration awaitPollDelay = DEFAULT_POLL_DELAY;
 

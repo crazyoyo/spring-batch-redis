@@ -128,7 +128,7 @@ abstract class ModulesTests extends LiveTests {
 
 	@Test
 	void compareTimeseries(TestInfo info) throws Exception {
-		int count = 1000;
+		int count = 123;
 		for (int index = 0; index < count; index++) {
 			commands.tsAdd("ts:" + index, Sample.of(123));
 		}

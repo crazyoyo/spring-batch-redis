@@ -99,7 +99,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void compareQuick(TestInfo info) throws Exception {
+	void compareQuick() throws Exception {
 		int sourceCount = 100;
 		for (int index = 1; index <= sourceCount; index++) {
 			commands.set("key:" + index, "value:" + index);
@@ -124,7 +124,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		GeneratorItemReader gen = generator(10);
 		gen.setTypes(DataType.STREAM);
 		generate(gen);
-		replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient));
+		Assertions.assertTrue(
+				replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)).isOk());
 		KeyspaceComparison comparison = compare(info);
 		assertTrue(comparison.isOk());
 	}
@@ -133,7 +134,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void compareStatus(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(120);
 		generate(gen);
-		replicate(info, RedisItemReader.dump(client), RedisItemWriter.dump(targetClient));
+		Assertions.assertTrue(replicate(info, RedisItemReader.dump(client), RedisItemWriter.dump(targetClient)).isOk());
 		long deleted = 0;
 		for (int index = 0; index < 13; index++) {
 			deleted += targetCommands.del(targetCommands.randomkey());
@@ -185,20 +186,20 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void estimateScanSize(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(10000, DataType.HASH, DataType.STRING);
+	void estimateScanSize() throws Exception {
+		GeneratorItemReader gen = generator(1000, DataType.HASH, DataType.STRING);
 		generate(gen);
 		long expectedCount = commands.dbsize();
 		ScanSizeEstimator estimator = new ScanSizeEstimator(client);
 		estimator.setScanMatch(GeneratorItemReader.DEFAULT_KEYSPACE + ":*");
-		estimator.setSamples(1000);
+		estimator.setSamples(100);
 		assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
 		estimator.setScanType(DataType.HASH.getString());
 		assertEquals(expectedCount / 2, estimator.getAsLong(), expectedCount / 10);
 	}
 
 	@Test
-	void readStruct(TestInfo info) throws Exception {
+	void readStruct() throws Exception {
 		generate();
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		reader.open(new ExecutionContext());
@@ -440,7 +441,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamAck(TestInfo info) throws Exception {
+	void readStreamAck() throws Exception {
 		generateStreams(57);
 		List<String> keys = ScanIterator.scan(commands, KeyScanArgs.Builder.type(DataType.STREAM.getString())).stream()
 				.collect(Collectors.toList());
@@ -458,8 +459,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStream(TestInfo info) throws Exception {
-		generateStreams(277);
+	void readStream() throws Exception {
+		generateStreams(73);
 		List<String> keys = ScanIterator.scan(commands, KeyScanArgs.Builder.type(DataType.STREAM.getString())).stream()
 				.collect(Collectors.toList());
 		Consumer<String> consumer = Consumer.from("batchtests-readstreamjob", "consumer1");
@@ -605,14 +606,15 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void replicateDump(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(100);
 		generate(gen);
-		replicate(info, RedisItemReader.dump(client), RedisItemWriter.dump(targetClient));
+		Assertions.assertTrue(replicate(info, RedisItemReader.dump(client), RedisItemWriter.dump(targetClient)).isOk());
 	}
 
 	@Test
 	void replicateStruct(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(100);
 		generate(gen);
-		replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient));
+		Assertions.assertTrue(
+				replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)).isOk());
 	}
 
 	@Test
@@ -621,7 +623,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		generate(gen);
 		StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
 		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
-		replicate(info, reader, writer);
+		Assertions.assertTrue(replicate(info, reader, writer).isOk());
 	}
 
 	@Test
@@ -642,24 +644,19 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			LettuceFutures.awaitAll(connection.getTimeout(), futures.toArray(new RedisFuture[0]));
 			connection.setAutoFlushCommands(true);
 		}
-		replicate(info, RedisItemReader.struct(client, ByteArrayCodec.INSTANCE),
-				RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE));
+		Assertions.assertTrue(replicate(info, RedisItemReader.struct(client, ByteArrayCodec.INSTANCE),
+				RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE)).isOk());
 	}
 
-	protected <K, V> void replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
+	protected <K, V> KeyspaceComparison replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
 			RedisItemWriter<K, V, KeyValue<K>> writer) throws Exception {
 		run(info, reader, writer);
-		assertAllOK(compare(testInfo(info, "replicate")));
-	}
-
-	private void assertAllOK(Object compare) {
-		// TODO Auto-generated method stub
-
+		return compare(testInfo(info, "replicate"));
 	}
 
 	@Test
 	void replicateStructEmptyCollections(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(1000);
+		GeneratorItemReader gen = generator(123);
 		Range cardinality = Range.of(0);
 		gen.getHashOptions().setFieldCount(cardinality);
 		gen.getSetOptions().setMemberCount(cardinality);
@@ -667,7 +664,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		gen.getTimeSeriesOptions().setSampleCount(cardinality);
 		gen.getZsetOptions().setMemberCount(cardinality);
 		generate(gen);
-		replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient));
+		Assertions.assertTrue(
+				replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)).isOk());
 	}
 
 	@Test

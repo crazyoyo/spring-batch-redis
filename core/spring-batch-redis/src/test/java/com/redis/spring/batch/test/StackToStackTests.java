@@ -68,8 +68,9 @@ class StackToStackTests extends ModulesTests {
 		commands.pfadd(key1, "member:1", "member:2");
 		String key2 = "hll:2";
 		commands.pfadd(key2, "member:1", "member:2", "member:3");
-		replicate(info, RedisItemReader.struct(client, ByteArrayCodec.INSTANCE),
-				RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE));
+		StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
+		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
+		Assertions.assertTrue(replicate(info, reader, writer).isOk());
 		assertEquals(commands.pfcount(key1), targetCommands.pfcount(key1));
 	}
 
@@ -147,7 +148,7 @@ class StackToStackTests extends ModulesTests {
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-		replicate(info, reader, writer);
+		Assertions.assertTrue(replicate(info, reader, writer).isOk());
 	}
 
 	@Test
@@ -156,7 +157,7 @@ class StackToStackTests extends ModulesTests {
 		DumpItemReader reader = RedisItemReader.dump(client);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
-		replicate(info, reader, writer);
+		Assertions.assertTrue(replicate(info, reader, writer).isOk());
 	}
 
 	@Test
