@@ -15,15 +15,12 @@ buildscript {
 
 apply plugin: 'org.kordamp.gradle.kordamp-parentbuild'
 
-rootProject.name = 'spring-batch-redis'
+rootProject.name = 'spring-batch-redis-root'
 
 projects {
     directories = ['core', 'spring']
 
     plugins {
-        all {
-            id 'eclipse'
-        }
         path(':') {
             id 'org.kordamp.gradle.java-project'
         }
