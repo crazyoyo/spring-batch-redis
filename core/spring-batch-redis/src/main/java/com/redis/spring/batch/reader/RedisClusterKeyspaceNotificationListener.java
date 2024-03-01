@@ -1,26 +1,26 @@
 package com.redis.spring.batch.reader;
 
+import java.util.concurrent.BlockingQueue;
+
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 
-public class RedisClusterKeyspaceNotificationPublisher extends AbstractKeyspaceNotificationPublisher
+public class RedisClusterKeyspaceNotificationListener extends AbstractKeyspaceNotificationListener
 		implements RedisClusterPubSubListener<String, String> {
 
 	private final RedisClusterClient client;
-
-	private final String pattern;
-
 	private StatefulRedisClusterPubSubConnection<String, String> connection;
 
-	public RedisClusterKeyspaceNotificationPublisher(RedisClusterClient client, String pattern) {
+	public RedisClusterKeyspaceNotificationListener(RedisClusterClient client, String pubSubPattern,
+			BlockingQueue<String> queue) {
+		super(pubSubPattern, queue);
 		this.client = client;
-		this.pattern = pattern;
 	}
 
 	@Override
-	public synchronized void open() {
+	protected synchronized void doStart(String pattern) {
 		if (connection == null) {
 			connection = client.connectPubSub();
 			connection.setNodeMessagePropagation(true);
@@ -30,7 +30,7 @@ public class RedisClusterKeyspaceNotificationPublisher extends AbstractKeyspaceN
 	}
 
 	@Override
-	public synchronized void close() {
+	protected synchronized void doClose(String pattern) {
 		if (connection != null) {
 			connection.sync().upstream().commands().punsubscribe(pattern);
 			connection.removeListener(this);

@@ -8,18 +8,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
-import java.util.Set;
 import java.util.function.Function;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
-import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 
@@ -43,9 +40,6 @@ import com.redis.spring.batch.common.ToSampleFunction;
 import com.redis.spring.batch.common.ToSuggestionFunction;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.TimeSeriesOptions;
-import com.redis.spring.batch.reader.KeyEvent;
-import com.redis.spring.batch.reader.KeyspaceNotification;
-import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
@@ -98,25 +92,6 @@ abstract class ModulesTests extends LiveTests {
 		reader.close();
 		registry.close();
 		Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
-	}
-
-	@Test
-	void readKeyspaceNotifications() throws Exception {
-		enableKeyspaceNotifications(client);
-		KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client,
-				CodecUtils.STRING_CODEC);
-		reader.open(new ExecutionContext());
-		GeneratorItemReader gen = generator(100);
-		generate(gen);
-		awaitUntil(() -> reader.getQueue().size() > 0);
-		Assertions.assertEquals(KeyEvent.SET, reader.getQueue().remove().getEvent());
-		Set<KeyEvent> eventTypes = new LinkedHashSet<>(Arrays.asList(KeyEvent.SET, KeyEvent.HSET, KeyEvent.JSON_SET,
-				KeyEvent.RPUSH, KeyEvent.SADD, KeyEvent.ZADD, KeyEvent.XADD, KeyEvent.TS_ADD));
-		KeyspaceNotification notification;
-		while ((notification = reader.getQueue().poll()) != null) {
-			Assertions.assertTrue(eventTypes.contains(notification.getEvent()));
-		}
-		reader.close();
 	}
 
 	@Test

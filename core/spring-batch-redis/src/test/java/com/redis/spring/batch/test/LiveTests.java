@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -23,9 +25,10 @@ import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
+import com.redis.spring.batch.common.SetBlockingQueue;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.DumpItemReader;
-import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
+import com.redis.spring.batch.reader.KeyspaceNotificationListener;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.CodecUtils;
@@ -63,16 +66,16 @@ abstract class LiveTests extends BatchTests {
 	@Test
 	void readKeyspaceNotificationsDedupe() throws Exception {
 		enableKeyspaceNotifications(client);
-		KeyspaceNotificationItemReader<String> reader = new KeyspaceNotificationItemReader<>(client,
-				CodecUtils.STRING_CODEC);
-		reader.open(new ExecutionContext());
+		BlockingQueue<String> queue = new SetBlockingQueue<>(new LinkedBlockingDeque<>(), 100);
+		KeyspaceNotificationListener listener = RedisItemReader.struct(client).keyspaceNotificationListener(queue);
+		listener.start();
 		String key = "key1";
 		commands.zadd(key, 1, "member1");
 		commands.zadd(key, 2, "member2");
 		commands.zadd(key, 3, "member3");
-		awaitUntil(() -> reader.getQueue().size() == 1);
-		Assertions.assertEquals(key, reader.read());
-		reader.close();
+		awaitUntil(() -> queue.size() == 1);
+		Assertions.assertEquals(key, queue.poll());
+		listener.close();
 	}
 
 	@Test

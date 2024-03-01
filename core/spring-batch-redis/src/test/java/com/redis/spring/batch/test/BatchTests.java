@@ -48,7 +48,7 @@ import com.redis.spring.batch.gen.MapOptions;
 import com.redis.spring.batch.reader.KeyTypeItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
-import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
+import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
@@ -232,7 +232,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String consumerGroup = "batchtests-readStreamAutoAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
-		reader.setAckPolicy(StreamAckPolicy.AUTO);
+		reader.setAckPolicy(AckPolicy.AUTO);
 		open(reader);
 		String field1 = "field1";
 		String value1 = "value1";
@@ -258,7 +258,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String consumerGroup = "batchtests-readStreamManualAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
-		reader.setAckPolicy(StreamAckPolicy.MANUAL);
+		reader.setAckPolicy(AckPolicy.MANUAL);
 		open(reader);
 		String field1 = "field1";
 		String value1 = "value1";
@@ -288,7 +288,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String stream = "stream1";
 		Consumer<String> consumer = Consumer.from("batchtests-readStreamManualAckRecover", "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
-		reader.setAckPolicy(StreamAckPolicy.MANUAL);
+		reader.setAckPolicy(AckPolicy.MANUAL);
 		open(reader);
 		String field1 = "field1";
 		String value1 = "value1";
@@ -310,7 +310,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		reader.close();
 
 		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
-		reader2.setAckPolicy(StreamAckPolicy.MANUAL);
+		reader2.setAckPolicy(AckPolicy.MANUAL);
 		open(reader2);
 
 		awaitUntil(() -> recoveredMessages.addAll(reader2.readMessages()));
@@ -325,7 +325,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String consumerGroup = "batchtests-readStreamManualAckRecoverUncommitted";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
-		reader.setAckPolicy(StreamAckPolicy.MANUAL);
+		reader.setAckPolicy(AckPolicy.MANUAL);
 		open(reader);
 		String field1 = "field1";
 		String value1 = "value1";
@@ -347,7 +347,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		reader.close();
 
 		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
-		reader2.setAckPolicy(StreamAckPolicy.MANUAL);
+		reader2.setAckPolicy(AckPolicy.MANUAL);
 		reader2.setOffset(messages.get(1).getId());
 		open(reader2);
 
@@ -365,7 +365,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String consumerGroup = "batchtests-readStreamManualAckRecoverFromOffset";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
-		reader.setAckPolicy(StreamAckPolicy.MANUAL);
+		reader.setAckPolicy(AckPolicy.MANUAL);
 		open(reader);
 		String field1 = "field1";
 		String value1 = "value1";
@@ -387,7 +387,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		reader.close();
 
 		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
-		reader2.setAckPolicy(StreamAckPolicy.MANUAL);
+		reader2.setAckPolicy(AckPolicy.MANUAL);
 		reader2.setOffset(id3);
 		open(reader2);
 
@@ -405,7 +405,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String consumerGroup = "readStreamRecoverManualAckToAutoAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
-		reader.setAckPolicy(StreamAckPolicy.MANUAL);
+		reader.setAckPolicy(AckPolicy.MANUAL);
 		open(reader);
 		String field1 = "field1";
 		String value1 = "value1";
@@ -426,7 +426,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		reader.close();
 
 		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
-		reader2.setAckPolicy(StreamAckPolicy.AUTO);
+		reader2.setAckPolicy(AckPolicy.AUTO);
 		open(reader2);
 
 		// Wait until task.poll() doesn't return any more records

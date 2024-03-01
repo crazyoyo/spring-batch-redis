@@ -52,6 +52,7 @@ import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
+import org.testcontainers.lifecycle.Startable;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
@@ -59,7 +60,7 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemReader.ReaderMode;
+import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
@@ -77,7 +78,7 @@ import com.redis.spring.batch.util.ConnectionUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
 import com.redis.spring.batch.writer.WriteOperation;
-import com.redis.testcontainers.AbstractRedisContainer;
+import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
@@ -90,25 +91,6 @@ import io.lettuce.core.support.ConnectionPoolSupport;
 
 @TestInstance(Lifecycle.PER_CLASS)
 public abstract class AbstractTestBase {
-
-	public static final DataType[] REDIS_GENERATOR_TYPES = { DataType.HASH, DataType.LIST, DataType.SET,
-			DataType.STREAM, DataType.STRING, DataType.ZSET };
-
-	public static final DataType[] REDIS_MODULES_GENERATOR_TYPES = { DataType.HASH, DataType.LIST, DataType.SET,
-			DataType.STREAM, DataType.STRING, DataType.ZSET, DataType.JSON };
-
-	public static TestInfo testInfo(TestInfo info, String... suffixes) {
-		return new SimpleTestInfo(info, suffixes);
-	}
-
-	public static <T> List<T> readAll(ItemReader<T> reader) throws Exception {
-		List<T> list = new ArrayList<>();
-		T element;
-		while ((element = reader.read()) != null) {
-			list.add(element);
-		}
-		return list;
-	}
 
 	protected static final int DEFAULT_CHUNK_SIZE = 50;
 
@@ -148,13 +130,35 @@ public abstract class AbstractTestBase {
 
 	private TaskExecutorJobLauncher jobLauncher;
 
-	protected abstract AbstractRedisContainer<?> getRedisContainer();
+	protected abstract RedisServer getRedisServer();
+
+	public static final DataType[] REDIS_GENERATOR_TYPES = { DataType.HASH, DataType.LIST, DataType.SET,
+			DataType.STREAM, DataType.STRING, DataType.ZSET };
+
+	public static final DataType[] REDIS_MODULES_GENERATOR_TYPES = { DataType.HASH, DataType.LIST, DataType.SET,
+			DataType.STREAM, DataType.STRING, DataType.ZSET, DataType.JSON };
+
+	public static TestInfo testInfo(TestInfo info, String... suffixes) {
+		return new SimpleTestInfo(info, suffixes);
+	}
+
+	public static <T> List<T> readAll(ItemReader<T> reader) throws Exception {
+		List<T> list = new ArrayList<>();
+		T element;
+		while ((element = reader.read()) != null) {
+			list.add(element);
+		}
+		return list;
+	}
 
 	@BeforeAll
 	void setup() throws Exception {
 		// Source Redis setup
-		getRedisContainer().start();
-		client = client(getRedisContainer());
+		RedisServer redis = getRedisServer();
+		if (redis instanceof Startable) {
+			((Startable) redis).start();
+		}
+		client = client(getRedisServer());
 		pool = ConnectionPoolSupport.createGenericObjectPool(ConnectionUtils.supplier(client),
 				new GenericObjectPoolConfig<>());
 		connection = RedisModulesUtils.connection(client);
@@ -183,11 +187,20 @@ public abstract class AbstractTestBase {
 
 	@AfterAll
 	void teardown() {
-		connection.close();
-		pool.close();
-		client.shutdown();
-		client.getResources().shutdown();
-		getRedisContainer().close();
+		if (connection != null) {
+			connection.close();
+		}
+		if (pool != null) {
+			pool.close();
+		}
+		if (client != null) {
+			client.shutdown();
+			client.getResources().shutdown();
+		}
+		RedisServer redis = getRedisServer();
+		if (redis instanceof Startable) {
+			((Startable) redis).stop();
+		}
 	}
 
 	@BeforeEach
@@ -239,8 +252,8 @@ public abstract class AbstractTestBase {
 		return displayName;
 	}
 
-	protected AbstractRedisClient client(AbstractRedisContainer<?> server) {
-		if (server.isCluster()) {
+	protected AbstractRedisClient client(RedisServer server) {
+		if (server.isRedisCluster()) {
 			return RedisModulesClusterClient.create(server.getRedisURI());
 		}
 		return RedisModulesClient.create(server.getRedisURI());
@@ -327,7 +340,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected <R extends RedisItemReader<?, ?, ?>> R live(R reader) {
-		reader.setMode(ReaderMode.LIVE);
+		reader.setMode(Mode.LIVE);
 		reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
 		return reader;
 	}

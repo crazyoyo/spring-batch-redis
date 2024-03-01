@@ -76,7 +76,7 @@ public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, Key
 	}
 
 	@Override
-	public Iterable<KeyValue<K>> process(Iterable<K> chunk) throws Exception {
+	public Iterable<KeyValue<K>> process(Iterable<K> chunk) {
 		return valueReader.process(chunk);
 	}
 

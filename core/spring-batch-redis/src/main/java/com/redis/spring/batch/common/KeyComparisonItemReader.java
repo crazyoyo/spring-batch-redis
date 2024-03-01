@@ -8,18 +8,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.support.PassThroughItemProcessor;
 import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.reader.KeyValueItemReader;
 import com.redis.spring.batch.util.CodecUtils;
+import com.redis.spring.batch.util.IdentityOperator;
 
 import io.lettuce.core.StreamMessage;
 
@@ -33,7 +33,7 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
 	private final OperationValueReader<String, String, String, KeyValue<String>> target;
 
-	private ItemProcessor<KeyValue<String>, KeyValue<String>> processor = new PassThroughItemProcessor<>();
+	private UnaryOperator<KeyValue<String>> processor = new IdentityOperator<>();
 
 	private boolean compareStreamMessageIds;
 
@@ -48,7 +48,7 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 		this.compareStreamMessageIds = enable;
 	}
 
-	public void setProcessor(ItemProcessor<KeyValue<String>, KeyValue<String>> processor) {
+	public void setProcessor(UnaryOperator<KeyValue<String>> processor) {
 		this.processor = processor;
 	}
 
@@ -78,7 +78,7 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 	}
 
 	@Override
-	public List<KeyComparison> process(Iterable<String> keys) throws Exception {
+	public List<KeyComparison> process(Iterable<String> keys) {
 		Iterable<String> processedKeys = processKeys(keys);
 		List<KeyValue<String>> sourceItems = source.process(processedKeys);
 		if (CollectionUtils.isEmpty(sourceItems)) {
@@ -106,13 +106,13 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 		return comparisons;
 	}
 
-	private List<KeyValue<String>> processValues(List<KeyValue<String>> values) throws Exception {
+	private List<KeyValue<String>> processValues(List<KeyValue<String>> values) {
 		if (processor == null) {
 			return values;
 		}
 		List<KeyValue<String>> processedValues = new ArrayList<>(values.size());
 		for (KeyValue<String> value : values) {
-			KeyValue<String> processedValue = processor.process(value);
+			KeyValue<String> processedValue = processor.apply(value);
 			if (processedValue != null) {
 				processedValues.add(processedValue);
 			}
@@ -120,13 +120,13 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 		return processedValues;
 	}
 
-	private Iterable<String> processKeys(Iterable<String> keys) throws Exception {
-		if (keyProcessor == null) {
+	private Iterable<String> processKeys(Iterable<String> keys) {
+		if (keyOperator == null) {
 			return keys;
 		}
 		List<String> processedKeys = new ArrayList<>();
 		for (String key : keys) {
-			String processedKey = keyProcessor.process(key);
+			String processedKey = keyOperator.apply(key);
 			if (processedKey != null) {
 				processedKeys.add(processedKey);
 			}

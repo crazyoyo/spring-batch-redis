@@ -1,7 +1,5 @@
 package com.redis.spring.batch.test;
 
-import org.springframework.util.unit.DataSize;
-
 import com.redis.enterprise.Database;
 import com.redis.enterprise.RedisModule;
 import com.redis.testcontainers.RedisContainer;
@@ -17,7 +15,7 @@ public interface RedisContainerFactory {
 	@SuppressWarnings("resource")
 	static RedisEnterpriseContainer enterprise() {
 		return new RedisEnterpriseContainer(RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("latest"))
-				.withDatabase(Database.name("BatchTests").memory(DataSize.ofMegabytes(90)).ossCluster(true)
+				.withDatabase(Database.builder().name("BatchTests").memoryMB(90).ossCluster(true)
 						.modules(RedisModule.JSON, RedisModule.TIMESERIES, RedisModule.SEARCH).build());
 	}
 

@@ -32,7 +32,7 @@ import com.redis.spring.batch.common.OperationValueReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
-import com.redis.spring.batch.reader.StreamItemReader.StreamAckPolicy;
+import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.OperationItemWriter;
@@ -53,12 +53,12 @@ class StackToStackTests extends ModulesTests {
 	private static final RedisStackContainer TARGET = RedisContainerFactory.stack();
 
 	@Override
-	protected RedisStackContainer getRedisContainer() {
+	protected RedisStackContainer getRedisServer() {
 		return SOURCE;
 	}
 
 	@Override
-	protected RedisStackContainer getTargetRedisContainer() {
+	protected RedisStackContainer getTargetRedisServer() {
 		return TARGET;
 	}
 
@@ -138,7 +138,8 @@ class StackToStackTests extends ModulesTests {
 		reader.open(new ExecutionContext());
 		List<KeyValue<String>> keyValues = readAll(reader);
 		reader.close();
-		Map<String, KeyValue<String>> map = keyValues.stream().collect(Collectors.toMap(s -> s.getKey(), s -> s));
+		Map<String, KeyValue<String>> map = keyValues.stream()
+				.collect(Collectors.toMap(s -> s.getKey(), Function.identity()));
 		Assertions.assertNull(map.get(key2).getValue());
 	}
 
@@ -224,9 +225,9 @@ class StackToStackTests extends ModulesTests {
 		for (String key : keys) {
 			long count = commands.xlen(key);
 			StreamItemReader<String, String> reader1 = streamReader(key, Consumer.from(consumerGroup, "consumer1"));
-			reader1.setAckPolicy(StreamAckPolicy.MANUAL);
+			reader1.setAckPolicy(AckPolicy.MANUAL);
 			StreamItemReader<String, String> reader2 = streamReader(key, Consumer.from(consumerGroup, "consumer2"));
-			reader2.setAckPolicy(StreamAckPolicy.MANUAL);
+			reader2.setAckPolicy(AckPolicy.MANUAL);
 			ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
 			TestInfo testInfo1 = new SimpleTestInfo(testInfo, key, "1");
 			TaskletStep step1 = faultTolerant(flushingStep(testInfo1, reader1, writer1)).build();
@@ -242,12 +243,12 @@ class StackToStackTests extends ModulesTests {
 			assertMessageBody(writer2.getWrittenItems());
 			Assertions.assertEquals(count, commands.xpending(key, consumerGroup).getCount());
 			reader1 = streamReader(key, Consumer.from(consumerGroup, "consumer1"));
-			reader1.setAckPolicy(StreamAckPolicy.MANUAL);
+			reader1.setAckPolicy(AckPolicy.MANUAL);
 			reader1.open(new ExecutionContext());
 			reader1.ack(writer1.getWrittenItems());
 			reader1.close();
 			reader2 = streamReader(key, Consumer.from(consumerGroup, "consumer2"));
-			reader2.setAckPolicy(StreamAckPolicy.MANUAL);
+			reader2.setAckPolicy(AckPolicy.MANUAL);
 			reader2.open(new ExecutionContext());
 			reader2.ack(writer2.getWrittenItems());
 			reader2.close();

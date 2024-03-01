@@ -11,7 +11,6 @@ import java.util.stream.StreamSupport;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.ItemStreamReader;
 
 import com.redis.spring.batch.util.ConnectionUtils;
 
@@ -27,10 +26,9 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public class StreamItemReader<K, V>
-		implements ItemStreamReader<StreamMessage<K, V>>, PollableItemReader<StreamMessage<K, V>> {
+public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<K, V>> {
 
-	public enum StreamAckPolicy {
+	public enum AckPolicy {
 		AUTO, MANUAL
 	}
 
@@ -42,7 +40,7 @@ public class StreamItemReader<K, V>
 
 	public static final long DEFAULT_COUNT = 50;
 
-	public static final StreamAckPolicy DEFAULT_ACK_POLICY = StreamAckPolicy.AUTO;
+	public static final AckPolicy DEFAULT_ACK_POLICY = AckPolicy.AUTO;
 
 	private final AbstractRedisClient client;
 
@@ -58,7 +56,7 @@ public class StreamItemReader<K, V>
 
 	private long count = DEFAULT_COUNT;
 
-	private StreamAckPolicy ackPolicy = DEFAULT_ACK_POLICY;
+	private AckPolicy ackPolicy = DEFAULT_ACK_POLICY;
 
 	private StatefulConnection<K, V> connection;
 
@@ -111,11 +109,11 @@ public class StreamItemReader<K, V>
 		this.count = count;
 	}
 
-	public StreamAckPolicy getAckPolicy() {
+	public AckPolicy getAckPolicy() {
 		return ackPolicy;
 	}
 
-	public void setAckPolicy(StreamAckPolicy policy) {
+	public void setAckPolicy(AckPolicy policy) {
 		this.ackPolicy = policy;
 	}
 
@@ -152,7 +150,7 @@ public class StreamItemReader<K, V>
 	}
 
 	private MessageReader<K, V> reader() {
-		if (ackPolicy == StreamAckPolicy.MANUAL) {
+		if (ackPolicy == AckPolicy.MANUAL) {
 			return new ExplicitAckPendingMessageReader();
 		}
 		return new AutoAckPendingMessageReader();

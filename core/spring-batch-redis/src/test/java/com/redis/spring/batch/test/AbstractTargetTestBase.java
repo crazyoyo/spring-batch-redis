@@ -12,6 +12,7 @@ import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.ExecutionContext;
+import org.testcontainers.lifecycle.Startable;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
@@ -20,7 +21,7 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.testcontainers.AbstractRedisContainer;
+import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 
@@ -28,7 +29,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 
 	private static final Logger log = LoggerFactory.getLogger(AbstractTargetTestBase.class);
 
-	protected abstract AbstractRedisContainer<?> getTargetRedisContainer();
+	protected abstract RedisServer getTargetRedisServer();
 
 	protected AbstractRedisClient targetClient;
 
@@ -39,18 +40,29 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	@BeforeAll
 	void targetSetup() throws Exception {
 		// Target Redis setup
-		getTargetRedisContainer().start();
-		targetClient = client(getTargetRedisContainer());
+
+		RedisServer targetRedis = getTargetRedisServer();
+		if (targetRedis instanceof Startable) {
+			((Startable) targetRedis).start();
+		}
+		targetClient = client(getTargetRedisServer());
 		targetConnection = RedisModulesUtils.connection(targetClient);
 		targetCommands = targetConnection.sync();
 	}
 
 	@AfterAll
 	void targetTeardown() {
-		targetConnection.close();
-		targetClient.shutdown();
-		targetClient.getResources().shutdown();
-		getTargetRedisContainer().close();
+		if (targetConnection != null) {
+			targetConnection.close();
+		}
+		if (targetClient != null) {
+			targetClient.shutdown();
+			targetClient.getResources().shutdown();
+		}
+		RedisServer targetRedis = getTargetRedisServer();
+		if (targetRedis instanceof Startable) {
+			((Startable) targetRedis).stop();
+		}
 	}
 
 	@BeforeEach
