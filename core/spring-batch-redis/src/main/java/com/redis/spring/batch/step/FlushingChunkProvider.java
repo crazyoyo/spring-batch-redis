@@ -31,17 +31,10 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 
 	public static final Duration DEFAULT_FLUSH_INTERVAL = Duration.ofMillis(50);
 
-	/**
-	 * No idle stream detection by default
-	 */
-	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ZERO;
-
 	private final RepeatOperations repeatOperations;
-
 	private Duration interval = DEFAULT_FLUSH_INTERVAL;
-
-	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
-
+	// No idle timeout by default
+	private Duration idleTimeout;
 	private long lastActivity = 0;
 
 	public FlushingChunkProvider(ItemReader<? extends I> itemReader, RepeatOperations repeatOperations) {
@@ -86,8 +79,11 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 				return RepeatStatus.FINISHED;
 			}
 			if (item == null) {
-				if (isTimeout()) {
-					inputs.setEnd();
+				if (idleTimeout != null) {
+					long elapsedMillis = System.currentTimeMillis() - lastActivity;
+					if (elapsedMillis > idleTimeout.toMillis()) {
+						inputs.setEnd();
+					}
 				}
 				return RepeatStatus.CONTINUABLE;
 			}
@@ -98,17 +94,6 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 			return RepeatStatus.CONTINUABLE;
 		});
 		return inputs;
-	}
-
-	private boolean isTimeout() {
-		if (idleTimeout.isNegative() || idleTimeout.isZero()) {
-			return false;
-		}
-		return millisSinceLastActivity() > idleTimeout.toMillis();
-	}
-
-	private long millisSinceLastActivity() {
-		return System.currentTimeMillis() - lastActivity;
 	}
 
 	protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) throws InterruptedException {

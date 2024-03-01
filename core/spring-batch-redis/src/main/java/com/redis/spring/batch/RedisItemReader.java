@@ -61,12 +61,12 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 	public static final int DEFAULT_THREADS = 1;
 	public static final int DEFAULT_CHUNK_SIZE = 50;
-	public static final Duration DEFAULT_FLUSH_INTERVAL = KeyspaceNotificationProcessingTask.DEFAULT_FLUSH_INTERVAL;
 	public static final String MATCH_ALL = "*";
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
+	public static final Duration DEFAULT_FLUSH_INTERVAL = KeyspaceNotificationProcessingTask.DEFAULT_FLUSH_INTERVAL;
+	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
 	// No idle timeout by default
 	public static final Duration DEFAULT_IDLE_TIMEOUT = KeyspaceNotificationProcessingTask.DEFAULT_IDLE_TIMEOUT;
-	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
 	public static final Mode DEFAULT_MODE = Mode.SCAN;
 	public static final String DEFAULT_KEY_PATTERN = MATCH_ALL;
 
@@ -128,8 +128,8 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 	}
 
 	private KeyspaceNotificationProcessingTask<K, T> keyspaceNotificationListenerTask(BlockingQueue<String> keyQueue) {
-		KeyspaceNotificationProcessingTask<K, T> task = new KeyspaceNotificationProcessingTask<>(codec, keyQueue, this::process,
-				valueQueue);
+		KeyspaceNotificationProcessingTask<K, T> task = new KeyspaceNotificationProcessingTask<>(codec, keyQueue,
+				this::process, valueQueue);
 		task.setChunkSize(chunkSize);
 		task.setFlushInterval(flushInterval);
 		task.setIdleTimeout(idleTimeout);
