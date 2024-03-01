@@ -2,6 +2,7 @@ package com.redis.spring.batch.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -9,6 +10,8 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -38,6 +41,8 @@ import com.redis.spring.batch.writer.StructItemWriter;
 import io.lettuce.core.codec.ByteArrayCodec;
 
 abstract class LiveTests extends BatchTests {
+
+	private final Log log = LogFactory.getLog(getClass());
 
 	private <K, V, T extends KeyValue<K>> KeyspaceComparison replicateLive(TestInfo info,
 			RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
@@ -84,11 +89,14 @@ abstract class LiveTests extends BatchTests {
 		StructItemReader<byte[], byte[]> reader = live(RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
 		reader.setNotificationQueueCapacity(10000);
 		reader.open(new ExecutionContext());
-		int count = 123;
+		int count = 1234;
 		generate(generator(count, DataType.HASH, DataType.STRING));
 		List<KeyValue<byte[]>> list = readAll(reader);
 		Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
 		Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
+		Set<String> sourceKeys = new HashSet<>(commands.keys("*"));
+		sourceKeys.removeAll(keys);
+		log.info(sourceKeys);
 		Assertions.assertEquals(count, keys.size());
 		reader.close();
 	}

@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 
 import com.redis.spring.batch.util.IdentityOperator;
 
-public abstract class AbstractKeyHandler<K, V> implements Task {
+public abstract class AbstractChunkProcessingTask<K, V> implements ProcessingTask {
 
 	public static final int DEFAULT_CHUNK_SIZE = 50;
 
@@ -18,9 +18,10 @@ public abstract class AbstractKeyHandler<K, V> implements Task {
 	private UnaryOperator<K> keyOperator = new IdentityOperator<>();
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private final List<K> chunk = new ArrayList<>();
-	private long count = 0;
+	private long flushed = 0;
+	private long added = 0;
 
-	protected AbstractKeyHandler(Function<Iterable<K>, Iterable<V>> valueReader, BlockingQueue<V> valueQueue) {
+	protected AbstractChunkProcessingTask(Function<Iterable<K>, Iterable<V>> valueReader, BlockingQueue<V> valueQueue) {
 		this.valueReader = valueReader;
 		this.valueQueue = valueQueue;
 	}
@@ -37,13 +38,14 @@ public abstract class AbstractKeyHandler<K, V> implements Task {
 	public Long call() throws Exception {
 		execute();
 		flush();
-		return count;
+		return flushed;
 	}
 
 	protected abstract void execute() throws InterruptedException;
 
 	protected void add(K key) throws InterruptedException {
 		chunk.add(key);
+		added++;
 		if (chunk.size() >= chunkSize) {
 			flush();
 		}
@@ -54,7 +56,7 @@ public abstract class AbstractKeyHandler<K, V> implements Task {
 		Iterable<V> values = valueReader.apply(processedKeys);
 		for (V value : values) {
 			valueQueue.put(value);
-			count++;
+			flushed++;
 		}
 		chunk.clear();
 	}

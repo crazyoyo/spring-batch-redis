@@ -12,7 +12,7 @@ import com.redis.spring.batch.util.CodecUtils;
 
 import io.lettuce.core.codec.RedisCodec;
 
-public class KeyspaceNotificationTask<K, V> extends AbstractKeyHandler<K, V> {
+public class KeyspaceNotificationProcessingTask<K, V> extends AbstractChunkProcessingTask<K, V> {
 
 	public static final Duration DEFAULT_FLUSH_INTERVAL = Duration.ofMillis(50);
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(Long.MAX_VALUE);
@@ -22,7 +22,7 @@ public class KeyspaceNotificationTask<K, V> extends AbstractKeyHandler<K, V> {
 	private Duration flushInterval = DEFAULT_FLUSH_INTERVAL;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
 
-	public KeyspaceNotificationTask(RedisCodec<K, ?> codec, BlockingQueue<String> keyQueue,
+	public KeyspaceNotificationProcessingTask(RedisCodec<K, ?> codec, BlockingQueue<String> keyQueue,
 			Function<Iterable<K>, Iterable<V>> valueReader, BlockingQueue<V> valueQueue) {
 		super(valueReader, valueQueue);
 		this.keyEncoder = CodecUtils.stringKeyFunction(codec);

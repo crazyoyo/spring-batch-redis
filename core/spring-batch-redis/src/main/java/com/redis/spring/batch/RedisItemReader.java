@@ -25,15 +25,15 @@ import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.SetBlockingQueue;
 import com.redis.spring.batch.reader.AbstractKeyspaceNotificationListener;
 import com.redis.spring.batch.reader.DumpItemReader;
-import com.redis.spring.batch.reader.KeyScanTask;
+import com.redis.spring.batch.reader.KeyScanProcessingTask;
 import com.redis.spring.batch.reader.KeyTypeItemReader;
-import com.redis.spring.batch.reader.KeyspaceNotificationTask;
 import com.redis.spring.batch.reader.KeyspaceNotificationListener;
+import com.redis.spring.batch.reader.KeyspaceNotificationProcessingTask;
 import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.RedisClusterKeyspaceNotificationListener;
 import com.redis.spring.batch.reader.RedisKeyspaceNotificationListener;
 import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.spring.batch.reader.Task;
+import com.redis.spring.batch.reader.ProcessingTask;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.ConnectionUtils;
 import com.redis.spring.batch.util.IdentityOperator;
@@ -61,11 +61,11 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 	public static final int DEFAULT_THREADS = 1;
 	public static final int DEFAULT_CHUNK_SIZE = 50;
-	public static final Duration DEFAULT_FLUSH_INTERVAL = KeyspaceNotificationTask.DEFAULT_FLUSH_INTERVAL;
+	public static final Duration DEFAULT_FLUSH_INTERVAL = KeyspaceNotificationProcessingTask.DEFAULT_FLUSH_INTERVAL;
 	public static final String MATCH_ALL = "*";
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 	// No idle timeout by default
-	public static final Duration DEFAULT_IDLE_TIMEOUT = KeyspaceNotificationTask.DEFAULT_IDLE_TIMEOUT;
+	public static final Duration DEFAULT_IDLE_TIMEOUT = KeyspaceNotificationProcessingTask.DEFAULT_IDLE_TIMEOUT;
 	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
 	public static final Mode DEFAULT_MODE = Mode.SCAN;
 	public static final String DEFAULT_KEY_PATTERN = MATCH_ALL;
@@ -114,7 +114,7 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		}
 	}
 
-	private IntFunction<Task> taskSupplier() {
+	private IntFunction<ProcessingTask> taskSupplier() {
 		if (isLive()) {
 			BlockingQueue<String> keyQueue = new SetBlockingQueue<>(
 					new LinkedBlockingQueue<>(notificationQueueCapacity), notificationQueueCapacity);
@@ -124,11 +124,11 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		}
 		StatefulRedisModulesConnection<K, V> connection = ConnectionUtils.connection(client, codec, readFrom);
 		ScanIterator<K> iterator = ScanIterator.scan(ConnectionUtils.sync(connection), scanArgs());
-		return i -> new KeyScanTask<>(iterator, this::process, valueQueue);
+		return i -> new KeyScanProcessingTask<>(iterator, this::process, valueQueue);
 	}
 
-	private KeyspaceNotificationTask<K, T> keyspaceNotificationListenerTask(BlockingQueue<String> keyQueue) {
-		KeyspaceNotificationTask<K, T> task = new KeyspaceNotificationTask<>(codec, keyQueue, this::process,
+	private KeyspaceNotificationProcessingTask<K, T> keyspaceNotificationListenerTask(BlockingQueue<String> keyQueue) {
+		KeyspaceNotificationProcessingTask<K, T> task = new KeyspaceNotificationProcessingTask<>(codec, keyQueue, this::process,
 				valueQueue);
 		task.setChunkSize(chunkSize);
 		task.setFlushInterval(flushInterval);
@@ -186,7 +186,7 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		T item;
 		do {
 			item = poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
-		} while (item == null && !valueQueue.isEmpty() && futures.stream().anyMatch(futureRunning));
+		} while (item == null && futures.stream().anyMatch(futureRunning));
 		return item;
 	}
 

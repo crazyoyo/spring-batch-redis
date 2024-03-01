@@ -92,23 +92,17 @@ import io.lettuce.core.support.ConnectionPoolSupport;
 @TestInstance(Lifecycle.PER_CLASS)
 public abstract class AbstractTestBase {
 
-	protected static final int DEFAULT_CHUNK_SIZE = 50;
+	protected static final int chunkSize = 50;
 
-	private static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(3);
+	protected static final Duration idleTimeout = Duration.ofMillis(1000);
 
-	protected static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
+	private static final Duration pollDelay = Duration.ZERO;
 
-	private static final Duration DEFAULT_POLL_INTERVAL = Duration.ofMillis(1);
+	protected static final int defaultGeneratorCount = 73;
 
-	private static final Duration DEFAULT_POLL_DELAY = Duration.ZERO;
+	private static final Duration awaitPollInterval = Duration.ofMillis(1);
 
-	protected static final int DEFAULT_GENERATOR_COUNT = 73;
-
-	private Duration awaitPollDelay = DEFAULT_POLL_DELAY;
-
-	private Duration awaitPollInterval = DEFAULT_POLL_INTERVAL;
-
-	private Duration awaitTimeout = DEFAULT_AWAIT_TIMEOUT;
+	private static final Duration awaitTimeout = Duration.ofSeconds(3);
 
 	@Value("${running-timeout:PT5S}")
 	private Duration runningTimeout;
@@ -215,7 +209,7 @@ public abstract class AbstractTestBase {
 	protected abstract DataType[] generatorDataTypes();
 
 	protected GeneratorItemReader generator(DataType... types) {
-		return generator(DEFAULT_GENERATOR_COUNT, types);
+		return generator(defaultGeneratorCount, types);
 	}
 
 	protected GeneratorItemReader generator(int count, DataType... types) {
@@ -231,7 +225,7 @@ public abstract class AbstractTestBase {
 
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
 			ItemWriter<O> writer) {
-		return step(info, DEFAULT_CHUNK_SIZE, reader, processor, writer);
+		return step(info, chunkSize, reader, processor, writer);
 	}
 
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, int chunkSize, ItemReader<I> reader,
@@ -272,8 +266,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void awaitUntil(Callable<Boolean> evaluator) {
-		Awaitility.await().pollDelay(awaitPollDelay).pollInterval(awaitPollInterval).timeout(awaitTimeout)
-				.until(evaluator);
+		Awaitility.await().pollDelay(pollDelay).pollInterval(awaitPollInterval).timeout(awaitTimeout).until(evaluator);
 	}
 
 	protected JobBuilder job(TestInfo info) {
@@ -281,7 +274,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected GeneratorItemReader generator() {
-		return generator(DEFAULT_GENERATOR_COUNT);
+		return generator(defaultGeneratorCount);
 	}
 
 	protected <I, O> void generateAsync(FlushingStepBuilder<I, O> step, GeneratorItemReader reader) {
@@ -306,7 +299,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void generate() throws Exception {
-		generate(generator(DEFAULT_GENERATOR_COUNT));
+		generate(generator(defaultGeneratorCount));
 	}
 
 	protected void generate(GeneratorItemReader reader) throws Exception {
@@ -341,7 +334,7 @@ public abstract class AbstractTestBase {
 
 	protected <R extends RedisItemReader<?, ?, ?>> R live(R reader) {
 		reader.setMode(Mode.LIVE);
-		reader.setIdleTimeout(DEFAULT_IDLE_TIMEOUT);
+		reader.setIdleTimeout(idleTimeout);
 		return reader;
 	}
 
@@ -374,7 +367,7 @@ public abstract class AbstractTestBase {
 
 	protected <I, O> FlushingStepBuilder<I, O> flushingStep(TestInfo info, PollableItemReader<I> reader,
 			ItemWriter<O> writer) {
-		return new FlushingStepBuilder<>(step(info, reader, writer)).idleTimeout(DEFAULT_IDLE_TIMEOUT);
+		return new FlushingStepBuilder<>(step(info, reader, writer)).idleTimeout(idleTimeout);
 	}
 
 	protected void generateStreams(int messageCount) throws Exception {

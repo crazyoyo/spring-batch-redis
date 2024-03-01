@@ -2,6 +2,6 @@ package com.redis.spring.batch.reader;
 
 import java.util.concurrent.Callable;
 
-public interface Task extends Callable<Long> {
+public interface ProcessingTask extends Callable<Long> {
 
 }

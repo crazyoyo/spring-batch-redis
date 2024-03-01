@@ -824,7 +824,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void writeDel(TestInfo info) throws Exception {
 		generate();
-		GeneratorItemReader gen = generator(DEFAULT_GENERATOR_COUNT);
+		GeneratorItemReader gen = generator(defaultGeneratorCount);
 		Del<String, String, KeyValue<String>> del = new Del<>();
 		del.setKeyFunction(KeyValue::getKey);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(del);
@@ -840,7 +840,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		lpush.setValueFunction(v -> (String) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpush);
 		run(info, gen, writer);
-		assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
+		assertEquals(defaultGeneratorCount, commands.dbsize());
 		for (String key : commands.keys("*")) {
 			assertEquals(DataType.LIST.getString(), commands.type(key));
 		}
@@ -854,7 +854,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		rpush.setValueFunction(v -> (String) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(rpush);
 		run(info, gen, writer);
-		assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
+		assertEquals(defaultGeneratorCount, commands.dbsize());
 		for (String key : commands.keys("*")) {
 			assertEquals(DataType.LIST.getString(), commands.type(key));
 		}
@@ -869,7 +869,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		lpushAll.setValuesFunction(v -> (Collection<String>) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpushAll);
 		run(info, gen, writer);
-		assertEquals(DEFAULT_GENERATOR_COUNT, commands.dbsize());
+		assertEquals(defaultGeneratorCount, commands.dbsize());
 		for (String key : commands.keys("*")) {
 			assertEquals(DataType.LIST.getString(), commands.type(key));
 		}
