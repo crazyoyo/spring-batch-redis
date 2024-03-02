@@ -17,6 +17,7 @@ import java.util.function.Function;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 
@@ -35,9 +36,9 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationValueReader;
 import com.redis.spring.batch.common.ToSampleFunction;
 import com.redis.spring.batch.common.ToSuggestionFunction;
+import com.redis.spring.batch.common.ValueReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.TimeSeriesOptions;
 import com.redis.spring.batch.reader.StructItemReader;
@@ -86,7 +87,7 @@ abstract class ModulesTests extends LiveTests {
 		Metrics.addRegistry(registry);
 		generate();
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
-		open(reader);
+		reader.open(new ExecutionContext());
 		Search search = registry.find("redis.batch.reader.queue.size");
 		Assertions.assertNotNull(search.gauge());
 		reader.close();
@@ -119,8 +120,8 @@ abstract class ModulesTests extends LiveTests {
 		for (Sample sample : samples) {
 			commands.tsAdd(key, sample);
 		}
-		OperationValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
-		KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
+		ValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+		KeyValue<String> ds = executor.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(DataType.TIMESERIES, ds.getType());
 		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
@@ -135,10 +136,10 @@ abstract class ModulesTests extends LiveTests {
 		for (Sample sample : samples) {
 			commands.tsAdd(key, sample);
 		}
-		OperationValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
+		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
 				ByteArrayCodec.INSTANCE);
 		Function<String, byte[]> toByteArrayKeyFunction = CodecUtils.toByteArrayKeyFunction(CodecUtils.STRING_CODEC);
-		KeyValue<byte[]> ds = executor.process(Arrays.asList(toByteArrayKeyFunction.apply(key))).get(0);
+		KeyValue<byte[]> ds = executor.execute(toByteArrayKeyFunction.apply(key));
 		Assertions.assertArrayEquals(toByteArrayKeyFunction.apply(key), ds.getKey());
 		Assertions.assertEquals(DataType.TIMESERIES, ds.getType());
 		Assertions.assertEquals(Arrays.asList(samples), ds.getValue());
@@ -153,9 +154,7 @@ abstract class ModulesTests extends LiveTests {
 			values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
 		}
 		ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
-		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>();
-		sugadd.setKey(key);
-		sugadd.setSuggestionFunction(
+		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(keyFunction(key),
 				new ToSuggestionFunction<>(Suggestion::getString, Suggestion::getScore, Suggestion::getPayload));
 		OperationItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
 		run(testInfo, reader, writer);
@@ -173,9 +172,7 @@ abstract class ModulesTests extends LiveTests {
 		ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
 		ToSuggestionFunction<String, Suggestion<String>> converter = new ToSuggestionFunction<>(Suggestion::getString,
 				Suggestion::getScore, Suggestion::getPayload);
-		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>();
-		sugadd.setKey(key);
-		sugadd.setSuggestionFunction(converter);
+		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(keyFunction(key), converter);
 		sugadd.setIncr(true);
 		OperationItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
 		run(testInfo, reader, writer);
@@ -190,9 +187,8 @@ abstract class ModulesTests extends LiveTests {
 		for (int index = 0; index < 100; index++) {
 			samples.put(Instant.now().toEpochMilli() + index, (double) index);
 		}
-		TsAdd<String, String, Entry<Long, Double>> tsAdd = new TsAdd<>();
-		tsAdd.setKey(key);
-		tsAdd.setSampleFunction(new ToSampleFunction<>(e -> e.getKey(), e -> e.getValue()));
+		TsAdd<String, String, Entry<Long, Double>> tsAdd = new TsAdd<>(keyFunction(key),
+				new ToSampleFunction<>(e -> e.getKey(), e -> e.getValue()));
 		ListItemReader<Entry<Long, Double>> reader = new ListItemReader<>(new ArrayList<>(samples.entrySet()));
 		OperationItemWriter<String, String, Entry<Long, Double>> writer = writer(tsAdd);
 		run(info, reader, writer);
@@ -201,9 +197,8 @@ abstract class ModulesTests extends LiveTests {
 
 	@Test
 	void writeJsonSet(TestInfo testInfo) throws Exception {
-		JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>();
-		jsonSet.setKeyFunction(n -> "beer:" + n.get("id").asText());
-		jsonSet.setValueFunction(JsonNode::toString);
+		JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>(n -> "beer:" + n.get("id").asText(),
+				JsonNode::toString);
 		jsonSet.setPath(".");
 		OperationItemWriter<String, String, JsonNode> writer = writer(jsonSet);
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
@@ -217,8 +212,7 @@ abstract class ModulesTests extends LiveTests {
 	void writeJsonDel(TestInfo testInfo) throws Exception {
 		GeneratorItemReader gen = generator(DataType.JSON);
 		generate(gen);
-		JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>();
-		jsonDel.setKeyFunction(KeyValue::getKey);
+		JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>(KeyValue::getKey);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(jsonDel);
 		run(testInfo, gen, writer);
 		Assertions.assertEquals(0, commands.dbsize());
@@ -237,9 +231,7 @@ abstract class ModulesTests extends LiveTests {
 		ListItemReader<Sample> reader = new ListItemReader<>(samples);
 		AddOptions<String, String> addOptions = AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST)
 				.build();
-		TsAdd<String, String, Sample> tsadd = new TsAdd<>();
-		tsadd.setKey(key);
-		tsadd.setSampleFunction(Function.identity());
+		TsAdd<String, String, Sample> tsadd = new TsAdd<>(keyFunction(key), Function.identity());
 		tsadd.setOptions(addOptions);
 		OperationItemWriter<String, String, Sample> writer = writer(tsadd);
 		run(testInfo, reader, writer);

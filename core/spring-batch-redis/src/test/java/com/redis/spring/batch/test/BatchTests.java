@@ -39,10 +39,10 @@ import com.redis.spring.batch.common.KeyComparison;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyComparisonItemReader;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationValueReader;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.common.ToGeoValueFunction;
 import com.redis.spring.batch.common.ToScoredValueFunction;
+import com.redis.spring.batch.common.ValueReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.MapOptions;
 import com.redis.spring.batch.reader.KeyTypeItemReader;
@@ -233,7 +233,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(AckPolicy.AUTO);
-		open(reader);
+		reader.open(new ExecutionContext());
 		String field1 = "field1";
 		String value1 = "value1";
 		String field2 = "field2";
@@ -259,7 +259,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(AckPolicy.MANUAL);
-		open(reader);
+		reader.open(new ExecutionContext());
 		String field1 = "field1";
 		String value1 = "value1";
 		String field2 = "field2";
@@ -289,7 +289,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Consumer<String> consumer = Consumer.from("batchtests-readStreamManualAckRecover", "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(AckPolicy.MANUAL);
-		open(reader);
+		reader.open(new ExecutionContext());
 		String field1 = "field1";
 		String value1 = "value1";
 		String field2 = "field2";
@@ -311,7 +311,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
 		reader2.setAckPolicy(AckPolicy.MANUAL);
-		open(reader2);
+		reader2.open(new ExecutionContext());
 
 		awaitUntil(() -> recoveredMessages.addAll(reader2.readMessages()));
 		awaitUntil(() -> !recoveredMessages.addAll(reader2.readMessages()));
@@ -326,7 +326,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(AckPolicy.MANUAL);
-		open(reader);
+		reader.open(new ExecutionContext());
 		String field1 = "field1";
 		String value1 = "value1";
 		String field2 = "field2";
@@ -349,7 +349,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
 		reader2.setAckPolicy(AckPolicy.MANUAL);
 		reader2.setOffset(messages.get(1).getId());
-		open(reader2);
+		reader2.open(new ExecutionContext());
 
 		// Wait until task.poll() doesn't return any more records
 		awaitUntil(() -> recoveredMessages.addAll(reader2.readMessages()));
@@ -366,7 +366,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(AckPolicy.MANUAL);
-		open(reader);
+		reader.open(new ExecutionContext());
 		String field1 = "field1";
 		String value1 = "value1";
 		String field2 = "field2";
@@ -389,7 +389,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
 		reader2.setAckPolicy(AckPolicy.MANUAL);
 		reader2.setOffset(id3);
-		open(reader2);
+		reader2.open(new ExecutionContext());
 
 		// Wait until task.poll() doesn't return any more records
 		awaitUntil(() -> recoveredRecords.addAll(reader2.readMessages()));
@@ -406,7 +406,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
 		reader.setAckPolicy(AckPolicy.MANUAL);
-		open(reader);
+		reader.open(new ExecutionContext());
 		String field1 = "field1";
 		String value1 = "value1";
 		String field2 = "field2";
@@ -427,7 +427,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
 		reader2.setAckPolicy(AckPolicy.AUTO);
-		open(reader2);
+		reader2.open(new ExecutionContext());
 
 		// Wait until task.poll() doesn't return any more records
 		awaitUntil(() -> recoveredRecords.addAll(reader2.readMessages()));
@@ -484,8 +484,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		commands.hset(key, hash);
 		long ttl = System.currentTimeMillis() + 123456;
 		commands.pexpireat(key, ttl);
-		OperationValueReader<String, String, String, KeyValue<String>> reader = structOperationExecutor();
-		KeyValue<String> ds = reader.process(Arrays.asList(key)).get(0);
+		ValueReader<String, String, String, KeyValue<String>> reader = structOperationExecutor();
+		KeyValue<String> ds = reader.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(ttl, ds.getTtl());
 		Assertions.assertEquals(DataType.HASH, ds.getType());
@@ -499,8 +499,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String key = "myzset";
 		ScoredValue[] values = { ScoredValue.just(123.456, "value1"), ScoredValue.just(654.321, "value2") };
 		commands.zadd(key, values);
-		OperationValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
-		KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
+		ValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+		KeyValue<String> ds = executor.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(DataType.ZSET, ds.getType());
 		Assertions.assertEquals(new HashSet<>(Arrays.asList(values)), ds.getValue());
@@ -512,8 +512,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String key = "mylist";
 		List<String> values = Arrays.asList("value1", "value2");
 		commands.rpush(key, values.toArray(new String[0]));
-		OperationValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
-		KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
+		ValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+		KeyValue<String> ds = executor.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(DataType.LIST, ds.getType());
 		Assertions.assertEquals(values, ds.getValue());
@@ -529,8 +529,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		body.put("field2", "value2");
 		commands.xadd(key, body);
 		commands.xadd(key, body);
-		OperationValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
-		KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
+		ValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+		KeyValue<String> ds = executor.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(DataType.STREAM, ds.getType());
 		List<StreamMessage<String, String>> messages = (List<StreamMessage<String, String>>) ds.getValue();
@@ -552,8 +552,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		commands.xadd(key, body);
 		long ttl = System.currentTimeMillis() + 123456;
 		commands.pexpireat(key, ttl);
-		OperationValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = dumpOperationExecutor();
-		KeyValue<byte[]> dump = executor.process(Arrays.asList(toByteArray(key))).get(0);
+		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = dumpOperationExecutor();
+		KeyValue<byte[]> dump = executor.execute(toByteArray(key));
 		Assertions.assertArrayEquals(toByteArray(key), dump.getKey());
 		Assertions.assertTrue(Math.abs(ttl - dump.getTtl()) <= 3);
 		commands.del(key);
@@ -571,9 +571,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		body.put("field2", "value2");
 		commands.xadd(key, body);
 		commands.xadd(key, body);
-		OperationValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
+		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
 				ByteArrayCodec.INSTANCE);
-		KeyValue<byte[]> ds = executor.process(Arrays.asList(toByteArray(key))).get(0);
+		KeyValue<byte[]> ds = executor.execute(toByteArray(key));
 		Assertions.assertArrayEquals(toByteArray(key), ds.getKey());
 		Assertions.assertEquals(DataType.STREAM, ds.getType());
 		List<StreamMessage<byte[], byte[]>> messages = (List<StreamMessage<byte[], byte[]>>) ds.getValue();
@@ -594,8 +594,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		commands.pfadd(key1, "member:1", "member:2");
 		String key2 = "hll:2";
 		commands.pfadd(key2, "member:1", "member:2", "member:3");
-		OperationValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
-		KeyValue<String> ds1 = executor.process(Arrays.asList(key1)).get(0);
+		ValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+		KeyValue<String> ds1 = executor.execute(key1);
 		Assertions.assertEquals(key1, ds1.getKey());
 		Assertions.assertEquals(DataType.STRING, ds1.getType());
 		Assertions.assertEquals(commands.get(key1), ds1.getValue());
@@ -668,14 +668,17 @@ abstract class BatchTests extends AbstractTargetTestBase {
 				replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)).isOk());
 	}
 
+	public static <T> Function<T, String> keyFunction(String key) {
+		return t -> key;
+	}
+
 	@Test
 	void writeGeo(TestInfo info) throws Exception {
 		ListItemReader<Geo> reader = new ListItemReader<>(
 				Arrays.asList(new Geo("Venice Breakwater", -118.476056, 33.985728),
 						new Geo("Long Beach National", -73.667022, 40.582739)));
-		Geoadd<String, String, Geo> geoadd = new Geoadd<>();
-		geoadd.setKey("geoset");
-		geoadd.setValueFunction(new ToGeoValueFunction<>(Geo::getMember, Geo::getLongitude, Geo::getLatitude));
+		Geoadd<String, String, Geo> geoadd = new Geoadd<>(keyFunction("geoset"),
+				new ToGeoValueFunction<>(Geo::getMember, Geo::getLongitude, Geo::getLatitude));
 		OperationItemWriter<String, String, Geo> writer = writer(geoadd);
 		run(info, reader, writer);
 		Set<String> radius1 = commands.georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
@@ -696,9 +699,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			hashes.add(new AbstractMap.SimpleEntry<>(key, index < 50 ? null : body));
 		}
 		ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
-		Hset<String, String, Entry<String, Map<String, String>>> hset = new Hset<>();
-		hset.setKeyFunction(e -> "hash:" + e.getKey());
-		hset.setMapFunction(Entry::getValue);
+		Hset<String, String, Entry<String, Map<String, String>>> hset = new Hset<>(e -> "hash:" + e.getKey(),
+				Entry::getValue);
 		OperationItemWriter<String, String, Entry<String, Map<String, String>>> writer = writer(hset);
 		run(info, reader, writer);
 		assertEquals(100, commands.keys("hash:*").size());
@@ -713,9 +715,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			values.add(new ZValue(String.valueOf(index), index % 10));
 		}
 		ListItemReader<ZValue> reader = new ListItemReader<>(values);
-		Zadd<String, String, ZValue> zadd = new Zadd<>();
-		zadd.setKey(key);
-		zadd.setValueFunction(new ToScoredValueFunction<>(ZValue::getMember, ZValue::getScore));
+		Zadd<String, String, ZValue> zadd = new Zadd<>(keyFunction(key),
+				new ToScoredValueFunction<>(ZValue::getMember, ZValue::getScore));
 		OperationItemWriter<String, String, ZValue> writer = writer(zadd);
 		run(info, reader, writer);
 		assertEquals(1, commands.dbsize());
@@ -733,9 +734,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			values.add(String.valueOf(index));
 		}
 		ListItemReader<String> reader = new ListItemReader<>(values);
-		Sadd<String, String, String> sadd = new Sadd<>();
-		sadd.setKey(key);
-		sadd.setValueFunction(Function.identity());
+		Sadd<String, String, String> sadd = new Sadd<>(keyFunction(key), Function.identity());
 		OperationItemWriter<String, String, String> writer = writer(sadd);
 		run(info, reader, writer);
 		assertEquals(1, commands.dbsize());
@@ -787,9 +786,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			maps.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-		Hset<String, String, Map<String, String>> hset = new Hset<>();
-		hset.setKeyFunction(m -> "hash:" + m.remove("id"));
-		hset.setMapFunction(Function.identity());
+		Hset<String, String, Map<String, String>> hset = new Hset<>(m -> "hash:" + m.remove("id"), Function.identity());
 		OperationItemWriter<String, String, Map<String, String>> writer = writer(hset);
 		writer.setWaitReplicas(1);
 		writer.setWaitTimeout(Duration.ofMillis(300));
@@ -809,9 +806,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			maps.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-		Hset<String, String, Map<String, String>> hset = new Hset<>();
-		hset.setKeyFunction(m -> "hash:" + m.remove("id"));
-		hset.setMapFunction(Function.identity());
+		Hset<String, String, Map<String, String>> hset = new Hset<>(m -> "hash:" + m.remove("id"), Function.identity());
 		OperationItemWriter<String, String, Map<String, String>> writer = writer(hset);
 		run(info, reader, writer);
 		assertEquals(maps.size(), commands.keys("hash:*").size());
@@ -825,8 +820,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void writeDel(TestInfo info) throws Exception {
 		generate();
 		GeneratorItemReader gen = generator(defaultGeneratorCount);
-		Del<String, String, KeyValue<String>> del = new Del<>();
-		del.setKeyFunction(KeyValue::getKey);
+		Del<String, String, KeyValue<String>> del = new Del<>(KeyValue::getKey);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(del);
 		run(info, gen, writer);
 		assertEquals(0, commands.keys(GeneratorItemReader.DEFAULT_KEYSPACE + "*").size());
@@ -835,8 +829,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void writeLpush(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(DataType.STRING);
-		Lpush<String, String, KeyValue<String>> lpush = new Lpush<>();
-		lpush.setKeyFunction(KeyValue::getKey);
+		Lpush<String, String, KeyValue<String>> lpush = new Lpush<>(KeyValue::getKey);
 		lpush.setValueFunction(v -> (String) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpush);
 		run(info, gen, writer);
@@ -849,8 +842,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void writeRpush(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(DataType.STRING);
-		Rpush<String, String, KeyValue<String>> rpush = new Rpush<>();
-		rpush.setKeyFunction(KeyValue::getKey);
+		Rpush<String, String, KeyValue<String>> rpush = new Rpush<>(KeyValue::getKey);
 		rpush.setValueFunction(v -> (String) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(rpush);
 		run(info, gen, writer);
@@ -864,9 +856,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void writeLpushAll(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(DataType.LIST);
-		LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>();
-		lpushAll.setKeyFunction(KeyValue::getKey);
-		lpushAll.setValuesFunction(v -> (Collection<String>) v.getValue());
+		LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>(KeyValue::getKey,
+				v -> (Collection<String>) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpushAll);
 		run(info, gen, writer);
 		assertEquals(defaultGeneratorCount, commands.dbsize());
@@ -879,8 +870,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void writeExpire(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(DataType.STRING);
 		Duration ttl = Duration.ofMillis(1);
-		Expire<String, String, KeyValue<String>> expire = new Expire<>();
-		expire.setKeyFunction(KeyValue::getKey);
+		Expire<String, String, KeyValue<String>> expire = new Expire<>(KeyValue::getKey);
 		expire.setTtl(ttl);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(expire);
 		run(info, gen, writer);
@@ -891,8 +881,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void writeExpireAt(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(DataType.STRING);
-		ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>();
-		expireAt.setKeyFunction(KeyValue::getKey);
+		ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>(KeyValue::getKey);
 		expireAt.setEpochFunction(v -> System.currentTimeMillis());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(expireAt);
 		run(info, gen, writer);
@@ -911,9 +900,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			messages.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		Xadd<String, String, Map<String, String>> xadd = new Xadd<>();
-		xadd.setKey(stream);
-		xadd.setBodyFunction(Function.identity());
+		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(keyFunction(stream), Function.identity());
 		OperationItemWriter<String, String, Map<String, String>> writer = writer(xadd);
 		run(info, reader, writer);
 		Assertions.assertEquals(messages.size(), commands.xlen(stream));

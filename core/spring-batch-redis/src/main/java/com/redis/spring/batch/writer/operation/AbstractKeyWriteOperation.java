@@ -2,33 +2,31 @@ package com.redis.spring.batch.writer.operation;
 
 import java.util.function.Function;
 
-import com.redis.spring.batch.writer.WriteOperation;
+import org.springframework.batch.item.Chunk;
+
+import com.redis.spring.batch.common.Operation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public abstract class AbstractKeyWriteOperation<K, V, I> implements WriteOperation<K, V, I> {
+public abstract class AbstractKeyWriteOperation<K, V, I> implements Operation<K, V, I, Object> {
 
-    private Function<I, K> keyFunction;
+	private final Function<I, K> keyFunction;
 
-    public void setKeyFunction(Function<I, K> function) {
-        this.keyFunction = function;
-    }
+	protected AbstractKeyWriteOperation(Function<I, K> keyFunction) {
+		this.keyFunction = keyFunction;
+	}
 
-    public void setKey(K key) {
-        this.keyFunction = t -> key;
-    }
+	@Override
+	public void execute(BaseRedisAsyncCommands<K, V> commands, Chunk<? extends I> inputs,
+			Chunk<RedisFuture<Object>> outputs) {
+		for (I item : inputs) {
+			K key = keyFunction.apply(item);
+			execute(commands, item, key, outputs);
+		}
+	}
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    @Override
-    public RedisFuture<Object> execute(BaseRedisAsyncCommands<K, V> commands, I item) {
-        K key = keyFunction.apply(item);
-        if (key == null) {
-            return null;
-        }
-        return (RedisFuture) execute(commands, item, key);
-    }
-
-    protected abstract RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, I item, K key);
+	protected abstract void execute(BaseRedisAsyncCommands<K, V> commands, I item, K key,
+			Chunk<RedisFuture<Object>> outputs);
 
 }

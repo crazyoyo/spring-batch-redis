@@ -1,7 +1,7 @@
 package com.redis.spring.batch.common;
 
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -10,16 +10,17 @@ import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStream;
+import org.springframework.batch.item.Chunk;
+import org.springframework.retry.RetryContext;
+import org.springframework.retry.RetryPolicy;
+import org.springframework.retry.context.RetryContextSupport;
+import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 
 import com.redis.spring.batch.util.ConnectionUtils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
-import io.lettuce.core.RedisCommandInterruptedException;
 import io.lettuce.core.RedisConnectionException;
-import io.lettuce.core.RedisException;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -27,21 +28,20 @@ import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.internal.Exceptions;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
-public abstract class AbstractOperationExecutor<K, V, I, O> implements ItemStream {
+public abstract class AbstractOperationExecutor<K, V, I, O> implements AutoCloseable {
 
 	public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
+	public static final int DEFAULT_MAX_ATTEMPTS = 3;
+	public static final RetryPolicy DEFAULT_RETRY_POLICY = new MaxAttemptsRetryPolicy();
 
-	protected final AbstractRedisClient client;
-
+	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 
 	private ReadFrom readFrom;
-
 	private int poolSize = DEFAULT_POOL_SIZE;
-
 	private GenericObjectPool<StatefulConnection<K, V>> pool;
-
-	private BatchOperation<K, V, I, O> batchOperation;
+	private Operation<K, V, I, O> operation;
+	private RetryPolicy retryPolicy = DEFAULT_RETRY_POLICY;
 
 	protected AbstractOperationExecutor(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		this.client = client;
@@ -56,18 +56,17 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements ItemStrea
 		this.readFrom = readFrom;
 	}
 
-	@Override
-	public synchronized void open(ExecutionContext executionContext) {
+	public synchronized void open() {
 		if (pool == null) {
 			Supplier<StatefulConnection<K, V>> connectionSupplier = ConnectionUtils.supplier(client, codec, readFrom);
 			GenericObjectPoolConfig<StatefulConnection<K, V>> config = new GenericObjectPoolConfig<>();
 			config.setMaxTotal(poolSize);
-			batchOperation = batchOperation();
+			operation = operation();
 			pool = ConnectionPoolSupport.createGenericObjectPool(connectionSupplier, config);
 		}
 	}
 
-	protected abstract BatchOperation<K, V, I, O> batchOperation();
+	protected abstract Operation<K, V, I, O> operation();
 
 	@Override
 	public synchronized void close() {
@@ -77,7 +76,19 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements ItemStrea
 		}
 	}
 
-	public List<O> process(Iterable<I> items) throws RedisException {
+	public O execute(I item) {
+		return execute(Arrays.asList(item)).get(0);
+	}
+
+	public List<O> execute(List<? extends I> items) {
+		return execute(new Chunk<>(items)).getItems();
+	}
+
+	public Chunk<O> execute(Chunk<? extends I> items) {
+		return execute(new RetryContextSupport(null), items);
+	}
+
+	private Chunk<O> execute(RetryContext context, Chunk<? extends I> items) {
 		StatefulConnection<K, V> connection;
 		try {
 			connection = pool.borrowObject();
@@ -87,12 +98,10 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements ItemStrea
 		try {
 			connection.setAutoFlushCommands(false);
 			BaseRedisAsyncCommands<K, V> commands = ConnectionUtils.async(connection);
-			List<RedisFuture<O>> futures = batchOperation.execute(commands, items);
+			Chunk<RedisFuture<O>> futures = new Chunk<>();
+			operation.execute(commands, items, futures);
 			connection.flushCommands();
 			return getAll(connection.getTimeout(), futures);
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new RedisCommandInterruptedException(e);
 		} catch (Exception e) {
 			throw Exceptions.fromSynchronization(e);
 		} finally {
@@ -101,9 +110,9 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements ItemStrea
 		}
 	}
 
-	public static <T> List<T> getAll(Duration timeout, List<RedisFuture<T>> futures)
+	public static <T> Chunk<T> getAll(Duration timeout, Chunk<RedisFuture<T>> futures)
 			throws TimeoutException, InterruptedException, ExecutionException {
-		List<T> results = new ArrayList<>(futures.size());
+		Chunk<T> results = new Chunk<>();
 		long nanos = timeout.toNanos();
 		long time = System.nanoTime();
 		for (RedisFuture<T> f : futures) {

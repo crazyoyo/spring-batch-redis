@@ -7,13 +7,15 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import org.springframework.batch.item.Chunk;
+
 import com.redis.spring.batch.util.IdentityOperator;
 
 public abstract class AbstractChunkProcessingTask<K, V> implements ProcessingTask {
 
 	public static final int DEFAULT_CHUNK_SIZE = 50;
 
-	private final Function<Iterable<K>, Iterable<V>> valueReader;
+	private final Function<Chunk<K>, Chunk<V>> valueReader;
 	private final BlockingQueue<V> valueQueue;
 	private UnaryOperator<K> keyOperator = new IdentityOperator<>();
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
@@ -21,7 +23,7 @@ public abstract class AbstractChunkProcessingTask<K, V> implements ProcessingTas
 	private long flushed = 0;
 	private long added = 0;
 
-	protected AbstractChunkProcessingTask(Function<Iterable<K>, Iterable<V>> valueReader, BlockingQueue<V> valueQueue) {
+	protected AbstractChunkProcessingTask(Function<Chunk<K>, Chunk<V>> valueReader, BlockingQueue<V> valueQueue) {
 		this.valueReader = valueReader;
 		this.valueQueue = valueQueue;
 	}
@@ -53,7 +55,7 @@ public abstract class AbstractChunkProcessingTask<K, V> implements ProcessingTas
 
 	protected synchronized void flush() throws InterruptedException {
 		List<K> processedKeys = chunk.stream().map(keyOperator).collect(Collectors.toList());
-		Iterable<V> values = valueReader.apply(processedKeys);
+		Iterable<V> values = valueReader.apply(new Chunk<>(processedKeys));
 		for (V value : values) {
 			valueQueue.put(value);
 			flushed++;

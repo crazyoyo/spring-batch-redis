@@ -3,7 +3,6 @@ package com.redis.spring.batch.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +27,7 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationValueReader;
+import com.redis.spring.batch.common.ValueReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
@@ -116,9 +115,9 @@ class StackToStackTests extends ModulesTests {
 		commands.pexpireat(key, ttl);
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		reader.setMemoryUsageLimit(DataSize.ofBytes(-1));
-		OperationValueReader<String, String, String, KeyValue<String>> executor = reader.operationValueReader();
-		executor.open(new ExecutionContext());
-		KeyValue<String> ds = executor.process(Arrays.asList(key)).get(0);
+		ValueReader<String, String, String, KeyValue<String>> executor = reader.operationValueReader();
+		executor.open();
+		KeyValue<String> ds = executor.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(ttl, ds.getTtl());
 		Assertions.assertEquals(DataType.HASH, ds.getType());
@@ -202,9 +201,7 @@ class StackToStackTests extends ModulesTests {
 			messages.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		Xadd<String, String, Map<String, String>> xadd = new Xadd<>();
-		xadd.setKey(stream);
-		xadd.setBodyFunction(Function.identity());
+		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(keyFunction(stream), Function.identity());
 		OperationItemWriter<String, String, Map<String, String>> writer = writer(xadd);
 		writer.setMultiExec(true);
 		run(testInfo, reader, writer);

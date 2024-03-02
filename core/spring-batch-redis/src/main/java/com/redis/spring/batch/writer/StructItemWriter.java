@@ -18,7 +18,7 @@ public class StructItemWriter<K, V> extends KeyValueItemWriter<K, V> {
     }
 
     @Override
-    protected StructWrite<K, V> batchWriteOperation() {
+    protected StructWrite<K, V> writeOperation() {
         StructWrite<K, V> operation = new StructWrite<>();
         operation.setOverwrite(!merge);
         return operation;

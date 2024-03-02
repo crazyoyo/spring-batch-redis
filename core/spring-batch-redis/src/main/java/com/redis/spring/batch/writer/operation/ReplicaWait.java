@@ -2,25 +2,25 @@ package com.redis.spring.batch.writer.operation;
 
 import java.text.MessageFormat;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 
-import com.redis.spring.batch.writer.BatchWriteOperation;
+import org.springframework.batch.item.Chunk;
+
+import com.redis.spring.batch.common.Operation;
 
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.cluster.PipelinedRedisFuture;
 
-public class ReplicaWait<K, V, I> implements BatchWriteOperation<K, V, I> {
+public class ReplicaWait<K, V, T> implements Operation<K, V, T, Object> {
 
-	private final BatchWriteOperation<K, V, I> delegate;
+	private final Operation<K, V, T, Object> delegate;
 
 	private final int replicas;
 
 	private final long timeout;
 
-	public ReplicaWait(BatchWriteOperation<K, V, I> delegate, int replicas, Duration timeout) {
+	public ReplicaWait(Operation<K, V, T, Object> delegate, int replicas, Duration timeout) {
 		this.delegate = delegate;
 		this.replicas = replicas;
 		this.timeout = timeout.toMillis();
@@ -28,12 +28,11 @@ public class ReplicaWait<K, V, I> implements BatchWriteOperation<K, V, I> {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, Iterable<I> items) {
-		List<RedisFuture<Object>> futures = new ArrayList<>();
-		futures.addAll(delegate.execute(commands, items));
+	public void execute(BaseRedisAsyncCommands<K, V> commands, Chunk<? extends T> items,
+			Chunk<RedisFuture<Object>> outputs) {
+		delegate.execute(commands, items, outputs);
 		RedisFuture<Long> waitFuture = commands.waitForReplication(replicas, timeout);
-		futures.add((RedisFuture) new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));
-		return futures;
+		outputs.add((RedisFuture) new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));
 	}
 
 	private void checkReplicas(Long actual) {

@@ -1,6 +1,9 @@
 package com.redis.spring.batch.writer.operation;
 
+import java.util.function.Function;
 import java.util.function.ToLongFunction;
+
+import org.springframework.batch.item.Chunk;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -8,24 +11,27 @@ import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
 public class ExpireAt<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
-    private ToLongFunction<T> epochFunction;
+	private ToLongFunction<T> epochFunction = t -> 0;
 
-    public void setEpoch(long epoch) {
-        this.epochFunction = t -> epoch;
-    }
+	public ExpireAt(Function<T, K> keyFunction) {
+		super(keyFunction);
+	}
 
-    public void setEpochFunction(ToLongFunction<T> function) {
-        this.epochFunction = function;
-    }
+	public void setEpoch(long epoch) {
+		this.epochFunction = t -> epoch;
+	}
 
-    @SuppressWarnings("unchecked")
-    @Override
-    protected RedisFuture<Boolean> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key) {
-        long millis = epochFunction.applyAsLong(item);
-        if (millis > 0) {
-            return ((RedisKeyAsyncCommands<K, V>) commands).pexpireat(key, millis);
-        }
-        return null;
-    }
+	public void setEpochFunction(ToLongFunction<T> epochFunction) {
+		this.epochFunction = epochFunction;
+	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@Override
+	protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, Chunk<RedisFuture<Object>> outputs) {
+		long millis = epochFunction.applyAsLong(item);
+		if (millis > 0) {
+			outputs.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).pexpireat(key, millis));
+		}
+	}
 
 }

@@ -1,15 +1,15 @@
 package com.redis.spring.batch.reader;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Operation;
-import com.redis.spring.batch.common.OperationValueReader;
-import com.redis.spring.batch.common.SimpleBatchOperation;
+import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.ValueReader;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
@@ -31,7 +31,7 @@ public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, Key
 
 	protected int memSamples = DEFAULT_MEMORY_USAGE_SAMPLES;
 
-	private OperationValueReader<K, V, K, KeyValue<K>> valueReader;
+	private ValueReader<K, V, K, KeyValue<K>> valueReader;
 
 	public void setMemoryUsageLimit(DataSize limit) {
 		this.memLimit = limit;
@@ -53,7 +53,7 @@ public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, Key
 	public synchronized void open(ExecutionContext executionContext) {
 		if (valueReader == null) {
 			valueReader = operationValueReader();
-			valueReader.open(executionContext);
+			valueReader.open();
 		}
 		super.open(executionContext);
 	}
@@ -66,18 +66,17 @@ public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, Key
 		}
 	}
 
-	public OperationValueReader<K, V, K, KeyValue<K>> operationValueReader() {
-		SimpleBatchOperation<K, V, K, KeyValue<K>> operation = new SimpleBatchOperation<>(operation());
-		OperationValueReader<K, V, K, KeyValue<K>> executor = new OperationValueReader<>(getClient(), getCodec(),
-				operation);
+	public ValueReader<K, V, K, KeyValue<K>> operationValueReader() {
+		Operation<K, V, K, KeyValue<K>> operation = operation();
+		ValueReader<K, V, K, KeyValue<K>> executor = new ValueReader<>(getClient(), getCodec(), operation);
 		executor.setPoolSize(poolSize);
 		executor.setReadFrom(getReadFrom());
 		return executor;
 	}
 
 	@Override
-	public Iterable<KeyValue<K>> process(Iterable<K> chunk) {
-		return valueReader.process(chunk);
+	public Chunk<KeyValue<K>> values(Chunk<K> chunk) {
+		return valueReader.execute(chunk);
 	}
 
 	protected abstract Operation<K, V, K, KeyValue<K>> operation();

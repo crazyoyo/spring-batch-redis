@@ -8,6 +8,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import org.springframework.batch.item.Chunk;
+
 import com.redis.spring.batch.util.CodecUtils;
 
 import io.lettuce.core.codec.RedisCodec;
@@ -23,7 +25,7 @@ public class KeyspaceNotificationProcessingTask<K, V> extends AbstractChunkProce
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
 
 	public KeyspaceNotificationProcessingTask(RedisCodec<K, ?> codec, BlockingQueue<String> keyQueue,
-			Function<Iterable<K>, Iterable<V>> valueReader, BlockingQueue<V> valueQueue) {
+			Function<Chunk<K>, Chunk<V>> valueReader, BlockingQueue<V> valueQueue) {
 		super(valueReader, valueQueue);
 		this.keyEncoder = CodecUtils.stringKeyFunction(codec);
 		this.keyQueue = keyQueue;

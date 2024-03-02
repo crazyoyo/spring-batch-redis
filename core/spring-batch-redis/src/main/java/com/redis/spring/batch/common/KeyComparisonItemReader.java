@@ -1,9 +1,7 @@
 package com.redis.spring.batch.common;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +9,7 @@ import java.util.Objects;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.CollectionUtils;
@@ -29,9 +28,9 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
 	private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-	private final OperationValueReader<String, String, String, KeyValue<String>> source;
+	private final ValueReader<String, String, String, KeyValue<String>> source;
 
-	private final OperationValueReader<String, String, String, KeyValue<String>> target;
+	private final ValueReader<String, String, String, KeyValue<String>> target;
 
 	private UnaryOperator<KeyValue<String>> processor = new IdentityOperator<>();
 
@@ -58,16 +57,9 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
-		source.open(executionContext);
-		target.open(executionContext);
+		source.open();
+		target.open();
 		super.open(executionContext);
-	}
-
-	@Override
-	public void update(ExecutionContext executionContext) throws ItemStreamException {
-		source.update(executionContext);
-		target.update(executionContext);
-		super.update(executionContext);
 	}
 
 	@Override
@@ -78,22 +70,13 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 	}
 
 	@Override
-	public List<KeyComparison> process(Iterable<String> keys) {
-		Iterable<String> processedKeys = processKeys(keys);
-		List<KeyValue<String>> sourceItems = source.process(processedKeys);
-		if (CollectionUtils.isEmpty(sourceItems)) {
-			return Collections.emptyList();
-		}
-		List<KeyValue<String>> items = processValues(sourceItems);
+	public Chunk<KeyComparison> values(Chunk<String> keys) {
+		Chunk<KeyComparison> comparisons = new Chunk<>();
+		Chunk<String> processedKeys = processKeys(keys);
+		Chunk<KeyValue<String>> sourceItems = source.execute(processedKeys);
+		List<KeyValue<String>> items = processValues(sourceItems).getItems();
 		List<String> targetKeys = items.stream().map(KeyValue::getKey).collect(Collectors.toList());
-		List<KeyValue<String>> targetItems = target.process(targetKeys);
-		List<KeyComparison> comparisons = new ArrayList<>();
-		if (CollectionUtils.isEmpty(items)) {
-			throw new IllegalStateException("No source items found");
-		}
-		if (CollectionUtils.isEmpty(targetItems)) {
-			throw new IllegalStateException("No target items found");
-		}
+		List<KeyValue<String>> targetItems = target.execute(new Chunk<>(targetKeys)).getItems();
 		for (int index = 0; index < items.size(); index++) {
 			KeyComparison comparison = new KeyComparison();
 			comparison.setSource(items.get(index));
@@ -106,11 +89,11 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 		return comparisons;
 	}
 
-	private List<KeyValue<String>> processValues(List<KeyValue<String>> values) {
+	private Chunk<KeyValue<String>> processValues(Chunk<KeyValue<String>> values) {
 		if (processor == null) {
 			return values;
 		}
-		List<KeyValue<String>> processedValues = new ArrayList<>(values.size());
+		Chunk<KeyValue<String>> processedValues = new Chunk<>();
 		for (KeyValue<String> value : values) {
 			KeyValue<String> processedValue = processor.apply(value);
 			if (processedValue != null) {
@@ -120,11 +103,11 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 		return processedValues;
 	}
 
-	private Iterable<String> processKeys(Iterable<String> keys) {
+	private Chunk<String> processKeys(Chunk<String> keys) {
 		if (keyOperator == null) {
 			return keys;
 		}
-		List<String> processedKeys = new ArrayList<>();
+		Chunk<String> processedKeys = new Chunk<>();
 		for (String key : keys) {
 			String processedKey = keyOperator.apply(key);
 			if (processedKey != null) {

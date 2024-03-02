@@ -1,7 +1,7 @@
 package com.redis.spring.batch.reader;
 
-import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Operation;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.KeyValueReadOperation.Type;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -9,13 +9,13 @@ import io.lettuce.core.codec.ByteArrayCodec;
 
 public class DumpItemReader extends KeyValueItemReader<byte[], byte[]> {
 
-    public DumpItemReader(AbstractRedisClient client) {
-        super(client, ByteArrayCodec.INSTANCE);
-    }
+	public DumpItemReader(AbstractRedisClient client) {
+		super(client, ByteArrayCodec.INSTANCE);
+	}
 
-    @Override
-    protected Operation<byte[], byte[], byte[], KeyValue<byte[]>> operation() {
-        return new KeyValueReadOperation<>(getClient(), getCodec(), memLimit, memSamples, Type.DUMP);
-    }
+	@Override
+	protected Operation<byte[], byte[], byte[], KeyValue<byte[]>> operation() {
+		return new KeyValueReadOperation<>(getClient(), getCodec(), memLimit, memSamples, Type.DUMP);
+	}
 
 }

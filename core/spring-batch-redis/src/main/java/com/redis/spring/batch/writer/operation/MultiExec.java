@@ -1,31 +1,29 @@
 package com.redis.spring.batch.writer.operation;
 
-import java.util.ArrayList;
-import java.util.List;
+import org.springframework.batch.item.Chunk;
 
-import com.redis.spring.batch.writer.BatchWriteOperation;
+import com.redis.spring.batch.common.Operation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisTransactionalAsyncCommands;
 
-public class MultiExec<K, V, T> implements BatchWriteOperation<K, V, T> {
+public class MultiExec<K, V, T> implements Operation<K, V, T, Object> {
 
-	private final BatchWriteOperation<K, V, T> delegate;
+	private final Operation<K, V, T, Object> delegate;
 
-	public MultiExec(BatchWriteOperation<K, V, T> delegate) {
+	public MultiExec(Operation<K, V, T, Object> delegate) {
 		this.delegate = delegate;
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	public List<RedisFuture<Object>> execute(BaseRedisAsyncCommands<K, V> commands, Iterable<T> items) {
-		List<RedisFuture<Object>> futures = new ArrayList<>();
+	public void execute(BaseRedisAsyncCommands<K, V> commands, Chunk<? extends T> inputs,
+			Chunk<RedisFuture<Object>> outputs) {
 		RedisTransactionalAsyncCommands<K, V> transactionalCommands = (RedisTransactionalAsyncCommands<K, V>) commands;
-		futures.add((RedisFuture) transactionalCommands.multi());
-		futures.addAll(delegate.execute(commands, items));
-		futures.add((RedisFuture) transactionalCommands.exec());
-		return futures;
+		outputs.add((RedisFuture) transactionalCommands.multi());
+		delegate.execute(commands, inputs, outputs);
+		outputs.add((RedisFuture) transactionalCommands.exec());
 	}
 
 }

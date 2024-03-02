@@ -17,6 +17,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 
@@ -30,10 +31,10 @@ import com.redis.spring.batch.reader.KeyTypeItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationListener;
 import com.redis.spring.batch.reader.KeyspaceNotificationProcessingTask;
 import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.ProcessingTask;
 import com.redis.spring.batch.reader.RedisClusterKeyspaceNotificationListener;
 import com.redis.spring.batch.reader.RedisKeyspaceNotificationListener;
 import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.spring.batch.reader.ProcessingTask;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.ConnectionUtils;
 import com.redis.spring.batch.util.IdentityOperator;
@@ -124,12 +125,12 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		}
 		StatefulRedisModulesConnection<K, V> connection = ConnectionUtils.connection(client, codec, readFrom);
 		ScanIterator<K> iterator = ScanIterator.scan(ConnectionUtils.sync(connection), scanArgs());
-		return i -> new KeyScanProcessingTask<>(iterator, this::process, valueQueue);
+		return i -> new KeyScanProcessingTask<>(iterator, this::values, valueQueue);
 	}
 
 	private KeyspaceNotificationProcessingTask<K, T> keyspaceNotificationListenerTask(BlockingQueue<String> keyQueue) {
 		KeyspaceNotificationProcessingTask<K, T> task = new KeyspaceNotificationProcessingTask<>(codec, keyQueue,
-				this::process, valueQueue);
+				this::values, valueQueue);
 		task.setChunkSize(chunkSize);
 		task.setFlushInterval(flushInterval);
 		task.setIdleTimeout(idleTimeout);
@@ -179,7 +180,7 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		}
 	}
 
-	public abstract Iterable<T> process(Iterable<K> chunk);
+	protected abstract Chunk<T> values(Chunk<K> chunk);
 
 	@Override
 	public T read() throws InterruptedException {

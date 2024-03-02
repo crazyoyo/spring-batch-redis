@@ -39,7 +39,6 @@ import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.beans.factory.annotation.Value;
@@ -63,8 +62,9 @@ import com.redis.spring.batch.RedisItemReader.Mode;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.OperationValueReader;
+import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.Range;
+import com.redis.spring.batch.common.ValueReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.reader.DumpItemReader;
@@ -76,7 +76,6 @@ import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.ConnectionUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
-import com.redis.spring.batch.writer.WriteOperation;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -412,29 +411,25 @@ public abstract class AbstractTestBase {
 		return CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE).apply(key);
 	}
 
-	protected void open(ItemStream itemStream) {
-		itemStream.open(new ExecutionContext());
-	}
-
-	protected OperationValueReader<byte[], byte[], byte[], KeyValue<byte[]>> dumpOperationExecutor() {
+	protected ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> dumpOperationExecutor() {
 		DumpItemReader reader = RedisItemReader.dump(client);
-		OperationValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = reader.operationValueReader();
-		executor.open(new ExecutionContext());
+		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = reader.operationValueReader();
+		executor.open();
 		return executor;
 	}
 
-	protected OperationValueReader<String, String, String, KeyValue<String>> structOperationExecutor() {
+	protected ValueReader<String, String, String, KeyValue<String>> structOperationExecutor() {
 		return structOperationExecutor(CodecUtils.STRING_CODEC);
 	}
 
-	protected <K, V> OperationValueReader<K, V, K, KeyValue<K>> structOperationExecutor(RedisCodec<K, V> codec) {
+	protected <K, V> ValueReader<K, V, K, KeyValue<K>> structOperationExecutor(RedisCodec<K, V> codec) {
 		StructItemReader<K, V> reader = RedisItemReader.struct(client, codec);
-		OperationValueReader<K, V, K, KeyValue<K>> executor = reader.operationValueReader();
-		executor.open(new ExecutionContext());
+		ValueReader<K, V, K, KeyValue<K>> executor = reader.operationValueReader();
+		executor.open();
 		return executor;
 	}
 
-	protected <T> OperationItemWriter<String, String, T> writer(WriteOperation<String, String, T> operation) {
+	protected <T> OperationItemWriter<String, String, T> writer(Operation<String, String, T, Object> operation) {
 		return RedisItemWriter.operation(client, CodecUtils.STRING_CODEC, operation);
 	}
 
