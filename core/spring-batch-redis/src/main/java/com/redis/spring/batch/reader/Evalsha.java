@@ -19,11 +19,8 @@ import io.lettuce.core.codec.RedisCodec;
 public class Evalsha<K, V, T> implements Operation<K, V, T, List<Object>> {
 
 	private final String digest;
-
 	private final Function<String, V> stringValueFunction;
-
 	private Function<T, K> keyFunction;
-
 	private Function<T, V[]> argsFunction;
 
 	public Evalsha(String filename, AbstractRedisClient client, RedisCodec<K, V> codec) {

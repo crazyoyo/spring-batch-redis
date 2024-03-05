@@ -7,28 +7,24 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.ValueReader;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, KeyValue<K>> {
+public abstract class AbstractKeyValueItemReader<K, V> extends RedisItemReader<K, V, KeyValue<K>> {
 
 	/**
 	 * Default to no memory usage calculation
 	 */
 	public static final DataSize DEFAULT_MEMORY_USAGE_LIMIT = DataSize.ofBytes(0);
-
 	public static final int DEFAULT_MEMORY_USAGE_SAMPLES = 5;
-
 	public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
 	private int poolSize = DEFAULT_POOL_SIZE;
-
 	protected DataSize memLimit = DEFAULT_MEMORY_USAGE_LIMIT;
-
 	protected int memSamples = DEFAULT_MEMORY_USAGE_SAMPLES;
 
 	private ValueReader<K, V, K, KeyValue<K>> valueReader;
@@ -45,7 +41,7 @@ public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, Key
 		this.poolSize = poolSize;
 	}
 
-	protected KeyValueItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+	protected AbstractKeyValueItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		super(client, codec);
 	}
 
@@ -75,7 +71,7 @@ public abstract class KeyValueItemReader<K, V> extends RedisItemReader<K, V, Key
 	}
 
 	@Override
-	public Chunk<KeyValue<K>> values(Chunk<K> chunk) {
+	public Chunk<KeyValue<K>> values(Chunk<? extends K> chunk) {
 		return valueReader.execute(chunk);
 	}
 

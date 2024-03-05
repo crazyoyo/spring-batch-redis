@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
@@ -80,10 +79,8 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	 * @throws Exception
 	 */
 	protected KeyspaceComparison compare(TestInfo info) throws Exception {
-		if (commands.dbsize().equals(0L)) {
-			Assertions.fail("Source database is empty");
-		}
-		KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare-reader"));
+		assertDbNotEmpty(commands);
+		KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare"));
 		reader.open(new ExecutionContext());
 		List<KeyComparison> comparisons = readAll(reader);
 		reader.close();
@@ -100,6 +97,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 		StructItemReader<String, String> sourceReader = RedisItemReader.struct(client);
 		StructItemReader<String, String> targetReader = RedisItemReader.struct(targetClient);
 		KeyComparisonItemReader reader = new KeyComparisonItemReader(sourceReader, targetReader);
+		reader.setName(name(testInfo(info, "reader")));
 		reader.setTtlTolerance(Duration.ofMillis(100));
 		return reader;
 	}

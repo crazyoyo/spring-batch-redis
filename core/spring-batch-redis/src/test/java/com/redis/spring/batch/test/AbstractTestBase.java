@@ -92,7 +92,7 @@ public abstract class AbstractTestBase {
 
 	protected static final int chunkSize = 50;
 
-	protected static final Duration idleTimeout = Duration.ofMillis(1000);
+	protected static final Duration idleTimeout = Duration.ofMillis(300);
 
 	private static final Duration pollDelay = Duration.ZERO;
 
@@ -141,6 +141,10 @@ public abstract class AbstractTestBase {
 			list.add(element);
 		}
 		return list;
+	}
+
+	public static void assertDbNotEmpty(RedisModulesCommands<String, String> commands) {
+		Assertions.assertTrue(commands.dbsize() > 0, "Redis database is empty");
 	}
 
 	@BeforeAll
@@ -226,10 +230,14 @@ public abstract class AbstractTestBase {
 		return step(info, chunkSize, reader, processor, writer);
 	}
 
+	@SuppressWarnings("rawtypes")
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, int chunkSize, ItemReader<I> reader,
 			ItemProcessor<I, O> processor, ItemWriter<O> writer) {
 		String name = name(info);
 		SimpleStepBuilder<I, O> step = new StepBuilder(name, jobRepository).chunk(chunkSize, transactionManager);
+		if (reader instanceof RedisItemReader) {
+			((RedisItemReader) reader).setName(name + "-reader");
+		}
 		step.reader(reader);
 		step.processor(processor);
 		step.writer(writer);

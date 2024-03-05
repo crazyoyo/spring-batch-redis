@@ -5,50 +5,65 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.function.IntFunction;
-import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
+import javax.sql.DataSource;
+
+import org.hsqldb.jdbc.JDBCDataSource;
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobExecutionException;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
+import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
+import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.function.FunctionItemProcessor;
+import org.springframework.batch.item.support.IteratorItemReader;
+import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
+import org.springframework.boot.autoconfigure.batch.BatchDataSourceScriptDatabaseInitializer;
+import org.springframework.boot.autoconfigure.batch.BatchProperties;
+import org.springframework.boot.sql.init.DatabaseInitializationMode;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.util.ClassUtils;
+import org.springframework.util.CollectionUtils;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.common.DataType;
-import com.redis.spring.batch.common.SetBlockingQueue;
-import com.redis.spring.batch.reader.AbstractKeyspaceNotificationListener;
 import com.redis.spring.batch.reader.DumpItemReader;
-import com.redis.spring.batch.reader.KeyScanProcessingTask;
 import com.redis.spring.batch.reader.KeyTypeItemReader;
-import com.redis.spring.batch.reader.KeyspaceNotificationListener;
-import com.redis.spring.batch.reader.KeyspaceNotificationProcessingTask;
+import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.PollableItemReader;
-import com.redis.spring.batch.reader.ProcessingTask;
-import com.redis.spring.batch.reader.RedisClusterKeyspaceNotificationListener;
-import com.redis.spring.batch.reader.RedisKeyspaceNotificationListener;
 import com.redis.spring.batch.reader.StructItemReader;
+import com.redis.spring.batch.step.FlushingStepBuilder;
+import com.redis.spring.batch.util.Await;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.ConnectionUtils;
-import com.redis.spring.batch.util.IdentityOperator;
+import com.redis.spring.batch.writer.ProcessingItemWriter;
+import com.redis.spring.batch.writer.QueueItemWriter;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.ReadFrom;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.ScanIterator;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.internal.Futures;
+import io.lettuce.core.internal.Exceptions;
 import io.micrometer.core.instrument.Metrics;
 
 public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> {
@@ -57,30 +72,35 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		SCAN, LIVE
 	}
 
+	public static final int DEFAULT_SKIP_LIMIT = 0;
+	public static final int DEFAULT_RETRY_LIMIT = MaxAttemptsRetryPolicy.DEFAULT_MAX_ATTEMPTS;
 	public static final String QUEUE_METER = "redis.batch.reader.queue.size";
-	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = 10000;
+	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = KeyspaceNotificationItemReader.DEFAULT_QUEUE_CAPACITY;
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 	public static final int DEFAULT_THREADS = 1;
 	public static final int DEFAULT_CHUNK_SIZE = 50;
 	public static final String MATCH_ALL = "*";
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
-	public static final Duration DEFAULT_FLUSH_INTERVAL = KeyspaceNotificationProcessingTask.DEFAULT_FLUSH_INTERVAL;
-	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
+	public static final Duration DEFAULT_FLUSH_INTERVAL = KeyspaceNotificationItemReader.DEFAULT_FLUSH_INTERVAL;
 	// No idle timeout by default
-	public static final Duration DEFAULT_IDLE_TIMEOUT = KeyspaceNotificationProcessingTask.DEFAULT_IDLE_TIMEOUT;
+	public static final Duration DEFAULT_IDLE_TIMEOUT = KeyspaceNotificationItemReader.DEFAULT_IDLE_TIMEOUT;
 	public static final Mode DEFAULT_MODE = Mode.SCAN;
 	public static final String DEFAULT_KEY_PATTERN = MATCH_ALL;
-
-	private static final Predicate<? super Future<Long>> futureRunning = Predicate.not(Future::isDone);
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 
 	private Mode mode = DEFAULT_MODE;
+	private int skipLimit = DEFAULT_SKIP_LIMIT;
+	private int retryLimit = DEFAULT_RETRY_LIMIT;
+	private List<Class<? extends Throwable>> skippableExceptions = defaultNonRetriableExceptions();
+	private List<Class<? extends Throwable>> nonSkippableExceptions = defaultRetriableExceptions();
+	private List<Class<? extends Throwable>> retriableExceptions = defaultRetriableExceptions();
+	private List<Class<? extends Throwable>> nonRetriableExceptions = defaultNonRetriableExceptions();
 	private int database;
-	private int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
+	private int keyspaceNotificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
 	private long scanCount;
-	protected UnaryOperator<K> keyOperator = new IdentityOperator<>();
+	protected ItemProcessor<K, K> keyProcessor;
 	private ReadFrom readFrom;
 	private int threads = DEFAULT_THREADS;
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
@@ -88,14 +108,14 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
 	private String keyPattern = DEFAULT_KEY_PATTERN;
 	private String keyType;
-	private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
+	private Duration pollTimeout = KeyspaceNotificationItemReader.DEFAULT_POLL_TIMEOUT;
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+	private String name;
+	private JobExecution jobExecution;
 	private BlockingQueue<T> valueQueue;
-	private List<Future<Long>> futures;
-	private KeyspaceNotificationListener keyspaceNotificationListener;
-	private ExecutorService executor;
 
 	protected RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		setName(String.format("%s-%s", ClassUtils.getShortName(getClass()), UUID.randomUUID().toString()));
 		this.client = client;
 		this.codec = codec;
 	}
@@ -106,48 +126,66 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
-		if (futures == null) {
-			valueQueue = new LinkedBlockingQueue<>(queueCapacity);
-			Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), valueQueue);
-			executor = Executors.newFixedThreadPool(threads);
-			futures = IntStream.range(0, threads).mapToObj(taskSupplier()).map(executor::submit)
-					.collect(Collectors.toList());
+		if (jobExecution == null) {
+			PlatformTransactionManager txManager = new ResourcelessTransactionManager();
+			JobRepositoryFactoryBean bean = new JobRepositoryFactoryBean();
+			bean.setDataSource(dataSource());
+			bean.setTransactionManager(txManager);
+			JobRepository jobRepository;
+			try {
+				bean.afterPropertiesSet();
+				jobRepository = bean.getObject();
+			} catch (Exception e) {
+				throw new ItemStreamException("Could not initialize JobRepository", e);
+			}
+			if (jobRepository == null) {
+				throw new ItemStreamException("Could not initialize JobRepository");
+			}
+			TaskExecutorJobLauncher jobLauncher = new TaskExecutorJobLauncher();
+			jobLauncher.setJobRepository(jobRepository);
+			jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+			Job job = job(jobRepository, txManager);
+			try {
+				jobExecution = jobLauncher.run(job, new JobParameters());
+			} catch (JobExecutionException e) {
+				throw new ItemStreamException("Job execution failed", e);
+			}
+			boolean success;
+			try {
+				success = Await.await().until(jobExecution::isRunning);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new ItemStreamException("Job interrupted", e);
+			}
+			if (!success) {
+				List<Throwable> exceptions = jobExecution.getAllFailureExceptions();
+				if (!CollectionUtils.isEmpty(exceptions)) {
+					throw new ItemStreamException("Job failed", Exceptions.unwrap(exceptions.get(0)));
+				}
+			}
 		}
 	}
 
-	private IntFunction<ProcessingTask> taskSupplier() {
-		if (isLive()) {
-			BlockingQueue<String> keyQueue = new SetBlockingQueue<>(
-					new LinkedBlockingQueue<>(notificationQueueCapacity), notificationQueueCapacity);
-			keyspaceNotificationListener = keyspaceNotificationListener(keyQueue);
-			keyspaceNotificationListener.start();
-			return i -> keyspaceNotificationListenerTask(keyQueue);
-		}
-		StatefulRedisModulesConnection<K, V> connection = ConnectionUtils.connection(client, codec, readFrom);
-		ScanIterator<K> iterator = ScanIterator.scan(ConnectionUtils.sync(connection), scanArgs());
-		return i -> new KeyScanProcessingTask<>(iterator, this::values, valueQueue);
+	private Job job(JobRepository jobRepository, PlatformTransactionManager txManager) {
+		JobBuilder jobBuilder = new JobBuilder(name, jobRepository);
+		SimpleStepBuilder<K, K> step = step(jobRepository, txManager);
+		return jobBuilder.start(step.build()).build();
 	}
 
-	private KeyspaceNotificationProcessingTask<K, T> keyspaceNotificationListenerTask(BlockingQueue<String> keyQueue) {
-		KeyspaceNotificationProcessingTask<K, T> task = new KeyspaceNotificationProcessingTask<>(codec, keyQueue,
-				this::values, valueQueue);
-		task.setChunkSize(chunkSize);
-		task.setFlushInterval(flushInterval);
-		task.setIdleTimeout(idleTimeout);
-		task.setKeyOperator(keyOperator);
-		return task;
-	}
-
-	public KeyspaceNotificationListener keyspaceNotificationListener(BlockingQueue<String> queue) {
-		String pattern = pubSubPattern();
-		AbstractKeyspaceNotificationListener listener;
-		if (client instanceof RedisClusterClient) {
-			listener = new RedisClusterKeyspaceNotificationListener((RedisClusterClient) client, pattern, queue);
-		} else {
-			listener = new RedisKeyspaceNotificationListener((RedisClient) client, queue, pattern);
+	private DataSource dataSource() {
+		JDBCDataSource dataSource = new JDBCDataSource();
+		dataSource.setURL("jdbc:hsqldb:mem:" + name);
+		BatchProperties.Jdbc jdbc = new BatchProperties.Jdbc();
+		jdbc.setInitializeSchema(DatabaseInitializationMode.ALWAYS);
+		BatchDataSourceScriptDatabaseInitializer initializer = new BatchDataSourceScriptDatabaseInitializer(dataSource,
+				jdbc);
+		try {
+			initializer.afterPropertiesSet();
+		} catch (Exception e) {
+			throw new ItemStreamException("Could not initialize DataSource", e);
 		}
-		listener.setKeyType(keyType);
-		return listener;
+		initializer.initializeDatabase();
+		return dataSource;
 	}
 
 	private KeyScanArgs scanArgs() {
@@ -164,30 +202,78 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		return args;
 	}
 
+	private SimpleStepBuilder<K, K> step(JobRepository jobRepository, PlatformTransactionManager txManager) {
+		FaultTolerantStepBuilder<K, K> step = baseStep(jobRepository, txManager).faultTolerant();
+		ItemReader<K> keyReader = keyReader();
+		step.reader(keyReader);
+		step.processor(keyProcessor);
+		step.writer(writer());
+		if (threads > 1) {
+			ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+			taskExecutor.setMaxPoolSize(threads);
+			taskExecutor.setCorePoolSize(threads);
+			taskExecutor.setQueueCapacity(threads);
+			taskExecutor.afterPropertiesSet();
+			step.taskExecutor(taskExecutor);
+		}
+		step.skipLimit(skipLimit);
+		step.retryLimit(retryLimit);
+		skippableExceptions.forEach(step::skip);
+		nonSkippableExceptions.forEach(step::noSkip);
+		retriableExceptions.forEach(step::retry);
+		nonRetriableExceptions.forEach(step::noRetry);
+		return step;
+	}
+
+	private ItemReader<K> keyReader() {
+		if (isLive()) {
+			return keyspaceNotificationReader();
+		}
+		StatefulRedisModulesConnection<K, V> connection = ConnectionUtils.connection(client, codec, readFrom);
+		ScanIterator<K> iterator = ScanIterator.scan(ConnectionUtils.sync(connection), scanArgs());
+		return new IteratorItemReader<>(iterator);
+	}
+
+	public KeyspaceNotificationItemReader<K> keyspaceNotificationReader() {
+		KeyspaceNotificationItemReader<K> reader = new KeyspaceNotificationItemReader<>(client, codec, pubSubPattern());
+		reader.setKeyType(keyType);
+		reader.setPollTimeout(pollTimeout);
+		reader.setQueueCapacity(keyspaceNotificationQueueCapacity);
+		return reader;
+	}
+
+	private ProcessingItemWriter<K, T> writer() {
+		valueQueue = new LinkedBlockingQueue<>(queueCapacity);
+		Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), valueQueue);
+		return new ProcessingItemWriter<>(new FunctionItemProcessor<>(this::values), new QueueItemWriter<>(valueQueue));
+	}
+
+	private SimpleStepBuilder<K, K> baseStep(JobRepository jobRepository, PlatformTransactionManager txManager) {
+		SimpleStepBuilder<K, K> step = new StepBuilder(name, jobRepository).chunk(chunkSize, txManager);
+		if (isLive()) {
+			FlushingStepBuilder<K, K> flushingStep = new FlushingStepBuilder<>(step);
+			flushingStep.interval(flushInterval);
+			flushingStep.idleTimeout(idleTimeout);
+			return flushingStep;
+		}
+		return step;
+	}
+
 	@Override
 	public synchronized void close() throws ItemStreamException {
-		if (futures != null) {
-			if (keyspaceNotificationListener != null) {
-				keyspaceNotificationListener.stop();
-				keyspaceNotificationListener = null;
-			}
-			Futures.awaitAll(3, TimeUnit.SECONDS, futures.toArray(new Future[0]));
-			futures = null;
-			if (executor != null) {
-				executor.close();
-				executor = null;
-			}
+		if (jobExecution != null) {
+			jobExecution = null;
 		}
 	}
 
-	protected abstract Chunk<T> values(Chunk<K> chunk);
+	public abstract Chunk<T> values(Chunk<? extends K> chunk);
 
 	@Override
 	public T read() throws InterruptedException {
 		T item;
 		do {
 			item = poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
-		} while (item == null && futures.stream().anyMatch(futureRunning));
+		} while (item == null && jobExecution.isRunning());
 		return item;
 	}
 
@@ -223,6 +309,10 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		return mode;
 	}
 
+	public String getName() {
+		return name;
+	}
+
 	public void setScanCount(long count) {
 		this.scanCount = count;
 	}
@@ -243,12 +333,12 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		this.idleTimeout = timeout;
 	}
 
-	public UnaryOperator<K> getKeyOperator() {
-		return keyOperator;
+	public ItemProcessor<K, K> getKeyProcessor() {
+		return keyProcessor;
 	}
 
-	public void setKeyOperator(UnaryOperator<K> processor) {
-		this.keyOperator = processor;
+	public void setKeyProcessor(ItemProcessor<K, K> processor) {
+		this.keyProcessor = processor;
 	}
 
 	public void setThreads(int threads) {
@@ -265,6 +355,10 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 
 	public void setMode(Mode mode) {
 		this.mode = mode;
+	}
+
+	public void setName(String name) {
+		this.name = name;
 	}
 
 	public void setReadFrom(ReadFrom readFrom) {
@@ -295,8 +389,8 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		this.pollTimeout = timeout;
 	}
 
-	public int getNotificationQueueCapacity() {
-		return notificationQueueCapacity;
+	public int getKeyspaceNotificationQueueCapacity() {
+		return keyspaceNotificationQueueCapacity;
 	}
 
 	public long getScanCount() {
@@ -327,8 +421,8 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 		return keyType;
 	}
 
-	public void setNotificationQueueCapacity(int capacity) {
-		this.notificationQueueCapacity = capacity;
+	public void setKeyspaceNotificationQueueCapacity(int capacity) {
+		this.keyspaceNotificationQueueCapacity = capacity;
 	}
 
 	public void setDatabase(int database) {

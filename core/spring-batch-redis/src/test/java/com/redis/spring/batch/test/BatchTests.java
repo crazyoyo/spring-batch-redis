@@ -23,12 +23,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.runner.RunWith;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.ListItemReader;
-import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import com.redis.lettucemod.util.RedisModulesUtils;
@@ -45,11 +42,13 @@ import com.redis.spring.batch.common.ToScoredValueFunction;
 import com.redis.spring.batch.common.ValueReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.MapOptions;
+import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.KeyTypeItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
 import com.redis.spring.batch.reader.StructItemReader;
+import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
 import com.redis.spring.batch.writer.operation.Del;
@@ -134,7 +133,12 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void compareStatus(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(120);
 		generate(gen);
-		Assertions.assertTrue(replicate(info, RedisItemReader.dump(client), RedisItemWriter.dump(targetClient)).isOk());
+		assertDbNotEmpty(commands);
+		DumpItemReader reader = RedisItemReader.dump(client);
+		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
+		KeyspaceComparison comparison = replicate(info, reader, writer);
+		Assertions.assertTrue(comparison.isOk());
+		assertDbNotEmpty(targetCommands);
 		long deleted = 0;
 		for (int index = 0; index < 13; index++) {
 			deleted += targetCommands.del(targetCommands.randomkey());
@@ -153,6 +157,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Set<String> typeChanges = new HashSet<>();
 		Set<String> valueChanges = new HashSet<>();
 		for (int index = 0; index < 17; index++) {
+			assertDbNotEmpty(targetCommands);
 			String key;
 			do {
 				key = targetCommands.randomkey();
@@ -206,24 +211,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		List<KeyValue<String>> list = readAll(reader);
 		reader.close();
 		assertEquals(commands.dbsize(), list.size());
-	}
-
-	@Test
-	void readStructMultiThreaded(TestInfo info) throws Exception {
-		generate();
-		int threads = 4;
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
-		ListItemWriter<KeyValue<String>> writer = new ListItemWriter<>();
-		SimpleStepBuilder<KeyValue<String>, KeyValue<String>> step = step(info, reader, writer);
-		ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-		taskExecutor.setMaxPoolSize(threads);
-		taskExecutor.setCorePoolSize(threads);
-		taskExecutor.setQueueCapacity(threads);
-		taskExecutor.afterPropertiesSet();
-		step.taskExecutor(taskExecutor);
-		run(info, step);
-		assertEquals(commands.dbsize(),
-				writer.getWrittenItems().stream().map(KeyValue::getKey).collect(Collectors.toSet()).size());
 	}
 
 	@Test
@@ -650,7 +637,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 	protected <K, V> KeyspaceComparison replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
 			RedisItemWriter<K, V, KeyValue<K>> writer) throws Exception {
-		run(info, reader, writer);
+		run(testInfo(info, "replicate"), reader, writer);
 		return compare(testInfo(info, "replicate"));
 	}
 

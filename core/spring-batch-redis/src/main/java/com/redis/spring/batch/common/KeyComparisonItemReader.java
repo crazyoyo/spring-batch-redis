@@ -16,7 +16,7 @@ import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.KeyComparison.Status;
-import com.redis.spring.batch.reader.KeyValueItemReader;
+import com.redis.spring.batch.reader.AbstractKeyValueItemReader;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.IdentityOperator;
 
@@ -36,8 +36,8 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
 	private boolean compareStreamMessageIds;
 
-	public KeyComparisonItemReader(KeyValueItemReader<String, String> source,
-			KeyValueItemReader<String, String> target) {
+	public KeyComparisonItemReader(AbstractKeyValueItemReader<String, String> source,
+			AbstractKeyValueItemReader<String, String> target) {
 		super(source.getClient(), CodecUtils.STRING_CODEC);
 		this.source = source.operationValueReader();
 		this.target = target.operationValueReader();
@@ -70,9 +70,9 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 	}
 
 	@Override
-	public Chunk<KeyComparison> values(Chunk<String> keys) {
+	public Chunk<KeyComparison> values(Chunk<? extends String> keys) {
 		Chunk<KeyComparison> comparisons = new Chunk<>();
-		Chunk<String> processedKeys = processKeys(keys);
+		Chunk<? extends String> processedKeys = processKeys(keys);
 		Chunk<KeyValue<String>> sourceItems = source.execute(processedKeys);
 		List<KeyValue<String>> items = processValues(sourceItems).getItems();
 		List<String> targetKeys = items.stream().map(KeyValue::getKey).collect(Collectors.toList());
@@ -103,15 +103,19 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 		return processedValues;
 	}
 
-	private Chunk<String> processKeys(Chunk<String> keys) {
-		if (keyOperator == null) {
+	private Chunk<? extends String> processKeys(Chunk<? extends String> keys) {
+		if (keyProcessor == null) {
 			return keys;
 		}
 		Chunk<String> processedKeys = new Chunk<>();
 		for (String key : keys) {
-			String processedKey = keyOperator.apply(key);
-			if (processedKey != null) {
-				processedKeys.add(processedKey);
+			try {
+				String processedKey = keyProcessor.process(key);
+				if (processedKey != null) {
+					processedKeys.add(processedKey);
+				}
+			} catch (Exception e) {
+				// ignore
 			}
 		}
 		return processedKeys;

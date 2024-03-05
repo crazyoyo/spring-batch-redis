@@ -1,8 +1,6 @@
 package com.redis.spring.batch.common;
 
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -11,9 +9,7 @@ import java.util.function.Supplier;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.Chunk;
-import org.springframework.retry.RetryContext;
 import org.springframework.retry.RetryPolicy;
-import org.springframework.retry.context.RetryContextSupport;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 
 import com.redis.spring.batch.util.ConnectionUtils;
@@ -41,7 +37,6 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements AutoClose
 	private int poolSize = DEFAULT_POOL_SIZE;
 	private GenericObjectPool<StatefulConnection<K, V>> pool;
 	private Operation<K, V, I, O> operation;
-	private RetryPolicy retryPolicy = DEFAULT_RETRY_POLICY;
 
 	protected AbstractOperationExecutor(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		this.client = client;
@@ -77,18 +72,10 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements AutoClose
 	}
 
 	public O execute(I item) {
-		return execute(Arrays.asList(item)).get(0);
-	}
-
-	public List<O> execute(List<? extends I> items) {
-		return execute(new Chunk<>(items)).getItems();
+		return execute(new Chunk<>(item)).getItems().get(0);
 	}
 
 	public Chunk<O> execute(Chunk<? extends I> items) {
-		return execute(new RetryContextSupport(null), items);
-	}
-
-	private Chunk<O> execute(RetryContext context, Chunk<? extends I> items) {
 		StatefulConnection<K, V> connection;
 		try {
 			connection = pool.borrowObject();

@@ -6,7 +6,7 @@ import com.redis.spring.batch.common.KeyValue;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
-public class KeyTypeItemReader<K, V> extends KeyValueItemReader<K, V> {
+public class KeyTypeItemReader<K, V> extends AbstractKeyValueItemReader<K, V> {
 
 	public KeyTypeItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		super(client, codec);
