@@ -192,12 +192,12 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void estimateScanSize(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(1000, DataType.HASH, DataType.STRING);
+		GeneratorItemReader gen = generator(3000, DataType.HASH, DataType.STRING);
 		generate(info, gen);
 		long expectedCount = commands.dbsize();
 		ScanSizeEstimator estimator = new ScanSizeEstimator(client);
 		estimator.setScanMatch(GeneratorItemReader.DEFAULT_KEYSPACE + ":*");
-		estimator.setSamples(100);
+		estimator.setSamples(300);
 		assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
 		estimator.setScanType(DataType.HASH.getString());
 		assertEquals(expectedCount / 2, estimator.getAsLong(), expectedCount / 10);
@@ -608,9 +608,11 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void replicateStructByteArray(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(1000);
 		generate(info, gen);
+		Thread.sleep(100);
 		StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
 		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
-		Assertions.assertTrue(replicate(info, reader, writer).isOk());
+		KeyspaceComparison comparison = replicate(info, reader, writer);
+		Assertions.assertTrue(comparison.isOk());
 	}
 
 	@Test
@@ -638,6 +640,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	protected <K, V> KeyspaceComparison replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
 			RedisItemWriter<K, V, KeyValue<K>> writer) throws Exception {
 		run(testInfo(info, "replicate"), reader, writer);
+		Thread.sleep(100);
 		return compare(testInfo(info, "replicate"));
 	}
 
