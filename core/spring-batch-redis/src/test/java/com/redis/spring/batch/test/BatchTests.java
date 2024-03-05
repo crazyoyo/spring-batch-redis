@@ -896,6 +896,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		generate(info, client, reader);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(client);
 		run(info, reader, writer);
+		Thread.sleep(100);
 		List<String> keys = commands.keys("gen:*");
 		assertEquals(count, keys.size());
 	}

@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -33,6 +34,7 @@ import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
 import com.redis.spring.batch.reader.StructItemReader;
+import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
@@ -59,6 +61,21 @@ class StackToStackTests extends ModulesTests {
 	@Override
 	protected RedisStackContainer getTargetRedisServer() {
 		return TARGET;
+	}
+
+	@Test
+	void readStructLive(TestInfo info) throws Exception {
+		enableKeyspaceNotifications(client);
+		StructItemReader<byte[], byte[]> reader = live(RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
+		reader.setKeyspaceNotificationQueueCapacity(10000);
+		reader.open(new ExecutionContext());
+		int count = 1234;
+		generate(info, generator(count, DataType.HASH, DataType.STRING));
+		List<KeyValue<byte[]>> list = readAll(reader);
+		Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
+		Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
+		Assertions.assertEquals(count, keys.size());
+		reader.close();
 	}
 
 	@Test

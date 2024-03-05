@@ -2,15 +2,8 @@ package com.redis.spring.batch.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Executors;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -32,15 +25,10 @@ import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.Await;
-import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
 
-import io.lettuce.core.codec.ByteArrayCodec;
-
 abstract class LiveTests extends BatchTests {
-
-	private final Log log = LogFactory.getLog(getClass());
 
 	private <K, V, T extends KeyValue<K>> KeyspaceComparison replicateLive(TestInfo info,
 			RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
@@ -85,24 +73,6 @@ abstract class LiveTests extends BatchTests {
 	}
 
 	@Test
-	void readStructLive(TestInfo info) throws Exception {
-		enableKeyspaceNotifications(client);
-		StructItemReader<byte[], byte[]> reader = live(RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
-		reader.setKeyspaceNotificationQueueCapacity(10000);
-		reader.open(new ExecutionContext());
-		int count = 1234;
-		generate(info, generator(count, DataType.HASH, DataType.STRING));
-		List<KeyValue<byte[]>> list = readAll(reader);
-		Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
-		Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
-		Set<String> sourceKeys = new HashSet<>(commands.keys("*"));
-		sourceKeys.removeAll(keys);
-		log.info(sourceKeys);
-		Assertions.assertEquals(count, keys.size());
-		reader.close();
-	}
-
-	@Test
 	void replicateDumpLive(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
 		DumpItemReader reader = RedisItemReader.dump(client);
@@ -129,7 +99,8 @@ abstract class LiveTests extends BatchTests {
 		reader.setKeyspaceNotificationQueueCapacity(100000);
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
 		FlushingStepBuilder<KeyValue<byte[]>, KeyValue<byte[]>> step = flushingStep(info, reader, writer);
-		generateAsync(info, step, generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET));
+		generateAsync(info, step,
+				generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET));
 		run(info, step);
 		Assertions.assertTrue(compare(info).isOk());
 	}

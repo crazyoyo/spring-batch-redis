@@ -144,7 +144,8 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 			TaskExecutorJobLauncher jobLauncher = new TaskExecutorJobLauncher();
 			jobLauncher.setJobRepository(jobRepository);
 			jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-			Job job = job(jobRepository, txManager);
+			SimpleStepBuilder<K, K> step = step(jobRepository, txManager);
+			Job job = new JobBuilder(name, jobRepository).start(step.build()).build();
 			try {
 				jobExecution = jobLauncher.run(job, new JobParameters());
 			} catch (JobExecutionException e) {
@@ -164,12 +165,6 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 				}
 			}
 		}
-	}
-
-	private Job job(JobRepository jobRepository, PlatformTransactionManager txManager) {
-		JobBuilder jobBuilder = new JobBuilder(name, jobRepository);
-		SimpleStepBuilder<K, K> step = step(jobRepository, txManager);
-		return jobBuilder.start(step.build()).build();
 	}
 
 	private DataSource dataSource() {
@@ -204,8 +199,7 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 
 	private SimpleStepBuilder<K, K> step(JobRepository jobRepository, PlatformTransactionManager txManager) {
 		FaultTolerantStepBuilder<K, K> step = baseStep(jobRepository, txManager).faultTolerant();
-		ItemReader<K> keyReader = keyReader();
-		step.reader(keyReader);
+		step.reader(keyReader());
 		step.processor(keyProcessor);
 		step.writer(writer());
 		if (threads > 1) {
@@ -261,9 +255,7 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 
 	@Override
 	public synchronized void close() throws ItemStreamException {
-		if (jobExecution != null) {
-			jobExecution = null;
-		}
+		jobExecution = null;
 	}
 
 	public abstract Chunk<T> values(Chunk<? extends K> chunk);
