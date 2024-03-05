@@ -605,17 +605,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void replicateStructByteArray(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(1000);
-		generate(info, gen);
-		Thread.sleep(100);
-		StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
-		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
-		KeyspaceComparison comparison = replicate(info, reader, writer);
-		Assertions.assertTrue(comparison.isOk());
-	}
-
-	@Test
 	void replicateStructBinaryStrings(TestInfo info) throws Exception {
 		try (StatefulRedisConnection<byte[], byte[]> connection = RedisModulesUtils.connection(client,
 				ByteArrayCodec.INSTANCE)) {
@@ -640,7 +629,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	protected <K, V> KeyspaceComparison replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
 			RedisItemWriter<K, V, KeyValue<K>> writer) throws Exception {
 		run(testInfo(info, "replicate"), reader, writer);
-		Thread.sleep(100);
 		return compare(testInfo(info, "replicate"));
 	}
 

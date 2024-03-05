@@ -143,6 +143,16 @@ class StackToStackTests extends ModulesTests {
 	}
 
 	@Test
+	void replicateStructByteArray(TestInfo info) throws Exception {
+		GeneratorItemReader gen = generator(1000);
+		generate(info, gen);
+		StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
+		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
+		KeyspaceComparison comparison = replicate(info, reader, writer);
+		Assertions.assertTrue(comparison.isOk());
+	}
+
+	@Test
 	void replicateStructMemLimit(TestInfo info) throws Exception {
 		generate(info);
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
