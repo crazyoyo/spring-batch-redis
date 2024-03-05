@@ -34,7 +34,6 @@ public class Await {
 	 * Blocks until test is true
 	 *
 	 * @param test    boolean supplier to wait for
-	 * @param timeout the maximum time to wait
 	 * @return {@code true} if the test became true within given time, and
 	 *         {@code false} if the timeout elapsed before termination
 	 * @throws InterruptedException if interrupted while waiting

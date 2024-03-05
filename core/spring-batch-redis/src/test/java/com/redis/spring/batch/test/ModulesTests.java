@@ -69,7 +69,7 @@ abstract class ModulesTests extends LiveTests {
 	}
 
 	@Test
-	void readMetrics() throws Exception {
+	void readMetrics(TestInfo info) throws Exception {
 		Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
 		SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
 
@@ -85,7 +85,7 @@ abstract class ModulesTests extends LiveTests {
 
 		}, Clock.SYSTEM);
 		Metrics.addRegistry(registry);
-		generate();
+		generate(info);
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		reader.open(new ExecutionContext());
 		Search search = registry.find("redis.batch.reader.queue.size");
@@ -147,7 +147,7 @@ abstract class ModulesTests extends LiveTests {
 	}
 
 	@Test
-	void writeSug(TestInfo testInfo) throws Exception {
+	void writeSug(TestInfo info) throws Exception {
 		String key = "sugadd";
 		List<Suggestion<String>> values = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
@@ -157,13 +157,13 @@ abstract class ModulesTests extends LiveTests {
 		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(keyFunction(key),
 				new ToSuggestionFunction<>(Suggestion::getString, Suggestion::getScore, Suggestion::getPayload));
 		OperationItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
-		run(testInfo, reader, writer);
+		run(info, reader, writer);
 		assertEquals(1, commands.dbsize());
 		assertEquals(values.size(), commands.ftSuglen(key));
 	}
 
 	@Test
-	void writeSugIncr(TestInfo testInfo) throws Exception {
+	void writeSugIncr(TestInfo  info) throws Exception {
 		String key = "sugaddIncr";
 		List<Suggestion<String>> values = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
@@ -175,7 +175,7 @@ abstract class ModulesTests extends LiveTests {
 		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(keyFunction(key), converter);
 		sugadd.setIncr(true);
 		OperationItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
-		run(testInfo, reader, writer);
+		run( info, reader, writer);
 		assertEquals(1, commands.dbsize());
 		assertEquals(values.size(), commands.ftSuglen(key));
 	}
@@ -196,30 +196,30 @@ abstract class ModulesTests extends LiveTests {
 	}
 
 	@Test
-	void writeJsonSet(TestInfo testInfo) throws Exception {
+	void writeJsonSet(TestInfo info) throws Exception {
 		JsonSet<String, String, JsonNode> jsonSet = new JsonSet<>(n -> "beer:" + n.get("id").asText(),
 				JsonNode::toString);
 		jsonSet.setPath(".");
 		OperationItemWriter<String, String, JsonNode> writer = writer(jsonSet);
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
-		run(testInfo, reader, writer);
+		run(info, reader, writer);
 		Assertions.assertEquals(BEER_COUNT, commands.keys("beer:*").size());
 		Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
 				new ObjectMapper().readTree(commands.jsonGet("beer:1", "$")));
 	}
 
 	@Test
-	void writeJsonDel(TestInfo testInfo) throws Exception {
+	void writeJsonDel(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(DataType.JSON);
-		generate(gen);
+		generate(info, gen);
 		JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>(KeyValue::getKey);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(jsonDel);
-		run(testInfo, gen, writer);
+		run(info, gen, writer);
 		Assertions.assertEquals(0, commands.dbsize());
 	}
 
 	@Test
-	void writeTsAdd(TestInfo testInfo) throws Exception {
+	void writeTsAdd(TestInfo info) throws Exception {
 		String key = "ts:1";
 		Random random = new Random();
 		int count = 100;
@@ -234,14 +234,14 @@ abstract class ModulesTests extends LiveTests {
 		TsAdd<String, String, Sample> tsadd = new TsAdd<>(keyFunction(key), Function.identity());
 		tsadd.setOptions(addOptions);
 		OperationItemWriter<String, String, Sample> writer = writer(tsadd);
-		run(testInfo, reader, writer);
+		run(info, reader, writer);
 		Assertions.assertEquals(count / 2,
 				commands.tsRange(key, TimeRange.unbounded(), RangeOptions.builder().build()).size(), 2);
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
-	void writeTsAddAll(TestInfo testInfo) throws Exception {
+	void writeTsAddAll(TestInfo info) throws Exception {
 		int count = 10;
 		GeneratorItemReader reader = generator(count, DataType.TIMESERIES);
 		AddOptions<String, String> addOptions = AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST)
@@ -252,7 +252,7 @@ abstract class ModulesTests extends LiveTests {
 		tsadd.setOptions(addOptions);
 		OperationItemWriter<String, String, Sample> writer = new OperationItemWriter(client, CodecUtils.STRING_CODEC,
 				tsadd);
-		run(testInfo, reader, writer);
+		run(info, reader, writer);
 		for (int index = 1; index <= count; index++) {
 			Assertions.assertEquals(TimeSeriesOptions.DEFAULT_SAMPLE_COUNT.getMin(),
 					commands.tsRange(reader.key(index), TimeRange.unbounded(), RangeOptions.builder().build()).size(),

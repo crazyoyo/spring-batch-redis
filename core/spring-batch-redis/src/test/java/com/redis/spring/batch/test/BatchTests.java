@@ -122,7 +122,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void compareStreams(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(10);
 		gen.setTypes(DataType.STREAM);
-		generate(gen);
+		generate(info, gen);
 		Assertions.assertTrue(
 				replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)).isOk());
 		KeyspaceComparison comparison = compare(info);
@@ -132,7 +132,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void compareStatus(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(120);
-		generate(gen);
+		generate(info, gen);
 		assertDbNotEmpty(commands);
 		DumpItemReader reader = RedisItemReader.dump(client);
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
@@ -191,9 +191,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void estimateScanSize() throws Exception {
+	void estimateScanSize(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(1000, DataType.HASH, DataType.STRING);
-		generate(gen);
+		generate(info, gen);
 		long expectedCount = commands.dbsize();
 		ScanSizeEstimator estimator = new ScanSizeEstimator(client);
 		estimator.setScanMatch(GeneratorItemReader.DEFAULT_KEYSPACE + ":*");
@@ -204,8 +204,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStruct() throws Exception {
-		generate();
+	void readStruct(TestInfo info) throws Exception {
+		generate(info);
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		reader.open(new ExecutionContext());
 		List<KeyValue<String>> list = readAll(reader);
@@ -428,8 +428,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamAck() throws Exception {
-		generateStreams(57);
+	void readStreamAck(TestInfo info) throws Exception {
+		generateStreams(info, 57);
 		List<String> keys = ScanIterator.scan(commands, KeyScanArgs.Builder.type(DataType.STREAM.getString())).stream()
 				.collect(Collectors.toList());
 		Consumer<String> consumer = Consumer.from("batchtests-readmessages", "consumer1");
@@ -446,8 +446,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStream() throws Exception {
-		generateStreams(73);
+	void readStream(TestInfo info) throws Exception {
+		generateStreams(info, 73);
 		List<String> keys = ScanIterator.scan(commands, KeyScanArgs.Builder.type(DataType.STREAM.getString())).stream()
 				.collect(Collectors.toList());
 		Consumer<String> consumer = Consumer.from("batchtests-readstreamjob", "consumer1");
@@ -592,14 +592,14 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void replicateDump(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(100);
-		generate(gen);
+		generate(info, gen);
 		Assertions.assertTrue(replicate(info, RedisItemReader.dump(client), RedisItemWriter.dump(targetClient)).isOk());
 	}
 
 	@Test
 	void replicateStruct(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(100);
-		generate(gen);
+		generate(info, gen);
 		Assertions.assertTrue(
 				replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)).isOk());
 	}
@@ -607,7 +607,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void replicateStructByteArray(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(1000);
-		generate(gen);
+		generate(info, gen);
 		StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
 		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
 		Assertions.assertTrue(replicate(info, reader, writer).isOk());
@@ -650,7 +650,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		gen.getStreamOptions().setMessageCount(cardinality);
 		gen.getTimeSeriesOptions().setSampleCount(cardinality);
 		gen.getZsetOptions().setMemberCount(cardinality);
-		generate(gen);
+		generate(info, gen);
 		Assertions.assertTrue(
 				replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)).isOk());
 	}
@@ -732,10 +732,10 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void writeStructOverwrite(TestInfo info) throws Exception {
 		GeneratorItemReader gen1 = generator(100, DataType.HASH);
 		gen1.setHashOptions(hashOptions(Range.of(5)));
-		generate(client, gen1);
+		generate(info, client, gen1);
 		GeneratorItemReader gen2 = generator(100, DataType.HASH);
 		gen2.setHashOptions(hashOptions(Range.of(10)));
-		generate(targetClient, gen2);
+		generate(info, targetClient, gen2);
 		replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient));
 		assertEquals(commands.hgetall("gen:1"), targetCommands.hgetall("gen:1"));
 	}
@@ -750,10 +750,10 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void writeStructMerge(TestInfo info) throws Exception {
 		GeneratorItemReader gen1 = generator(100, DataType.HASH);
 		gen1.setHashOptions(hashOptions(Range.of(5)));
-		generate(client, gen1);
+		generate(info, client, gen1);
 		GeneratorItemReader gen2 = generator(100, DataType.HASH);
 		gen2.setHashOptions(hashOptions(Range.of(10)));
-		generate(targetClient, gen2);
+		generate(info, targetClient, gen2);
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		writer.setMerge(true);
@@ -805,7 +805,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void writeDel(TestInfo info) throws Exception {
-		generate();
+		generate(info);
 		GeneratorItemReader gen = generator(defaultGeneratorCount);
 		Del<String, String, KeyValue<String>> del = new Del<>(KeyValue::getKey);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(del);
@@ -902,7 +902,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void writeStruct(TestInfo info) throws Exception {
 		int count = 1000;
 		GeneratorItemReader reader = generator(count);
-		generate(client, reader);
+		generate(info, client, reader);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(client);
 		run(info, reader, writer);
 		List<String> keys = commands.keys("gen:*");

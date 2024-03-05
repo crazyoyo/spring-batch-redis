@@ -35,8 +35,6 @@ import org.springframework.batch.core.repository.support.JobRepositoryFactoryBea
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.item.Chunk;
-import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
@@ -283,7 +281,7 @@ public abstract class AbstractTestBase {
 		return generator(defaultGeneratorCount);
 	}
 
-	protected <I, O> void generateAsync(FlushingStepBuilder<I, O> step, GeneratorItemReader reader) {
+	protected <I, O> void generateAsync(TestInfo info, FlushingStepBuilder<I, O> step, GeneratorItemReader reader) {
 		AtomicBoolean flag = new AtomicBoolean();
 		step.listener(new ItemReadListener<>() {
 
@@ -294,7 +292,7 @@ public abstract class AbstractTestBase {
 				}
 				Executors.newSingleThreadExecutor().execute(() -> {
 					try {
-						generate(reader);
+						generate(info, reader);
 					} catch (Exception e) {
 						throw new RuntimeException("Could not run data gen", e);
 					}
@@ -304,31 +302,18 @@ public abstract class AbstractTestBase {
 		});
 	}
 
-	protected void generate() throws Exception {
-		generate(generator(defaultGeneratorCount));
+	protected void generate(TestInfo info) throws Exception {
+		generate(info, generator(defaultGeneratorCount));
 	}
 
-	protected void generate(GeneratorItemReader reader) throws Exception {
-		generate(client, reader);
+	protected void generate(TestInfo info, GeneratorItemReader reader) throws Exception {
+		generate(info, client, reader);
 	}
 
-	protected void generate(AbstractRedisClient client, GeneratorItemReader reader) throws Exception {
+	protected void generate(TestInfo info, AbstractRedisClient client, GeneratorItemReader reader) throws Exception {
+		TestInfo testInfo = testInfo(info, "generate", String.valueOf(client.hashCode()));
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(client, CodecUtils.STRING_CODEC);
-		writer.open(new ExecutionContext());
-		reader.open(new ExecutionContext());
-		Chunk<KeyValue<String>> chunk = new Chunk<>();
-		KeyValue<String> value;
-		while ((value = reader.read()) != null) {
-			chunk.add(value);
-			if (chunk.size() >= RedisItemReader.DEFAULT_CHUNK_SIZE) {
-				writer.write(chunk);
-				chunk.clear();
-			}
-		}
-		writer.write(chunk);
-		chunk.clear();
-		reader.close();
-		writer.close();
+		run(testInfo, reader, writer);
 	}
 
 	protected void flushAll(AbstractRedisClient client) {
@@ -375,12 +360,12 @@ public abstract class AbstractTestBase {
 		return new FlushingStepBuilder<>(step(info, reader, writer)).idleTimeout(idleTimeout);
 	}
 
-	protected void generateStreams(int messageCount) throws Exception {
+	protected void generateStreams(TestInfo info, int messageCount) throws Exception {
 		GeneratorItemReader gen = generator(3, DataType.STREAM);
 		StreamOptions streamOptions = new StreamOptions();
 		streamOptions.setMessageCount(Range.of(messageCount));
 		gen.setStreamOptions(streamOptions);
-		generate(gen);
+		generate(info, gen);
 	}
 
 	protected StreamItemReader<String, String> streamReader(String stream, Consumer<String> consumer) {

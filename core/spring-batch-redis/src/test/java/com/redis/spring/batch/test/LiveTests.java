@@ -46,7 +46,7 @@ abstract class LiveTests extends BatchTests {
 			RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
 			RedisItemWriter<K, V, T> liveWriter) throws Exception {
 		live(liveReader);
-		generate(generator(300));
+		generate(info, generator(300));
 		TaskletStep step = faultTolerant(step(new SimpleTestInfo(info, "step"), reader, writer)).build();
 		SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "snapshotFlow"))).start(step)
 				.build();
@@ -56,7 +56,7 @@ abstract class LiveTests extends BatchTests {
 				DataType.ZSET);
 		liveGen.setExpiration(Range.of(100));
 		liveGen.setKeyRange(Range.from(300));
-		generateAsync(flushingStepBuilder, liveGen);
+		generateAsync(testInfo(info, "genasync"), flushingStepBuilder, liveGen);
 		TaskletStep liveStep = faultTolerant(flushingStepBuilder).build();
 		SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "liveFlow"))).start(liveStep)
 				.build();
@@ -85,13 +85,13 @@ abstract class LiveTests extends BatchTests {
 	}
 
 	@Test
-	void readStructLive() throws Exception {
+	void readStructLive(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
 		StructItemReader<byte[], byte[]> reader = live(RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
 		reader.setKeyspaceNotificationQueueCapacity(10000);
 		reader.open(new ExecutionContext());
 		int count = 1234;
-		generate(generator(count, DataType.HASH, DataType.STRING));
+		generate(info, generator(count, DataType.HASH, DataType.STRING));
 		List<KeyValue<byte[]>> list = readAll(reader);
 		Function<byte[], String> toString = CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
 		Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
@@ -129,7 +129,7 @@ abstract class LiveTests extends BatchTests {
 		reader.setKeyspaceNotificationQueueCapacity(100000);
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
 		FlushingStepBuilder<KeyValue<byte[]>, KeyValue<byte[]>> step = flushingStep(info, reader, writer);
-		generateAsync(step, generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET));
+		generateAsync(info, step, generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET));
 		run(info, step);
 		Assertions.assertTrue(compare(info).isOk());
 	}

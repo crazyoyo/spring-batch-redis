@@ -74,12 +74,12 @@ class StackToStackTests extends ModulesTests {
 	}
 
 	@Test
-	void readLiveType() throws Exception {
+	void readLiveType(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
 		StructItemReader<String, String> reader = live(RedisItemReader.struct(client));
 		reader.setKeyType(DataType.HASH.getString());
 		reader.open(new ExecutionContext());
-		generate(generator(100));
+		generate(info, generator(100));
 		reader.open(new ExecutionContext());
 		List<KeyValue<String>> keyValues = readAll(reader);
 		reader.close();
@@ -87,8 +87,8 @@ class StackToStackTests extends ModulesTests {
 	}
 
 	@Test
-	void readStructMemoryUsage() throws Exception {
-		generate();
+	void readStructMemoryUsage(TestInfo info) throws Exception {
+		generate(info);
 		long memLimit = 200;
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
@@ -144,7 +144,7 @@ class StackToStackTests extends ModulesTests {
 
 	@Test
 	void replicateStructMemLimit(TestInfo info) throws Exception {
-		generate();
+		generate(info);
 		StructItemReader<String, String> reader = RedisItemReader.struct(client);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
@@ -153,7 +153,7 @@ class StackToStackTests extends ModulesTests {
 
 	@Test
 	void replicateDumpMemLimitHigh(TestInfo info) throws Exception {
-		generate();
+		generate(info);
 		DumpItemReader reader = RedisItemReader.dump(client);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
@@ -162,7 +162,7 @@ class StackToStackTests extends ModulesTests {
 
 	@Test
 	void replicateDumpMemLimitLow(TestInfo info) throws Exception {
-		generate();
+		generate(info);
 		Assertions.assertTrue(commands.dbsize() > 10);
 		long memLimit = 1500;
 		DumpItemReader reader = RedisItemReader.dump(client);
@@ -214,9 +214,9 @@ class StackToStackTests extends ModulesTests {
 	}
 
 	@Test
-	void readMultipleStreams(TestInfo testInfo) throws Exception {
+	void readMultipleStreams(TestInfo info) throws Exception {
 		String consumerGroup = "consumerGroup";
-		generateStreams(277);
+		generateStreams(info, 277);
 		KeyScanArgs args = KeyScanArgs.Builder.type(DataType.STREAM.getString());
 		final List<String> keys = ScanIterator.scan(commands, args).stream().collect(Collectors.toList());
 		for (String key : keys) {
@@ -226,9 +226,9 @@ class StackToStackTests extends ModulesTests {
 			StreamItemReader<String, String> reader2 = streamReader(key, Consumer.from(consumerGroup, "consumer2"));
 			reader2.setAckPolicy(AckPolicy.MANUAL);
 			ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
-			TestInfo testInfo1 = new SimpleTestInfo(testInfo, key, "1");
+			TestInfo testInfo1 = new SimpleTestInfo(info, key, "1");
 			TaskletStep step1 = faultTolerant(flushingStep(testInfo1, reader1, writer1)).build();
-			TestInfo testInfo2 = new SimpleTestInfo(testInfo, key, "2");
+			TestInfo testInfo2 = new SimpleTestInfo(info, key, "2");
 			ListItemWriter<StreamMessage<String, String>> writer2 = new ListItemWriter<>();
 			TaskletStep step2 = faultTolerant(flushingStep(testInfo2, reader2, writer2)).build();
 			SimpleFlow flow1 = flow("flow1").start(step1).build();
