@@ -276,7 +276,7 @@ public abstract class RedisItemReader<K, V, T> implements PollableItemReader<T> 
 	 */
 	public List<T> read(int count) {
 		List<T> items = new ArrayList<>(count);
-		valueQueue.drainTo(items);
+		valueQueue.drainTo(items, count);
 		return items;
 	}
 
