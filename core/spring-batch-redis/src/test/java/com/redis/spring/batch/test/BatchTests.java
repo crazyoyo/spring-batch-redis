@@ -18,6 +18,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -80,6 +82,8 @@ import io.lettuce.core.models.stream.PendingMessages;
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
 abstract class BatchTests extends AbstractTargetTestBase {
+
+	private static final Log log = LogFactory.getLog(BatchTests.class);
 
 	@Override
 	protected DataType[] generatorDataTypes() {
@@ -600,8 +604,11 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void replicateStruct(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(100);
 		generate(info, gen);
-		Assertions.assertTrue(
-				replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)).isOk());
+		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
+		KeyspaceComparison comparison = replicate(info, reader, writer);
+		comparison.mismatches().forEach(log::info);
+		Assertions.assertTrue(comparison.isOk());
 	}
 
 	@Test
@@ -642,8 +649,10 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		gen.getTimeSeriesOptions().setSampleCount(cardinality);
 		gen.getZsetOptions().setMemberCount(cardinality);
 		generate(info, gen);
-		Assertions.assertTrue(
-				replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)).isOk());
+		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
+		KeyspaceComparison comparison = replicate(info, reader, writer);
+		Assertions.assertTrue(comparison.isOk());
 	}
 
 	public static <T> Function<T, String> keyFunction(String key) {
