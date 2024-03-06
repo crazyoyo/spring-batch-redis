@@ -4,6 +4,12 @@ config {
     }
 }
 
+eclipse {
+    project {
+        name = 'spring-batch-redis-core'
+    }
+}
+
 dependencies {
     implementation group: 'com.redis', name: 'lettucemod', version: lettucemodVersion
     implementation 'org.apache.commons:commons-pool2'
