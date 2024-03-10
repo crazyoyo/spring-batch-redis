@@ -1,5 +1,6 @@
 package com.redis.spring.batch.reader;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
@@ -9,9 +10,9 @@ import org.springframework.batch.item.Chunk;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.unit.DataSize;
 
-import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Operation;
 import com.redis.spring.batch.util.CodecUtils;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -34,7 +35,7 @@ public class KeyValueReadOperation<K, V> implements Operation<K, V, K, KeyValue<
 	private UnaryOperator<KeyValue<K>> postOperator = UnaryOperator.identity();
 
 	public KeyValueReadOperation(AbstractRedisClient client, RedisCodec<K, V> codec, DataSize memLimit, int samples,
-			Type type) {
+			Type type) throws IOException {
 		this.evalsha = new Evalsha<>(FILENAME, client, codec);
 		this.evalsha.setKeyFunction(Function.identity());
 		this.evalsha.setArgs(memLimit.toBytes(), samples, type.name().toLowerCase());

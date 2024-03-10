@@ -6,19 +6,16 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.batch.item.Chunk;
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.reader.AbstractKeyValueItemReader;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.IdentityOperator;
 
 import io.lettuce.core.StreamMessage;
 
@@ -26,28 +23,28 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
 	public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
+	private final AbstractKeyValueItemReader<String, String> source;
+	private final AbstractKeyValueItemReader<String, String> target;
+
 	private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 
-	private final ValueReader<String, String, String, KeyValue<String>> source;
-
-	private final ValueReader<String, String, String, KeyValue<String>> target;
-
-	private UnaryOperator<KeyValue<String>> processor = new IdentityOperator<>();
-
+	private ValueReader<String, String, String, KeyValue<String>> sourceValueReader;
+	private ValueReader<String, String, String, KeyValue<String>> targetValueReader;
+	private Function<KeyValue<String>, KeyValue<String>> processor = Function.identity();
 	private boolean compareStreamMessageIds;
 
 	public KeyComparisonItemReader(AbstractKeyValueItemReader<String, String> source,
 			AbstractKeyValueItemReader<String, String> target) {
 		super(source.getClient(), CodecUtils.STRING_CODEC);
-		this.source = source.operationValueReader();
-		this.target = target.operationValueReader();
+		this.source = source;
+		this.target = target;
 	}
 
 	public void setCompareStreamMessageIds(boolean enable) {
 		this.compareStreamMessageIds = enable;
 	}
 
-	public void setProcessor(UnaryOperator<KeyValue<String>> processor) {
+	public void setProcessor(Function<KeyValue<String>, KeyValue<String>> processor) {
 		this.processor = processor;
 	}
 
@@ -56,27 +53,40 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 	}
 
 	@Override
-	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
-		source.open();
-		target.open();
-		super.open(executionContext);
+	protected synchronized void doOpen() throws Exception {
+		if (sourceValueReader == null) {
+			sourceValueReader = source.valueReader();
+			sourceValueReader.open();
+		}
+		if (targetValueReader == null) {
+			targetValueReader = target.valueReader();
+			targetValueReader.open();
+		}
+		super.doOpen();
 	}
 
 	@Override
-	public synchronized void close() throws ItemStreamException {
-		super.close();
-		source.close();
-		target.close();
+	protected synchronized void doClose() throws Exception {
+		super.doClose();
+		if (sourceValueReader != null) {
+			sourceValueReader.close();
+			sourceValueReader = null;
+		}
+		if (targetValueReader != null) {
+			targetValueReader.close();
+			targetValueReader = null;
+		}
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public Chunk<KeyComparison> values(Chunk<? extends String> keys) {
 		Chunk<KeyComparison> comparisons = new Chunk<>();
-		Chunk<? extends String> processedKeys = processKeys(keys);
-		Chunk<KeyValue<String>> sourceItems = source.execute(processedKeys);
+		Chunk<String> processedKeys = processKeys((Chunk<String>) keys);
+		Chunk<KeyValue<String>> sourceItems = sourceValueReader.execute(processedKeys);
 		List<KeyValue<String>> items = processValues(sourceItems).getItems();
 		List<String> targetKeys = items.stream().map(KeyValue::getKey).collect(Collectors.toList());
-		List<KeyValue<String>> targetItems = target.execute(new Chunk<>(targetKeys)).getItems();
+		List<KeyValue<String>> targetItems = targetValueReader.execute(new Chunk<>(targetKeys)).getItems();
 		for (int index = 0; index < items.size(); index++) {
 			KeyComparison comparison = new KeyComparison();
 			comparison.setSource(items.get(index));
@@ -103,7 +113,7 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 		return processedValues;
 	}
 
-	private Chunk<? extends String> processKeys(Chunk<? extends String> keys) {
+	private Chunk<String> processKeys(Chunk<String> keys) {
 		if (keyProcessor == null) {
 			return keys;
 		}

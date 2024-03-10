@@ -32,7 +32,6 @@ import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyComparison.Status;
 import com.redis.spring.batch.common.KeyValue;
@@ -86,7 +85,7 @@ abstract class ModulesTests extends LiveTests {
 		}, Clock.SYSTEM);
 		Metrics.addRegistry(registry);
 		generate(info);
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemReader<String, String> reader = structReader(info);
 		reader.open(new ExecutionContext());
 		Search search = registry.find("redis.batch.reader.queue.size");
 		Assertions.assertNotNull(search.gauge());
@@ -120,7 +119,7 @@ abstract class ModulesTests extends LiveTests {
 		for (Sample sample : samples) {
 			commands.tsAdd(key, sample);
 		}
-		ValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+		ValueReader<String, String, String, KeyValue<String>> executor = structValueReader();
 		KeyValue<String> ds = executor.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(DataType.TIMESERIES, ds.getType());
@@ -136,8 +135,7 @@ abstract class ModulesTests extends LiveTests {
 		for (Sample sample : samples) {
 			commands.tsAdd(key, sample);
 		}
-		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
-				ByteArrayCodec.INSTANCE);
+		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = structValueReader(ByteArrayCodec.INSTANCE);
 		Function<String, byte[]> toByteArrayKeyFunction = CodecUtils.toByteArrayKeyFunction(CodecUtils.STRING_CODEC);
 		KeyValue<byte[]> ds = executor.execute(toByteArrayKeyFunction.apply(key));
 		Assertions.assertArrayEquals(toByteArrayKeyFunction.apply(key), ds.getKey());
@@ -163,7 +161,7 @@ abstract class ModulesTests extends LiveTests {
 	}
 
 	@Test
-	void writeSugIncr(TestInfo  info) throws Exception {
+	void writeSugIncr(TestInfo info) throws Exception {
 		String key = "sugaddIncr";
 		List<Suggestion<String>> values = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
@@ -175,7 +173,7 @@ abstract class ModulesTests extends LiveTests {
 		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(keyFunction(key), converter);
 		sugadd.setIncr(true);
 		OperationItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
-		run( info, reader, writer);
+		run(info, reader, writer);
 		assertEquals(1, commands.dbsize());
 		assertEquals(values.size(), commands.ftSuglen(key));
 	}

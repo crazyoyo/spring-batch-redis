@@ -1,5 +1,6 @@
 package com.redis.spring.batch.reader;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -23,7 +24,7 @@ public class Evalsha<K, V, T> implements Operation<K, V, T, List<Object>> {
 	private Function<T, K> keyFunction;
 	private Function<T, V[]> argsFunction;
 
-	public Evalsha(String filename, AbstractRedisClient client, RedisCodec<K, V> codec) {
+	public Evalsha(String filename, AbstractRedisClient client, RedisCodec<K, V> codec) throws IOException {
 		this.digest = ConnectionUtils.loadScript(client, filename);
 		this.stringValueFunction = CodecUtils.stringValueFunction(codec);
 	}

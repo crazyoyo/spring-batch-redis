@@ -9,8 +9,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 
 import com.redis.spring.batch.util.ConnectionUtils;
 
@@ -26,7 +25,8 @@ import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<K, V>> {
+public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemReader<StreamMessage<K, V>>
+		implements PollableItemReader<StreamMessage<K, V>> {
 
 	public enum AckPolicy {
 		AUTO, MANUAL
@@ -77,52 +77,12 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 		this.consumer = consumer;
 	}
 
-	public ReadFrom getReadFrom() {
-		return readFrom;
-	}
-
-	public void setReadFrom(ReadFrom readFrom) {
-		this.readFrom = readFrom;
-	}
-
-	public String getOffset() {
-		return offset;
-	}
-
-	public void setOffset(String offset) {
-		this.offset = offset;
-	}
-
-	public Duration getBlock() {
-		return block;
-	}
-
-	public void setBlock(Duration block) {
-		this.block = block;
-	}
-
-	public long getCount() {
-		return count;
-	}
-
-	public void setCount(long count) {
-		this.count = count;
-	}
-
-	public AckPolicy getAckPolicy() {
-		return ackPolicy;
-	}
-
-	public void setAckPolicy(AckPolicy policy) {
-		this.ackPolicy = policy;
-	}
-
 	private XReadArgs args(long blockMillis) {
 		return XReadArgs.Builder.count(count).block(blockMillis);
 	}
 
 	@Override
-	public synchronized void open(ExecutionContext executionContext) {
+	protected synchronized void doOpen() throws Exception {
 		if (messageReader == null) {
 			connection = ConnectionUtils.supplier(client, codec, readFrom).get();
 			commands = ConnectionUtils.sync(connection);
@@ -139,7 +99,7 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 	}
 
 	@Override
-	public synchronized void close() {
+	protected synchronized void doClose() throws Exception {
 		if (messageReader != null) {
 			messageReader = null;
 			lastId = null;
@@ -157,12 +117,7 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 	}
 
 	@Override
-	public void update(ExecutionContext executionContext) throws ItemStreamException {
-		// Do nothing
-	}
-
-	@Override
-	public StreamMessage<K, V> read() {
+	protected StreamMessage<K, V> doRead() throws Exception {
 		return poll(DEFAULT_POLL_DURATION.toMillis(), TimeUnit.MILLISECONDS);
 	}
 
@@ -390,4 +345,43 @@ public class StreamItemReader<K, V> implements PollableItemReader<StreamMessage<
 		return commands.xlen(stream);
 	}
 
+	public ReadFrom getReadFrom() {
+		return readFrom;
+	}
+
+	public void setReadFrom(ReadFrom readFrom) {
+		this.readFrom = readFrom;
+	}
+
+	public String getOffset() {
+		return offset;
+	}
+
+	public void setOffset(String offset) {
+		this.offset = offset;
+	}
+
+	public Duration getBlock() {
+		return block;
+	}
+
+	public void setBlock(Duration block) {
+		this.block = block;
+	}
+
+	public long getCount() {
+		return count;
+	}
+
+	public void setCount(long count) {
+		this.count = count;
+	}
+
+	public AckPolicy getAckPolicy() {
+		return ackPolicy;
+	}
+
+	public void setAckPolicy(AckPolicy policy) {
+		this.ackPolicy = policy;
+	}
 }

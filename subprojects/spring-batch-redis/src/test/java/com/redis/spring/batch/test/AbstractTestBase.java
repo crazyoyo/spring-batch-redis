@@ -2,6 +2,7 @@ package com.redis.spring.batch.test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -39,7 +40,6 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.batch.BatchDataSourceScriptDatabaseInitializer;
 import org.springframework.boot.autoconfigure.batch.BatchProperties;
 import org.springframework.boot.sql.init.DatabaseInitializationMode;
@@ -88,37 +88,102 @@ import io.lettuce.core.support.ConnectionPoolSupport;
 @TestInstance(Lifecycle.PER_CLASS)
 public abstract class AbstractTestBase {
 
-	protected static final int chunkSize = 50;
+	public static final int DEFAULT_CHUNK_SIZE = 50;
+	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(300);
+	public static final Duration DEFAULT_POLL_DELAY = Duration.ZERO;
+	public static final int DEFAULT_GENERATOR_COUNT = 73;
+	public static final Duration DEFAULT_AWAIT_POLL_INTERVAL = Duration.ofMillis(1);
+	public static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(3);
 
-	protected static final Duration idleTimeout = Duration.ofMillis(300);
-
-	private static final Duration pollDelay = Duration.ZERO;
-
-	protected static final int defaultGeneratorCount = 73;
-
-	private static final Duration awaitPollInterval = Duration.ofMillis(1);
-
-	private static final Duration awaitTimeout = Duration.ofSeconds(3);
-
-	@Value("${running-timeout:PT5S}")
-	private Duration runningTimeout;
-
-	@Value("${termination-timeout:PT5S}")
-	private Duration terminationTimeout;
-
-	protected JobRepository jobRepository;
-
-	protected PlatformTransactionManager transactionManager;
+	private int chunkSize = DEFAULT_CHUNK_SIZE;
+	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
+	private Duration pollDelay = DEFAULT_POLL_DELAY;
+	private int generatorCount = DEFAULT_GENERATOR_COUNT;
+	private Duration awaitPollInterval = DEFAULT_AWAIT_POLL_INTERVAL;
+	private Duration awaitTimeout = DEFAULT_AWAIT_TIMEOUT;
 
 	protected AbstractRedisClient client;
-
 	protected GenericObjectPool<StatefulConnection<String, String>> pool;
-
 	protected StatefulRedisModulesConnection<String, String> connection;
-
 	protected RedisModulesCommands<String, String> commands;
-
+	protected JobRepository jobRepository;
+	protected PlatformTransactionManager transactionManager;
 	private TaskExecutorJobLauncher jobLauncher;
+
+	protected <R extends RedisItemReader<?, ?, ?>> R configure(TestInfo info, R reader) {
+		return configure(info, reader, null);
+	}
+
+	protected <R extends RedisItemReader<?, ?, ?>> R configure(TestInfo info, R reader, String suffix) {
+		reader.setName(name(testInfo(info, suffix == null ? "reader" : suffix)));
+		reader.setJobRepository(jobRepository);
+		reader.setTransactionManager(transactionManager);
+		return reader;
+	}
+
+	protected DumpItemReader dumpReader(TestInfo info) {
+		return dumpReader(info, null);
+	}
+
+	protected DumpItemReader dumpReader(TestInfo info, String suffix) {
+		return configure(info, RedisItemReader.dump(client), suffix);
+	}
+
+	protected StructItemReader<String, String> structReader(TestInfo info) {
+		return structReader(info, null);
+	}
+
+	protected StructItemReader<String, String> structReader(TestInfo info, String suffix) {
+		return configure(info, RedisItemReader.struct(client), suffix);
+	}
+
+	public int getChunkSize() {
+		return chunkSize;
+	}
+
+	public void setChunkSize(int chunkSize) {
+		this.chunkSize = chunkSize;
+	}
+
+	public Duration getIdleTimeout() {
+		return idleTimeout;
+	}
+
+	public Duration getPollDelay() {
+		return pollDelay;
+	}
+
+	public int getGeneratorCount() {
+		return generatorCount;
+	}
+
+	public Duration getAwaitPollInterval() {
+		return awaitPollInterval;
+	}
+
+	public Duration getAwaitTimeout() {
+		return awaitTimeout;
+	}
+
+	public void setIdleTimeout(Duration idleTimeout) {
+		this.idleTimeout = idleTimeout;
+	}
+
+	public void setPollDelay(Duration pollDelay) {
+		this.pollDelay = pollDelay;
+	}
+
+	public void setGeneratorCount(int generatorCount) {
+		this.generatorCount = generatorCount;
+	}
+
+	public void setAwaitPollInterval(Duration awaitPollInterval) {
+		this.awaitPollInterval = awaitPollInterval;
+	}
+
+	public void setAwaitTimeout(Duration awaitTimeout) {
+		this.awaitTimeout = awaitTimeout;
+	}
 
 	protected abstract RedisServer getRedisServer();
 
@@ -209,7 +274,7 @@ public abstract class AbstractTestBase {
 	protected abstract DataType[] generatorDataTypes();
 
 	protected GeneratorItemReader generator(DataType... types) {
-		return generator(defaultGeneratorCount, types);
+		return generator(generatorCount, types);
 	}
 
 	protected GeneratorItemReader generator(int count, DataType... types) {
@@ -228,24 +293,20 @@ public abstract class AbstractTestBase {
 		return step(info, chunkSize, reader, processor, writer);
 	}
 
-	@SuppressWarnings("rawtypes")
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, int chunkSize, ItemReader<I> reader,
 			ItemProcessor<I, O> processor, ItemWriter<O> writer) {
 		String name = name(info);
 		SimpleStepBuilder<I, O> step = new StepBuilder(name, jobRepository).chunk(chunkSize, transactionManager);
-		if (reader instanceof RedisItemReader) {
-			((RedisItemReader) reader).setName(name + "-reader");
-		}
 		step.reader(reader);
 		step.processor(processor);
 		step.writer(writer);
 		return step;
 	}
 
-	public String name(TestInfo info) {
+	public static String name(TestInfo info) {
 		String displayName = info.getDisplayName().replace("(TestInfo)", "");
 		if (info.getTestClass().isPresent()) {
-			displayName += ClassUtils.getShortName(info.getTestClass().get());
+			displayName += "-" + ClassUtils.getShortName(info.getTestClass().get());
 		}
 		return displayName;
 	}
@@ -278,7 +339,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected GeneratorItemReader generator() {
-		return generator(defaultGeneratorCount);
+		return generator(generatorCount);
 	}
 
 	protected <I, O> void generateAsync(TestInfo info, FlushingStepBuilder<I, O> step, GeneratorItemReader reader) {
@@ -303,7 +364,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void generate(TestInfo info) throws Exception {
-		generate(info, generator(defaultGeneratorCount));
+		generate(info, generator(generatorCount));
 	}
 
 	protected void generate(TestInfo info, GeneratorItemReader reader) throws Exception {
@@ -368,8 +429,11 @@ public abstract class AbstractTestBase {
 		generate(info, gen);
 	}
 
-	protected StreamItemReader<String, String> streamReader(String stream, Consumer<String> consumer) {
-		return new StreamItemReader<>(client, CodecUtils.STRING_CODEC, stream, consumer);
+	protected StreamItemReader<String, String> streamReader(TestInfo info, String stream, Consumer<String> consumer) {
+		StreamItemReader<String, String> reader = new StreamItemReader<>(client, CodecUtils.STRING_CODEC, stream,
+				consumer);
+		reader.setName(name(testInfo(info, "stream-reader")));
+		return reader;
 	}
 
 	protected void assertMessageBody(List<? extends StreamMessage<String, String>> items) {
@@ -404,22 +468,20 @@ public abstract class AbstractTestBase {
 		return CodecUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE).apply(key);
 	}
 
-	protected ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> dumpOperationExecutor() {
-		DumpItemReader reader = RedisItemReader.dump(client);
-		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = reader.operationValueReader();
-		executor.open();
-		return executor;
+	protected ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> dumpValueReader() throws IOException {
+		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> reader = RedisItemReader.dump(client).valueReader();
+		reader.open();
+		return reader;
 	}
 
-	protected ValueReader<String, String, String, KeyValue<String>> structOperationExecutor() {
-		return structOperationExecutor(CodecUtils.STRING_CODEC);
+	protected ValueReader<String, String, String, KeyValue<String>> structValueReader() throws IOException {
+		return structValueReader(CodecUtils.STRING_CODEC);
 	}
 
-	protected <K, V> ValueReader<K, V, K, KeyValue<K>> structOperationExecutor(RedisCodec<K, V> codec) {
-		StructItemReader<K, V> reader = RedisItemReader.struct(client, codec);
-		ValueReader<K, V, K, KeyValue<K>> executor = reader.operationValueReader();
-		executor.open();
-		return executor;
+	protected <K, V> ValueReader<K, V, K, KeyValue<K>> structValueReader(RedisCodec<K, V> codec) throws IOException {
+		ValueReader<K, V, K, KeyValue<K>> reader = RedisItemReader.struct(client, codec).valueReader();
+		reader.open();
+		return reader;
 	}
 
 	protected <T> OperationItemWriter<String, String, T> writer(Operation<String, String, T, Object> operation) {

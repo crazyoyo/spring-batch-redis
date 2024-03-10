@@ -11,11 +11,7 @@ import java.util.stream.Stream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.NonTransientResourceException;
-import org.springframework.batch.item.ParseException;
-import org.springframework.batch.item.UnexpectedInputException;
+import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.common.SetBlockingQueue;
 import com.redis.spring.batch.util.CodecUtils;
@@ -30,7 +26,7 @@ import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.pubsub.RedisPubSubAdapter;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
-public class KeyspaceNotificationItemReader<K> implements PollableItemReader<K> {
+public class KeyspaceNotificationItemReader<K> extends AbstractPollableItemReader<K> {
 
 	public static final Duration DEFAULT_FLUSH_INTERVAL = Duration.ofMillis(50);
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(Long.MAX_VALUE);
@@ -55,6 +51,7 @@ public class KeyspaceNotificationItemReader<K> implements PollableItemReader<K> 
 	private AutoCloseable publisher;
 
 	public KeyspaceNotificationItemReader(AbstractRedisClient client, RedisCodec<K, ?> codec, String pubSubPattern) {
+		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.keyEncoder = CodecUtils.stringKeyFunction(codec);
 		this.pubSubPattern = pubSubPattern;
@@ -86,11 +83,10 @@ public class KeyspaceNotificationItemReader<K> implements PollableItemReader<K> 
 	}
 
 	@Override
-	public synchronized void open(ExecutionContext executionContext) {
-		if (queue == null) {
-			queue = new SetBlockingQueue<>(new LinkedBlockingQueue<>(queueCapacity), queueCapacity);
-		}
+	protected synchronized void doOpen() throws Exception {
 		if (publisher == null) {
+			log.info(getName() + ": Opening");
+			queue = new SetBlockingQueue<>(new LinkedBlockingQueue<>(queueCapacity), queueCapacity);
 			publisher = publisher();
 		}
 	}
@@ -103,25 +99,30 @@ public class KeyspaceNotificationItemReader<K> implements PollableItemReader<K> 
 	}
 
 	@Override
-	public synchronized void close() throws ItemStreamException {
-		if (publisher != null) {
-			try {
-				publisher.close();
-				publisher = null;
-			} catch (Exception e) {
-				throw new ItemStreamException("Could not stop publisher", e);
-			}
-		}
-		queue = null;
+	public void close() {
+		log.info(String.format("%s: Closed. Items read: %s", getName(), getCurrentItemCount()));
+		super.close();
 	}
 
 	@Override
-	public K poll(long timeout, TimeUnit unit) throws InterruptedException {
+	protected synchronized void doClose() throws Exception {
+		if (publisher != null) {
+			publisher.close();
+			publisher = null;
+			if (!queue.isEmpty()) {
+				log.warn("Queue still contains elements");
+			}
+			queue = null;
+		}
+	}
+
+	@Override
+	protected K doPoll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
 	}
 
 	@Override
-	public K read() throws Exception, UnexpectedInputException, ParseException, NonTransientResourceException {
+	protected K doRead() throws Exception {
 		return poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
 	}
 

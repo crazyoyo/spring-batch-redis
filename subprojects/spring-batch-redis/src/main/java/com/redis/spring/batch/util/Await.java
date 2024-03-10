@@ -33,7 +33,7 @@ public class Await {
 	/**
 	 * Blocks until test is true
 	 *
-	 * @param test    boolean supplier to wait for
+	 * @param test boolean supplier to wait for
 	 * @return {@code true} if the test became true within given time, and
 	 *         {@code false} if the timeout elapsed before termination
 	 * @throws InterruptedException if interrupted while waiting
@@ -47,6 +47,10 @@ public class Await {
 			}, initialDelay.toMillis(), delay.toMillis(), TimeUnit.MILLISECONDS);
 			return executor.awaitTermination(timeout.toMillis(), TimeUnit.MILLISECONDS);
 		}
+	}
+
+	public boolean untilFalse(BooleanSupplier test) throws InterruptedException {
+		return until(() -> !test.getAsBoolean());
 	}
 
 	public static Await await() {

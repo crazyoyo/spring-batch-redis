@@ -66,7 +66,9 @@ class StackToStackTests extends ModulesTests {
 	@Test
 	void readStructLive(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
-		StructItemReader<byte[], byte[]> reader = live(RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
+		StructItemReader<byte[], byte[]> reader = configure(info,
+				RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
+		live(reader);
 		reader.setKeyspaceNotificationQueueCapacity(10000);
 		reader.open(new ExecutionContext());
 		int count = 1234;
@@ -84,7 +86,8 @@ class StackToStackTests extends ModulesTests {
 		commands.pfadd(key1, "member:1", "member:2");
 		String key2 = "hll:2";
 		commands.pfadd(key2, "member:1", "member:2", "member:3");
-		StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
+		StructItemReader<byte[], byte[]> reader = configure(info,
+				RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
 		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
 		Assertions.assertTrue(replicate(info, reader, writer).isOk());
 		assertEquals(commands.pfcount(key1), targetCommands.pfcount(key1));
@@ -93,7 +96,7 @@ class StackToStackTests extends ModulesTests {
 	@Test
 	void readLiveType(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
-		StructItemReader<String, String> reader = live(RedisItemReader.struct(client));
+		StructItemReader<String, String> reader = live(structReader(info));
 		reader.setKeyType(DataType.HASH.getString());
 		reader.open(new ExecutionContext());
 		generate(info, generator(100));
@@ -107,7 +110,7 @@ class StackToStackTests extends ModulesTests {
 	void readStructMemoryUsage(TestInfo info) throws Exception {
 		generate(info);
 		long memLimit = 200;
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemReader<String, String> reader = structReader(info);
 		reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
 		reader.open(new ExecutionContext());
 		List<KeyValue<String>> keyValues = readAll(reader);
@@ -122,7 +125,7 @@ class StackToStackTests extends ModulesTests {
 	}
 
 	@Test
-	void readStructMemoryUsageTTL() throws Exception {
+	void readStructMemoryUsageTTL(TestInfo info) throws Exception {
 		String key = "myhash";
 		Map<String, String> hash = new HashMap<>();
 		hash.put("field1", "value1");
@@ -130,9 +133,9 @@ class StackToStackTests extends ModulesTests {
 		commands.hset(key, hash);
 		long ttl = System.currentTimeMillis() + 123456;
 		commands.pexpireat(key, ttl);
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemReader<String, String> reader = structReader(info);
 		reader.setMemoryUsageLimit(DataSize.ofBytes(-1));
-		ValueReader<String, String, String, KeyValue<String>> executor = reader.operationValueReader();
+		ValueReader<String, String, String, KeyValue<String>> executor = reader.valueReader();
 		executor.open();
 		KeyValue<String> ds = executor.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
@@ -143,13 +146,13 @@ class StackToStackTests extends ModulesTests {
 	}
 
 	@Test
-	void readStructMemLimit() throws Exception {
+	void readStructMemLimit(TestInfo info) throws Exception {
 		DataSize limit = DataSize.ofBytes(500);
 		String key1 = "key:1";
 		commands.set(key1, "bar");
 		String key2 = "key:2";
 		commands.set(key2, GeneratorItemReader.string(Math.toIntExact(limit.toBytes() * 2)));
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemReader<String, String> reader = structReader(info);
 		reader.setMemoryUsageLimit(limit);
 		reader.open(new ExecutionContext());
 		List<KeyValue<String>> keyValues = readAll(reader);
@@ -163,7 +166,8 @@ class StackToStackTests extends ModulesTests {
 	void replicateStructByteArray(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(1000);
 		generate(info, gen);
-		StructItemReader<byte[], byte[]> reader = RedisItemReader.struct(client, ByteArrayCodec.INSTANCE);
+		StructItemReader<byte[], byte[]> reader = configure(info,
+				RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
 		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
 		KeyspaceComparison comparison = replicate(info, reader, writer);
 		Assertions.assertTrue(comparison.isOk());
@@ -172,7 +176,7 @@ class StackToStackTests extends ModulesTests {
 	@Test
 	void replicateStructMemLimit(TestInfo info) throws Exception {
 		generate(info);
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemReader<String, String> reader = structReader(info);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		Assertions.assertTrue(replicate(info, reader, writer).isOk());
@@ -181,7 +185,7 @@ class StackToStackTests extends ModulesTests {
 	@Test
 	void replicateDumpMemLimitHigh(TestInfo info) throws Exception {
 		generate(info);
-		DumpItemReader reader = RedisItemReader.dump(client);
+		DumpItemReader reader = dumpReader(info);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
 		Assertions.assertTrue(replicate(info, reader, writer).isOk());
@@ -192,11 +196,11 @@ class StackToStackTests extends ModulesTests {
 		generate(info);
 		Assertions.assertTrue(commands.dbsize() > 10);
 		long memLimit = 1500;
-		DumpItemReader reader = RedisItemReader.dump(client);
+		DumpItemReader reader = dumpReader(info);
 		reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
 		run(info, reader, writer);
-		StructItemReader<String, String> fullReader = RedisItemReader.struct(client);
+		StructItemReader<String, String> fullReader = configure(info, RedisItemReader.struct(client), "full-reader");
 		fullReader.setMemoryUsageLimit(DataSize.ofBytes(-1));
 		fullReader.open(new ExecutionContext());
 		List<KeyValue<String>> items = readAll(fullReader);
@@ -248,9 +252,11 @@ class StackToStackTests extends ModulesTests {
 		final List<String> keys = ScanIterator.scan(commands, args).stream().collect(Collectors.toList());
 		for (String key : keys) {
 			long count = commands.xlen(key);
-			StreamItemReader<String, String> reader1 = streamReader(key, Consumer.from(consumerGroup, "consumer1"));
+			StreamItemReader<String, String> reader1 = streamReader(info, key,
+					Consumer.from(consumerGroup, "consumer1"));
 			reader1.setAckPolicy(AckPolicy.MANUAL);
-			StreamItemReader<String, String> reader2 = streamReader(key, Consumer.from(consumerGroup, "consumer2"));
+			StreamItemReader<String, String> reader2 = streamReader(info, key,
+					Consumer.from(consumerGroup, "consumer2"));
 			reader2.setAckPolicy(AckPolicy.MANUAL);
 			ListItemWriter<StreamMessage<String, String>> writer1 = new ListItemWriter<>();
 			TestInfo testInfo1 = new SimpleTestInfo(info, key, "1");
@@ -266,12 +272,12 @@ class StackToStackTests extends ModulesTests {
 			assertMessageBody(writer1.getWrittenItems());
 			assertMessageBody(writer2.getWrittenItems());
 			Assertions.assertEquals(count, commands.xpending(key, consumerGroup).getCount());
-			reader1 = streamReader(key, Consumer.from(consumerGroup, "consumer1"));
+			reader1 = streamReader(info, key, Consumer.from(consumerGroup, "consumer1"));
 			reader1.setAckPolicy(AckPolicy.MANUAL);
 			reader1.open(new ExecutionContext());
 			reader1.ack(writer1.getWrittenItems());
 			reader1.close();
-			reader2 = streamReader(key, Consumer.from(consumerGroup, "consumer2"));
+			reader2 = streamReader(info, key, Consumer.from(consumerGroup, "consumer2"));
 			reader2.setAckPolicy(AckPolicy.MANUAL);
 			reader2.open(new ExecutionContext());
 			reader2.ack(writer2.getWrittenItems());

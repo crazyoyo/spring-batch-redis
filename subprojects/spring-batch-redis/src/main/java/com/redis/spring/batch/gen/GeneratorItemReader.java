@@ -11,7 +11,6 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
@@ -297,28 +296,24 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		}
 		return ThreadLocalRandom.current().nextDouble(range.getMin(), range.getMax());
 	}
-	
+
 	@Override
 	protected void doOpen() throws Exception {
 		// do nothing
 	}
-	
+
 	@Override
 	protected void doClose() throws Exception {
 		// do nothing
 	}
 
 	@Override
-	protected KeyValue<String> doRead() {
+	protected KeyValue<String> doRead() throws JsonProcessingException {
 		KeyValue<String> struct = new KeyValue<>();
 		struct.setKey(key());
 		DataType type = types.get(index() % types.size());
 		struct.setType(type);
-		try {
-			struct.setValue(value(type));
-		} catch (JsonProcessingException e) {
-			throw new ItemStreamException("Could not read value", e);
-		}
+		struct.setValue(value(type));
 		if (expiration != null) {
 			struct.setTtl(ttl());
 		}

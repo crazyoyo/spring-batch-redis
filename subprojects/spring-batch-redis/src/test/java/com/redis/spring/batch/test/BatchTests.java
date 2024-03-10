@@ -102,7 +102,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void compareQuick() throws Exception {
+	void compareQuick(TestInfo info) throws Exception {
 		int sourceCount = 100;
 		for (int index = 1; index <= sourceCount; index++) {
 			commands.set("key:" + index, "value:" + index);
@@ -114,6 +114,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		KeyTypeItemReader<String, String> source = RedisItemReader.type(client);
 		KeyTypeItemReader<String, String> target = RedisItemReader.type(targetClient);
 		KeyComparisonItemReader reader = new KeyComparisonItemReader(source, target);
+		reader.setName(name(info));
 		reader.open(new ExecutionContext());
 		List<KeyComparison> comparisons = readAll(reader);
 		reader.close();
@@ -127,8 +128,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		GeneratorItemReader gen = generator(10);
 		gen.setTypes(DataType.STREAM);
 		generate(info, gen);
-		Assertions.assertTrue(
-				replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient)).isOk());
+		StructItemReader<String, String> reader = structReader(info);
+		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
+		Assertions.assertTrue(replicate(info, reader, writer).isOk());
 		KeyspaceComparison comparison = compare(info);
 		assertTrue(comparison.isOk());
 	}
@@ -138,7 +140,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		GeneratorItemReader gen = generator(120);
 		generate(info, gen);
 		assertDbNotEmpty(commands);
-		DumpItemReader reader = RedisItemReader.dump(client);
+		DumpItemReader reader = dumpReader(info);
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
 		KeyspaceComparison comparison = replicate(info, reader, writer);
 		Assertions.assertTrue(comparison.isOk());
@@ -202,15 +204,15 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		ScanSizeEstimator estimator = new ScanSizeEstimator(client);
 		estimator.setScanMatch(GeneratorItemReader.DEFAULT_KEYSPACE + ":*");
 		estimator.setSamples(300);
-		assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
+		assertEquals(expectedCount, estimator.call(), expectedCount / 10);
 		estimator.setScanType(DataType.HASH.getString());
-		assertEquals(expectedCount / 2, estimator.getAsLong(), expectedCount / 10);
+		assertEquals(expectedCount / 2, estimator.call(), expectedCount / 10);
 	}
 
 	@Test
 	void readStruct(TestInfo info) throws Exception {
 		generate(info);
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemReader<String, String> reader = structReader(info);
 		reader.open(new ExecutionContext());
 		List<KeyValue<String>> list = readAll(reader);
 		reader.close();
@@ -218,11 +220,11 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamAutoAck() throws InterruptedException {
+	void readStreamAutoAck(TestInfo info) throws InterruptedException {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamAutoAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
+		final StreamItemReader<String, String> reader = streamReader(info, stream, consumer);
 		reader.setAckPolicy(AckPolicy.AUTO);
 		reader.open(new ExecutionContext());
 		String field1 = "field1";
@@ -244,11 +246,11 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamManualAck() throws Exception {
+	void readStreamManualAck(TestInfo info) throws Exception {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamManualAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
+		final StreamItemReader<String, String> reader = streamReader(info, stream, consumer);
 		reader.setAckPolicy(AckPolicy.MANUAL);
 		reader.open(new ExecutionContext());
 		String field1 = "field1";
@@ -275,10 +277,10 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamManualAckRecover() throws InterruptedException {
+	void readStreamManualAckRecover(TestInfo info) throws InterruptedException {
 		String stream = "stream1";
 		Consumer<String> consumer = Consumer.from("batchtests-readStreamManualAckRecover", "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
+		final StreamItemReader<String, String> reader = streamReader(info, stream, consumer);
 		reader.setAckPolicy(AckPolicy.MANUAL);
 		reader.open(new ExecutionContext());
 		String field1 = "field1";
@@ -300,7 +302,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 		reader.close();
 
-		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
+		final StreamItemReader<String, String> reader2 = streamReader(info, stream, consumer);
 		reader2.setAckPolicy(AckPolicy.MANUAL);
 		reader2.open(new ExecutionContext());
 
@@ -311,11 +313,11 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamManualAckRecoverUncommitted() throws InterruptedException {
+	void readStreamManualAckRecoverUncommitted(TestInfo info) throws InterruptedException {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamManualAckRecoverUncommitted";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
+		final StreamItemReader<String, String> reader = streamReader(info, stream, consumer);
 		reader.setAckPolicy(AckPolicy.MANUAL);
 		reader.open(new ExecutionContext());
 		String field1 = "field1";
@@ -337,7 +339,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String id6 = commands.xadd(stream, body);
 		reader.close();
 
-		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
+		final StreamItemReader<String, String> reader2 = streamReader(info, stream, consumer);
 		reader2.setAckPolicy(AckPolicy.MANUAL);
 		reader2.setOffset(messages.get(1).getId());
 		reader2.open(new ExecutionContext());
@@ -351,11 +353,11 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamManualAckRecoverFromOffset() throws Exception {
+	void readStreamManualAckRecoverFromOffset(TestInfo info) throws Exception {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamManualAckRecoverFromOffset";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
+		final StreamItemReader<String, String> reader = streamReader(info, stream, consumer);
 		reader.setAckPolicy(AckPolicy.MANUAL);
 		reader.open(new ExecutionContext());
 		String field1 = "field1";
@@ -377,7 +379,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 		reader.close();
 
-		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
+		final StreamItemReader<String, String> reader2 = streamReader(info, stream, consumer);
 		reader2.setAckPolicy(AckPolicy.MANUAL);
 		reader2.setOffset(id3);
 		reader2.open(new ExecutionContext());
@@ -391,11 +393,11 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamRecoverManualAckToAutoAck() throws InterruptedException {
+	void readStreamRecoverManualAckToAutoAck(TestInfo info) throws InterruptedException {
 		String stream = "stream1";
 		String consumerGroup = "readStreamRecoverManualAckToAutoAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
-		final StreamItemReader<String, String> reader = streamReader(stream, consumer);
+		final StreamItemReader<String, String> reader = streamReader(info, stream, consumer);
 		reader.setAckPolicy(AckPolicy.MANUAL);
 		reader.open(new ExecutionContext());
 		String field1 = "field1";
@@ -416,7 +418,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String id6 = commands.xadd(stream, body);
 		reader.close();
 
-		final StreamItemReader<String, String> reader2 = streamReader(stream, consumer);
+		final StreamItemReader<String, String> reader2 = streamReader(info, stream, consumer);
 		reader2.setAckPolicy(AckPolicy.AUTO);
 		reader2.open(new ExecutionContext());
 
@@ -439,7 +441,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Consumer<String> consumer = Consumer.from("batchtests-readmessages", "consumer1");
 		for (String key : keys) {
 			long count = commands.xlen(key);
-			StreamItemReader<String, String> reader = streamReader(key, consumer);
+			StreamItemReader<String, String> reader = streamReader(info, key, consumer);
 			reader.open(new ExecutionContext());
 			List<StreamMessage<String, String>> messages = readAll(reader);
 			assertEquals(count, messages.size());
@@ -457,7 +459,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Consumer<String> consumer = Consumer.from("batchtests-readstreamjob", "consumer1");
 		for (String key : keys) {
 			long count = commands.xlen(key);
-			StreamItemReader<String, String> reader = streamReader(key, consumer);
+			StreamItemReader<String, String> reader = streamReader(info, key, consumer);
 			reader.open(new ExecutionContext());
 			List<StreamMessage<String, String>> messages = readAll(reader);
 			reader.close();
@@ -475,7 +477,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		commands.hset(key, hash);
 		long ttl = System.currentTimeMillis() + 123456;
 		commands.pexpireat(key, ttl);
-		ValueReader<String, String, String, KeyValue<String>> reader = structOperationExecutor();
+		ValueReader<String, String, String, KeyValue<String>> reader = structValueReader();
 		KeyValue<String> ds = reader.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(ttl, ds.getTtl());
@@ -490,7 +492,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String key = "myzset";
 		ScoredValue[] values = { ScoredValue.just(123.456, "value1"), ScoredValue.just(654.321, "value2") };
 		commands.zadd(key, values);
-		ValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+		ValueReader<String, String, String, KeyValue<String>> executor = structValueReader();
 		KeyValue<String> ds = executor.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(DataType.ZSET, ds.getType());
@@ -503,7 +505,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		String key = "mylist";
 		List<String> values = Arrays.asList("value1", "value2");
 		commands.rpush(key, values.toArray(new String[0]));
-		ValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+		ValueReader<String, String, String, KeyValue<String>> executor = structValueReader();
 		KeyValue<String> ds = executor.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(DataType.LIST, ds.getType());
@@ -520,7 +522,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		body.put("field2", "value2");
 		commands.xadd(key, body);
 		commands.xadd(key, body);
-		ValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+		ValueReader<String, String, String, KeyValue<String>> executor = structValueReader();
 		KeyValue<String> ds = executor.execute(key);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(DataType.STREAM, ds.getType());
@@ -543,7 +545,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		commands.xadd(key, body);
 		long ttl = System.currentTimeMillis() + 123456;
 		commands.pexpireat(key, ttl);
-		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = dumpOperationExecutor();
+		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = dumpValueReader();
 		KeyValue<byte[]> dump = executor.execute(toByteArray(key));
 		Assertions.assertArrayEquals(toByteArray(key), dump.getKey());
 		Assertions.assertTrue(Math.abs(ttl - dump.getTtl()) <= 3);
@@ -562,8 +564,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		body.put("field2", "value2");
 		commands.xadd(key, body);
 		commands.xadd(key, body);
-		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = structOperationExecutor(
-				ByteArrayCodec.INSTANCE);
+		ValueReader<byte[], byte[], byte[], KeyValue<byte[]>> executor = structValueReader(ByteArrayCodec.INSTANCE);
 		KeyValue<byte[]> ds = executor.execute(toByteArray(key));
 		Assertions.assertArrayEquals(toByteArray(key), ds.getKey());
 		Assertions.assertEquals(DataType.STREAM, ds.getType());
@@ -585,7 +586,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		commands.pfadd(key1, "member:1", "member:2");
 		String key2 = "hll:2";
 		commands.pfadd(key2, "member:1", "member:2", "member:3");
-		ValueReader<String, String, String, KeyValue<String>> executor = structOperationExecutor();
+		ValueReader<String, String, String, KeyValue<String>> executor = structValueReader();
 		KeyValue<String> ds1 = executor.execute(key1);
 		Assertions.assertEquals(key1, ds1.getKey());
 		Assertions.assertEquals(DataType.STRING, ds1.getType());
@@ -597,14 +598,14 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void replicateDump(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(100);
 		generate(info, gen);
-		Assertions.assertTrue(replicate(info, RedisItemReader.dump(client), RedisItemWriter.dump(targetClient)).isOk());
+		Assertions.assertTrue(replicate(info, dumpReader(info), RedisItemWriter.dump(targetClient)).isOk());
 	}
 
 	@Test
 	void replicateStruct(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(100);
 		generate(info, gen);
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemReader<String, String> reader = structReader(info);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		KeyspaceComparison comparison = replicate(info, reader, writer);
 		comparison.mismatches().forEach(log::info);
@@ -629,8 +630,10 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			LettuceFutures.awaitAll(connection.getTimeout(), futures.toArray(new RedisFuture[0]));
 			connection.setAutoFlushCommands(true);
 		}
-		Assertions.assertTrue(replicate(info, RedisItemReader.struct(client, ByteArrayCodec.INSTANCE),
-				RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE)).isOk());
+		StructItemReader<byte[], byte[]> reader = configure(info,
+				RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
+		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
+		Assertions.assertTrue(replicate(info, reader, writer).isOk());
 	}
 
 	protected <K, V> KeyspaceComparison replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
@@ -649,7 +652,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		gen.getTimeSeriesOptions().setSampleCount(cardinality);
 		gen.getZsetOptions().setMemberCount(cardinality);
 		generate(info, gen);
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemReader<String, String> reader = structReader(info);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		KeyspaceComparison comparison = replicate(info, reader, writer);
 		Assertions.assertTrue(comparison.isOk());
@@ -736,7 +739,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		GeneratorItemReader gen2 = generator(100, DataType.HASH);
 		gen2.setHashOptions(hashOptions(Range.of(10)));
 		generate(info, targetClient, gen2);
-		replicate(info, RedisItemReader.struct(client), RedisItemWriter.struct(targetClient));
+		replicate(info, structReader(info), RedisItemWriter.struct(targetClient));
 		assertEquals(commands.hgetall("gen:1"), targetCommands.hgetall("gen:1"));
 	}
 
@@ -754,7 +757,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		GeneratorItemReader gen2 = generator(100, DataType.HASH);
 		gen2.setHashOptions(hashOptions(Range.of(10)));
 		generate(info, targetClient, gen2);
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemReader<String, String> reader = structReader(info);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		writer.setMerge(true);
 		replicate(info, reader, writer);
@@ -806,7 +809,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void writeDel(TestInfo info) throws Exception {
 		generate(info);
-		GeneratorItemReader gen = generator(defaultGeneratorCount);
+		GeneratorItemReader gen = generator();
 		Del<String, String, KeyValue<String>> del = new Del<>(KeyValue::getKey);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(del);
 		run(info, gen, writer);
@@ -820,7 +823,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		lpush.setValueFunction(v -> (String) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpush);
 		run(info, gen, writer);
-		assertEquals(defaultGeneratorCount, commands.dbsize());
+		assertEquals(getGeneratorCount(), commands.dbsize());
 		for (String key : commands.keys("*")) {
 			assertEquals(DataType.LIST.getString(), commands.type(key));
 		}
@@ -833,7 +836,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		rpush.setValueFunction(v -> (String) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(rpush);
 		run(info, gen, writer);
-		assertEquals(defaultGeneratorCount, commands.dbsize());
+		assertEquals(getGeneratorCount(), commands.dbsize());
 		for (String key : commands.keys("*")) {
 			assertEquals(DataType.LIST.getString(), commands.type(key));
 		}
@@ -847,7 +850,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 				v -> (Collection<String>) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpushAll);
 		run(info, gen, writer);
-		assertEquals(defaultGeneratorCount, commands.dbsize());
+		assertEquals(getGeneratorCount(), commands.dbsize());
 		for (String key : commands.keys("*")) {
 			assertEquals(DataType.LIST.getString(), commands.type(key));
 		}

@@ -1,9 +1,9 @@
 package com.redis.spring.batch.reader;
 
+import java.io.IOException;
+
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.batch.item.Chunk;
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.RedisItemReader;
@@ -29,6 +29,41 @@ public abstract class AbstractKeyValueItemReader<K, V> extends RedisItemReader<K
 
 	private ValueReader<K, V, K, KeyValue<K>> valueReader;
 
+	protected AbstractKeyValueItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
+		super(client, codec);
+	}
+
+	@Override
+	protected synchronized void doOpen() throws Exception {
+		if (valueReader == null) {
+			valueReader = valueReader();
+			valueReader.open();
+		}
+		super.doOpen();
+	}
+
+	@Override
+	protected synchronized void doClose() throws Exception {
+		super.doClose();
+		if (valueReader != null) {
+			valueReader.close();
+		}
+	}
+
+	public ValueReader<K, V, K, KeyValue<K>> valueReader() throws IOException {
+		ValueReader<K, V, K, KeyValue<K>> reader = new ValueReader<>(getClient(), getCodec(), operation());
+		reader.setPoolSize(poolSize);
+		reader.setReadFrom(getReadFrom());
+		return reader;
+	}
+
+	@Override
+	public Chunk<KeyValue<K>> values(Chunk<? extends K> chunk) {
+		return valueReader.execute(chunk);
+	}
+
+	protected abstract Operation<K, V, K, KeyValue<K>> operation() throws IOException;
+
 	public void setMemoryUsageLimit(DataSize limit) {
 		this.memLimit = limit;
 	}
@@ -40,41 +75,5 @@ public abstract class AbstractKeyValueItemReader<K, V> extends RedisItemReader<K
 	public void setPoolSize(int poolSize) {
 		this.poolSize = poolSize;
 	}
-
-	protected AbstractKeyValueItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		super(client, codec);
-	}
-
-	@Override
-	public synchronized void open(ExecutionContext executionContext) {
-		if (valueReader == null) {
-			valueReader = operationValueReader();
-			valueReader.open();
-		}
-		super.open(executionContext);
-	}
-
-	@Override
-	public synchronized void close() throws ItemStreamException {
-		super.close();
-		if (valueReader != null) {
-			valueReader.close();
-		}
-	}
-
-	public ValueReader<K, V, K, KeyValue<K>> operationValueReader() {
-		Operation<K, V, K, KeyValue<K>> operation = operation();
-		ValueReader<K, V, K, KeyValue<K>> executor = new ValueReader<>(getClient(), getCodec(), operation);
-		executor.setPoolSize(poolSize);
-		executor.setReadFrom(getReadFrom());
-		return executor;
-	}
-
-	@Override
-	public Chunk<KeyValue<K>> values(Chunk<? extends K> chunk) {
-		return valueReader.execute(chunk);
-	}
-
-	protected abstract Operation<K, V, K, KeyValue<K>> operation();
 
 }

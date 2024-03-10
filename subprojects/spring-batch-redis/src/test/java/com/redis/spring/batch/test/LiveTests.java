@@ -55,10 +55,9 @@ abstract class LiveTests extends BatchTests {
 	}
 
 	@Test
-	void readKeyspaceNotificationsDedupe() throws Exception {
+	void readKeyspaceNotificationsDedupe(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
-		KeyspaceNotificationItemReader<String> reader = live(RedisItemReader.struct(client))
-				.keyspaceNotificationReader();
+		KeyspaceNotificationItemReader<String> reader = live(structReader(info)).keyspaceNotificationReader();
 		try {
 			reader.open(new ExecutionContext());
 			String key = "key1";
@@ -75,9 +74,9 @@ abstract class LiveTests extends BatchTests {
 	@Test
 	void replicateDumpLive(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
-		DumpItemReader reader = RedisItemReader.dump(client);
+		DumpItemReader reader = dumpReader(info);
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
-		DumpItemReader liveReader = RedisItemReader.dump(client);
+		DumpItemReader liveReader = dumpReader(info, "live-reader");
 		DumpItemWriter liveWriter = RedisItemWriter.dump(targetClient);
 		Assertions.assertTrue(replicateLive(info, reader, writer, liveReader, liveWriter).isOk());
 	}
@@ -85,9 +84,9 @@ abstract class LiveTests extends BatchTests {
 	@Test
 	void replicateStructLive(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
-		StructItemReader<String, String> reader = RedisItemReader.struct(client);
+		StructItemReader<String, String> reader = structReader(info);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-		StructItemReader<String, String> liveReader = RedisItemReader.struct(client);
+		StructItemReader<String, String> liveReader = structReader(info, "live-reader");
 		StructItemWriter<String, String> liveWriter = RedisItemWriter.struct(targetClient);
 		Assertions.assertTrue(replicateLive(info, reader, writer, liveReader, liveWriter).isOk());
 	}
@@ -95,7 +94,7 @@ abstract class LiveTests extends BatchTests {
 	@Test
 	void replicateDumpLiveOnly(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
-		DumpItemReader reader = live(RedisItemReader.dump(client));
+		DumpItemReader reader = live(dumpReader(info));
 		reader.setKeyspaceNotificationQueueCapacity(100000);
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
 		FlushingStepBuilder<KeyValue<byte[]>, KeyValue<byte[]>> step = flushingStep(info, reader, writer);
@@ -110,7 +109,7 @@ abstract class LiveTests extends BatchTests {
 		enableKeyspaceNotifications(client);
 		String key = "myset";
 		commands.sadd(key, "1", "2", "3", "4", "5");
-		StructItemReader<String, String> reader = live(RedisItemReader.struct(client));
+		StructItemReader<String, String> reader = live(structReader(info));
 		reader.setKeyspaceNotificationQueueCapacity(100);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = flushingStep(info, reader, writer);

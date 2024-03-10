@@ -28,13 +28,11 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 
 	private static final Logger log = LoggerFactory.getLogger(AbstractTargetTestBase.class);
 
-	protected abstract RedisServer getTargetRedisServer();
-
 	protected AbstractRedisClient targetClient;
-
 	protected StatefulRedisModulesConnection<String, String> targetConnection;
-
 	protected RedisModulesCommands<String, String> targetCommands;
+
+	protected abstract RedisServer getTargetRedisServer();
 
 	@BeforeAll
 	void targetSetup() throws Exception {
@@ -97,7 +95,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 		StructItemReader<String, String> sourceReader = RedisItemReader.struct(client);
 		StructItemReader<String, String> targetReader = RedisItemReader.struct(targetClient);
 		KeyComparisonItemReader reader = new KeyComparisonItemReader(sourceReader, targetReader);
-		reader.setName(name(testInfo(info, "reader")));
+		configure(info, reader, "comparison-reader");
 		reader.setTtlTolerance(Duration.ofMillis(100));
 		return reader;
 	}

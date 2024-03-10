@@ -1,6 +1,9 @@
 package com.redis.spring.batch.reader;
 
 import com.redis.spring.batch.common.Operation;
+
+import java.io.IOException;
+
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.KeyValueReadOperation.Type;
 
@@ -14,7 +17,7 @@ public class StructItemReader<K, V> extends AbstractKeyValueItemReader<K, V> {
 	}
 
 	@Override
-	protected Operation<K, V, K, KeyValue<K>> operation() {
+	protected Operation<K, V, K, KeyValue<K>> operation() throws IOException {
 		KeyValueReadOperation<K, V> operation = new KeyValueReadOperation<>(getClient(), getCodec(), memLimit,
 				memSamples, Type.STRUCT);
 		operation.setPostOperator(new StructPostOperator<>(getCodec()));
