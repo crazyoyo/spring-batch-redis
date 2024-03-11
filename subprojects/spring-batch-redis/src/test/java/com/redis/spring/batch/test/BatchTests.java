@@ -83,7 +83,7 @@ import io.lettuce.core.models.stream.PendingMessages;
 @RunWith(SpringRunner.class)
 abstract class BatchTests extends AbstractTargetTestBase {
 
-	private static final Log log = LogFactory.getLog(BatchTests.class);
+	private final Log log = LogFactory.getLog(BatchTests.class);
 
 	@Override
 	protected DataType[] generatorDataTypes() {

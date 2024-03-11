@@ -48,6 +48,7 @@ import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.ObjectUtils;
 import org.testcontainers.lifecycle.Startable;
 
 import com.redis.lettucemod.RedisModulesClient;
@@ -110,23 +111,15 @@ public abstract class AbstractTestBase {
 	protected PlatformTransactionManager transactionManager;
 	private TaskExecutorJobLauncher jobLauncher;
 
-	protected <R extends RedisItemReader<?, ?, ?>> R configure(TestInfo info, R reader) {
-		return configure(info, reader, null);
-	}
-
-	protected <R extends RedisItemReader<?, ?, ?>> R configure(TestInfo info, R reader, String suffix) {
-		reader.setName(name(testInfo(info, suffix == null ? "reader" : suffix)));
+	protected <R extends RedisItemReader<?, ?, ?>> R configure(TestInfo info, R reader, String... suffixes) {
+		reader.setName(name(testInfo(info, ObjectUtils.isEmpty(suffixes) ? new String[] { "reader" } : suffixes)));
 		reader.setJobRepository(jobRepository);
 		reader.setTransactionManager(transactionManager);
 		return reader;
 	}
 
-	protected DumpItemReader dumpReader(TestInfo info) {
-		return dumpReader(info, null);
-	}
-
-	protected DumpItemReader dumpReader(TestInfo info, String suffix) {
-		return configure(info, RedisItemReader.dump(client), suffix);
+	protected DumpItemReader dumpReader(TestInfo info, String... suffixes) {
+		return configure(info, RedisItemReader.dump(client), suffixes);
 	}
 
 	protected StructItemReader<String, String> structReader(TestInfo info) {

@@ -88,7 +88,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	public static final Mode DEFAULT_MODE = Mode.SCAN;
 	public static final String DEFAULT_KEY_PATTERN = MATCH_ALL;
 
-	private static final Log log = LogFactory.getLog(RedisItemReader.class);
+	private final Log log = LogFactory.getLog(RedisItemReader.class);
 
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;

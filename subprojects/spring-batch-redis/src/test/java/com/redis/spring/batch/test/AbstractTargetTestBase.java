@@ -26,7 +26,7 @@ import io.lettuce.core.AbstractRedisClient;
 
 public abstract class AbstractTargetTestBase extends AbstractTestBase {
 
-	private static final Logger log = LoggerFactory.getLogger(AbstractTargetTestBase.class);
+	private final Logger log = LoggerFactory.getLogger(AbstractTargetTestBase.class);
 
 	protected AbstractRedisClient targetClient;
 	protected StatefulRedisModulesConnection<String, String> targetConnection;

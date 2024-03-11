@@ -95,11 +95,11 @@ abstract class LiveTests extends BatchTests {
 	void replicateDumpLiveOnly(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
 		DumpItemReader reader = live(dumpReader(info));
-		reader.setKeyspaceNotificationQueueCapacity(100000);
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
 		FlushingStepBuilder<KeyValue<byte[]>, KeyValue<byte[]>> step = flushingStep(info, reader, writer);
-		generateAsync(info, step,
-				generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING, DataType.ZSET));
+		GeneratorItemReader gen = generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
+				DataType.ZSET);
+		generateAsync(testInfo(info, "genasync"), step, gen);
 		run(info, step);
 		Assertions.assertTrue(compare(info).isOk());
 	}

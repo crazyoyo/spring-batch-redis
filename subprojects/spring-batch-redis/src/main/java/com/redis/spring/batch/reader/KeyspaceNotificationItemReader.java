@@ -37,7 +37,7 @@ public class KeyspaceNotificationItemReader<K> extends AbstractPollableItemReade
 	private static final Map<String, KeyEvent> eventMap = Stream.of(KeyEvent.values())
 			.collect(Collectors.toMap(KeyEvent::getString, Function.identity()));
 
-	private static final Log log = LogFactory.getLog(KeyspaceNotificationItemReader.class);
+	private final Log log = LogFactory.getLog(KeyspaceNotificationItemReader.class);
 
 	private final AbstractRedisClient client;
 	private final Function<String, K> keyEncoder;
