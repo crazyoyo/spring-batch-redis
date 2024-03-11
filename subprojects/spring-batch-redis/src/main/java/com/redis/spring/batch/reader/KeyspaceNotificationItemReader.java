@@ -85,7 +85,6 @@ public class KeyspaceNotificationItemReader<K> extends AbstractPollableItemReade
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		if (publisher == null) {
-			log.info(getName() + ": Opening");
 			queue = new SetBlockingQueue<>(new LinkedBlockingQueue<>(queueCapacity), queueCapacity);
 			publisher = publisher();
 		}
@@ -96,12 +95,6 @@ public class KeyspaceNotificationItemReader<K> extends AbstractPollableItemReade
 			return new RedisClusterKeyspaceNotificationPublisher();
 		}
 		return new RedisKeyspaceNotificationPublisher();
-	}
-
-	@Override
-	public void close() {
-		log.info(String.format("%s: Closed. Items read: %s", getName(), getCurrentItemCount()));
-		super.close();
 	}
 
 	@Override

@@ -21,9 +21,7 @@ public abstract class AbstractOperationItemWriter<K, V, T> extends AbstractOpera
 	public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
 
 	private int waitReplicas;
-
 	private Duration waitTimeout = DEFAULT_WAIT_TIMEOUT;
-
 	private boolean multiExec;
 
 	protected AbstractOperationItemWriter(AbstractRedisClient client, RedisCodec<K, V> codec) {

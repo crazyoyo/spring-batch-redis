@@ -29,7 +29,6 @@ import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.function.FunctionItemProcessor;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
@@ -134,7 +133,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		if (jobExecution == null) {
-			log.info(getName() + ": Opening");
 			JobRepository repository = jobRepository();
 			TaskExecutorJobLauncher jobLauncher = new TaskExecutorJobLauncher();
 			jobLauncher.setJobRepository(repository);
@@ -255,12 +253,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 			return flushingStep;
 		}
 		return step;
-	}
-
-	@Override
-	public void close() throws ItemStreamException {
-		log.info(String.format("%s: Closed. Items read: %s", getName(), getCurrentItemCount()));
-		super.close();
 	}
 
 	@Override
