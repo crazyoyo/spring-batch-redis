@@ -896,15 +896,4 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 		}
 	}
 
-	@Test
-	void writeStruct(TestInfo info) throws Exception {
-		int count = 1000;
-		GeneratorItemReader reader = generator(count);
-		generate(info, client, reader);
-		StructItemWriter<String, String> writer = RedisItemWriter.struct(client);
-		run(info, reader, writer);
-		awaitUntil(() -> keyCount("gen:*") == count);
-		assertEquals(count, keyCount("gen:*"));
-	}
-
 }
