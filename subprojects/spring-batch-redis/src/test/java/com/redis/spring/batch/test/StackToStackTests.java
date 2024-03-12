@@ -49,18 +49,18 @@ import io.lettuce.core.codec.ByteArrayCodec;
 
 class StackToStackTests extends AbstractModulesTests {
 
-	private static final RedisStackContainer SOURCE = RedisContainerFactory.stack();
+	private static final RedisStackContainer source = RedisContainerFactory.stack();
 
-	private static final RedisStackContainer TARGET = RedisContainerFactory.stack();
+	private static final RedisStackContainer target = RedisContainerFactory.stack();
 
 	@Override
 	protected RedisStackContainer getRedisServer() {
-		return SOURCE;
+		return source;
 	}
 
 	@Override
 	protected RedisStackContainer getTargetRedisServer() {
-		return TARGET;
+		return target;
 	}
 
 	@Test
@@ -89,7 +89,7 @@ class StackToStackTests extends AbstractModulesTests {
 		StructItemReader<byte[], byte[]> reader = configure(info,
 				RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
 		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
-		Assertions.assertTrue(replicate(info, reader, writer).isOk());
+		replicate(info, reader, writer);
 		assertEquals(commands.pfcount(key1), targetCommands.pfcount(key1));
 	}
 
@@ -169,8 +169,7 @@ class StackToStackTests extends AbstractModulesTests {
 		StructItemReader<byte[], byte[]> reader = configure(info,
 				RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
 		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
-		KeyspaceComparison comparison = replicate(info, reader, writer);
-		Assertions.assertTrue(comparison.isOk());
+		replicate(info, reader, writer);
 	}
 
 	@Test
@@ -179,7 +178,7 @@ class StackToStackTests extends AbstractModulesTests {
 		StructItemReader<String, String> reader = structReader(info);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-		Assertions.assertTrue(replicate(info, reader, writer).isOk());
+		replicate(info, reader, writer);
 	}
 
 	@Test
@@ -188,7 +187,7 @@ class StackToStackTests extends AbstractModulesTests {
 		DumpItemReader reader = dumpReader(info);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
-		Assertions.assertTrue(replicate(info, reader, writer).isOk());
+		replicate(info, reader, writer);
 	}
 
 	@Test

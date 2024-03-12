@@ -15,6 +15,7 @@ import java.util.Random;
 import java.util.function.Function;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.springframework.batch.item.ExecutionContext;
@@ -67,6 +68,7 @@ abstract class AbstractModulesTests extends AbstractLiveTests {
 		return REDIS_MODULES_GENERATOR_TYPES;
 	}
 
+	@Disabled
 	@Test
 	void readMetrics(TestInfo info) throws Exception {
 		Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);

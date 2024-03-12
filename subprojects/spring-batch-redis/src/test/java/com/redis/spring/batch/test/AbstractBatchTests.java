@@ -8,6 +8,7 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -18,8 +19,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -83,8 +82,6 @@ import io.lettuce.core.models.stream.PendingMessages;
 @RunWith(SpringRunner.class)
 abstract class AbstractBatchTests extends AbstractTargetTestBase {
 
-	private final Log log = LogFactory.getLog(AbstractBatchTests.class);
-
 	@Override
 	protected DataType[] generatorDataTypes() {
 		return REDIS_GENERATOR_TYPES;
@@ -130,7 +127,7 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 		generate(info, gen);
 		StructItemReader<String, String> reader = structReader(info);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-		Assertions.assertTrue(replicate(info, reader, writer).isOk());
+		replicate(info, reader, writer);
 		KeyspaceComparison comparison = compare(info);
 		assertTrue(comparison.isOk());
 	}
@@ -142,8 +139,7 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 		assertDbNotEmpty(commands);
 		DumpItemReader reader = dumpReader(info);
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
-		KeyspaceComparison comparison = replicate(info, reader, writer);
-		Assertions.assertTrue(comparison.isOk());
+		replicate(info, reader, writer);
 		assertDbNotEmpty(targetCommands);
 		long deleted = 0;
 		for (int index = 0; index < 13; index++) {
@@ -598,7 +594,7 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 	void replicateDump(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(100);
 		generate(info, gen);
-		Assertions.assertTrue(replicate(info, dumpReader(info), RedisItemWriter.dump(targetClient)).isOk());
+		replicate(info, dumpReader(info), RedisItemWriter.dump(targetClient));
 	}
 
 	@Test
@@ -607,9 +603,7 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 		generate(info, gen);
 		StructItemReader<String, String> reader = structReader(info);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-		KeyspaceComparison comparison = replicate(info, reader, writer);
-		comparison.mismatches().forEach(log::info);
-		Assertions.assertTrue(comparison.isOk());
+		replicate(info, reader, writer);
 	}
 
 	@Test
@@ -633,13 +627,14 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 		StructItemReader<byte[], byte[]> reader = configure(info,
 				RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
 		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
-		Assertions.assertTrue(replicate(info, reader, writer).isOk());
+		replicate(info, reader, writer);
 	}
 
-	protected <K, V> KeyspaceComparison replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
+	protected <K, V> void replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
 			RedisItemWriter<K, V, KeyValue<K>> writer) throws Exception {
 		run(testInfo(info, "replicate"), reader, writer);
-		return compare(testInfo(info, "replicate"));
+		KeyspaceComparison comparison = compare(testInfo(info, "replicate"));
+		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}
 
 	@Test
@@ -654,8 +649,7 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 		generate(info, gen);
 		StructItemReader<String, String> reader = structReader(info);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-		KeyspaceComparison comparison = replicate(info, reader, writer);
-		Assertions.assertTrue(comparison.isOk());
+		replicate(info, reader, writer);
 	}
 
 	public static <T> Function<T, String> keyFunction(String key) {
@@ -760,7 +754,7 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 		StructItemReader<String, String> reader = structReader(info);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		writer.setMerge(true);
-		replicate(info, reader, writer);
+		run(testInfo(info, "replicate"), reader, writer);
 		Map<String, String> actual = targetCommands.hgetall("gen:1");
 		assertEquals(10, actual.size());
 	}
