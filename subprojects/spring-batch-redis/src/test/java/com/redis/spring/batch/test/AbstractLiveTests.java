@@ -24,11 +24,10 @@ import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
-import com.redis.spring.batch.util.Await;
 import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
 
-abstract class LiveTests extends BatchTests {
+abstract class AbstractLiveTests extends AbstractBatchTests {
 
 	private <K, V, T extends KeyValue<K>> KeyspaceComparison replicateLive(TestInfo info,
 			RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
@@ -44,7 +43,7 @@ abstract class LiveTests extends BatchTests {
 				DataType.ZSET);
 		liveGen.setExpiration(Range.of(100));
 		liveGen.setKeyRange(Range.from(300));
-		generateAsync(testInfo(info, "genasync"), flushingStepBuilder, liveGen);
+		generateAsync(testInfo(info, "genasync"), liveGen);
 		TaskletStep liveStep = faultTolerant(flushingStepBuilder).build();
 		SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "liveFlow"))).start(liveStep)
 				.build();
@@ -57,17 +56,18 @@ abstract class LiveTests extends BatchTests {
 	@Test
 	void readKeyspaceNotificationsDedupe(TestInfo info) throws Exception {
 		enableKeyspaceNotifications(client);
-		KeyspaceNotificationItemReader<String> reader = live(structReader(info)).keyspaceNotificationReader();
+		StructItemReader<String, String> reader = live(structReader(info));
+		KeyspaceNotificationItemReader<String> keyReader = (KeyspaceNotificationItemReader<String>) reader.keyReader();
+		keyReader.open(new ExecutionContext());
 		try {
-			reader.open(new ExecutionContext());
 			String key = "key1";
 			commands.zadd(key, 1, "member1");
 			commands.zadd(key, 2, "member2");
 			commands.zadd(key, 3, "member3");
-			awaitUntil(() -> reader.getQueue().size() == 1);
-			Assertions.assertEquals(key, reader.getQueue().take());
+			awaitUntil(() -> keyReader.getQueue().size() == 1);
+			Assertions.assertEquals(key, keyReader.getQueue().take());
 		} finally {
-			reader.close();
+			keyReader.close();
 		}
 	}
 
@@ -99,7 +99,7 @@ abstract class LiveTests extends BatchTests {
 		FlushingStepBuilder<KeyValue<byte[]>, KeyValue<byte[]>> step = flushingStep(info, reader, writer);
 		GeneratorItemReader gen = generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
 				DataType.ZSET);
-		generateAsync(testInfo(info, "genasync"), step, gen);
+		generateAsync(testInfo(info, "genasync"), gen);
 		run(info, step);
 		Assertions.assertTrue(compare(info).isOk());
 	}
@@ -114,12 +114,8 @@ abstract class LiveTests extends BatchTests {
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		FlushingStepBuilder<KeyValue<String>, KeyValue<String>> step = flushingStep(info, reader, writer);
 		Executors.newSingleThreadExecutor().execute(() -> {
-			try {
-				Await.await().until(() -> commands.pubsubNumpat() > 0);
-				commands.srem(key, "5");
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+			awaitPubSub();
+			commands.srem(key, "5");
 		});
 		run(info, step);
 		assertEquals(commands.smembers(key), targetCommands.smembers(key));

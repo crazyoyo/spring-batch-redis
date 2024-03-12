@@ -81,9 +81,9 @@ import io.lettuce.core.models.stream.PendingMessages;
 
 @SpringBootTest(classes = BatchTestApplication.class)
 @RunWith(SpringRunner.class)
-abstract class BatchTests extends AbstractTargetTestBase {
+abstract class AbstractBatchTests extends AbstractTargetTestBase {
 
-	private final Log log = LogFactory.getLog(BatchTests.class);
+	private final Log log = LogFactory.getLog(AbstractBatchTests.class);
 
 	@Override
 	protected DataType[] generatorDataTypes() {
@@ -693,7 +693,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 				Entry::getValue);
 		OperationItemWriter<String, String, Entry<String, Map<String, String>>> writer = writer(hset);
 		run(info, reader, writer);
-		assertEquals(100, commands.keys("hash:*").size());
+		assertEquals(100, keyCount("hash:*"));
 		assertEquals(2, commands.hgetall("hash:50").size());
 	}
 
@@ -787,8 +787,9 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void writeHash(TestInfo info) throws Exception {
+		int count = 100;
 		List<Map<String, String>> maps = new ArrayList<>();
-		for (int index = 0; index < 100; index++) {
+		for (int index = 0; index < count; index++) {
 			Map<String, String> body = new HashMap<>();
 			body.put("id", String.valueOf(index));
 			body.put("field1", "value1");
@@ -799,7 +800,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Hset<String, String, Map<String, String>> hset = new Hset<>(m -> "hash:" + m.remove("id"), Function.identity());
 		OperationItemWriter<String, String, Map<String, String>> writer = writer(hset);
 		run(info, reader, writer);
-		assertEquals(maps.size(), commands.keys("hash:*").size());
+		assertEquals(count, keyCount("hash:*"));
 		for (int index = 0; index < maps.size(); index++) {
 			Map<String, String> hash = commands.hgetall("hash:" + index);
 			assertEquals(maps.get(index), hash);
@@ -813,7 +814,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Del<String, String, KeyValue<String>> del = new Del<>(KeyValue::getKey);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(del);
 		run(info, gen, writer);
-		assertEquals(0, commands.keys(GeneratorItemReader.DEFAULT_KEYSPACE + "*").size());
+		assertEquals(0, keyCount(GeneratorItemReader.DEFAULT_KEYSPACE + "*"));
 	}
 
 	@Test
@@ -864,7 +865,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		expire.setTtl(ttl);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(expire);
 		run(info, gen, writer);
-		awaitUntil(() -> commands.keys("*").isEmpty());
+		awaitUntil(() -> commands.dbsize() == 0);
 		assertEquals(0, commands.dbsize());
 	}
 
@@ -875,7 +876,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		expireAt.setEpochFunction(v -> System.currentTimeMillis());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(expireAt);
 		run(info, gen, writer);
-		awaitUntil(() -> commands.keys("*").isEmpty());
+		awaitUntil(() -> commands.dbsize() == 0);
 		assertEquals(0, commands.dbsize());
 	}
 
@@ -908,9 +909,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		generate(info, client, reader);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(client);
 		run(info, reader, writer);
-		Thread.sleep(100);
-		List<String> keys = commands.keys("gen:*");
-		assertEquals(count, keys.size());
+		awaitUntil(() -> keyCount("gen:*") == count);
+		assertEquals(count, keyCount("gen:*"));
 	}
 
 }

@@ -7,7 +7,7 @@ import com.redis.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisStackContainer;
 
 @EnabledOnOs(OS.LINUX)
-class StackToEnterpriseContainerTests extends ModulesTests {
+class StackToEnterpriseContainerTests extends AbstractModulesTests {
 
 	private static final RedisStackContainer SOURCE = RedisContainerFactory.stack();
 

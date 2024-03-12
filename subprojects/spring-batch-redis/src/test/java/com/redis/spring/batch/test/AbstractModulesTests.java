@@ -56,7 +56,7 @@ import io.micrometer.core.instrument.search.Search;
 import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-abstract class ModulesTests extends LiveTests {
+abstract class AbstractModulesTests extends AbstractLiveTests {
 
 	private static final String JSON_BEER_1 = "[{\"id\":\"1\",\"brewery_id\":\"812\",\"name\":\"Hocus Pocus\",\"abv\":\"4.5\",\"ibu\":\"0\",\"srm\":\"0\",\"upc\":\"0\",\"filepath\":\"\",\"descript\":\"Our take on a classic summer ale.  A toast to weeds, rays, and summer haze.  A light, crisp ale for mowing lawns, hitting lazy fly balls, and communing with nature, Hocus Pocus is offered up as a summer sacrifice to clodless days.\\n\\nIts malty sweetness finishes tart and crisp and is best apprediated with a wedge of orange.\",\"add_user\":\"0\",\"last_mod\":\"2010-07-22 20:00:20 UTC\",\"style_name\":\"Light American Wheat Ale or Lager\",\"cat_name\":\"Other Style\"}]";
 
@@ -201,7 +201,7 @@ abstract class ModulesTests extends LiveTests {
 		OperationItemWriter<String, String, JsonNode> writer = writer(jsonSet);
 		IteratorItemReader<JsonNode> reader = new IteratorItemReader<>(Beers.jsonNodeIterator());
 		run(info, reader, writer);
-		Assertions.assertEquals(BEER_COUNT, commands.keys("beer:*").size());
+		Assertions.assertEquals(BEER_COUNT, keyCount("beer:*"));
 		Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
 				new ObjectMapper().readTree(commands.jsonGet("beer:1", "$")));
 	}

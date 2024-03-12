@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
@@ -24,7 +23,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
-import org.springframework.batch.core.ItemReadListener;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -71,6 +69,7 @@ import com.redis.spring.batch.reader.PollableItemReader;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
+import com.redis.spring.batch.util.Await;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.ConnectionUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
@@ -90,7 +89,7 @@ import io.lettuce.core.support.ConnectionPoolSupport;
 public abstract class AbstractTestBase {
 
 	public static final int DEFAULT_CHUNK_SIZE = 50;
-	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(300);
+	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
 	public static final Duration DEFAULT_POLL_DELAY = Duration.ZERO;
 	public static final int DEFAULT_GENERATOR_COUNT = 73;
 	public static final Duration DEFAULT_AWAIT_POLL_INTERVAL = Duration.ofMillis(1);
@@ -128,6 +127,18 @@ public abstract class AbstractTestBase {
 
 	protected StructItemReader<String, String> structReader(TestInfo info, String suffix) {
 		return configure(info, RedisItemReader.struct(client), suffix);
+	}
+
+	protected int keyCount(String pattern) {
+		return commands.keys(pattern).size();
+	}
+
+	protected boolean awaitPubSub() {
+		try {
+			return Await.await().until(() -> commands.pubsubNumpat() > 0);
+		} catch (InterruptedException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	public int getChunkSize() {
@@ -258,6 +269,7 @@ public abstract class AbstractTestBase {
 	@BeforeEach
 	void flushAll() {
 		commands.flushall();
+		awaitUntil(() -> commands.pubsubNumpat() == 0);
 	}
 
 	protected GeneratorItemReader generator(int count) {
@@ -335,23 +347,13 @@ public abstract class AbstractTestBase {
 		return generator(generatorCount);
 	}
 
-	protected <I, O> void generateAsync(TestInfo info, FlushingStepBuilder<I, O> step, GeneratorItemReader reader) {
-		AtomicBoolean flag = new AtomicBoolean();
-		step.listener(new ItemReadListener<>() {
-
-			@Override
-			public void beforeRead() {
-				if (flag.get()) {
-					return;
-				}
-				Executors.newSingleThreadExecutor().execute(() -> {
-					try {
-						generate(info, reader);
-					} catch (Exception e) {
-						throw new RuntimeException("Could not run data gen", e);
-					}
-				});
-				flag.set(true);
+	protected <I, O> void generateAsync(TestInfo info, GeneratorItemReader reader) {
+		Executors.newSingleThreadExecutor().execute(() -> {
+			awaitPubSub();
+			try {
+				generate(info, reader);
+			} catch (Exception e) {
+				throw new RuntimeException("Could not run data gen", e);
 			}
 		});
 	}
@@ -402,7 +404,9 @@ public abstract class AbstractTestBase {
 	}
 
 	protected JobExecution run(Job job) throws JobExecutionException {
-		return jobLauncher.run(job, new JobParameters());
+		JobExecution execution = jobLauncher.run(job, new JobParameters());
+		awaitUntilFalse(execution::isRunning);
+		return execution;
 	}
 
 	protected void enableKeyspaceNotifications(AbstractRedisClient client) {
