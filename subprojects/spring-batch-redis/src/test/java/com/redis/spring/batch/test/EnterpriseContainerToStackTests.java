@@ -9,18 +9,18 @@ import com.redis.testcontainers.RedisStackContainer;
 @EnabledOnOs(OS.LINUX)
 class EnterpriseContainerToStackTests extends AbstractModulesTests {
 
-	private static final RedisEnterpriseContainer SOURCE = RedisContainerFactory.enterprise();
+	private static final RedisEnterpriseContainer source = RedisContainerFactory.enterprise();
 
-	private static final RedisStackContainer TARGET = RedisContainerFactory.stack();
+	private static final RedisStackContainer target = RedisContainerFactory.stack();
 
 	@Override
 	protected RedisEnterpriseContainer getRedisServer() {
-		return SOURCE;
+		return source;
 	}
 
 	@Override
 	protected RedisStackContainer getTargetRedisServer() {
-		return TARGET;
+		return target;
 	}
 
 }

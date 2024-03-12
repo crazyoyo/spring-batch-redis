@@ -2,6 +2,7 @@ package com.redis.spring.batch.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.Collections;
 import java.util.concurrent.Executors;
 
 import org.junit.jupiter.api.Assertions;
@@ -29,9 +30,9 @@ import com.redis.spring.batch.writer.StructItemWriter;
 
 abstract class AbstractLiveTests extends AbstractBatchTests {
 
-	private <K, V, T extends KeyValue<K>> KeyspaceComparison replicateLive(TestInfo info,
-			RedisItemReader<K, V, T> reader, RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader,
-			RedisItemWriter<K, V, T> liveWriter) throws Exception {
+	private <K, V, T extends KeyValue<K>> void replicateLive(TestInfo info, RedisItemReader<K, V, T> reader,
+			RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
+			throws Exception {
 		live(liveReader);
 		generate(info, generator(300));
 		TaskletStep step = faultTolerant(step(new SimpleTestInfo(info, "step"), reader, writer)).build();
@@ -51,7 +52,8 @@ abstract class AbstractLiveTests extends AbstractBatchTests {
 				.split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
 		run(job);
 		awaitUntil(() -> liveReader.getQueue().isEmpty());
-		return compare(info);
+		KeyspaceComparison comparison = compare(info);
+		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}
 
 	@Test
@@ -79,7 +81,7 @@ abstract class AbstractLiveTests extends AbstractBatchTests {
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
 		DumpItemReader liveReader = dumpReader(info, "live-reader");
 		DumpItemWriter liveWriter = RedisItemWriter.dump(targetClient);
-		Assertions.assertTrue(replicateLive(info, reader, writer, liveReader, liveWriter).isOk());
+		replicateLive(info, reader, writer, liveReader, liveWriter);
 	}
 
 	@Test
@@ -89,7 +91,7 @@ abstract class AbstractLiveTests extends AbstractBatchTests {
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		StructItemReader<String, String> liveReader = structReader(info, "live-reader");
 		StructItemWriter<String, String> liveWriter = RedisItemWriter.struct(targetClient);
-		Assertions.assertTrue(replicateLive(info, reader, writer, liveReader, liveWriter).isOk());
+		replicateLive(info, reader, writer, liveReader, liveWriter);
 	}
 
 	@Test
@@ -102,7 +104,7 @@ abstract class AbstractLiveTests extends AbstractBatchTests {
 				DataType.ZSET);
 		generateAsync(testInfo(info, "genasync"), gen);
 		run(info, step);
-		Assertions.assertTrue(compare(info).isOk());
+		Assertions.assertEquals(Collections.emptyList(), compare(info).mismatches());
 	}
 
 	@Test

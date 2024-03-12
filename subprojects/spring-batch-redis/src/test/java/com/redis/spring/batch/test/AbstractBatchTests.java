@@ -129,7 +129,7 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		replicate(info, reader, writer);
 		KeyspaceComparison comparison = compare(info);
-		assertTrue(comparison.isOk());
+		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}
 
 	@Test
