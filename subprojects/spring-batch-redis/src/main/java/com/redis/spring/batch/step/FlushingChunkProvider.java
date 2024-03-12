@@ -34,7 +34,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 	private final RepeatOperations repeatOperations;
 	private Duration interval = DEFAULT_FLUSH_INTERVAL;
 	// No idle timeout by default
-	private Duration idleTimeout;
+	private long idleTimeout = Long.MAX_VALUE;
 	private long lastActivity = 0;
 
 	public FlushingChunkProvider(ItemReader<? extends I> itemReader, RepeatOperations repeatOperations) {
@@ -48,7 +48,8 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 	}
 
 	public void setIdleTimeout(Duration timeout) {
-		this.idleTimeout = timeout;
+		Assert.notNull(timeout, "Idle timeout must not be null");
+		this.idleTimeout = timeout.toMillis();
 	}
 
 	private void stopFlushTimer(Timer.Sample sample, StepExecution stepExecution, String status) {
@@ -65,7 +66,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 		}
 		final Chunk<I> inputs = new Chunk<>();
 		repeatOperations.iterate(context -> {
-			long pollingTimeout = interval.toMillis() - (System.currentTimeMillis() - start);
+			long pollingTimeout = interval.toMillis() - millisSince(start);
 			if (pollingTimeout < 0) {
 				return RepeatStatus.FINISHED;
 			}
@@ -79,11 +80,8 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 				return RepeatStatus.FINISHED;
 			}
 			if (item == null) {
-				if (idleTimeout != null) {
-					long elapsedMillis = System.currentTimeMillis() - lastActivity;
-					if (elapsedMillis > idleTimeout.toMillis()) {
-						inputs.setEnd();
-					}
+				if (millisSince(lastActivity) > idleTimeout) {
+					inputs.setEnd();
 				}
 				return RepeatStatus.CONTINUABLE;
 			}
@@ -94,6 +92,10 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 			return RepeatStatus.CONTINUABLE;
 		});
 		return inputs;
+	}
+
+	private long millisSince(long start) {
+		return System.currentTimeMillis() - start;
 	}
 
 	protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) throws InterruptedException {

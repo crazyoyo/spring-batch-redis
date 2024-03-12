@@ -86,8 +86,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	public static final String MATCH_ALL = "*";
 	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
 	public static final Duration DEFAULT_FLUSH_INTERVAL = KeyspaceNotificationItemReader.DEFAULT_FLUSH_INTERVAL;
-	// No idle timeout by default
-	public static final Duration DEFAULT_IDLE_TIMEOUT = KeyspaceNotificationItemReader.DEFAULT_IDLE_TIMEOUT;
 	public static final Duration DEFAULT_POLL_TIMEOUT = KeyspaceNotificationItemReader.DEFAULT_POLL_TIMEOUT;
 	public static final Mode DEFAULT_MODE = Mode.SCAN;
 	public static final String DEFAULT_KEY_PATTERN = MATCH_ALL;
@@ -118,7 +116,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	private int threads = DEFAULT_THREADS;
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private Duration flushInterval = DEFAULT_FLUSH_INTERVAL;
-	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
+	private Duration idleTimeout; // no idle timeout by default
 	private String keyPattern = DEFAULT_KEY_PATTERN;
 	private String keyType;
 	private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
@@ -291,7 +289,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 		return item;
 	}
 
-	public abstract Chunk<T> values(Chunk<? extends K> chunk);
+	protected abstract Chunk<T> values(Chunk<? extends K> chunk);
 
 	/**
 	 * 
@@ -307,6 +305,10 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	@Override
 	protected T doPoll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
+	}
+
+	public BlockingQueue<T> getQueue() {
+		return queue;
 	}
 
 	public boolean isLive() {

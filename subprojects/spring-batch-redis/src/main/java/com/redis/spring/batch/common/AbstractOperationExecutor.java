@@ -16,6 +16,7 @@ import com.redis.spring.batch.util.ConnectionUtils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
+import io.lettuce.core.RedisCommandInterruptedException;
 import io.lettuce.core.RedisConnectionException;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
@@ -89,6 +90,9 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements AutoClose
 			operation.execute(commands, items, futures);
 			connection.flushCommands();
 			return getAll(connection.getTimeout(), futures);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RedisCommandInterruptedException(e);
 		} catch (Exception e) {
 			throw Exceptions.fromSynchronization(e);
 		} finally {
@@ -99,23 +103,26 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements AutoClose
 
 	public static <T> Chunk<T> getAll(Duration timeout, Chunk<RedisFuture<T>> futures)
 			throws TimeoutException, InterruptedException, ExecutionException {
-		Chunk<T> results = new Chunk<>();
+		Chunk<T> items = new Chunk<>();
 		long nanos = timeout.toNanos();
 		long time = System.nanoTime();
 		for (RedisFuture<T> f : futures) {
 			if (timeout.isNegative()) {
-				results.add(f.get());
+				items.add(f.get());
 			} else {
 				if (nanos < 0) {
 					throw new TimeoutException(String.format("Timed out after %s", timeout));
 				}
-				results.add(f.get(nanos, TimeUnit.NANOSECONDS));
+				T item = f.get(nanos, TimeUnit.NANOSECONDS);
+				if (item != null) {
+					items.add(item);
+				}
 				long now = System.nanoTime();
 				nanos -= now - time;
 				time = now;
 			}
 		}
-		return results;
+		return items;
 	}
 
 }
