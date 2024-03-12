@@ -39,13 +39,16 @@ public class Await {
 	 * @throws InterruptedException if interrupted while waiting
 	 */
 	public boolean until(BooleanSupplier test) throws InterruptedException {
-		try (ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor()) {
+		ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+		try {
 			executor.scheduleWithFixedDelay(() -> {
 				if (test.getAsBoolean()) {
 					executor.shutdown();
 				}
 			}, initialDelay.toMillis(), delay.toMillis(), TimeUnit.MILLISECONDS);
 			return executor.awaitTermination(timeout.toMillis(), TimeUnit.MILLISECONDS);
+		} finally {
+			executor.shutdown();
 		}
 	}
 
