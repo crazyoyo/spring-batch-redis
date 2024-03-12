@@ -20,6 +20,7 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
@@ -31,11 +32,14 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.function.FunctionItemProcessor;
 import org.springframework.batch.item.support.IteratorItemReader;
+import org.springframework.batch.item.support.SynchronizedItemReader;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.boot.autoconfigure.batch.BatchDataSourceScriptDatabaseInitializer;
 import org.springframework.boot.autoconfigure.batch.BatchProperties;
 import org.springframework.boot.sql.init.DatabaseInitializationMode;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.SyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -89,9 +93,15 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	public static final String DEFAULT_KEY_PATTERN = MATCH_ALL;
 
 	private final Log log = LogFactory.getLog(RedisItemReader.class);
-
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
+
+	private JobRepository jobRepository;
+	private PlatformTransactionManager transactionManager;
+	private JobLauncher jobLauncher;
+	private JobExecution jobExecution;
+	private ItemReader<K> keyReader;
+	private BlockingQueue<T> queue;
 
 	private Mode mode = DEFAULT_MODE;
 	private int skipLimit = DEFAULT_SKIP_LIMIT;
@@ -114,12 +124,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
-	private JobRepository jobRepository;
-	private PlatformTransactionManager transactionManager;
-	private JobExecution jobExecution;
-	private ItemReader<K> keyReader;
-	private BlockingQueue<T> queue;
-
 	protected RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		setName(String.format("%s-%s", ClassUtils.getShortName(getClass()), UUID.randomUUID().toString()));
 		this.client = client;
@@ -133,14 +137,32 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		if (jobExecution == null) {
-			JobRepository repository = jobRepository();
-			TaskExecutorJobLauncher jobLauncher = new TaskExecutorJobLauncher();
-			jobLauncher.setJobRepository(repository);
-			jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-			SimpleStepBuilder<K, K> step = step(repository, transactionManager());
-			Job job = new JobBuilder(getName(), repository).start(step.build()).build();
+			if (transactionManager == null) {
+				transactionManager = transactionManager();
+			}
+			if (jobRepository == null) {
+				jobRepository = jobRepository();
+			}
+			if (jobLauncher == null) {
+				jobLauncher = jobLauncher();
+			}
+			FaultTolerantStepBuilder<K, K> step = baseStep(jobRepository, transactionManager).faultTolerant();
+			keyReader = keyReader();
+			step.reader(keyReader);
+			step.processor(keyProcessor);
+			step.writer(writer());
+			step.taskExecutor(taskExecutor());
+			step.skipLimit(skipLimit);
+			step.retryLimit(retryLimit);
+			skippableExceptions.forEach(step::skip);
+			nonSkippableExceptions.forEach(step::noSkip);
+			retriableExceptions.forEach(step::retry);
+			nonRetriableExceptions.forEach(step::noRetry);
+			JobBuilder jobBuilder = new JobBuilder(getName(), jobRepository);
+			Job job = jobBuilder.start(step.build()).build();
 			jobExecution = jobLauncher.run(job, new JobParameters());
-			boolean success = Await.await().until(jobExecution::isRunning);
+			boolean success = Await.await()
+					.until(() -> jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful());
 			if (!success) {
 				List<Throwable> exceptions = jobExecution.getAllFailureExceptions();
 				if (!CollectionUtils.isEmpty(exceptions)) {
@@ -148,27 +170,43 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 				}
 			}
 		}
+
 	}
 
-	private JobRepository jobRepository() throws Exception {
-		if (jobRepository == null) {
-			JobRepositoryFactoryBean bean = new JobRepositoryFactoryBean();
-			bean.setDataSource(dataSource());
-			bean.setTransactionManager(transactionManager());
-			bean.afterPropertiesSet();
-			jobRepository = bean.getObject();
-			if (jobRepository == null) {
-				throw new JobExecutionException("Could not initialize JobRepository");
-			}
+	private TaskExecutor taskExecutor() {
+		if (isMultiThreaded()) {
+			ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+			taskExecutor.setMaxPoolSize(threads);
+			taskExecutor.setCorePoolSize(threads);
+			taskExecutor.setQueueCapacity(threads);
+			taskExecutor.afterPropertiesSet();
+			return taskExecutor;
 		}
-		return jobRepository;
+		return new SyncTaskExecutor();
+	}
+
+	private boolean isMultiThreaded() {
+		return threads > 1;
 	}
 
 	private PlatformTransactionManager transactionManager() {
-		if (transactionManager == null) {
-			transactionManager = new ResourcelessTransactionManager();
-		}
-		return transactionManager;
+		return new ResourcelessTransactionManager();
+	}
+
+	private JobLauncher jobLauncher() throws Exception {
+		TaskExecutorJobLauncher launcher = new TaskExecutorJobLauncher();
+		launcher.setJobRepository(jobRepository);
+		launcher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+		launcher.afterPropertiesSet();
+		return launcher;
+	}
+
+	private JobRepository jobRepository() throws Exception {
+		JobRepositoryFactoryBean bean = new JobRepositoryFactoryBean();
+		bean.setDataSource(dataSource());
+		bean.setTransactionManager(transactionManager);
+		bean.afterPropertiesSet();
+		return bean.getObject();
 	}
 
 	private DataSource dataSource() throws Exception {
@@ -197,44 +235,22 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 		return args;
 	}
 
-	private SimpleStepBuilder<K, K> step(JobRepository jobRepository, PlatformTransactionManager txManager) {
-		FaultTolerantStepBuilder<K, K> step = baseStep(jobRepository, txManager).faultTolerant();
-		keyReader = keyReader();
-		step.reader(keyReader);
-		step.processor(keyProcessor);
-		step.writer(writer());
-		if (threads > 1) {
-			ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-			taskExecutor.setMaxPoolSize(threads);
-			taskExecutor.setCorePoolSize(threads);
-			taskExecutor.setQueueCapacity(threads);
-			taskExecutor.afterPropertiesSet();
-			step.taskExecutor(taskExecutor);
-		}
-		step.skipLimit(skipLimit);
-		step.retryLimit(retryLimit);
-		skippableExceptions.forEach(step::skip);
-		nonSkippableExceptions.forEach(step::noSkip);
-		retriableExceptions.forEach(step::retry);
-		nonRetriableExceptions.forEach(step::noRetry);
-		return step;
-	}
-
-	private ItemReader<K> keyReader() {
+	public ItemReader<K> keyReader() {
 		if (isLive()) {
-			return keyspaceNotificationReader();
+			String pattern = pubSubPattern();
+			KeyspaceNotificationItemReader<K> reader = new KeyspaceNotificationItemReader<>(client, codec, pattern);
+			reader.setName(getName() + "-keyspace-notification-reader");
+			reader.setKeyType(keyType);
+			reader.setPollTimeout(pollTimeout);
+			reader.setQueueCapacity(keyspaceNotificationQueueCapacity);
+			return reader;
 		}
 		StatefulRedisModulesConnection<K, V> connection = ConnectionUtils.connection(client, codec, readFrom);
-		ScanIterator<K> iterator = ScanIterator.scan(ConnectionUtils.sync(connection), scanArgs());
-		return new IteratorItemReader<>(iterator);
-	}
-
-	public KeyspaceNotificationItemReader<K> keyspaceNotificationReader() {
-		KeyspaceNotificationItemReader<K> reader = new KeyspaceNotificationItemReader<>(client, codec, pubSubPattern());
-		reader.setName(getName() + "-keyspace-notification-reader");
-		reader.setKeyType(keyType);
-		reader.setPollTimeout(pollTimeout);
-		reader.setQueueCapacity(keyspaceNotificationQueueCapacity);
+		ScanIterator<K> scanIterator = ScanIterator.scan(ConnectionUtils.sync(connection), scanArgs());
+		IteratorItemReader<K> reader = new IteratorItemReader<>(scanIterator);
+		if (isMultiThreaded()) {
+			return new SynchronizedItemReader<>(reader);
+		}
 		return reader;
 	}
 
@@ -259,10 +275,10 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	protected synchronized void doClose() throws Exception {
 		if (jobExecution != null) {
 			Await.await().untilFalse(jobExecution::isRunning);
-			jobExecution = null;
 			if (!queue.isEmpty()) {
-				log.warn("Queue still contains elements");
+				log.warn(String.format("%s queue still contains %,d elements", getName(), queue.size()));
 			}
+			jobExecution = null;
 		}
 	}
 
@@ -431,6 +447,10 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 
 	public void setTransactionManager(PlatformTransactionManager transactionManager) {
 		this.transactionManager = transactionManager;
+	}
+
+	public void setJobLauncher(JobLauncher jobLauncher) {
+		this.jobLauncher = jobLauncher;
 	}
 
 	public static DumpItemReader dump(AbstractRedisClient client) {
