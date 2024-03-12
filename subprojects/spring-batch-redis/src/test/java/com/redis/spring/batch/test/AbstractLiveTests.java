@@ -50,6 +50,7 @@ abstract class AbstractLiveTests extends AbstractBatchTests {
 		Job job = job(info).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "flow")))
 				.split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
 		run(job);
+		awaitUntil(() -> liveReader.getQueue().isEmpty());
 		return compare(info);
 	}
 

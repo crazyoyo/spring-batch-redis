@@ -121,12 +121,8 @@ public abstract class AbstractTestBase {
 		return configure(info, RedisItemReader.dump(client), suffixes);
 	}
 
-	protected StructItemReader<String, String> structReader(TestInfo info) {
-		return structReader(info, null);
-	}
-
-	protected StructItemReader<String, String> structReader(TestInfo info, String suffix) {
-		return configure(info, RedisItemReader.struct(client), suffix);
+	protected StructItemReader<String, String> structReader(TestInfo info, String... suffixes) {
+		return configure(info, RedisItemReader.struct(client), suffixes);
 	}
 
 	protected int keyCount(String pattern) {
