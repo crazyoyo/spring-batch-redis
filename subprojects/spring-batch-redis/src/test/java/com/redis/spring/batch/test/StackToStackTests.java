@@ -294,6 +294,15 @@ class StackToStackTests extends AbstractModulesTests {
 		}
 	}
 
+	@Test
+	void replicateStruct(TestInfo info) throws Exception {
+		GeneratorItemReader gen = generator(100);
+		generate(info, gen);
+		StructItemReader<String, String> reader = structReader(info);
+		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
+		replicate(info, reader, writer);
+	}
+
 	private static FlowBuilder<SimpleFlow> flow(String name) {
 		return new FlowBuilder<>(name);
 	}

@@ -593,15 +593,6 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void replicateStruct(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(100);
-		generate(info, gen);
-		StructItemReader<String, String> reader = structReader(info);
-		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-		replicate(info, reader, writer);
-	}
-
-	@Test
 	void replicateStructBinaryStrings(TestInfo info) throws Exception {
 		try (StatefulRedisConnection<byte[], byte[]> connection = RedisModulesUtils.connection(client,
 				ByteArrayCodec.INSTANCE)) {
