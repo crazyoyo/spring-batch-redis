@@ -91,14 +91,12 @@ public abstract class AbstractTestBase {
 	public static final int DEFAULT_CHUNK_SIZE = 50;
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(500);
 	public static final Duration DEFAULT_POLL_DELAY = Duration.ZERO;
-	public static final int DEFAULT_GENERATOR_COUNT = 73;
 	public static final Duration DEFAULT_AWAIT_POLL_INTERVAL = Duration.ofMillis(1);
 	public static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(3);
 
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
 	private Duration pollDelay = DEFAULT_POLL_DELAY;
-	private int generatorCount = DEFAULT_GENERATOR_COUNT;
 	private Duration awaitPollInterval = DEFAULT_AWAIT_POLL_INTERVAL;
 	private Duration awaitTimeout = DEFAULT_AWAIT_TIMEOUT;
 
@@ -109,6 +107,32 @@ public abstract class AbstractTestBase {
 	protected JobRepository jobRepository;
 	protected PlatformTransactionManager transactionManager;
 	private TaskExecutorJobLauncher jobLauncher;
+
+	public static TestInfo testInfo(TestInfo info, String... suffixes) {
+		return new SimpleTestInfo(info, suffixes);
+	}
+
+	public static <T> List<T> readAll(ItemReader<T> reader) throws Exception {
+		List<T> list = new ArrayList<>();
+		T element;
+		while ((element = reader.read()) != null) {
+			list.add(element);
+		}
+		return list;
+	}
+
+	public static void assertDbNotEmpty(RedisModulesCommands<String, String> commands) {
+		Assertions.assertTrue(commands.dbsize() > 0, "Redis database is empty");
+	}
+
+	public static GeneratorItemReader generator(int count, DataType... types) {
+		GeneratorItemReader gen = new GeneratorItemReader();
+		gen.setMaxItemCount(count);
+		if (!ObjectUtils.isEmpty(types)) {
+			gen.setTypes(types);
+		}
+		return gen;
+	}
 
 	protected <R extends RedisItemReader<?, ?, ?>> R configure(TestInfo info, R reader, String... suffixes) {
 		reader.setName(name(testInfo(info, ObjectUtils.isEmpty(suffixes) ? new String[] { "reader" } : suffixes)));
@@ -153,10 +177,6 @@ public abstract class AbstractTestBase {
 		return pollDelay;
 	}
 
-	public int getGeneratorCount() {
-		return generatorCount;
-	}
-
 	public Duration getAwaitPollInterval() {
 		return awaitPollInterval;
 	}
@@ -173,10 +193,6 @@ public abstract class AbstractTestBase {
 		this.pollDelay = pollDelay;
 	}
 
-	public void setGeneratorCount(int generatorCount) {
-		this.generatorCount = generatorCount;
-	}
-
 	public void setAwaitPollInterval(Duration awaitPollInterval) {
 		this.awaitPollInterval = awaitPollInterval;
 	}
@@ -186,29 +202,6 @@ public abstract class AbstractTestBase {
 	}
 
 	protected abstract RedisServer getRedisServer();
-
-	public static final DataType[] REDIS_GENERATOR_TYPES = { DataType.HASH, DataType.LIST, DataType.SET,
-			DataType.STREAM, DataType.STRING, DataType.ZSET };
-
-	public static final DataType[] REDIS_MODULES_GENERATOR_TYPES = { DataType.HASH, DataType.LIST, DataType.SET,
-			DataType.STREAM, DataType.STRING, DataType.ZSET, DataType.JSON };
-
-	public static TestInfo testInfo(TestInfo info, String... suffixes) {
-		return new SimpleTestInfo(info, suffixes);
-	}
-
-	public static <T> List<T> readAll(ItemReader<T> reader) throws Exception {
-		List<T> list = new ArrayList<>();
-		T element;
-		while ((element = reader.read()) != null) {
-			list.add(element);
-		}
-		return list;
-	}
-
-	public static void assertDbNotEmpty(RedisModulesCommands<String, String> commands) {
-		Assertions.assertTrue(commands.dbsize() > 0, "Redis database is empty");
-	}
 
 	@BeforeAll
 	void setup() throws Exception {
@@ -268,23 +261,6 @@ public abstract class AbstractTestBase {
 		awaitUntil(() -> commands.pubsubNumpat() == 0);
 	}
 
-	protected GeneratorItemReader generator(int count) {
-		return generator(count, generatorDataTypes());
-	}
-
-	protected abstract DataType[] generatorDataTypes();
-
-	protected GeneratorItemReader generator(DataType... types) {
-		return generator(generatorCount, types);
-	}
-
-	protected GeneratorItemReader generator(int count, DataType... types) {
-		GeneratorItemReader gen = new GeneratorItemReader();
-		gen.setMaxItemCount(count);
-		gen.setTypes(types);
-		return gen;
-	}
-
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer) {
 		return step(info, reader, null, writer);
 	}
@@ -339,10 +315,6 @@ public abstract class AbstractTestBase {
 		return new JobBuilder(name(info), jobRepository);
 	}
 
-	protected GeneratorItemReader generator() {
-		return generator(generatorCount);
-	}
-
 	protected <I, O> void generateAsync(TestInfo info, GeneratorItemReader reader) {
 		Executors.newSingleThreadExecutor().execute(() -> {
 			awaitPubSub();
@@ -352,10 +324,6 @@ public abstract class AbstractTestBase {
 				throw new RuntimeException("Could not run data gen", e);
 			}
 		});
-	}
-
-	protected void generate(TestInfo info) throws Exception {
-		generate(info, generator(generatorCount));
 	}
 
 	protected void generate(TestInfo info, GeneratorItemReader reader) throws Exception {

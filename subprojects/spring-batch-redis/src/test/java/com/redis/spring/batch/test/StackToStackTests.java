@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
-import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.ListItemReader;
@@ -108,7 +107,7 @@ class StackToStackTests extends AbstractModulesTests {
 
 	@Test
 	void readStructMemoryUsage(TestInfo info) throws Exception {
-		generate(info);
+		generate(info, generator(73));
 		long memLimit = 200;
 		StructItemReader<String, String> reader = structReader(info);
 		reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
@@ -174,7 +173,7 @@ class StackToStackTests extends AbstractModulesTests {
 
 	@Test
 	void replicateStructMemLimit(TestInfo info) throws Exception {
-		generate(info);
+		generate(info, generator(73));
 		StructItemReader<String, String> reader = structReader(info);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
@@ -183,7 +182,7 @@ class StackToStackTests extends AbstractModulesTests {
 
 	@Test
 	void replicateDumpMemLimitHigh(TestInfo info) throws Exception {
-		generate(info);
+		generate(info, generator(73));
 		DumpItemReader reader = dumpReader(info);
 		reader.setMemoryUsageLimit(DataSize.ofMegabytes(100));
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
@@ -192,7 +191,7 @@ class StackToStackTests extends AbstractModulesTests {
 
 	@Test
 	void replicateDumpMemLimitLow(TestInfo info) throws Exception {
-		generate(info);
+		generate(info, generator(73));
 		Assertions.assertTrue(commands.dbsize() > 10);
 		long memLimit = 1500;
 		DumpItemReader reader = dumpReader(info);
@@ -226,8 +225,7 @@ class StackToStackTests extends AbstractModulesTests {
 		GeneratorItemReader reader = generator(count);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(client);
 		writer.setMultiExec(true);
-		SimpleStepBuilder<KeyValue<String>, KeyValue<String>> step = step(info, 1, reader, null, writer);
-		run(info, step);
+		run(info, step(info, 1, reader, null, writer));
 		assertEquals(count, commands.dbsize());
 	}
 

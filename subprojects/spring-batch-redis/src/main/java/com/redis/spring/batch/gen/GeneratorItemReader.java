@@ -27,45 +27,26 @@ import io.lettuce.core.StreamMessage;
 public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<KeyValue<String>> {
 
 	public static final String DEFAULT_KEYSPACE = "gen";
-
 	public static final String DEFAULT_KEY_SEPARATOR = ":";
-
-	private static final DataType[] DEFAULT_TYPES = DataType.values();
-
 	public static final Range DEFAULT_KEY_RANGE = Range.from(1);
 
 	private static final int LEFT_LIMIT = 48; // numeral '0'
-
 	private static final int RIGHT_LIMIT = 122; // letter 'z'
-
+	private static final Random random = new Random();
 	private final ObjectMapper mapper = new ObjectMapper();
 
-	private static final Random random = new Random();
-
 	private String keySeparator = DEFAULT_KEY_SEPARATOR;
-
 	private String keyspace = DEFAULT_KEYSPACE;
-
 	private Range keyRange = DEFAULT_KEY_RANGE;
-
 	private Range expiration;
-
 	private MapOptions hashOptions = new MapOptions();
-
 	private StreamOptions streamOptions = new StreamOptions();
-
 	private TimeSeriesOptions timeSeriesOptions = new TimeSeriesOptions();
-
 	private MapOptions jsonOptions = new MapOptions();
-
 	private CollectionOptions listOptions = new CollectionOptions();
-
 	private CollectionOptions setOptions = new CollectionOptions();
-
 	private StringOptions stringOptions = new StringOptions();
-
 	private ZsetOptions zsetOptions = new ZsetOptions();
-
 	private List<DataType> types = defaultTypes();
 
 	public GeneratorItemReader() {
@@ -73,7 +54,8 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	public static List<DataType> defaultTypes() {
-		return Arrays.asList(DEFAULT_TYPES);
+		return Arrays.asList(DataType.HASH, DataType.JSON, DataType.LIST, DataType.SET, DataType.STREAM,
+				DataType.STRING, DataType.TIMESERIES, DataType.ZSET);
 	}
 
 	public String getKeySeparator() {

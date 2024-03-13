@@ -2,7 +2,6 @@ package com.redis.spring.batch.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,10 +14,8 @@ import java.util.Random;
 import java.util.function.Function;
 
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
-import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 
@@ -41,7 +38,6 @@ import com.redis.spring.batch.common.ToSuggestionFunction;
 import com.redis.spring.batch.common.ValueReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.TimeSeriesOptions;
-import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.operation.JsonDel;
@@ -51,50 +47,12 @@ import com.redis.spring.batch.writer.operation.TsAdd;
 import com.redis.spring.batch.writer.operation.TsAddAll;
 
 import io.lettuce.core.codec.ByteArrayCodec;
-import io.micrometer.core.instrument.Clock;
-import io.micrometer.core.instrument.Metrics;
-import io.micrometer.core.instrument.search.Search;
-import io.micrometer.core.instrument.simple.SimpleConfig;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 abstract class AbstractModulesTests extends AbstractLiveTests {
 
 	private static final String JSON_BEER_1 = "[{\"id\":\"1\",\"brewery_id\":\"812\",\"name\":\"Hocus Pocus\",\"abv\":\"4.5\",\"ibu\":\"0\",\"srm\":\"0\",\"upc\":\"0\",\"filepath\":\"\",\"descript\":\"Our take on a classic summer ale.  A toast to weeds, rays, and summer haze.  A light, crisp ale for mowing lawns, hitting lazy fly balls, and communing with nature, Hocus Pocus is offered up as a summer sacrifice to clodless days.\\n\\nIts malty sweetness finishes tart and crisp and is best apprediated with a wedge of orange.\",\"add_user\":\"0\",\"last_mod\":\"2010-07-22 20:00:20 UTC\",\"style_name\":\"Light American Wheat Ale or Lager\",\"cat_name\":\"Other Style\"}]";
 
 	private static final int BEER_COUNT = 1019;
-
-	@Override
-	protected DataType[] generatorDataTypes() {
-		return REDIS_MODULES_GENERATOR_TYPES;
-	}
-
-	@Disabled
-	@Test
-	void readMetrics(TestInfo info) throws Exception {
-		Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
-		SimpleMeterRegistry registry = new SimpleMeterRegistry(new SimpleConfig() {
-
-			@Override
-			public String get(String key) {
-				return null;
-			}
-
-			@Override
-			public Duration step() {
-				return Duration.ofMillis(1);
-			}
-
-		}, Clock.SYSTEM);
-		Metrics.addRegistry(registry);
-		generate(info);
-		StructItemReader<String, String> reader = structReader(info);
-		reader.open(new ExecutionContext());
-		Search search = registry.find("redis.batch.reader.queue.size");
-		Assertions.assertNotNull(search.gauge());
-		reader.close();
-		registry.close();
-		Metrics.globalRegistry.getMeters().forEach(Metrics.globalRegistry::remove);
-	}
 
 	@Test
 	void beerIndex() throws Exception {
@@ -210,7 +168,7 @@ abstract class AbstractModulesTests extends AbstractLiveTests {
 
 	@Test
 	void writeJsonDel(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(DataType.JSON);
+		GeneratorItemReader gen = generator(73, DataType.JSON);
 		generate(info, gen);
 		JsonDel<String, String, KeyValue<String>> jsonDel = new JsonDel<>(KeyValue::getKey);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(jsonDel);

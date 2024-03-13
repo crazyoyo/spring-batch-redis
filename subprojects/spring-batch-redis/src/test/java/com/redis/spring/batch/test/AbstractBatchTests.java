@@ -82,11 +82,6 @@ import io.lettuce.core.models.stream.PendingMessages;
 @RunWith(SpringRunner.class)
 abstract class AbstractBatchTests extends AbstractTargetTestBase {
 
-	@Override
-	protected DataType[] generatorDataTypes() {
-		return REDIS_GENERATOR_TYPES;
-	}
-
 	@Test
 	void compareSet(TestInfo info) throws Exception {
 		commands.sadd("set:1", "value1", "value2");
@@ -207,7 +202,7 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void readStruct(TestInfo info) throws Exception {
-		generate(info);
+		generate(info, generator(73));
 		StructItemReader<String, String> reader = structReader(info);
 		reader.open(new ExecutionContext());
 		List<KeyValue<String>> list = readAll(reader);
@@ -803,8 +798,8 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void writeDel(TestInfo info) throws Exception {
-		generate(info);
-		GeneratorItemReader gen = generator();
+		generate(info, generator(73));
+		GeneratorItemReader gen = generator(73);
 		Del<String, String, KeyValue<String>> del = new Del<>(KeyValue::getKey);
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(del);
 		run(info, gen, writer);
@@ -813,12 +808,13 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void writeLpush(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(DataType.STRING);
+		int count = 73;
+		GeneratorItemReader gen = generator(count, DataType.STRING);
 		Lpush<String, String, KeyValue<String>> lpush = new Lpush<>(KeyValue::getKey);
 		lpush.setValueFunction(v -> (String) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpush);
 		run(info, gen, writer);
-		assertEquals(getGeneratorCount(), commands.dbsize());
+		assertEquals(count, commands.dbsize());
 		for (String key : commands.keys("*")) {
 			assertEquals(DataType.LIST.getString(), commands.type(key));
 		}
@@ -826,12 +822,13 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void writeRpush(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(DataType.STRING);
+		int count = 73;
+		GeneratorItemReader gen = generator(count, DataType.STRING);
 		Rpush<String, String, KeyValue<String>> rpush = new Rpush<>(KeyValue::getKey);
 		rpush.setValueFunction(v -> (String) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(rpush);
 		run(info, gen, writer);
-		assertEquals(getGeneratorCount(), commands.dbsize());
+		assertEquals(count, commands.dbsize());
 		for (String key : commands.keys("*")) {
 			assertEquals(DataType.LIST.getString(), commands.type(key));
 		}
@@ -840,12 +837,13 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 	@SuppressWarnings("unchecked")
 	@Test
 	void writeLpushAll(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(DataType.LIST);
+		int count = 73;
+		GeneratorItemReader gen = generator(count, DataType.LIST);
 		LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>(KeyValue::getKey,
 				v -> (Collection<String>) v.getValue());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpushAll);
 		run(info, gen, writer);
-		assertEquals(getGeneratorCount(), commands.dbsize());
+		assertEquals(count, commands.dbsize());
 		for (String key : commands.keys("*")) {
 			assertEquals(DataType.LIST.getString(), commands.type(key));
 		}
@@ -853,7 +851,8 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void writeExpire(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(DataType.STRING);
+		int count = 73;
+		GeneratorItemReader gen = generator(count, DataType.STRING);
 		Duration ttl = Duration.ofMillis(1);
 		Expire<String, String, KeyValue<String>> expire = new Expire<>(KeyValue::getKey);
 		expire.setTtl(ttl);
@@ -865,7 +864,8 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void writeExpireAt(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(DataType.STRING);
+		int count = 73;
+		GeneratorItemReader gen = generator(count, DataType.STRING);
 		ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>(KeyValue::getKey);
 		expireAt.setEpochFunction(v -> System.currentTimeMillis());
 		OperationItemWriter<String, String, KeyValue<String>> writer = writer(expireAt);
