@@ -168,7 +168,10 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 				}
 			}
 		}
+	}
 
+	public JobExecution getJobExecution() {
+		return jobExecution;
 	}
 
 	private TaskExecutor taskExecutor() {

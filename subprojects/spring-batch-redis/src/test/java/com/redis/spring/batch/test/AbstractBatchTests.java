@@ -628,6 +628,7 @@ abstract class AbstractBatchTests extends AbstractTargetTestBase {
 	protected <K, V> void replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,
 			RedisItemWriter<K, V, KeyValue<K>> writer) throws Exception {
 		run(testInfo(info, "replicate"), reader, writer);
+		awaitUntil(() -> reader.getJobExecution() == null || !reader.getJobExecution().isRunning());
 		KeyspaceComparison comparison = compare(testInfo(info, "replicate"));
 		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}

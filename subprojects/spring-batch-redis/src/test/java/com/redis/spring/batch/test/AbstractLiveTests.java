@@ -51,7 +51,8 @@ abstract class AbstractLiveTests extends AbstractBatchTests {
 		Job job = job(info).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "flow")))
 				.split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
 		run(job);
-		awaitUntil(() -> liveReader.getQueue().isEmpty());
+		awaitUntil(() -> liveReader.getJobExecution() == null || !liveReader.getJobExecution().isRunning());
+		awaitUntil(() -> reader.getJobExecution() == null || !reader.getJobExecution().isRunning());
 		KeyspaceComparison comparison = compare(info);
 		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}
