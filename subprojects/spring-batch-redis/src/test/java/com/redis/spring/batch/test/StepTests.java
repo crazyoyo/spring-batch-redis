@@ -30,7 +30,6 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.support.AbstractItemStreamItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
@@ -46,7 +45,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.reader.PollableItemReader;
+import com.redis.spring.batch.reader.AbstractPollableItemReader;
 import com.redis.spring.batch.step.FlushingFaultTolerantStepBuilder;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 
@@ -148,15 +147,15 @@ class StepTests {
 		String name = "flushingStep";
 		int count = 100;
 		BlockingQueue<String> queue = new LinkedBlockingDeque<>(count);
-		QueueItemReader<String> reader = new QueueItemReader<>(queue, Duration.ofMillis(10));
+		QueueItemReader<String> reader = new QueueItemReader<>(queue);
 		ListItemWriter<String> writer = new ListItemWriter<>();
-		SimpleStepBuilder<String, String> step = new StepBuilder(name, jobRepository).chunk(50, transactionManager);
+		FlushingStepBuilder<String, String> step = new FlushingStepBuilder<>(
+				new StepBuilder(name, jobRepository).chunk(50, transactionManager));
 		step.transactionManager(transactionManager);
 		step.reader(reader);
 		step.writer(writer);
-		FlushingStepBuilder<String, String> flushingStep = new FlushingStepBuilder<>(step);
-		flushingStep.idleTimeout(Duration.ofMillis(500));
-		Job job = new JobBuilder(name, jobRepository).start(flushingStep.build()).build();
+		step.idleTimeout(Duration.ofMillis(500));
+		Job job = new JobBuilder(name, jobRepository).start(step.build()).build();
 		JobExecution execution = asyncJobLauncher.run(job, new JobParameters());
 		for (int index = 1; index <= count; index++) {
 			queue.offer("key" + index);
@@ -165,24 +164,16 @@ class StepTests {
 		assertEquals(count, writer.getWrittenItems().size());
 	}
 
-	private static class QueueItemReader<T> extends AbstractItemStreamItemReader<T> implements PollableItemReader<T> {
+	private static class QueueItemReader<T> extends AbstractPollableItemReader<T> {
 
 		private final BlockingQueue<T> queue;
 
-		private final long timeout;
-
-		public QueueItemReader(BlockingQueue<T> queue, Duration timeout) {
+		public QueueItemReader(BlockingQueue<T> queue) {
 			this.queue = queue;
-			this.timeout = timeout.toMillis();
 		}
 
 		@Override
-		public T read() throws InterruptedException {
-			return poll(timeout, TimeUnit.MILLISECONDS);
-		}
-
-		@Override
-		public T poll(long timeout, TimeUnit unit) throws InterruptedException {
+		protected T doPoll(long timeout, TimeUnit unit) throws InterruptedException {
 			return queue.poll(timeout, unit);
 		}
 

@@ -9,7 +9,7 @@ import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
 
 @EnabledIfEnvironmentVariable(named = RedisEnterpriseServer.ENV_HOST, matches = ".*")
-class EnterpriseServerToStackTests extends AbstractModulesTests {
+class EnterpriseServerToStackTests extends BatchTests {
 
 	private static final RedisEnterpriseServer source = new RedisEnterpriseServer()
 			.withDatabase(Database.builder().shardCount(2).port(12001).ossCluster(true)

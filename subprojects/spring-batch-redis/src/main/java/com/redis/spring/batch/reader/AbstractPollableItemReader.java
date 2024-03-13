@@ -1,5 +1,6 @@
 package com.redis.spring.batch.reader;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.item.ExecutionContext;
@@ -10,7 +11,14 @@ import org.springframework.lang.Nullable;
 public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamItemReader<T>
 		implements PollableItemReader<T> {
 
+	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
+
+	protected Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
 	private int currentItemCount = 0;
+
+	public void setPollTimeout(Duration timeout) {
+		this.pollTimeout = timeout;
+	}
 
 	/**
 	 * Read next item from input.
@@ -20,7 +28,17 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamIt
 	 *                   interpretation by the framework
 	 */
 	@Nullable
-	protected abstract T doRead() throws Exception;
+	protected T doRead() throws Exception {
+		T item;
+		do {
+			item = poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
+		} while (item == null && !isEnd());
+		return item;
+	}
+
+	protected boolean isEnd() {
+		return false;
+	}
 
 	/**
 	 * Open resources necessary to start reading input.
@@ -28,7 +46,9 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamIt
 	 * @throws Exception Allows subclasses to throw checked exceptions for
 	 *                   interpretation by the framework
 	 */
-	protected abstract void doOpen() throws Exception;
+	protected void doOpen() throws Exception {
+		// do nothing
+	}
 
 	/**
 	 * Close the resources opened in {@link #doOpen()}.
@@ -36,7 +56,9 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamIt
 	 * @throws Exception Allows subclasses to throw checked exceptions for
 	 *                   interpretation by the framework
 	 */
-	protected abstract void doClose() throws Exception;
+	protected void doClose() throws Exception {
+		// do nothing
+	}
 
 	@Nullable
 	@Override

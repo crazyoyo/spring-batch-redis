@@ -31,7 +31,6 @@ public class KeyspaceNotificationItemReader<K> extends AbstractPollableItemReade
 	public static final Duration DEFAULT_FLUSH_INTERVAL = Duration.ofMillis(50);
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(Long.MAX_VALUE);
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
-	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
 
 	private static final String SEPARATOR = ":";
 	private static final Map<String, KeyEvent> eventMap = Stream.of(KeyEvent.values())
@@ -43,7 +42,6 @@ public class KeyspaceNotificationItemReader<K> extends AbstractPollableItemReade
 	private final Function<String, K> keyEncoder;
 	private final String pubSubPattern;
 
-	private Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 	private String keyType;
 
@@ -78,10 +76,6 @@ public class KeyspaceNotificationItemReader<K> extends AbstractPollableItemReade
 		this.keyType = keyType;
 	}
 
-	public void setPollTimeout(Duration pollTimeout) {
-		this.pollTimeout = pollTimeout;
-	}
-
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		if (publisher == null) {
@@ -112,11 +106,6 @@ public class KeyspaceNotificationItemReader<K> extends AbstractPollableItemReade
 	@Override
 	protected K doPoll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
-	}
-
-	@Override
-	protected K doRead() throws Exception {
-		return poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
 	}
 
 	private boolean notification(String channel, String message) {

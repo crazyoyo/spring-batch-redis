@@ -46,7 +46,7 @@ import io.lettuce.core.ScanIterator;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.codec.ByteArrayCodec;
 
-class StackToStackTests extends AbstractModulesTests {
+class StackToStackTests extends BatchTests {
 
 	private static final RedisStackContainer source = RedisContainerFactory.stack();
 
