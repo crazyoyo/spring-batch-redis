@@ -9,8 +9,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import javax.sql.DataSource;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.hsqldb.jdbc.JDBCDataSource;
@@ -35,6 +33,7 @@ import org.springframework.batch.item.support.SynchronizedItemReader;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.boot.autoconfigure.batch.BatchDataSourceScriptDatabaseInitializer;
 import org.springframework.boot.autoconfigure.batch.BatchProperties;
+import org.springframework.boot.jdbc.init.DataSourceScriptDatabaseInitializer;
 import org.springframework.boot.sql.init.DatabaseInitializationMode;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
@@ -203,22 +202,19 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 
 	private JobRepository jobRepository() throws Exception {
 		JobRepositoryFactoryBean bean = new JobRepositoryFactoryBean();
-		bean.setDataSource(dataSource());
-		bean.setTransactionManager(transactionManager);
-		bean.afterPropertiesSet();
-		return bean.getObject();
-	}
-
-	private DataSource dataSource() throws Exception {
 		JDBCDataSource dataSource = new JDBCDataSource();
 		dataSource.setURL("jdbc:hsqldb:mem:" + getName());
 		BatchProperties.Jdbc jdbc = new BatchProperties.Jdbc();
 		jdbc.setInitializeSchema(DatabaseInitializationMode.ALWAYS);
-		BatchDataSourceScriptDatabaseInitializer initializer = new BatchDataSourceScriptDatabaseInitializer(dataSource,
+		DataSourceScriptDatabaseInitializer initializer = new BatchDataSourceScriptDatabaseInitializer(dataSource,
 				jdbc);
 		initializer.afterPropertiesSet();
 		initializer.initializeDatabase();
-		return dataSource;
+		bean.setDatabaseType("HSQL");
+		bean.setDataSource(dataSource);
+		bean.setTransactionManager(transactionManager);
+		bean.afterPropertiesSet();
+		return bean.getObject();
 	}
 
 	private KeyScanArgs scanArgs() {
