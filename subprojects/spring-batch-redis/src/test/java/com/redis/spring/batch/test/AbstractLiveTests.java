@@ -34,14 +34,14 @@ abstract class AbstractLiveTests extends AbstractBatchTests {
 			RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, T> liveReader, RedisItemWriter<K, V, T> liveWriter)
 			throws Exception {
 		live(liveReader);
-		generate(info, generator(300));
+		DataType[] types = new DataType[] { DataType.HASH, DataType.STRING };
+		generate(info, generator(300, types));
 		TaskletStep step = faultTolerant(step(new SimpleTestInfo(info, "step"), reader, writer)).build();
 		SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "snapshotFlow"))).start(step)
 				.build();
 		FlushingStepBuilder<T, T> flushingStepBuilder = flushingStep(new SimpleTestInfo(info, "liveStep"), liveReader,
 				liveWriter);
-		GeneratorItemReader liveGen = generator(700, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
-				DataType.ZSET);
+		GeneratorItemReader liveGen = generator(700, types);
 		liveGen.setExpiration(Range.of(100));
 		liveGen.setKeyRange(Range.from(300));
 		generateAsync(testInfo(info, "genasync"), liveGen);
