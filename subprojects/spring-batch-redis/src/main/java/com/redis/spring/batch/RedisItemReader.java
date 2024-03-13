@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -123,7 +122,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
 	protected RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		setName(String.format("%s-%s", ClassUtils.getShortName(getClass()), UUID.randomUUID().toString()));
+		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.codec = codec;
 	}

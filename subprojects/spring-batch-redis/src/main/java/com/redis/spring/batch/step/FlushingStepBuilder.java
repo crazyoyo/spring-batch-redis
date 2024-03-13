@@ -24,8 +24,7 @@ import com.redis.spring.batch.reader.PollableItemReader;
 public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 
 	private Duration interval = FlushingChunkProvider.DEFAULT_FLUSH_INTERVAL;
-
-	private Duration idleTimeout;
+	private Duration idleTimeout = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
 
 	public FlushingStepBuilder(StepBuilderHelper<?> parent) {
 		super(parent);
