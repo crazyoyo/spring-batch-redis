@@ -100,13 +100,13 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 
 	@Override
 	protected synchronized void doClose() throws Exception {
-		if (messageReader != null) {
-			messageReader = null;
-			lastId = null;
+		messageReader = null;
+		lastId = null;
+		if (connection != null) {
 			connection.close();
 			connection = null;
-			commands = null;
 		}
+		commands = null;
 	}
 
 	private MessageReader<K, V> reader() {

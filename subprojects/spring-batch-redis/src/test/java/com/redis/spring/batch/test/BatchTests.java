@@ -623,26 +623,26 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void replicateStructBinaryStrings(TestInfo info) throws Exception {
-		try (StatefulRedisConnection<byte[], byte[]> connection = RedisModulesUtils.connection(client,
-				ByteArrayCodec.INSTANCE)) {
-			connection.setAutoFlushCommands(false);
-			RedisAsyncCommands<byte[], byte[]> async = connection.async();
-			List<RedisFuture<?>> futures = new ArrayList<>();
-			Random random = new Random();
-			for (int index = 0; index < 100; index++) {
-				String key = "binary:" + index;
-				byte[] value = new byte[1000];
-				random.nextBytes(value);
-				futures.add(async.set(key.getBytes(), value));
-			}
-			connection.flushCommands();
-			LettuceFutures.awaitAll(connection.getTimeout(), futures.toArray(new RedisFuture[0]));
-			connection.setAutoFlushCommands(true);
+		StatefulRedisConnection<byte[], byte[]> rawConnection = RedisModulesUtils.connection(client,
+				ByteArrayCodec.INSTANCE);
+		rawConnection.setAutoFlushCommands(false);
+		RedisAsyncCommands<byte[], byte[]> async = rawConnection.async();
+		List<RedisFuture<?>> futures = new ArrayList<>();
+		Random random = new Random();
+		for (int index = 0; index < 100; index++) {
+			String key = "binary:" + index;
+			byte[] value = new byte[1000];
+			random.nextBytes(value);
+			futures.add(async.set(key.getBytes(), value));
 		}
+		rawConnection.flushCommands();
+		LettuceFutures.awaitAll(rawConnection.getTimeout(), futures.toArray(new RedisFuture[0]));
+		rawConnection.setAutoFlushCommands(true);
 		StructItemReader<byte[], byte[]> reader = configure(info,
 				RedisItemReader.struct(client, ByteArrayCodec.INSTANCE));
 		StructItemWriter<byte[], byte[]> writer = RedisItemWriter.struct(targetClient, ByteArrayCodec.INSTANCE);
 		replicate(info, reader, writer);
+		rawConnection.close();
 	}
 
 	protected <K, V> void replicate(TestInfo info, RedisItemReader<K, V, KeyValue<K>> reader,

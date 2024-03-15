@@ -336,13 +336,6 @@ public abstract class AbstractTestBase {
 		run(testInfo, reader, writer);
 	}
 
-	protected void flushAll(AbstractRedisClient client) {
-		try (StatefulRedisModulesConnection<String, String> connection = RedisModulesUtils.connection(client)) {
-			commands.flushall();
-			awaitUntil(() -> commands.dbsize() == 0);
-		}
-	}
-
 	protected <R extends RedisItemReader<?, ?, ?>> R live(R reader) {
 		reader.setMode(Mode.LIVE);
 		reader.setIdleTimeout(idleTimeout);

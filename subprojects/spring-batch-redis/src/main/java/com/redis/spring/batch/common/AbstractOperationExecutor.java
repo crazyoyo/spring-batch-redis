@@ -17,7 +17,6 @@ import com.redis.spring.batch.util.ConnectionUtils;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
 import io.lettuce.core.RedisCommandInterruptedException;
-import io.lettuce.core.RedisConnectionException;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -77,27 +76,20 @@ public abstract class AbstractOperationExecutor<K, V, I, O> implements AutoClose
 	}
 
 	public Chunk<O> execute(Chunk<? extends I> items) {
-		StatefulConnection<K, V> connection;
-		try {
-			connection = pool.borrowObject();
-		} catch (Exception e) {
-			throw new RedisConnectionException("Could not get connection from pool", e);
-		}
-		try {
+		try (StatefulConnection<K, V> connection = pool.borrowObject()) {
 			connection.setAutoFlushCommands(false);
 			BaseRedisAsyncCommands<K, V> commands = ConnectionUtils.async(connection);
 			Chunk<RedisFuture<O>> futures = new Chunk<>();
 			operation.execute(commands, items, futures);
 			connection.flushCommands();
-			return getAll(connection.getTimeout(), futures);
+			Chunk<O> out = getAll(connection.getTimeout(), futures);
+			connection.setAutoFlushCommands(true);
+			return out;
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new RedisCommandInterruptedException(e);
 		} catch (Exception e) {
 			throw Exceptions.fromSynchronization(e);
-		} finally {
-			connection.setAutoFlushCommands(true);
-			connection.close();
 		}
 	}
 

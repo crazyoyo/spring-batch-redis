@@ -88,10 +88,8 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamIt
 		return this.currentItemCount;
 	}
 
-	@SuppressWarnings("removal")
 	@Override
 	public void close() throws ItemStreamException {
-		super.close();
 		try {
 			doClose();
 		} catch (Exception e) {
@@ -99,10 +97,8 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemStreamIt
 		}
 	}
 
-	@SuppressWarnings("removal")
 	@Override
 	public void open(ExecutionContext executionContext) throws ItemStreamException {
-		super.open(executionContext);
 		try {
 			doOpen();
 		} catch (Exception e) {

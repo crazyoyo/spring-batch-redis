@@ -27,13 +27,12 @@ import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.function.FunctionItemProcessor;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.SynchronizedItemReader;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.boot.autoconfigure.batch.BatchDataSourceScriptDatabaseInitializer;
 import org.springframework.boot.autoconfigure.batch.BatchProperties;
-import org.springframework.boot.jdbc.init.DataSourceScriptDatabaseInitializer;
 import org.springframework.boot.sql.init.DatabaseInitializationMode;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
@@ -55,8 +54,6 @@ import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.Await;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.ConnectionUtils;
-import com.redis.spring.batch.writer.ProcessingItemWriter;
-import com.redis.spring.batch.writer.QueueItemWriter;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.KeyScanArgs;
@@ -91,13 +88,6 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
 
-	private JobRepository jobRepository;
-	private PlatformTransactionManager transactionManager;
-	private JobLauncher jobLauncher;
-	private JobExecution jobExecution;
-	private ItemReader<K> keyReader;
-	private BlockingQueue<T> queue;
-
 	private Mode mode = DEFAULT_MODE;
 	private int skipLimit = DEFAULT_SKIP_LIMIT;
 	private int retryLimit = DEFAULT_RETRY_LIMIT;
@@ -117,6 +107,13 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 	private String keyPattern = DEFAULT_KEY_PATTERN;
 	private String keyType;
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+
+	private JobRepository jobRepository;
+	private PlatformTransactionManager transactionManager;
+	private JobLauncher jobLauncher;
+	private JobExecution jobExecution;
+	private ItemReader<K> keyReader;
+	private BlockingQueue<T> queue;
 
 	protected RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		setName(ClassUtils.getShortName(getClass()));
@@ -176,7 +173,7 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 			taskExecutor.setMaxPoolSize(threads);
 			taskExecutor.setCorePoolSize(threads);
 			taskExecutor.setQueueCapacity(threads);
-			taskExecutor.afterPropertiesSet();
+			taskExecutor.initialize();
 			return taskExecutor;
 		}
 		return new SyncTaskExecutor();
@@ -190,11 +187,10 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 		return new ResourcelessTransactionManager();
 	}
 
-	private JobLauncher jobLauncher() throws Exception {
+	private JobLauncher jobLauncher() {
 		TaskExecutorJobLauncher launcher = new TaskExecutorJobLauncher();
 		launcher.setJobRepository(jobRepository);
 		launcher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-		launcher.afterPropertiesSet();
 		return launcher;
 	}
 
@@ -204,9 +200,8 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 		dataSource.setURL("jdbc:hsqldb:mem:" + getName());
 		BatchProperties.Jdbc jdbc = new BatchProperties.Jdbc();
 		jdbc.setInitializeSchema(DatabaseInitializationMode.ALWAYS);
-		DataSourceScriptDatabaseInitializer initializer = new BatchDataSourceScriptDatabaseInitializer(dataSource,
+		BatchDataSourceScriptDatabaseInitializer initializer = new BatchDataSourceScriptDatabaseInitializer(dataSource,
 				jdbc);
-		initializer.afterPropertiesSet();
 		initializer.initializeDatabase();
 		bean.setDatabaseType("HSQL");
 		bean.setDataSource(dataSource);
@@ -248,10 +243,24 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 		return reader;
 	}
 
-	private ProcessingItemWriter<K, T> writer() {
+	private ItemWriter<K> writer() {
 		queue = new LinkedBlockingQueue<>(queueCapacity);
 		Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
-		return new ProcessingItemWriter<>(new FunctionItemProcessor<>(this::values), new QueueItemWriter<>(queue));
+		return new Writer();
+	}
+
+	private class Writer implements ItemWriter<K> {
+
+		@Override
+		public void write(Chunk<? extends K> chunk) throws InterruptedException {
+			Chunk<T> values = values(chunk);
+			if (values != null) {
+				for (T value : values) {
+					queue.put(value);
+				}
+			}
+		}
+
 	}
 
 	private SimpleStepBuilder<K, K> baseStep(JobRepository jobRepository, PlatformTransactionManager txManager) {
