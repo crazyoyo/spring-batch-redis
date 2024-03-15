@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,9 +14,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.Executors;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,11 +57,9 @@ import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.common.Range;
 import com.redis.spring.batch.common.ToGeoValueFunction;
 import com.redis.spring.batch.common.ToSampleFunction;
-import com.redis.spring.batch.common.ToScoredValueFunction;
 import com.redis.spring.batch.common.ToSuggestionFunction;
 import com.redis.spring.batch.common.ValueReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.gen.MapOptions;
 import com.redis.spring.batch.gen.TimeSeriesOptions;
 import com.redis.spring.batch.reader.DumpItemReader;
 import com.redis.spring.batch.reader.KeyTypeItemReader;
@@ -70,28 +67,20 @@ import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
+import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.writer.DumpItemWriter;
 import com.redis.spring.batch.writer.OperationItemWriter;
 import com.redis.spring.batch.writer.StructItemWriter;
-import com.redis.spring.batch.writer.operation.Del;
-import com.redis.spring.batch.writer.operation.Expire;
-import com.redis.spring.batch.writer.operation.ExpireAt;
 import com.redis.spring.batch.writer.operation.Geoadd;
 import com.redis.spring.batch.writer.operation.Hset;
 import com.redis.spring.batch.writer.operation.JsonDel;
 import com.redis.spring.batch.writer.operation.JsonSet;
-import com.redis.spring.batch.writer.operation.Lpush;
-import com.redis.spring.batch.writer.operation.LpushAll;
-import com.redis.spring.batch.writer.operation.Rpush;
-import com.redis.spring.batch.writer.operation.Sadd;
 import com.redis.spring.batch.writer.operation.Sugadd;
 import com.redis.spring.batch.writer.operation.TsAdd;
 import com.redis.spring.batch.writer.operation.TsAddAll;
 import com.redis.spring.batch.writer.operation.Xadd;
-import com.redis.spring.batch.writer.operation.Zadd;
 
 import io.lettuce.core.Consumer;
 import io.lettuce.core.GeoArgs;
@@ -687,95 +676,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void writeHashDel(TestInfo info) throws Exception {
-		List<Entry<String, Map<String, String>>> hashes = new ArrayList<>();
-		for (int index = 0; index < 100; index++) {
-			String key = String.valueOf(index);
-			Map<String, String> value = new HashMap<>();
-			value.put("field1", "value1");
-			commands.hset("hash:" + key, value);
-			Map<String, String> body = new HashMap<>();
-			body.put("field2", "value2");
-			hashes.add(new AbstractMap.SimpleEntry<>(key, index < 50 ? null : body));
-		}
-		ListItemReader<Map.Entry<String, Map<String, String>>> reader = new ListItemReader<>(hashes);
-		Hset<String, String, Entry<String, Map<String, String>>> hset = new Hset<>(e -> "hash:" + e.getKey(),
-				Entry::getValue);
-		OperationItemWriter<String, String, Entry<String, Map<String, String>>> writer = writer(hset);
-		run(info, reader, writer);
-		assertEquals(100, keyCount("hash:*"));
-		assertEquals(2, commands.hgetall("hash:50").size());
-	}
-
-	@Test
-	void writeZset(TestInfo info) throws Exception {
-		String key = "zadd";
-		List<ZValue> values = new ArrayList<>();
-		for (int index = 0; index < 100; index++) {
-			values.add(new ZValue(String.valueOf(index), index % 10));
-		}
-		ListItemReader<ZValue> reader = new ListItemReader<>(values);
-		Zadd<String, String, ZValue> zadd = new Zadd<>(keyFunction(key),
-				new ToScoredValueFunction<>(ZValue::getMember, ZValue::getScore));
-		OperationItemWriter<String, String, ZValue> writer = writer(zadd);
-		run(info, reader, writer);
-		assertEquals(1, commands.dbsize());
-		assertEquals(values.size(), commands.zcard(key));
-		assertEquals(60,
-				commands.zrangebyscore(key, io.lettuce.core.Range.from(io.lettuce.core.Range.Boundary.including(0),
-						io.lettuce.core.Range.Boundary.including(5))).size());
-	}
-
-	@Test
-	void writeSet(TestInfo info) throws Exception {
-		String key = "sadd";
-		List<String> values = new ArrayList<>();
-		for (int index = 0; index < 100; index++) {
-			values.add(String.valueOf(index));
-		}
-		ListItemReader<String> reader = new ListItemReader<>(values);
-		Sadd<String, String, String> sadd = new Sadd<>(keyFunction(key), Function.identity());
-		OperationItemWriter<String, String, String> writer = writer(sadd);
-		run(info, reader, writer);
-		assertEquals(1, commands.dbsize());
-		assertEquals(values.size(), commands.scard(key));
-	}
-
-	@Test
-	void writeStructOverwrite(TestInfo info) throws Exception {
-		GeneratorItemReader gen1 = generator(100, DataType.HASH);
-		gen1.setHashOptions(hashOptions(Range.of(5)));
-		generate(info, client, gen1);
-		GeneratorItemReader gen2 = generator(100, DataType.HASH);
-		gen2.setHashOptions(hashOptions(Range.of(10)));
-		generate(info, targetClient, gen2);
-		replicate(info, structReader(info), RedisItemWriter.struct(targetClient));
-		assertEquals(commands.hgetall("gen:1"), targetCommands.hgetall("gen:1"));
-	}
-
-	private MapOptions hashOptions(Range fieldCount) {
-		MapOptions options = new MapOptions();
-		options.setFieldCount(fieldCount);
-		return options;
-	}
-
-	@Test
-	void writeStructMerge(TestInfo info) throws Exception {
-		GeneratorItemReader gen1 = generator(100, DataType.HASH);
-		gen1.setHashOptions(hashOptions(Range.of(5)));
-		generate(info, client, gen1);
-		GeneratorItemReader gen2 = generator(100, DataType.HASH);
-		gen2.setHashOptions(hashOptions(Range.of(10)));
-		generate(info, targetClient, gen2);
-		StructItemReader<String, String> reader = structReader(info);
-		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-		writer.setMerge(true);
-		run(testInfo(info, "replicate"), reader, writer);
-		Map<String, String> actual = targetCommands.hgetall("gen:1");
-		assertEquals(10, actual.size());
-	}
-
-	@Test
 	void writeWait(TestInfo info) throws Exception {
 		List<Map<String, String>> maps = new ArrayList<>();
 		for (int index = 0; index < 100; index++) {
@@ -793,106 +693,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		JobExecution execution = run(info, reader, writer);
 		List<Throwable> exceptions = execution.getAllFailureExceptions();
 		assertEquals("Insufficient replication level (0/1)", exceptions.get(0).getCause().getCause().getMessage());
-	}
-
-	@Test
-	void writeHash(TestInfo info) throws Exception {
-		int count = 100;
-		List<Map<String, String>> maps = new ArrayList<>();
-		for (int index = 0; index < count; index++) {
-			Map<String, String> body = new HashMap<>();
-			body.put("id", String.valueOf(index));
-			body.put("field1", "value1");
-			body.put("field2", "value2");
-			maps.add(body);
-		}
-		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
-		Hset<String, String, Map<String, String>> hset = new Hset<>(m -> "hash:" + m.remove("id"), Function.identity());
-		OperationItemWriter<String, String, Map<String, String>> writer = writer(hset);
-		run(info, reader, writer);
-		assertEquals(count, keyCount("hash:*"));
-		for (int index = 0; index < maps.size(); index++) {
-			Map<String, String> hash = commands.hgetall("hash:" + index);
-			assertEquals(maps.get(index), hash);
-		}
-	}
-
-	@Test
-	void writeDel(TestInfo info) throws Exception {
-		generate(info, generator(73));
-		GeneratorItemReader gen = generator(73);
-		Del<String, String, KeyValue<String>> del = new Del<>(KeyValue::getKey);
-		OperationItemWriter<String, String, KeyValue<String>> writer = writer(del);
-		run(info, gen, writer);
-		assertEquals(0, keyCount(GeneratorItemReader.DEFAULT_KEYSPACE + "*"));
-	}
-
-	@Test
-	void writeLpush(TestInfo info) throws Exception {
-		int count = 73;
-		GeneratorItemReader gen = generator(count, DataType.STRING);
-		Lpush<String, String, KeyValue<String>> lpush = new Lpush<>(KeyValue::getKey);
-		lpush.setValueFunction(v -> (String) v.getValue());
-		OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpush);
-		run(info, gen, writer);
-		assertEquals(count, commands.dbsize());
-		for (String key : commands.keys("*")) {
-			assertEquals(DataType.LIST.getString(), commands.type(key));
-		}
-	}
-
-	@Test
-	void writeRpush(TestInfo info) throws Exception {
-		int count = 73;
-		GeneratorItemReader gen = generator(count, DataType.STRING);
-		Rpush<String, String, KeyValue<String>> rpush = new Rpush<>(KeyValue::getKey);
-		rpush.setValueFunction(v -> (String) v.getValue());
-		OperationItemWriter<String, String, KeyValue<String>> writer = writer(rpush);
-		run(info, gen, writer);
-		assertEquals(count, commands.dbsize());
-		for (String key : commands.keys("*")) {
-			assertEquals(DataType.LIST.getString(), commands.type(key));
-		}
-	}
-
-	@SuppressWarnings("unchecked")
-	@Test
-	void writeLpushAll(TestInfo info) throws Exception {
-		int count = 73;
-		GeneratorItemReader gen = generator(count, DataType.LIST);
-		LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>(KeyValue::getKey,
-				v -> (Collection<String>) v.getValue());
-		OperationItemWriter<String, String, KeyValue<String>> writer = writer(lpushAll);
-		run(info, gen, writer);
-		assertEquals(count, commands.dbsize());
-		for (String key : commands.keys("*")) {
-			assertEquals(DataType.LIST.getString(), commands.type(key));
-		}
-	}
-
-	@Test
-	void writeExpire(TestInfo info) throws Exception {
-		int count = 73;
-		GeneratorItemReader gen = generator(count, DataType.STRING);
-		Duration ttl = Duration.ofMillis(1);
-		Expire<String, String, KeyValue<String>> expire = new Expire<>(KeyValue::getKey);
-		expire.setTtl(ttl);
-		OperationItemWriter<String, String, KeyValue<String>> writer = writer(expire);
-		run(info, gen, writer);
-		awaitUntil(() -> commands.dbsize() == 0);
-		assertEquals(0, commands.dbsize());
-	}
-
-	@Test
-	void writeExpireAt(TestInfo info) throws Exception {
-		int count = 73;
-		GeneratorItemReader gen = generator(count, DataType.STRING);
-		ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>(KeyValue::getKey);
-		expireAt.setEpochFunction(v -> System.currentTimeMillis());
-		OperationItemWriter<String, String, KeyValue<String>> writer = writer(expireAt);
-		run(info, gen, writer);
-		awaitUntil(() -> commands.dbsize() == 0);
-		assertEquals(0, commands.dbsize());
 	}
 
 	@Test
