@@ -108,6 +108,64 @@ public abstract class AbstractTestBase {
 	protected PlatformTransactionManager transactionManager;
 	private TaskExecutorJobLauncher jobLauncher;
 
+	@BeforeAll
+	void setup() throws Exception {
+		// Source Redis setup
+		RedisServer redis = getRedisServer();
+		if (redis instanceof Startable) {
+			((Startable) redis).start();
+		}
+		client = client(getRedisServer());
+		pool = ConnectionPoolSupport.createGenericObjectPool(ConnectionUtils.supplier(client),
+				new GenericObjectPoolConfig<>());
+		connection = RedisModulesUtils.connection(client);
+		commands = connection.sync();
+
+		transactionManager = new ResourcelessTransactionManager();
+		// Job infra setup
+		JobRepositoryFactoryBean bean = new JobRepositoryFactoryBean();
+		JDBCDataSource dataSource = new JDBCDataSource();
+		dataSource.setURL("jdbc:hsqldb:mem:" + UUID.randomUUID());
+		bean.setDataSource(dataSource);
+		BatchProperties.Jdbc jdbc = new BatchProperties.Jdbc();
+		jdbc.setInitializeSchema(DatabaseInitializationMode.ALWAYS);
+		BatchDataSourceScriptDatabaseInitializer initializer = new BatchDataSourceScriptDatabaseInitializer(dataSource,
+				jdbc);
+		initializer.afterPropertiesSet();
+		initializer.initializeDatabase();
+		bean.setTransactionManager(transactionManager);
+		bean.afterPropertiesSet();
+		jobRepository = bean.getObject();
+		jobLauncher = new TaskExecutorJobLauncher();
+		jobLauncher.setJobRepository(jobRepository);
+		jobLauncher.setTaskExecutor(new SyncTaskExecutor());
+		jobLauncher.afterPropertiesSet();
+	}
+
+	@AfterAll
+	void teardown() {
+		if (connection != null) {
+			connection.close();
+		}
+		if (pool != null) {
+			pool.close();
+		}
+		if (client != null) {
+			client.shutdown();
+			client.getResources().shutdown();
+		}
+		RedisServer redis = getRedisServer();
+		if (redis instanceof Startable) {
+			((Startable) redis).stop();
+		}
+	}
+
+	@BeforeEach
+	void flushAll() {
+		commands.flushall();
+		awaitUntil(() -> commands.pubsubNumpat() == 0);
+	}
+
 	public static TestInfo testInfo(TestInfo info, String... suffixes) {
 		return new SimpleTestInfo(info, suffixes);
 	}
@@ -125,13 +183,17 @@ public abstract class AbstractTestBase {
 		Assertions.assertTrue(commands.dbsize() > 0, "Redis database is empty");
 	}
 
-	public static GeneratorItemReader generator(int count, DataType... types) {
+	protected GeneratorItemReader generator(int count, DataType... types) {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(count);
 		if (!ObjectUtils.isEmpty(types)) {
 			gen.setTypes(types);
 		}
 		return gen;
+	}
+
+	protected DataType[] defaultGeneratorTypes() {
+		return new DataType[] { DataType.HASH, DataType.STRING };
 	}
 
 	protected <R extends RedisItemReader<?, ?, ?>> R configure(TestInfo info, R reader, String... suffixes) {
@@ -202,64 +264,6 @@ public abstract class AbstractTestBase {
 	}
 
 	protected abstract RedisServer getRedisServer();
-
-	@BeforeAll
-	void setup() throws Exception {
-		// Source Redis setup
-		RedisServer redis = getRedisServer();
-		if (redis instanceof Startable) {
-			((Startable) redis).start();
-		}
-		client = client(getRedisServer());
-		pool = ConnectionPoolSupport.createGenericObjectPool(ConnectionUtils.supplier(client),
-				new GenericObjectPoolConfig<>());
-		connection = RedisModulesUtils.connection(client);
-		commands = connection.sync();
-
-		transactionManager = new ResourcelessTransactionManager();
-		// Job infra setup
-		JobRepositoryFactoryBean bean = new JobRepositoryFactoryBean();
-		JDBCDataSource dataSource = new JDBCDataSource();
-		dataSource.setURL("jdbc:hsqldb:mem:" + UUID.randomUUID());
-		bean.setDataSource(dataSource);
-		BatchProperties.Jdbc jdbc = new BatchProperties.Jdbc();
-		jdbc.setInitializeSchema(DatabaseInitializationMode.ALWAYS);
-		BatchDataSourceScriptDatabaseInitializer initializer = new BatchDataSourceScriptDatabaseInitializer(dataSource,
-				jdbc);
-		initializer.afterPropertiesSet();
-		initializer.initializeDatabase();
-		bean.setTransactionManager(transactionManager);
-		bean.afterPropertiesSet();
-		jobRepository = bean.getObject();
-		jobLauncher = new TaskExecutorJobLauncher();
-		jobLauncher.setJobRepository(jobRepository);
-		jobLauncher.setTaskExecutor(new SyncTaskExecutor());
-		jobLauncher.afterPropertiesSet();
-	}
-
-	@AfterAll
-	void teardown() {
-		if (connection != null) {
-			connection.close();
-		}
-		if (pool != null) {
-			pool.close();
-		}
-		if (client != null) {
-			client.shutdown();
-			client.getResources().shutdown();
-		}
-		RedisServer redis = getRedisServer();
-		if (redis instanceof Startable) {
-			((Startable) redis).stop();
-		}
-	}
-
-	@BeforeEach
-	void flushAll() {
-		commands.flushall();
-		awaitUntil(() -> commands.pubsubNumpat() == 0);
-	}
 
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer) {
 		return step(info, reader, null, writer);
