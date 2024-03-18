@@ -113,7 +113,7 @@ public class KeyspaceNotificationItemReader<K> extends AbstractPollableItemReade
 		if (index > 0) {
 			String key = channel.substring(index + 1);
 			KeyEvent event = eventMap.getOrDefault(message, KeyEvent.UNKNOWN);
-			keyspaceNotification(key, event.getType().getString());
+			keyspaceNotification(key, event.getType() == null ? null : event.getType().getString());
 		}
 		return false;
 	}

@@ -2,29 +2,34 @@ package com.redis.spring.batch.common;
 
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public enum DataType {
 
-    NONE("none"), HASH("hash"), JSON("ReJSON-RL"), LIST("list"), SET("set"), STREAM("stream"), STRING("string"), TIMESERIES(
-            "TSDB-TYPE"), ZSET("zset");
+	HASH("hash"), JSON("ReJSON-RL"), LIST("list"), SET("set"), STREAM("stream"), STRING("string"),
+	TIMESERIES("TSDB-TYPE"), ZSET("zset");
 
-    private static final Map<String, DataType> TYPE_MAP = Stream.of(DataType.values())
-            .collect(Collectors.toMap(t -> t.getString().toLowerCase(), Function.identity()));
+	private static final Function<DataType, String> DATATYPE_STRING = DataType::getString;
 
-    private final String string;
+	private static final UnaryOperator<String> TO_LOWER_CASE = String::toLowerCase;
 
-    private DataType(String string) {
-        this.string = string;
-    }
+	private static final Map<String, DataType> TYPE_MAP = Stream.of(DataType.values())
+			.collect(Collectors.toMap(DATATYPE_STRING.andThen(TO_LOWER_CASE), Function.identity()));
 
-    public String getString() {
-        return string;
-    }
+	private final String string;
 
-    public static DataType of(String string) {
-        return TYPE_MAP.getOrDefault(string.toLowerCase(), NONE);
-    }
+	private DataType(String string) {
+		this.string = string;
+	}
+
+	public String getString() {
+		return string;
+	}
+
+	public static DataType of(String string) {
+		return TYPE_MAP.get(TO_LOWER_CASE.apply(string));
+	}
 
 }

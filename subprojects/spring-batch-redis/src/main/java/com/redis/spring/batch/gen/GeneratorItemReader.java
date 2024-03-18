@@ -29,6 +29,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	public static final String DEFAULT_KEYSPACE = "gen";
 	public static final String DEFAULT_KEY_SEPARATOR = ":";
 	public static final Range DEFAULT_KEY_RANGE = Range.from(1);
+	protected static final List<DataType> DEFAULT_TYPES = Arrays.asList(DataType.values());
 
 	private static final int LEFT_LIMIT = 48; // numeral '0'
 	private static final int RIGHT_LIMIT = 122; // letter 'z'
@@ -47,15 +48,14 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	private CollectionOptions setOptions = new CollectionOptions();
 	private StringOptions stringOptions = new StringOptions();
 	private ZsetOptions zsetOptions = new ZsetOptions();
-	private List<DataType> types = defaultTypes();
+	private List<DataType> types = DEFAULT_TYPES;
 
 	public GeneratorItemReader() {
 		setName(ClassUtils.getShortName(getClass()));
 	}
 
 	public static List<DataType> defaultTypes() {
-		return Arrays.asList(DataType.HASH, DataType.JSON, DataType.LIST, DataType.SET, DataType.STREAM,
-				DataType.STRING, DataType.TIMESERIES, DataType.ZSET);
+		return DEFAULT_TYPES;
 	}
 
 	public String getKeySeparator() {
@@ -167,7 +167,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	private String key() {
-		int index = keyRange.getMin() + index() % keyRange.getSpread();
+		int index = keyRange.getMin() + (getCurrentItemCount() - 1) % (keyRange.getMax() - keyRange.getMin());
 		return key(index);
 	}
 
@@ -207,7 +207,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		long size = randomLong(timeSeriesOptions.getSampleCount());
 		long startTime = timeSeriesStartTime();
 		for (int index = 0; index < size; index++) {
-			long time = startTime + index() + index;
+			long time = startTime + getCurrentItemCount() + index;
 			samples.add(Sample.of(time, random.nextDouble()));
 		}
 		return samples;
@@ -293,7 +293,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	protected KeyValue<String> doRead() throws JsonProcessingException {
 		KeyValue<String> struct = new KeyValue<>();
 		struct.setKey(key());
-		DataType type = types.get(index() % types.size());
+		DataType type = types.get(getCurrentItemCount() % types.size());
 		struct.setType(type);
 		struct.setValue(value(type));
 		if (expiration != null) {
@@ -304,10 +304,6 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
 	private long ttl() {
 		return System.currentTimeMillis() + randomLong(expiration);
-	}
-
-	private int index() {
-		return getCurrentItemCount() - 1;
 	}
 
 }

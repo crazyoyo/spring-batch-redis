@@ -40,10 +40,6 @@ public class Range {
         return max;
     }
 
-    public int getSpread() {
-        return max - min + 1;
-    }
-
     public boolean contains(int value) {
         return value >= min && value <= max;
     }
