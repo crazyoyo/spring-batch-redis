@@ -767,7 +767,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		enableKeyspaceNotifications(client);
 		DumpItemReader reader = dumpReader(info);
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
-		DumpItemReader liveReader = dumpReader(info, "live-reader");
+		DumpItemReader liveReader = dumpReader(info, "live");
 		DumpItemWriter liveWriter = RedisItemWriter.dump(targetClient);
 		replicateLive(info, reader, writer, liveReader, liveWriter);
 	}
@@ -777,7 +777,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		enableKeyspaceNotifications(client);
 		StructItemReader<String, String> reader = structReader(info);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
-		StructItemReader<String, String> liveReader = structReader(info, "live-reader");
+		StructItemReader<String, String> liveReader = structReader(info, "live");
 		StructItemWriter<String, String> liveWriter = RedisItemWriter.struct(targetClient);
 		replicateLive(info, reader, writer, liveReader, liveWriter);
 	}

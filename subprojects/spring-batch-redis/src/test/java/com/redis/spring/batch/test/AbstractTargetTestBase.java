@@ -95,7 +95,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 		StructItemReader<String, String> sourceReader = RedisItemReader.struct(client);
 		StructItemReader<String, String> targetReader = RedisItemReader.struct(targetClient);
 		KeyComparisonItemReader reader = new KeyComparisonItemReader(sourceReader, targetReader);
-		configure(info, reader, "comparison-reader");
+		configure(info, reader, "comparison");
 		reader.setTtlTolerance(Duration.ofMillis(100));
 		return reader;
 	}

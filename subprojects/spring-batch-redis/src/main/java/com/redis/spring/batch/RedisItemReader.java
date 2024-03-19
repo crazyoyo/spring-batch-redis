@@ -52,6 +52,7 @@ import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
 import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.spring.batch.util.Await;
+import com.redis.spring.batch.util.AwaitTimeoutException;
 import com.redis.spring.batch.util.CodecUtils;
 import com.redis.spring.batch.util.ConnectionUtils;
 
@@ -152,9 +153,9 @@ public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReade
 			JobBuilder jobBuilder = new JobBuilder(getName(), jobRepository);
 			Job job = jobBuilder.start(step.build()).build();
 			jobExecution = jobLauncher.run(job, new JobParameters());
-			boolean success = Await.await()
-					.until(() -> jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful());
-			if (!success) {
+			try {
+				Await.await().until(() -> jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful());
+			} catch (AwaitTimeoutException e) {
 				List<Throwable> exceptions = jobExecution.getAllFailureExceptions();
 				if (!CollectionUtils.isEmpty(exceptions)) {
 					throw new JobExecutionException("Job failed", Exceptions.unwrap(exceptions.get(0)));

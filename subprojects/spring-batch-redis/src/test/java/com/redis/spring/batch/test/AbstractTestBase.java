@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -197,7 +198,9 @@ public abstract class AbstractTestBase {
 	}
 
 	protected <R extends RedisItemReader<?, ?, ?>> R configure(TestInfo info, R reader, String... suffixes) {
-		reader.setName(name(testInfo(info, ObjectUtils.isEmpty(suffixes) ? new String[] { "reader" } : suffixes)));
+		List<String> allSuffixes = new ArrayList<>(Arrays.asList(suffixes));
+		allSuffixes.add("reader");
+		reader.setName(name(testInfo(info, allSuffixes.toArray(new String[0]))));
 		reader.setJobRepository(jobRepository);
 		reader.setTransactionManager(transactionManager);
 		return reader;
@@ -215,11 +218,12 @@ public abstract class AbstractTestBase {
 		return commands.keys(pattern).size();
 	}
 
-	protected boolean awaitPubSub() {
+	protected void awaitPubSub() {
 		try {
-			return Await.await().until(() -> commands.pubsubNumpat() > 0);
+			Await.await().until(() -> commands.pubsubNumpat() > 0);
 		} catch (InterruptedException e) {
-			throw new RuntimeException(e);
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("Await interrupted", e);
 		}
 	}
 
@@ -335,7 +339,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void generate(TestInfo info, AbstractRedisClient client, GeneratorItemReader reader) throws Exception {
-		TestInfo testInfo = testInfo(info, "generate", String.valueOf(client.hashCode()));
+		TestInfo testInfo = testInfo(info, "generate");
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(client, CodecUtils.STRING_CODEC);
 		run(testInfo, reader, writer);
 	}

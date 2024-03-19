@@ -215,7 +215,7 @@ class StackToStackTests extends BatchTests {
 		reader.setMemoryUsageLimit(DataSize.ofBytes(memLimit));
 		DumpItemWriter writer = RedisItemWriter.dump(targetClient);
 		run(info, reader, writer);
-		StructItemReader<String, String> fullReader = configure(info, RedisItemReader.struct(client), "full-reader");
+		StructItemReader<String, String> fullReader = configure(info, RedisItemReader.struct(client), "full");
 		fullReader.setMemoryUsageLimit(DataSize.ofBytes(-1));
 		fullReader.open(new ExecutionContext());
 		List<KeyValue<String>> items = readAll(fullReader);
@@ -229,7 +229,7 @@ class StackToStackTests extends BatchTests {
 	void writeStruct(TestInfo info) throws Exception {
 		int count = 1000;
 		GeneratorItemReader reader = generator(count);
-		generate(info, client, reader);
+		generate(info, reader);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(client);
 		run(info, reader, writer);
 		awaitUntil(() -> keyCount("gen:*") == count);
@@ -488,10 +488,10 @@ class StackToStackTests extends BatchTests {
 	void writeStructOverwrite(TestInfo info) throws Exception {
 		GeneratorItemReader gen1 = generator(100, DataType.HASH);
 		gen1.setHashOptions(hashOptions(Range.of(5)));
-		generate(info, client, gen1);
+		generate(info, gen1);
 		GeneratorItemReader gen2 = generator(100, DataType.HASH);
 		gen2.setHashOptions(hashOptions(Range.of(10)));
-		generate(info, targetClient, gen2);
+		generate(testInfo(info, "target"), targetClient, gen2);
 		replicate(info, structReader(info), RedisItemWriter.struct(targetClient));
 		assertEquals(commands.hgetall("gen:1"), targetCommands.hgetall("gen:1"));
 	}
@@ -500,10 +500,10 @@ class StackToStackTests extends BatchTests {
 	void writeStructMerge(TestInfo info) throws Exception {
 		GeneratorItemReader gen1 = generator(100, DataType.HASH);
 		gen1.setHashOptions(hashOptions(Range.of(5)));
-		generate(info, client, gen1);
+		generate(info, gen1);
 		GeneratorItemReader gen2 = generator(100, DataType.HASH);
 		gen2.setHashOptions(hashOptions(Range.of(10)));
-		generate(info, targetClient, gen2);
+		generate(testInfo(info, "target"), targetClient, gen2);
 		StructItemReader<String, String> reader = structReader(info);
 		StructItemWriter<String, String> writer = RedisItemWriter.struct(targetClient);
 		writer.setMerge(true);

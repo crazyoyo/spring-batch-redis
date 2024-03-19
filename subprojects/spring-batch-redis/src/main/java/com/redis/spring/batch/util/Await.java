@@ -9,15 +9,11 @@ import java.util.function.BooleanSupplier;
 public class Await {
 
 	public static final Duration DEFAULT_INITIAL_DELAY = Duration.ZERO;
-
 	public static final Duration DEFAULT_DELAY = Duration.ofMillis(1);
-
 	public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(3);
 
 	private Duration initialDelay = DEFAULT_INITIAL_DELAY;
-
 	private Duration delay = DEFAULT_DELAY;
-
 	private Duration timeout = DEFAULT_TIMEOUT;
 
 	public Await delay(Duration delay) {
@@ -34,11 +30,11 @@ public class Await {
 	 * Blocks until test is true
 	 *
 	 * @param test boolean supplier to wait for
-	 * @return {@code true} if the test became true within given time, and
-	 *         {@code false} if the timeout elapsed before termination
-	 * @throws InterruptedException if interrupted while waiting
+	 * @throws InterruptedException  if interrupted while waiting
+	 * @throws AwaitTimeoutException if condition was not fulfilled within timeout
+	 *                               duration
 	 */
-	public boolean until(BooleanSupplier test) throws InterruptedException {
+	public void until(BooleanSupplier test) throws InterruptedException {
 		ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 		try {
 			executor.scheduleWithFixedDelay(() -> {
@@ -46,14 +42,17 @@ public class Await {
 					executor.shutdown();
 				}
 			}, initialDelay.toMillis(), delay.toMillis(), TimeUnit.MILLISECONDS);
-			return executor.awaitTermination(timeout.toMillis(), TimeUnit.MILLISECONDS);
+			boolean terminated = executor.awaitTermination(timeout.toMillis(), TimeUnit.MILLISECONDS);
+			if (!terminated) {
+				throw new AwaitTimeoutException(String.format("Condition not fulfilled within %s", timeout));
+			}
 		} finally {
 			executor.shutdown();
 		}
 	}
 
-	public boolean untilFalse(BooleanSupplier test) throws InterruptedException {
-		return until(() -> !test.getAsBoolean());
+	public void untilFalse(BooleanSupplier test) throws InterruptedException {
+		until(() -> !test.getAsBoolean());
 	}
 
 	public static Await await() {
