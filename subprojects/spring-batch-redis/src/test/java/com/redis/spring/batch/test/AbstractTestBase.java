@@ -80,6 +80,7 @@ import com.redis.testcontainers.RedisServer;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
 import io.lettuce.core.RedisCommandTimeoutException;
+import io.lettuce.core.RedisURI;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.codec.ByteArrayCodec;
@@ -108,6 +109,10 @@ public abstract class AbstractTestBase {
 	protected JobRepository jobRepository;
 	protected PlatformTransactionManager transactionManager;
 	private TaskExecutorJobLauncher jobLauncher;
+
+	public static RedisURI redisURI(RedisServer server) {
+		return RedisURI.create(server.getRedisURI());
+	}
 
 	@BeforeAll
 	void setup() throws Exception {
