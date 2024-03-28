@@ -1,0 +1,5 @@
+dependencies {
+    api 'org.springframework:spring-core'
+    implementation group: 'com.redis', name: 'lettucemod', version: lettucemodVersion
+    implementation group: 'com.hrakaroo', name: 'glob', version: globVersion
+}
