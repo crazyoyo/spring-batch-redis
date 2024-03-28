@@ -11,6 +11,7 @@ import java.util.stream.StreamSupport;
 
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 
+import com.redis.spring.batch.common.PollableItemReader;
 import com.redis.spring.batch.util.ConnectionUtils;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -251,7 +252,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 		/**
 		 * Reads messages from a stream
 		 * 
-		 * @param commands Synchronous executed commands for Streams
+		 * @param redisCommands Synchronous executed commands for Streams
 		 * @param args     Stream read command args
 		 * @return list of messages retrieved from the stream or empty list if no
 		 *         messages available

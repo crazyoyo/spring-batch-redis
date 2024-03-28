@@ -21,9 +21,6 @@ projects {
     directories = ['subprojects']
 
     plugins {
-        all {
-            id 'eclipse'
-        }
         path(':') {
             id 'org.kordamp.gradle.java-project'
         }
