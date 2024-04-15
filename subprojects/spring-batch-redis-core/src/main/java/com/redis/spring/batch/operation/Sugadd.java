@@ -3,24 +3,19 @@ package com.redis.spring.batch.operation;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import org.springframework.batch.item.Chunk;
-
-import com.redis.lettucemod.api.async.RediSearchAsyncCommands;
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.search.Suggestion;
 import com.redis.spring.batch.util.Predicates;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class Sugadd<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
-
-	private final Function<T, Suggestion<V>> suggestionFunction;
+public class Sugadd<K, V, T> extends AbstractKeyValueOperation<K, V, Suggestion<V>, T> {
 
 	private Predicate<T> incrPredicate = Predicates.isFalse();
 
 	public Sugadd(Function<T, K> keyFunction, Function<T, Suggestion<V>> suggestionFunction) {
-		super(keyFunction);
-		this.suggestionFunction = suggestionFunction;
+		super(keyFunction, suggestionFunction);
 	}
 
 	public void setIncr(boolean incr) {
@@ -31,18 +26,13 @@ public class Sugadd<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 		this.incrPredicate = predicate;
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings("rawtypes")
 	@Override
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, Chunk<RedisFuture<Object>> outputs) {
-		outputs.add((RedisFuture) execute((RediSearchAsyncCommands<K, V>) commands, item, key));
-	}
-
-	private RedisFuture<Long> execute(RediSearchAsyncCommands<K, V> commands, T item, K key) {
-		Suggestion<V> suggestion = suggestionFunction.apply(item);
+	protected RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, Suggestion<V> value) {
 		if (incrPredicate.test(item)) {
-			return commands.ftSugaddIncr(key, suggestion);
+			return ((RedisModulesAsyncCommands<K, V>) commands).ftSugaddIncr(key, value);
 		}
-		return commands.ftSugadd(key, suggestion);
+		return ((RedisModulesAsyncCommands<K, V>) commands).ftSugadd(key, value);
 	}
 
 }

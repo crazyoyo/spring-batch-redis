@@ -3,19 +3,22 @@ package com.redis.spring.batch.reader;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamException;
+import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.lang.Nullable;
+import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.common.PollableItemReader;
 
-public abstract class AbstractPollableItemReader<T> implements PollableItemReader<T> {
+public abstract class AbstractPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T>
+		implements PollableItemReader<T> {
 
 	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
 
-	private String name;
 	protected Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
-	private int currentItemCount = 0;
+
+	protected AbstractPollableItemReader() {
+		setName(ClassUtils.getShortName(getClass()));
+	}
 
 	/**
 	 * Read next item from input.
@@ -28,89 +31,23 @@ public abstract class AbstractPollableItemReader<T> implements PollableItemReade
 	protected T doRead() throws Exception {
 		T item;
 		do {
-			item = poll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
-		} while (item == null && !isEnd());
+			item = doPoll(pollTimeout.toMillis(), TimeUnit.MILLISECONDS);
+		} while (item == null && isRunning());
 		return item;
 	}
 
-	protected boolean isEnd() {
-		return false;
-	}
-
-	/**
-	 * Open resources necessary to start reading input.
-	 * 
-	 * @throws Exception Allows subclasses to throw checked exceptions for
-	 *                   interpretation by the framework
-	 */
-	protected void doOpen() throws Exception {
-		// do nothing
-	}
-
-	/**
-	 * Close the resources opened in {@link #doOpen()}.
-	 * 
-	 * @throws Exception Allows subclasses to throw checked exceptions for
-	 *                   interpretation by the framework
-	 */
-	protected void doClose() throws Exception {
-		// do nothing
-	}
-
-	@Nullable
-	@Override
-	public T read() throws Exception {
-		currentItemCount++;
-		return doRead();
-	}
+	public abstract boolean isRunning();
 
 	@Override
 	public T poll(long timeout, TimeUnit unit) throws InterruptedException {
 		T item = doPoll(timeout, unit);
 		if (item != null) {
-			currentItemCount++;
+			setCurrentItemCount(getCurrentItemCount() + 1);
 		}
 		return item;
 	}
 
 	protected abstract T doPoll(long timeout, TimeUnit unit) throws InterruptedException;
-
-	/**
-	 * Returns the current item count.
-	 * 
-	 * @return the current item count
-	 * @since 5.1
-	 */
-	public int getCurrentItemCount() {
-		return this.currentItemCount;
-	}
-
-	@Override
-	public void close() throws ItemStreamException {
-		try {
-			doClose();
-		} catch (Exception e) {
-			throw new ItemStreamException("Error while closing item reader", e);
-		}
-	}
-
-	@Override
-	public void open(ExecutionContext executionContext) throws ItemStreamException {
-		try {
-			doOpen();
-		} catch (Exception e) {
-			throw new ItemStreamException("Failed to initialize the reader", e);
-		}
-		currentItemCount = 0;
-	}
-
-	public String getName() {
-		return name;
-	}
-
-	public void setName(String name) {
-		this.name = name;
-	}
 
 	public void setPollTimeout(Duration timeout) {
 		this.pollTimeout = timeout;

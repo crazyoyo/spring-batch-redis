@@ -1,6 +1,6 @@
 package com.redis.spring.batch.operation;
 
-import org.springframework.batch.item.Chunk;
+import java.util.List;
 
 import com.redis.spring.batch.KeyValue;
 
@@ -9,7 +9,7 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Restore<K, V> extends AbstractKeyWriteOperation<K, V, KeyValue<K>> {
+public class Restore<K, V> extends AbstractKeyOperation<K, V, KeyValue<K>> {
 
 	public Restore() {
 		super(KeyValue::getKey);
@@ -18,7 +18,7 @@ public class Restore<K, V> extends AbstractKeyWriteOperation<K, V, KeyValue<K>> 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	protected void execute(BaseRedisAsyncCommands<K, V> commands, KeyValue<K> item, K key,
-			Chunk<RedisFuture<Object>> outputs) {
+			List<RedisFuture<Object>> outputs) {
 		RedisKeyAsyncCommands<K, V> keyCommands = (RedisKeyAsyncCommands<K, V>) commands;
 		if (item.getValue() == null || item.getTtl() == KeyValue.TTL_KEY_DOES_NOT_EXIST) {
 			outputs.add((RedisFuture) keyCommands.del(item.getKey()));

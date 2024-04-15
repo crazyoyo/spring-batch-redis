@@ -4,26 +4,25 @@ import java.time.Instant;
 
 public class TimeSeriesOptions {
 
-    public static final Range DEFAULT_SAMPLE_COUNT = Range.of(10);
+	public static final Range DEFAULT_SAMPLE_COUNT = Range.of(10);
 
-    private Range sampleCount = DEFAULT_SAMPLE_COUNT;
+	private Range sampleCount = DEFAULT_SAMPLE_COUNT;
+	private Instant startTime = Instant.now();
 
-    private Instant startTime = Instant.now();
+	public Range getSampleCount() {
+		return sampleCount;
+	}
 
-    public Range getSampleCount() {
-        return sampleCount;
-    }
+	public void setSampleCount(Range sampleCount) {
+		this.sampleCount = sampleCount;
+	}
 
-    public void setSampleCount(Range sampleCount) {
-        this.sampleCount = sampleCount;
-    }
+	public Instant getStartTime() {
+		return startTime;
+	}
 
-    public Instant getStartTime() {
-        return startTime;
-    }
-
-    public void setStartTime(Instant startTime) {
-        this.startTime = startTime;
-    }
+	public void setStartTime(Instant startTime) {
+		this.startTime = startTime;
+	}
 
 }

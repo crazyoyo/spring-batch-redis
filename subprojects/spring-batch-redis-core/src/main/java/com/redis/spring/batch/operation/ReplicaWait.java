@@ -2,8 +2,7 @@ package com.redis.spring.batch.operation;
 
 import java.text.MessageFormat;
 import java.time.Duration;
-
-import org.springframework.batch.item.Chunk;
+import java.util.List;
 
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisFuture;
@@ -26,8 +25,8 @@ public class ReplicaWait<K, V, T> implements Operation<K, V, T, Object> {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, Chunk<? extends T> items,
-			Chunk<RedisFuture<Object>> outputs) {
+	public void execute(BaseRedisAsyncCommands<K, V> commands, Iterable<? extends T> items,
+			List<RedisFuture<Object>> outputs) {
 		delegate.execute(commands, items, outputs);
 		RedisFuture<Long> waitFuture = commands.waitForReplication(replicas, timeout);
 		outputs.add((RedisFuture) new PipelinedRedisFuture<>(waitFuture.thenAccept(this::checkReplicas)));

@@ -6,7 +6,7 @@ import java.util.function.Function;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.RedisListAsyncCommands;
 
-public class RpushAll<K, V, T> extends AbstractPushAll<K, V, T> {
+public class RpushAll<K, V, T> extends PushAll<K, V, T> {
 
 	public RpushAll(Function<T, K> keyFunction, Function<T, Collection<V>> valuesFunction) {
 		super(keyFunction, valuesFunction);

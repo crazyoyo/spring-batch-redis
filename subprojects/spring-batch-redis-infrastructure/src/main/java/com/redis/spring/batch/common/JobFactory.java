@@ -34,15 +34,15 @@ import org.springframework.util.ClassUtils;
 public class JobFactory implements JobLauncher, InitializingBean {
 
 	private JobRepository jobRepository;
-	private PlatformTransactionManager transactionManager;
+	private PlatformTransactionManager platformTransactionManager;
 	private JobLauncher jobLauncher;
 	private JobLauncher asyncJobLauncher;
 	private String name = ClassUtils.getShortName(getClass());
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
-		if (transactionManager == null) {
-			transactionManager = resourcelessTransactionManager();
+		if (platformTransactionManager == null) {
+			platformTransactionManager = resourcelessTransactionManager();
 		}
 		if (jobRepository == null) {
 			jobRepository = jobRepository();
@@ -64,7 +64,7 @@ public class JobFactory implements JobLauncher, InitializingBean {
 		JobRepositoryFactoryBean bean = new JobRepositoryFactoryBean();
 		bean.setDataSource(dataSource(name));
 		bean.setDatabaseType("HSQL");
-		bean.setTransactionManager(transactionManager);
+		bean.setTransactionManager(platformTransactionManager);
 		bean.afterPropertiesSet();
 		return bean.getObject();
 	}
@@ -88,7 +88,7 @@ public class JobFactory implements JobLauncher, InitializingBean {
 	}
 
 	public <I, O> SimpleStepBuilder<I, O> step(String name, int chunkSize) {
-		return stepBuilder(name).chunk(chunkSize, transactionManager);
+		return stepBuilder(name).chunk(chunkSize, platformTransactionManager);
 	}
 
 	public StepBuilder stepBuilder(String name) {
@@ -150,8 +150,8 @@ public class JobFactory implements JobLauncher, InitializingBean {
 		this.jobRepository = jobRepository;
 	}
 
-	public void setTransactionManager(PlatformTransactionManager platformTransactionManager) {
-		this.transactionManager = platformTransactionManager;
+	public void setPlatformTransactionManager(PlatformTransactionManager platformTransactionManager) {
+		this.platformTransactionManager = platformTransactionManager;
 	}
 
 	public void setJobLauncher(JobLauncher jobLauncher) {
@@ -162,8 +162,20 @@ public class JobFactory implements JobLauncher, InitializingBean {
 		this.name = name;
 	}
 
-	public JobBuilder job(String name) {
+	public JobBuilder jobBuilder(String name) {
 		return new JobBuilder(name, jobRepository);
+	}
+
+	public JobLauncher getJobLauncher() {
+		return jobLauncher;
+	}
+
+	public JobLauncher getAsyncJobLauncher() {
+		return asyncJobLauncher;
+	}
+
+	public PlatformTransactionManager getPlatformTransactionManager() {
+		return platformTransactionManager;
 	}
 
 }

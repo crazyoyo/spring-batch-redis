@@ -2,22 +2,18 @@ package com.redis.spring.batch.operation;
 
 import java.util.function.Function;
 
-import org.springframework.batch.item.Chunk;
-
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.ZAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 
-public class Zadd<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
+public class Zadd<K, V, T> extends AbstractKeyValueOperation<K, V, ScoredValue<V>, T> {
 
-	private final Function<T, ScoredValue<V>> valueFunction;
 	private Function<T, ZAddArgs> argsFunction = t -> null;
 
 	public Zadd(Function<T, K> keyFunction, Function<T, ScoredValue<V>> valueFunction) {
-		super(keyFunction);
-		this.valueFunction = valueFunction;
+		super(keyFunction, valueFunction);
 	}
 
 	public void setArgs(ZAddArgs args) {
@@ -30,10 +26,9 @@ public class Zadd<K, V, T> extends AbstractKeyWriteOperation<K, V, T> {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, Chunk<RedisFuture<Object>> outputs) {
+	protected RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, ScoredValue<V> value) {
 		ZAddArgs args = argsFunction.apply(item);
-		ScoredValue<V> value = valueFunction.apply(item);
-		outputs.add((RedisFuture) ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key, args, value));
+		return ((RedisSortedSetAsyncCommands<K, V>) commands).zadd(key, args, value);
 	}
 
 }

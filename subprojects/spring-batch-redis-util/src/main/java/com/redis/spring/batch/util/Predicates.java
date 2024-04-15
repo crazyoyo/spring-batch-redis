@@ -17,6 +17,7 @@ import com.hrakaroo.glob.GlobPattern;
 
 import io.lettuce.core.cluster.SlotHash;
 import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 
 public interface Predicates {
 
@@ -101,7 +102,7 @@ public interface Predicates {
 	}
 
 	static Predicate<String> slotRange(int start, int end) {
-		return slotRange(CodecUtils.STRING_CODEC, start, end);
+		return slotRange(StringCodec.UTF8, start, end);
 	}
 
 	static <K> Predicate<K> slotRange(RedisCodec<K, ?> codec, int start, int end) {

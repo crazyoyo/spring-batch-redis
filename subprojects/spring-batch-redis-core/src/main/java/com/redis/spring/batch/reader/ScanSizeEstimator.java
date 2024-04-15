@@ -2,50 +2,52 @@ package com.redis.spring.batch.reader;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import org.springframework.util.StringUtils;
 
-import com.redis.spring.batch.util.ConnectionUtils;
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.lettucemod.util.RedisModulesUtils;
+import com.redis.spring.batch.operation.OperationExecutor;
 import com.redis.spring.batch.util.Predicates;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.ScriptOutputType;
-import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.api.async.RedisScriptingAsyncCommands;
-import io.lettuce.core.api.sync.BaseRedisCommands;
-import io.lettuce.core.api.sync.RedisServerCommands;
 
-public class ScanSizeEstimator implements Callable<Long> {
+public class ScanSizeEstimator implements LongSupplier {
 
 	public static final long UNKNOWN_SIZE = -1;
-
 	public static final int DEFAULT_SAMPLES = 100;
-
-	private static final String LUA_FILE = "randomkeytype.lua";
 
 	private final AbstractRedisClient client;
 
-	private String scanMatch;
-
-	private String scanType;
-
 	private int samples = DEFAULT_SAMPLES;
+	private String keyPattern;
+	private String keyType;
 
 	public ScanSizeEstimator(AbstractRedisClient client) {
 		this.client = client;
 	}
 
-	public String getScanMatch() {
-		return scanMatch;
+	public String getKeyPattern() {
+		return keyPattern;
 	}
 
-	public void setScanMatch(String match) {
-		this.scanMatch = match;
+	public void setKeyPattern(String keyPattern) {
+		this.keyPattern = keyPattern;
+	}
+
+	public String getKeyType() {
+		return keyType;
+	}
+
+	public void setKeyType(String keyType) {
+		this.keyType = keyType;
 	}
 
 	public int getSamples() {
@@ -56,14 +58,6 @@ public class ScanSizeEstimator implements Callable<Long> {
 		this.samples = samples;
 	}
 
-	public void setScanType(String type) {
-		this.scanType = type;
-	}
-
-	public String getScanType() {
-		return scanType;
-	}
-
 	/**
 	 * Estimates the number of keys that match the given pattern and type.
 	 * 
@@ -72,59 +66,62 @@ public class ScanSizeEstimator implements Callable<Long> {
 	 * @throws IOException if script execution exception happens during estimation
 	 */
 	@Override
-	@SuppressWarnings("unchecked")
-	public Long call() throws Exception {
-		StatefulConnection<String, String> connection = ConnectionUtils.supplier(client).get();
-		BaseRedisCommands<String, String> sync = ConnectionUtils.sync(connection);
-		Long dbsize = ((RedisServerCommands<String, String>) sync).dbsize();
-		if (dbsize == null) {
-			return UNKNOWN_SIZE;
-		}
-		if (!StringUtils.hasLength(scanMatch) && !StringUtils.hasLength(scanType)) {
-			return dbsize;
-		}
-		String digest = ConnectionUtils.loadScript(client, LUA_FILE);
-		RedisScriptingAsyncCommands<String, String> commands = ConnectionUtils.async(connection);
-		try {
-			connection.setAutoFlushCommands(false);
-			List<RedisFuture<List<Object>>> futures = new ArrayList<>();
-			for (int index = 0; index < samples; index++) {
-				futures.add(commands.evalsha(digest, ScriptOutputType.MULTI));
+	public long getAsLong() {
+		try (StatefulRedisModulesConnection<String, String> connection = RedisModulesUtils.connection(client)) {
+			Long dbsize = connection.sync().dbsize();
+			if (dbsize == null) {
+				return UNKNOWN_SIZE;
 			}
-			connection.flushCommands();
-			Predicate<String> matchPredicate = Predicates.glob(scanMatch);
-			Predicate<String> typePredicate = typePredicate();
-			int total = 0;
-			int matchCount = 0;
-			for (RedisFuture<List<Object>> future : futures) {
-				List<Object> result = future.get(connection.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
-				if (result.size() != 2) {
-					continue;
-				}
-				String key = (String) result.get(0);
-				String keyType = (String) result.get(1);
-				total++;
-				if (matchPredicate.test(key) && typePredicate.test(keyType)) {
-					matchCount++;
-				}
+			if (!StringUtils.hasLength(keyPattern) && !StringUtils.hasLength(keyType)) {
+				return dbsize;
 			}
-			double matchRate = total == 0 ? 0 : (double) matchCount / total;
-			return Math.round(dbsize * matchRate);
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-		} catch (Exception e) {
-			// Ignore and return unknown size
-		} finally {
-			connection.setAutoFlushCommands(true);
+			RedisModulesAsyncCommands<String, String> commands = connection.async();
+			try {
+				connection.setAutoFlushCommands(false);
+				List<RedisFuture<String>> keyFutures = new ArrayList<>();
+				for (int index = 0; index < samples; index++) {
+					keyFutures.add(commands.randomkey());
+				}
+				connection.flushCommands();
+				List<String> keys = OperationExecutor.getAll(connection.getTimeout(), keyFutures);
+				List<RedisFuture<String>> typeFutures = keys.stream().map(commands::type).collect(Collectors.toList());
+				connection.flushCommands();
+				List<String> types = OperationExecutor.getAll(connection.getTimeout(), typeFutures);
+				Predicate<String> matchPredicate = Predicates.glob(keyPattern);
+				Predicate<String> typePredicate = typePredicate();
+				int total = 0;
+				int matchCount = 0;
+				Iterator<String> keyIterator = keys.iterator();
+				Iterator<String> typeIterator = types.iterator();
+				while (keyIterator.hasNext()) {
+					String key = keyIterator.next();
+					if (!typeIterator.hasNext()) {
+						throw new IllegalStateException("Could not find type for key " + key);
+					}
+					String type = typeIterator.next();
+					total++;
+					if (matchPredicate.test(key) && typePredicate.test(type)) {
+						matchCount++;
+					}
+				}
+				double matchRate = total == 0 ? 0 : (double) matchCount / total;
+				return Math.round(dbsize * matchRate);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			} catch (Exception e) {
+				// Ignore and return unknown size
+			} finally {
+				connection.setAutoFlushCommands(true);
+			}
 		}
 		return UNKNOWN_SIZE;
 	}
 
 	private Predicate<String> typePredicate() {
-		if (!StringUtils.hasLength(scanType)) {
-			return Predicates.isTrue();
+		if (StringUtils.hasLength(keyType)) {
+			return keyType::equalsIgnoreCase;
 		}
-		return scanType::equalsIgnoreCase;
+		return Predicates.isTrue();
 	}
 
 }

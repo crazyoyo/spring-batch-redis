@@ -19,7 +19,6 @@ import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparisonItemReader;
-import com.redis.spring.batch.reader.StructItemReader;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -91,9 +90,16 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	}
 
 	protected KeyComparisonItemReader comparisonReader(TestInfo info) {
-		StructItemReader<String, String> sourceReader = RedisItemReader.struct(redisClient);
-		StructItemReader<String, String> targetReader = RedisItemReader.struct(targetRedisClient);
-		KeyComparisonItemReader reader = new KeyComparisonItemReader(sourceReader, targetReader);
+		RedisItemReader<String, String> source = RedisItemReader.struct();
+		source.setClient(redisClient);
+		RedisItemReader<String, String> target = RedisItemReader.struct();
+		target.setClient(targetRedisClient);
+		return comparisonReader(info, source, target);
+	}
+
+	protected KeyComparisonItemReader comparisonReader(TestInfo info, RedisItemReader<String, String> source,
+			RedisItemReader<String, String> target) {
+		KeyComparisonItemReader reader = new KeyComparisonItemReader(source, target);
 		configure(info, reader, "comparison");
 		reader.setTtlTolerance(Duration.ofMillis(100));
 		return reader;

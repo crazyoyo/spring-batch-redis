@@ -1,408 +1,143 @@
 package com.redis.spring.batch;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobExecutionException;
-import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
-import org.springframework.batch.core.step.builder.SimpleStepBuilder;
-import org.springframework.batch.item.Chunk;
-import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.support.IteratorItemReader;
-import org.springframework.batch.item.support.SynchronizedItemReader;
-import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
-import org.springframework.util.ClassUtils;
-import org.springframework.util.CollectionUtils;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.batch.item.ItemStreamException;
+import org.springframework.util.Assert;
+import org.springframework.util.unit.DataSize;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.spring.batch.common.FlushingChunkProvider;
-import com.redis.spring.batch.common.FlushingStepBuilder;
-import com.redis.spring.batch.common.JobFactory;
-import com.redis.spring.batch.reader.AbstractPollableItemReader;
-import com.redis.spring.batch.reader.DumpItemReader;
-import com.redis.spring.batch.reader.KeyTypeItemReader;
-import com.redis.spring.batch.reader.KeyspaceNotificationItemReader;
-import com.redis.spring.batch.reader.StructItemReader;
-import com.redis.spring.batch.util.Await;
-import com.redis.spring.batch.util.AwaitTimeoutException;
-import com.redis.spring.batch.util.CodecUtils;
-import com.redis.spring.batch.util.ConnectionUtils;
+import com.redis.lettucemod.util.RedisModulesUtils;
+import com.redis.spring.batch.operation.Evalsha;
+import com.redis.spring.batch.operation.MappingOperation;
+import com.redis.spring.batch.operation.Operation;
+import com.redis.spring.batch.operation.OperationExecutor;
+import com.redis.spring.batch.reader.AbstractRedisItemReader;
+import com.redis.spring.batch.reader.EvalFunction;
+import com.redis.spring.batch.reader.EvalStructFunction;
+import com.redis.spring.batch.util.BatchUtils;
 
-import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.KeyScanArgs;
-import io.lettuce.core.ReadFrom;
-import io.lettuce.core.RedisCommandExecutionException;
-import io.lettuce.core.RedisCommandTimeoutException;
-import io.lettuce.core.ScanIterator;
+import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.internal.Exceptions;
-import io.micrometer.core.instrument.Metrics;
+import io.lettuce.core.codec.StringCodec;
+import io.lettuce.core.support.ConnectionPoolSupport;
 
-public abstract class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
+public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V, KeyValue<K>> {
 
-	public enum Mode {
-		SCAN, LIVE
+	public enum ValueType {
+		DUMP, STRUCT, TYPE
 	}
 
-	public static final String QUEUE_METER = "redis.batch.reader.queue.size";
-	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = KeyspaceNotificationItemReader.DEFAULT_QUEUE_CAPACITY;
-	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
-	public static final int DEFAULT_THREADS = 1;
-	public static final int DEFAULT_CHUNK_SIZE = 50;
-	public static final String MATCH_ALL = "*";
-	public static final String PUBSUB_PATTERN_FORMAT = "__keyspace@%s__:%s";
-	public static final Mode DEFAULT_MODE = Mode.SCAN;
-	public static final String DEFAULT_KEY_PATTERN = MATCH_ALL;
-	public static final int DEFAULT_SKIP_LIMIT = 0;
-	public static final int DEFAULT_RETRY_LIMIT = MaxAttemptsRetryPolicy.DEFAULT_MAX_ATTEMPTS;
+	public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
+	public static final ValueType DEFAULT_TYPE = ValueType.DUMP;
+	public static final int MEM_LIMIT_NONE = 0;
+	public static final int MEM_LIMIT_FETCH = -1;
+	public static final DataSize DEFAULT_MEM_USAGE_LIMIT = DataSize.ofBytes(0);// No mem limit by default
+	public static final int DEFAULT_MEM_USAGE_SAMPLES = 5;
 
-	private static final Duration DEFAULT_FLUSHING_INTERVAL = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
-	private static final Duration DEFAULT_IDLE_TIMEOUT = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
+	private static final String SCRIPT_FILENAME = "keyvalue.lua";
 
-	private final Log log = LogFactory.getLog(RedisItemReader.class);
-	private final AbstractRedisClient client;
-	private final RedisCodec<K, V> codec;
+	private final ValueType type;
 
-	private Mode mode = DEFAULT_MODE;
-	private int skipLimit = DEFAULT_SKIP_LIMIT;
-	private int retryLimit = DEFAULT_RETRY_LIMIT;
-	private Duration flushingInterval = DEFAULT_FLUSHING_INTERVAL;
-	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
-	private int database;
-	private int keyspaceNotificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
-	private long scanCount;
-	protected ItemProcessor<K, K> keyProcessor;
-	private ReadFrom readFrom;
-	private int threads = DEFAULT_THREADS;
-	private int chunkSize = DEFAULT_CHUNK_SIZE;
-	private String keyPattern = DEFAULT_KEY_PATTERN;
-	private String keyType;
-	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+	private int poolSize = DEFAULT_POOL_SIZE;
+	private DataSize memUsageLimit = DEFAULT_MEM_USAGE_LIMIT;
+	private int memUsageSamples = DEFAULT_MEM_USAGE_SAMPLES;
+	private OperationExecutor<K, V, K, KeyValue<K>> operationExecutor;
 
-	private JobFactory jobFactory;
-	private JobExecution jobExecution;
-	private ItemReader<K> keyReader;
-	private BlockingQueue<T> queue;
-
-	protected RedisItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		setName(ClassUtils.getShortName(getClass()));
-		this.client = client;
-		this.codec = codec;
+	public RedisItemReader(RedisCodec<K, V> codec, ValueType type) {
+		super(codec);
+		this.type = type;
 	}
 
-	private String pubSubPattern() {
-		return String.format(PUBSUB_PATTERN_FORMAT, database, keyPattern);
-	}
-
-	@Override
-	protected synchronized void doOpen() throws Exception {
-		if (jobExecution == null) {
-			if (jobFactory == null) {
-				jobFactory = new JobFactory();
-			}
-			jobFactory.afterPropertiesSet();
-			keyReader = keyReader();
-			SimpleStepBuilder<K, K> step = step(jobFactory.step(getName(), chunkSize));
-			if (threads > 1) {
-				step.taskExecutor(JobFactory.threadPoolTaskExecutor(threads));
-			}
-			step.reader(keyReader);
-			step.processor(keyProcessor);
-			step.writer(writer());
-			FaultTolerantStepBuilder<K, K> ftStep = step.faultTolerant();
-			ftStep.retryLimit(retryLimit);
-			ftStep.skipLimit(skipLimit);
-			ftStep.skip(RedisCommandExecutionException.class);
-			ftStep.noRetry(RedisCommandExecutionException.class);
-			ftStep.noSkip(RedisCommandTimeoutException.class);
-			ftStep.retry(RedisCommandTimeoutException.class);
-			Job job = jobFactory.job(getName()).start(ftStep.build()).build();
-			jobExecution = jobFactory.runAsync(job);
-			try {
-				Await.await().until(() -> jobExecution.isRunning() || jobExecution.getStatus().isUnsuccessful());
-			} catch (AwaitTimeoutException e) {
-				List<Throwable> exceptions = jobExecution.getAllFailureExceptions();
-				if (!CollectionUtils.isEmpty(exceptions)) {
-					throw new JobExecutionException("Job failed", Exceptions.unwrap(exceptions.get(0)));
-				}
-			}
+	protected Operation<K, V, K, KeyValue<K>> operation() {
+		String lua;
+		try {
+			lua = BatchUtils.readFile(SCRIPT_FILENAME);
+		} catch (IOException e) {
+			throw new ItemStreamException("Could not read LUA script file " + SCRIPT_FILENAME, e);
 		}
-	}
-
-	private SimpleStepBuilder<K, K> step(SimpleStepBuilder<K, K> step) {
-		if (isLive()) {
-			FlushingStepBuilder<K, K> flushingStep = new FlushingStepBuilder<>(step);
-			flushingStep.flushingInterval(flushingInterval);
-			flushingStep.idleTimeout(idleTimeout);
-			return flushingStep;
-		}
-		return step;
-	}
-
-	public JobExecution getJobExecution() {
-		return jobExecution;
-	}
-
-	private KeyScanArgs scanArgs() {
-		KeyScanArgs args = new KeyScanArgs();
-		if (scanCount > 0) {
-			args.limit(scanCount);
-		}
-		if (keyPattern != null) {
-			args.match(keyPattern);
-		}
-		if (keyType != null) {
-			args.type(keyType);
-		}
-		return args;
-	}
-
-	public ItemReader<K> keyReader() {
-		if (isLive()) {
-			String pattern = pubSubPattern();
-			KeyspaceNotificationItemReader<K> reader = new KeyspaceNotificationItemReader<>(client, codec, pattern);
-			reader.setName(getName() + "-keyspace-notification-reader");
-			reader.setKeyType(keyType);
-			reader.setPollTimeout(pollTimeout);
-			reader.setQueueCapacity(keyspaceNotificationQueueCapacity);
-			return reader;
-		}
-		StatefulRedisModulesConnection<K, V> connection = ConnectionUtils.connection(client, codec, readFrom);
-		ScanIterator<K> scanIterator = ScanIterator.scan(ConnectionUtils.sync(connection), scanArgs());
-		IteratorItemReader<K> reader = new IteratorItemReader<>(scanIterator);
-		if (threads > 1) {
-			return new SynchronizedItemReader<>(reader);
-		}
-		return reader;
-	}
-
-	private ItemWriter<K> writer() {
-		queue = new LinkedBlockingQueue<>(queueCapacity);
-		Metrics.globalRegistry.gaugeCollectionSize(QUEUE_METER, Collections.emptyList(), queue);
-		return new Writer();
-	}
-
-	private class Writer implements ItemWriter<K> {
-
-		@Override
-		public void write(Chunk<? extends K> chunk) throws InterruptedException {
-			Chunk<T> values = values(chunk);
-			if (values != null) {
-				for (T value : values) {
-					queue.put(value);
-				}
-			}
-		}
-
-	}
-
-	@Override
-	protected synchronized void doClose() throws Exception {
-		if (jobExecution != null) {
-			Await.await().untilFalse(jobExecution::isRunning);
-			if (!queue.isEmpty()) {
-				log.warn(String.format("%s queue still contains %,d elements", getName(), queue.size()));
-			}
-			jobExecution = null;
+		try (StatefulRedisModulesConnection<String, String> connection = RedisModulesUtils.connection(client)) {
+			String digest = connection.sync().scriptLoad(lua);
+			Evalsha<K, V, K> operation = new Evalsha<>(digest, codec, Function.identity());
+			operation.setArgs(type.name().toLowerCase(), memUsageLimit.toBytes(), memUsageSamples);
+			return new MappingOperation<>(operation, evalFunction());
 		}
 	}
 
 	@Override
-	protected boolean isEnd() {
-		return jobExecution == null || !jobExecution.isRunning();
-	}
-
-	protected abstract Chunk<T> values(Chunk<? extends K> chunk);
-
-	/**
-	 * 
-	 * @param count number of items to read at once
-	 * @return up to <code>count</code> items from the queue
-	 */
-	public List<T> read(int count) {
-		List<T> items = new ArrayList<>(count);
-		queue.drainTo(items, count);
-		return items;
+	protected synchronized void doOpen() {
+		if (operationExecutor == null) {
+			operationExecutor = operationExecutor();
+		}
+		super.doOpen();
 	}
 
 	@Override
-	protected T doPoll(long timeout, TimeUnit unit) throws InterruptedException {
-		return queue.poll(timeout, unit);
+	protected synchronized void doClose() throws InterruptedException {
+		super.doClose();
+		if (operationExecutor != null) {
+			operationExecutor.close();
+			operationExecutor = null;
+		}
 	}
 
-	public BlockingQueue<T> getQueue() {
-		return queue;
+	@Override
+	protected List<KeyValue<K>> execute(Iterable<? extends K> keys) {
+		return operationExecutor.apply(keys);
 	}
 
-	public boolean isLive() {
-		return mode == Mode.LIVE;
+	public OperationExecutor<K, V, K, KeyValue<K>> operationExecutor() {
+		Assert.notNull(client, "Redis client not set");
+		return new OperationExecutor<>(pool(), operation());
 	}
 
-	public AbstractRedisClient getClient() {
-		return client;
+	private GenericObjectPool<StatefulRedisModulesConnection<K, V>> pool() {
+		GenericObjectPoolConfig<StatefulRedisModulesConnection<K, V>> config = new GenericObjectPoolConfig<>();
+		config.setMaxTotal(poolSize);
+		return ConnectionPoolSupport.createGenericObjectPool(this::connection, config);
 	}
 
-	public RedisCodec<K, V> getCodec() {
-		return codec;
+	private Function<List<Object>, KeyValue<K>> evalFunction() {
+		if (type == ValueType.STRUCT) {
+			return new EvalStructFunction<>(codec);
+		}
+		return new EvalFunction<>(codec);
 	}
 
-	public Mode getMode() {
-		return mode;
+	public int getPoolSize() {
+		return poolSize;
 	}
 
-	public void setScanCount(long count) {
-		this.scanCount = count;
+	public void setPoolSize(int poolSize) {
+		this.poolSize = poolSize;
 	}
 
-	public int getRetryLimit() {
-		return retryLimit;
+	public void setMemUsageLimit(DataSize limit) {
+		this.memUsageLimit = limit;
 	}
 
-	public void setRetryLimit(int retryLimit) {
-		this.retryLimit = retryLimit;
+	public void setMemUsageSamples(int samples) {
+		this.memUsageSamples = samples;
 	}
 
-	public int getSkipLimit() {
-		return skipLimit;
+	public static RedisItemReader<byte[], byte[]> dump() {
+		return new RedisItemReader<>(ByteArrayCodec.INSTANCE, ValueType.DUMP);
 	}
 
-	public void setSkipLimit(int skipLimit) {
-		this.skipLimit = skipLimit;
+	public static RedisItemReader<String, String> type() {
+		return new RedisItemReader<>(StringCodec.UTF8, ValueType.TYPE);
 	}
 
-	public Duration getFlushingInterval() {
-		return flushingInterval;
+	public static RedisItemReader<String, String> struct() {
+		return struct(StringCodec.UTF8);
 	}
 
-	public void setFlushingInterval(Duration flushingInterval) {
-		this.flushingInterval = flushingInterval;
-	}
-
-	public Duration getIdleTimeout() {
-		return idleTimeout;
-	}
-
-	public void setIdleTimeout(Duration idleTimeout) {
-		this.idleTimeout = idleTimeout;
-	}
-
-	public ItemProcessor<K, K> getKeyProcessor() {
-		return keyProcessor;
-	}
-
-	public void setKeyProcessor(ItemProcessor<K, K> processor) {
-		this.keyProcessor = processor;
-	}
-
-	public void setThreads(int threads) {
-		this.threads = threads;
-	}
-
-	public void setChunkSize(int size) {
-		this.chunkSize = size;
-	}
-
-	public void setQueueCapacity(int capacity) {
-		this.queueCapacity = capacity;
-	}
-
-	public void setMode(Mode mode) {
-		this.mode = mode;
-	}
-
-	public void setReadFrom(ReadFrom readFrom) {
-		this.readFrom = readFrom;
-	}
-
-	public void setKeyPattern(String glob) {
-		this.keyPattern = glob;
-	}
-
-	public void setKeyType(String type) {
-		this.keyType = type;
-	}
-
-	public int getDatabase() {
-		return database;
-	}
-
-	public int getKeyspaceNotificationQueueCapacity() {
-		return keyspaceNotificationQueueCapacity;
-	}
-
-	public long getScanCount() {
-		return scanCount;
-	}
-
-	public ReadFrom getReadFrom() {
-		return readFrom;
-	}
-
-	public int getThreads() {
-		return threads;
-	}
-
-	public int getChunkSize() {
-		return chunkSize;
-	}
-
-	public int getQueueCapacity() {
-		return queueCapacity;
-	}
-
-	public String getKeyPattern() {
-		return keyPattern;
-	}
-
-	public String getKeyType() {
-		return keyType;
-	}
-
-	public void setKeyspaceNotificationQueueCapacity(int capacity) {
-		this.keyspaceNotificationQueueCapacity = capacity;
-	}
-
-	public void setDatabase(int database) {
-		this.database = database;
-	}
-
-	public ItemReader<K> getKeyReader() {
-		return keyReader;
-	}
-
-	public void setJobFactory(JobFactory jobInfrastructure) {
-		this.jobFactory = jobInfrastructure;
-	}
-
-	public static DumpItemReader dump(AbstractRedisClient client) {
-		return new DumpItemReader(client);
-	}
-
-	public static StructItemReader<String, String> struct(AbstractRedisClient client) {
-		return struct(client, CodecUtils.STRING_CODEC);
-	}
-
-	public static <K, V> StructItemReader<K, V> struct(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		return new StructItemReader<>(client, codec);
-	}
-
-	public static KeyTypeItemReader<String, String> type(AbstractRedisClient client) {
-		return type(client, CodecUtils.STRING_CODEC);
-	}
-
-	public static <K, V> KeyTypeItemReader<K, V> type(AbstractRedisClient client, RedisCodec<K, V> codec) {
-		return new KeyTypeItemReader<>(client, codec);
+	public static <K, V> RedisItemReader<K, V> struct(RedisCodec<K, V> codec) {
+		return new RedisItemReader<>(codec, ValueType.STRUCT);
 	}
 
 }

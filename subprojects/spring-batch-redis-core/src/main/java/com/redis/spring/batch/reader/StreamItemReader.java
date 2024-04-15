@@ -11,8 +11,9 @@ import java.util.stream.StreamSupport;
 
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.common.PollableItemReader;
-import com.redis.spring.batch.util.ConnectionUtils;
+import com.redis.spring.batch.util.BatchUtils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
@@ -22,7 +23,6 @@ import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XGroupCreateArgs;
 import io.lettuce.core.XReadArgs;
 import io.lettuce.core.XReadArgs.StreamOffset;
-import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.sync.RedisStreamCommands;
 import io.lettuce.core.codec.RedisCodec;
 
@@ -34,41 +34,25 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	}
 
 	public static final Duration DEFAULT_POLL_DURATION = Duration.ofSeconds(1);
-
 	public static final String DEFAULT_OFFSET = "0-0";
-
 	public static final Duration DEFAULT_BLOCK = Duration.ofMillis(100);
-
 	public static final long DEFAULT_COUNT = 50;
-
 	public static final AckPolicy DEFAULT_ACK_POLICY = AckPolicy.AUTO;
 
 	private final AbstractRedisClient client;
-
 	private final RedisCodec<K, V> codec;
-
 	private final K stream;
-
 	private final Consumer<K> consumer;
 
 	private String offset = DEFAULT_OFFSET;
-
 	private Duration block = DEFAULT_BLOCK;
-
 	private long count = DEFAULT_COUNT;
-
 	private AckPolicy ackPolicy = DEFAULT_ACK_POLICY;
-
-	private StatefulConnection<K, V> connection;
-
+	private StatefulRedisModulesConnection<K, V> connection;
 	private Iterator<StreamMessage<K, V>> iterator = Collections.emptyIterator();
-
 	private MessageReader<K, V> messageReader;
-
 	private String lastId;
-
 	private RedisStreamCommands<K, V> commands;
-
 	private ReadFrom readFrom;
 
 	public StreamItemReader(AbstractRedisClient client, RedisCodec<K, V> codec, K stream, Consumer<K> consumer) {
@@ -85,8 +69,8 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		if (messageReader == null) {
-			connection = ConnectionUtils.supplier(client, codec, readFrom).get();
-			commands = ConnectionUtils.sync(connection);
+			connection = BatchUtils.connection(client, codec, readFrom);
+			commands = connection.sync();
 			StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
 			XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);
 			try {
@@ -253,7 +237,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 		 * Reads messages from a stream
 		 * 
 		 * @param redisCommands Synchronous executed commands for Streams
-		 * @param args     Stream read command args
+		 * @param args          Stream read command args
 		 * @return list of messages retrieved from the stream or empty list if no
 		 *         messages available
 		 * @throws MessageReadException

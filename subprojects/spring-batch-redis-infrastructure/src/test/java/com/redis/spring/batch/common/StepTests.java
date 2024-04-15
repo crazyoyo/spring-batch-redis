@@ -51,7 +51,7 @@ class StepTests {
 		step.idleTimeout(Duration.ofMillis(300));
 		FlushingFaultTolerantStepBuilder<String, String> ftStep = step.faultTolerant();
 		ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
-		Job job = jobFactory.job(name).start(ftStep.build()).build();
+		Job job = jobFactory.jobBuilder(name).start(ftStep.build()).build();
 		jobFactory.run(job);
 		assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getWrittenItems().size());
 	}
@@ -69,7 +69,7 @@ class StepTests {
 		ftStep.idleTimeout(Duration.ofMillis(300));
 		ftStep.skip(RedisCommandTimeoutException.class);
 		ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
-		Job job = jobFactory.job(name).start(ftStep.build()).build();
+		Job job = jobFactory.jobBuilder(name).start(ftStep.build()).build();
 		jobFactory.run(job);
 		assertEquals(items.size(), writer.getWrittenItems().size() * 2);
 	}
@@ -102,7 +102,7 @@ class StepTests {
 				});
 			}
 		});
-		Job job = jobFactory.job(name).start(step.build()).build();
+		Job job = jobFactory.jobBuilder(name).start(step.build()).build();
 		jobFactory.run(job);
 		writer.getWrittenItems().forEach(System.out::println);
 		assertEquals(count, writer.getWrittenItems().size());

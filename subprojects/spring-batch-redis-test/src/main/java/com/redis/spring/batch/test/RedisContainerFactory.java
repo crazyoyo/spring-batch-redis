@@ -2,8 +2,8 @@ package com.redis.spring.batch.test;
 
 import com.redis.enterprise.Database;
 import com.redis.enterprise.RedisModule;
+import com.redis.enterprise.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisContainer;
-import com.redis.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisStackContainer;
 
 public interface RedisContainerFactory {

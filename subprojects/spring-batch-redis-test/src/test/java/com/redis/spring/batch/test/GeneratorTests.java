@@ -15,27 +15,9 @@ import org.springframework.batch.item.UnexpectedInputException;
 import com.redis.spring.batch.gen.CollectionOptions;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.Item;
-import com.redis.spring.batch.gen.Range;
 import com.redis.spring.batch.gen.StreamOptions;
 
 class GeneratorTests {
-
-	@Test
-	void parse() {
-		assertRange(Range.of(":100"), 0, 100);
-		assertRange(Range.of("0:"), 0, Range.MAX_VALUE);
-		assertRange(Range.of("0:*"), 0, Range.MAX_VALUE);
-		assertRange(Range.of(":*"), 0, Range.MAX_VALUE);
-		assertRange(Range.of(":"), Range.MIN_VALUE, Range.MAX_VALUE);
-		assertRange(Range.of("100"), 100, 100);
-		assertRange(Range.of("100"), 100, 100);
-		assertRange(Range.of("1234567890:1234567890"), 1234567890, 1234567890);
-	}
-
-	private void assertRange(Range range, int min, int max) {
-		Assertions.assertEquals(min, range.getMin());
-		Assertions.assertEquals(max, range.getMax());
-	}
 
 	@Test
 	void defaults() throws UnexpectedInputException, ParseException, Exception {

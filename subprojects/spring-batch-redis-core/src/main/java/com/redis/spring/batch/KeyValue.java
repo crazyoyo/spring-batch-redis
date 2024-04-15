@@ -32,19 +32,19 @@ public class KeyValue<K> {
 		HASH("hash"), JSON("ReJSON-RL"), LIST("list"), SET("set"), STREAM("stream"), STRING("string"),
 		TIMESERIES("TSDB-TYPE"), ZSET("zset");
 
-		private static final Function<Type, String> DATATYPE_STRING = Type::getString;
+		private static final Function<Type, String> DATATYPE_STRING = Type::getCode;
 		private static final UnaryOperator<String> TO_LOWER_CASE = String::toLowerCase;
 		private static final Map<String, Type> TYPE_MAP = Stream.of(Type.values())
 				.collect(Collectors.toMap(DATATYPE_STRING.andThen(TO_LOWER_CASE), Function.identity()));
 
-		private final String string;
+		private final String code;
 
 		private Type(String string) {
-			this.string = string;
+			this.code = string;
 		}
 
-		public String getString() {
-			return string;
+		public String getCode() {
+			return code;
 		}
 
 		public static Type of(String string) {

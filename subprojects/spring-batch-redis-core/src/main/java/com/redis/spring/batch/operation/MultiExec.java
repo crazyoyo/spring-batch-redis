@@ -1,6 +1,6 @@
 package com.redis.spring.batch.operation;
 
-import org.springframework.batch.item.Chunk;
+import java.util.List;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -16,8 +16,8 @@ public class MultiExec<K, V, T> implements Operation<K, V, T, Object> {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, Chunk<? extends T> inputs,
-			Chunk<RedisFuture<Object>> outputs) {
+	public void execute(BaseRedisAsyncCommands<K, V> commands, Iterable<? extends T> inputs,
+			List<RedisFuture<Object>> outputs) {
 		RedisTransactionalAsyncCommands<K, V> transactionalCommands = (RedisTransactionalAsyncCommands<K, V>) commands;
 		outputs.add((RedisFuture) transactionalCommands.multi());
 		delegate.execute(commands, inputs, outputs);

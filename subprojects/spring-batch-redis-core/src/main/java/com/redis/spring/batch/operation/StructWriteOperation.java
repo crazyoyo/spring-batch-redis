@@ -21,41 +21,30 @@ import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
-public class StructWrite<K, V> implements Operation<K, V, KeyValue<K>, Object> {
+public class StructWriteOperation<K, V> implements Operation<K, V, KeyValue<K>, Object> {
 
 	private final Collector<KeyValue<K>, ?, Map<Type, List<KeyValue<K>>>> groupByType = Collectors
 			.groupingBy(KeyValue::getType);
 
-	private Predicate<KeyValue<K>> existPredicate() {
-		return KeyValue::exists;
-	}
-
 	@SuppressWarnings("unchecked")
 	private final Predicate<KeyValue<K>> expirePredicate = Predicates.and(existPredicate(), k -> k.getTtl() > 0);
+	private final Operation<K, V, KeyValue<K>, Object> deleteOperation = deleteOperation();
+	private final Operation<K, V, KeyValue<K>, Object> expireOperation = expireOperation();
+	private final Operation<K, V, KeyValue<K>, Object> hashOperation = hashOperation();
+	private final Operation<K, V, KeyValue<K>, Object> jsonOperation = jsonOperation();
+	private final Operation<K, V, KeyValue<K>, Object> listOperation = listOperation();
+	private final Operation<K, V, KeyValue<K>, Object> setOperation = setOperation();
+	private final Operation<K, V, KeyValue<K>, Object> streamOperation = streamOperation();
+	private final Operation<K, V, KeyValue<K>, Object> stringOperation = stringOperation();
+	private final Operation<K, V, KeyValue<K>, Object> timeseriesOperation = timeseriesOperation();
+	private final Operation<K, V, KeyValue<K>, Object> zsetOperation = zsetOperation();
+	private final Operation<K, V, KeyValue<K>, Object> noOperation = noOperation();
 
 	private Predicate<KeyValue<K>> deletePredicate = Predicates.negate(existPredicate());
 
-	private final Operation<K, V, KeyValue<K>, Object> deleteOperation = deleteOperation();
-
-	private final Operation<K, V, KeyValue<K>, Object> expireOperation = expireOperation();
-
-	private final Operation<K, V, KeyValue<K>, Object> hashOperation = hashOperation();
-
-	private final Operation<K, V, KeyValue<K>, Object> jsonOperation = jsonOperation();
-
-	private final Operation<K, V, KeyValue<K>, Object> listOperation = listOperation();
-
-	private final Operation<K, V, KeyValue<K>, Object> setOperation = setOperation();
-
-	private final Operation<K, V, KeyValue<K>, Object> streamOperation = streamOperation();
-
-	private final Operation<K, V, KeyValue<K>, Object> stringOperation = stringOperation();
-
-	private final Operation<K, V, KeyValue<K>, Object> timeseriesOperation = timeseriesOperation();
-
-	private final Operation<K, V, KeyValue<K>, Object> zsetOperation = zsetOperation();
-
-	private final Operation<K, V, KeyValue<K>, Object> noOperation = noOperation();
+	private Predicate<KeyValue<K>> existPredicate() {
+		return KeyValue::exists;
+	}
 
 	private Noop<K, V, KeyValue<K>> noOperation() {
 		return new Noop<>();
@@ -68,9 +57,8 @@ public class StructWrite<K, V> implements Operation<K, V, KeyValue<K>, Object> {
 	}
 
 	@Override
-	public void execute(BaseRedisAsyncCommands<K, V> commands, Chunk<? extends KeyValue<K>> items,
-			Chunk<RedisFuture<Object>> futures) {
-
+	public void execute(BaseRedisAsyncCommands<K, V> commands, Iterable<? extends KeyValue<K>> items,
+			List<RedisFuture<Object>> futures) {
 		Chunk<KeyValue<K>> toDelete = new Chunk<>(
 				StreamSupport.stream(items.spliterator(), false).filter(deletePredicate).collect(Collectors.toList()));
 		deleteOperation.execute(commands, toDelete, futures);
@@ -123,8 +111,8 @@ public class StructWrite<K, V> implements Operation<K, V, KeyValue<K>, Object> {
 		return args;
 	}
 
-	private XAddAll<K, V, KeyValue<K>> streamOperation() {
-		XAddAll<K, V, KeyValue<K>> operation = new XAddAll<>();
+	private XaddAll<K, V, KeyValue<K>> streamOperation() {
+		XaddAll<K, V, KeyValue<K>> operation = new XaddAll<>();
 		operation.setMessagesFunction(this::value);
 		operation.setArgsFunction(this::xaddArgs);
 		return operation;
