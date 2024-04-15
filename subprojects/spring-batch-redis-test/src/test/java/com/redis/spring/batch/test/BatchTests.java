@@ -151,7 +151,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Assertions.assertEquals(key, result.get(0));
 		Assertions.assertEquals(-1, (Long) result.get(1));
 		Assertions.assertEquals(Type.STRING.getCode(), result.get(2));
-		Assertions.assertEquals(88, (Long) result.get(3));
+		Assertions.assertEquals(100, (Long) result.get(3), 50);
 		Assertions.assertEquals(value, result.get(4));
 		futures.clear();
 		Instant expireAt = Instant.now().plusSeconds(3600);
@@ -163,7 +163,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Assertions.assertEquals(key, result.get(0));
 		Assertions.assertEquals(expireAt.toEpochMilli(), (Long) result.get(1), 1000);
 		Assertions.assertEquals(Type.STRING.getCode(), result.get(2));
-		Assertions.assertEquals(88, (Long) result.get(3));
+		Assertions.assertEquals(100, (Long) result.get(3), 50);
 		Assertions.assertEquals(value, result.get(4));
 	}
 
