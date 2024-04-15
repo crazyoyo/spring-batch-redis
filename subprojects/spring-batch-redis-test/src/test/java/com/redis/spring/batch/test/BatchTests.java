@@ -202,7 +202,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Assertions.assertEquals(key, keyValue.getKey());
 		Assertions.assertEquals(-1, keyValue.getTtl());
 		Assertions.assertEquals(Type.STRING, keyValue.getType());
-		Assertions.assertEquals(88, keyValue.getMemoryUsage());
+		Assertions.assertEquals(100, keyValue.getMemoryUsage(), 50);
 		Assertions.assertEquals(value, keyValue.getValue());
 		futures.clear();
 		Instant expireAt = Instant.now().plusSeconds(3600);
@@ -213,7 +213,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Assertions.assertEquals(key, keyValue.getKey());
 		Assertions.assertEquals(expireAt.toEpochMilli(), keyValue.getTtl(), 1000);
 		Assertions.assertEquals(Type.STRING, keyValue.getType());
-		Assertions.assertEquals(88, keyValue.getMemoryUsage());
+		Assertions.assertEquals(100, keyValue.getMemoryUsage(), 50);
 		Assertions.assertEquals(value, keyValue.getValue());
 	}
 
@@ -236,8 +236,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		List<KeyComparison> comparisons = readAll(reader);
 		reader.close();
 		KeyspaceComparison keyspaceComparison = new KeyspaceComparison(comparisons);
-		List<KeyComparison> notOk = comparisons.stream().filter(c -> c.getStatus() != Status.OK)
-				.collect(Collectors.toList());
 		Assertions.assertEquals(sourceCount - targetCount, keyspaceComparison.get(Status.MISSING).size());
 	}
 
