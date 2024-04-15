@@ -188,7 +188,7 @@ public abstract class AbstractRedisItemReader<K, V, T> extends AbstractPollableI
 
 		@Override
 		public void write(Chunk<? extends K> chunk) throws Exception {
-			List<T> elements = execute(chunk);
+			List<T> elements = read(chunk);
 			for (T element : elements) {
 				queue.put(element);
 			}
@@ -196,7 +196,7 @@ public abstract class AbstractRedisItemReader<K, V, T> extends AbstractPollableI
 
 	}
 
-	protected abstract List<T> execute(Iterable<? extends K> keys);
+	protected abstract List<T> read(Iterable<? extends K> keys);
 
 	protected StatefulRedisModulesConnection<K, V> connection() {
 		return BatchUtils.connection(client, codec, readFrom);

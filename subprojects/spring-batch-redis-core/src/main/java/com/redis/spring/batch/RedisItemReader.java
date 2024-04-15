@@ -86,7 +86,7 @@ public class RedisItemReader<K, V> extends AbstractRedisItemReader<K, V, KeyValu
 	}
 
 	@Override
-	protected List<KeyValue<K>> execute(Iterable<? extends K> keys) {
+	protected List<KeyValue<K>> read(Iterable<? extends K> keys) {
 		return operationExecutor.apply(keys);
 	}
 

@@ -54,7 +54,7 @@ public class KeyComparisonItemReader extends AbstractRedisItemReader<String, Str
 	}
 
 	@Override
-	protected List<KeyComparison> execute(Iterable<? extends String> keys) {
+	protected List<KeyComparison> read(Iterable<? extends String> keys) {
 		List<KeyValue<String>> sources = sourceOperationExecutor.apply(keys);
 		Map<String, KeyValue<String>> targets = targetOperationExecutor.apply(keys).stream()
 				.collect(Collectors.toMap(KeyValue::getKey, Function.identity()));
