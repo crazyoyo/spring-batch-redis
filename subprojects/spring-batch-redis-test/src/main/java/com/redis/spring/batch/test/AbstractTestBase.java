@@ -2,7 +2,6 @@ package com.redis.spring.batch.test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +41,7 @@ import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
+import com.redis.spring.batch.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.FlushingStepBuilder;
 import com.redis.spring.batch.common.JobFactory;
@@ -52,9 +52,6 @@ import com.redis.spring.batch.gen.Item;
 import com.redis.spring.batch.gen.Range;
 import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.operation.Operation;
-import com.redis.spring.batch.operation.OperationExecutor;
-import com.redis.spring.batch.reader.AbstractRedisItemReader;
-import com.redis.spring.batch.reader.AbstractRedisItemReader.ReaderMode;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.util.Await;
 import com.redis.spring.batch.util.BatchUtils;
@@ -163,12 +160,12 @@ public abstract class AbstractTestBase {
 		return gen;
 	}
 
-	protected void live(AbstractRedisItemReader<?, ?, ?> reader) {
+	protected void live(RedisItemReader<?, ?, ?> reader) {
 		reader.setMode(ReaderMode.LIVE);
 		reader.setIdleTimeout(idleTimeout);
 	}
 
-	protected void configure(TestInfo info, AbstractRedisItemReader<?, ?, ?> reader, String... suffixes) {
+	protected void configure(TestInfo info, RedisItemReader<?, ?, ?> reader, String... suffixes) {
 		List<String> allSuffixes = new ArrayList<>(Arrays.asList(suffixes));
 		allSuffixes.add("reader");
 		reader.setName(name(testInfo(info, allSuffixes.toArray(new String[0]))));
@@ -176,14 +173,14 @@ public abstract class AbstractTestBase {
 		reader.setClient(redisClient);
 	}
 
-	protected RedisItemReader<byte[], byte[]> dumpReader(TestInfo info, String... suffixes) {
-		RedisItemReader<byte[], byte[]> reader = RedisItemReader.dump();
+	protected RedisItemReader<byte[], byte[], KeyValue<byte[]>> dumpReader(TestInfo info, String... suffixes) {
+		RedisItemReader<byte[], byte[], KeyValue<byte[]>> reader = RedisItemReader.dump();
 		configure(info, reader, suffixes);
 		return reader;
 	}
 
-	protected RedisItemReader<String, String> structReader(TestInfo info, String... suffixes) {
-		RedisItemReader<String, String> reader = RedisItemReader.struct();
+	protected RedisItemReader<String, String, KeyValue<String>> structReader(TestInfo info, String... suffixes) {
+		RedisItemReader<String, String, KeyValue<String>> reader = RedisItemReader.struct();
 		configure(info, reader, suffixes);
 		return reader;
 	}
@@ -403,28 +400,14 @@ public abstract class AbstractTestBase {
 		return BatchUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE).apply(key);
 	}
 
-	protected RedisItemReader<byte[], byte[]> dumpReader(TestInfo info) {
-		RedisItemReader<byte[], byte[]> reader = RedisItemReader.dump();
+	protected RedisItemReader<byte[], byte[], KeyValue<byte[]>> dumpReader(TestInfo info) {
+		RedisItemReader<byte[], byte[], KeyValue<byte[]>> reader = RedisItemReader.dump();
 		configure(info, reader);
 		return reader;
 	}
 
-	protected OperationExecutor<byte[], byte[], byte[], KeyValue<byte[]>> dumpValueReader(TestInfo info) {
-		return dumpReader(info).operationExecutor();
-	}
-
-	protected OperationExecutor<String, String, String, KeyValue<String>> structOperationExecutor(TestInfo info)
-			throws IOException {
-		return structOperationExecutor(info, StringCodec.UTF8);
-	}
-
-	protected <K, V> OperationExecutor<K, V, K, KeyValue<K>> structOperationExecutor(TestInfo info,
-			RedisCodec<K, V> codec) {
-		return structReader(info, codec).operationExecutor();
-	}
-
-	protected <K, V> RedisItemReader<K, V> structReader(TestInfo info, RedisCodec<K, V> codec) {
-		RedisItemReader<K, V> reader = RedisItemReader.struct(codec);
+	protected <K, V> RedisItemReader<K, V, KeyValue<K>> structReader(TestInfo info, RedisCodec<K, V> codec) {
+		RedisItemReader<K, V, KeyValue<K>> reader = RedisItemReader.struct(codec);
 		configure(info, reader);
 		return reader;
 	}

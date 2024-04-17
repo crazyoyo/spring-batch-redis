@@ -27,12 +27,12 @@ import io.micrometer.core.instrument.Timer.Sample;
  */
 public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 
-	public static final Duration DEFAULT_FLUSHING_INTERVAL = Duration.ofMillis(50);
+	public static final Duration DEFAULT_FLUSH_INTERVAL = Duration.ofMillis(50);
 	public static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMillis(Long.MAX_VALUE); // no idle timeout by default
 
 	private final RepeatOperations repeatOperations;
 
-	private long flushingInterval = DEFAULT_FLUSHING_INTERVAL.toMillis();
+	private long flushInterval = DEFAULT_FLUSH_INTERVAL.toMillis();
 	private long idleTimeout = DEFAULT_IDLE_TIMEOUT.toMillis();
 	private long lastActivity = 0;
 
@@ -42,8 +42,8 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 		this.repeatOperations = repeatOperations;
 	}
 
-	public void setFlushingInterval(Duration interval) {
-		this.flushingInterval = interval.toMillis();
+	public void setFlushInterval(Duration interval) {
+		this.flushInterval = interval.toMillis();
 	}
 
 	public void setIdleTimeout(Duration idleTimeout) {
@@ -64,7 +64,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 		}
 		final Chunk<I> inputs = new Chunk<>();
 		repeatOperations.iterate(context -> {
-			long pollingTimeout = flushingInterval - millisSince(start);
+			long pollingTimeout = flushInterval - millisSince(start);
 			if (pollingTimeout < 0) {
 				return RepeatStatus.FINISHED;
 			}

@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 
 public class KeyValue<K> {
 
-	public static final long TTL_KEY_DOES_NOT_EXIST = -2;
+	public static final long TTL_NO_KEY = -2;
 
 	private K key;
 	private Type type;
@@ -25,7 +25,7 @@ public class KeyValue<K> {
 	 * Number of bytes that this key and its value require to be stored in Redis
 	 * RAM. 0 means no memory usage information is available.
 	 */
-	private long memoryUsage;
+	private long mem;
 
 	public enum Type {
 
@@ -85,21 +85,21 @@ public class KeyValue<K> {
 		this.ttl = ttl;
 	}
 
-	public long getMemoryUsage() {
-		return memoryUsage;
+	public long getMem() {
+		return mem;
 	}
 
-	public void setMemoryUsage(long memoryUsage) {
-		this.memoryUsage = memoryUsage;
+	public void setMem(long bytes) {
+		this.mem = bytes;
 	}
 
 	public boolean exists() {
-		return type != null && ttl != KeyValue.TTL_KEY_DOES_NOT_EXIST;
+		return type != null && ttl != KeyValue.TTL_NO_KEY;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(key, memoryUsage, ttl, type, value);
+		return Objects.hash(key, mem, ttl, type, value);
 	}
 
 	@Override
@@ -111,14 +111,14 @@ public class KeyValue<K> {
 		if (getClass() != obj.getClass())
 			return false;
 		KeyValue<?> other = (KeyValue<?>) obj;
-		return Objects.equals(key, other.key) && memoryUsage == other.memoryUsage && ttl == other.ttl
-				&& type == other.type && Objects.equals(value, other.value);
+		return Objects.equals(key, other.key) && mem == other.mem && ttl == other.ttl && type == other.type
+				&& Objects.equals(value, other.value);
 	}
 
 	@Override
 	public String toString() {
-		return "KeyValue [key=" + key + ", type=" + type + ", value=" + value + ", ttl=" + ttl + ", memoryUsage="
-				+ memoryUsage + "]";
+		return "KeyValue [key=" + key + ", type=" + type + ", value=" + value + ", ttl=" + ttl + ", memoryUsage=" + mem
+				+ "]";
 	}
 
 }

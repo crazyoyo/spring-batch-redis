@@ -5,17 +5,16 @@ local samples = tonumber(ARGV[3])
 local ttl = redis.call('PTTL', key)
 if ttl == -2 then
   return { key, ttl }
-end
-if ttl >= 0 then
+elseif ttl >= 0 then
   local e = redis.call('TIME')
   local time = e[1]*1000 + e[2]/1000
   ttl = time + ttl
 end
 local type = redis.call('TYPE', key)['ok']
 local mem = 0
-if memlimit ~= 0 then
+if memlimit > 0 then
   mem = redis.call('MEMORY', 'USAGE', key, 'SAMPLES', samples)
-  if memlimit > 0 and mem > memlimit then
+  if mem > memlimit then
     return { key, ttl, type, mem }
   end
 end

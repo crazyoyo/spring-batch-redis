@@ -14,12 +14,11 @@ import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 
 public class XaddAll<K, V, T> implements Operation<K, V, T, Object> {
 
-	private Function<T, Collection<StreamMessage<K, V>>> messagesFunction;
-
+	private final Function<T, Collection<StreamMessage<K, V>>> messagesFunction;
 	private Function<StreamMessage<K, V>, XAddArgs> argsFunction = m -> new XAddArgs().id(m.getId());
 
-	public void setMessagesFunction(Function<T, Collection<StreamMessage<K, V>>> function) {
-		this.messagesFunction = function;
+	public XaddAll(Function<T, Collection<StreamMessage<K, V>>> messagesFunction) {
+		this.messagesFunction = messagesFunction;
 	}
 
 	public void setArgs(XAddArgs args) {

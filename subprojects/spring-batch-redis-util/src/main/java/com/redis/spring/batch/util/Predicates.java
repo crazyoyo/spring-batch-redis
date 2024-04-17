@@ -140,19 +140,6 @@ public interface Predicates {
 		return intIs(false);
 	}
 
-	/**
-	 * Returns a {@link Predicate} that represents the logical negation of
-	 * {@code predicate}.
-	 *
-	 * @return a {@link Predicate} that represents the logical negation of
-	 *         {@code predicate}.
-	 */
-	static <T> Predicate<T> negate(Predicate<T> predicate) {
-
-		Assert.notNull(predicate, "Predicate must not be null");
-		return predicate.negate();
-	}
-
 	static IntPredicate intNegate(IntPredicate predicate) {
 
 		Assert.notNull(predicate, "Predicate must not be null");

@@ -21,7 +21,7 @@ import org.springframework.util.Assert;
 
 public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 
-	private Duration flushingInterval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
+	private Duration flushInterval = FlushingChunkProvider.DEFAULT_FLUSH_INTERVAL;
 	private Duration idleTimeout = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
 
 	public FlushingStepBuilder(StepBuilderHelper<?> parent) {
@@ -58,7 +58,7 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 
 	protected FlushingChunkProvider<I> createChunkProvider() {
 		FlushingChunkProvider<I> chunkProvider = new FlushingChunkProvider<>(getReader(), createChunkOperations());
-		chunkProvider.setFlushingInterval(flushingInterval);
+		chunkProvider.setFlushInterval(flushInterval);
 		chunkProvider.setIdleTimeout(idleTimeout);
 		ArrayList<StepListener> listeners = new ArrayList<>(getItemListeners());
 		chunkProvider.setListeners(listeners);
@@ -75,8 +75,8 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 		return (FlushingStepBuilder<I, O>) super.chunk(completionPolicy);
 	}
 
-	public FlushingStepBuilder<I, O> flushingInterval(Duration interval) {
-		this.flushingInterval = interval;
+	public FlushingStepBuilder<I, O> flushInterval(Duration interval) {
+		this.flushInterval = interval;
 		return this;
 	}
 
@@ -131,8 +131,8 @@ public class FlushingStepBuilder<I, O> extends SimpleStepBuilder<I, O> {
 		return (FlushingStepBuilder<I, O>) super.chunkOperations(repeatTemplate);
 	}
 
-	public Duration getFlushingInterval() {
-		return flushingInterval;
+	public Duration getFlushInterval() {
+		return flushInterval;
 	}
 
 	public Duration getIdleTimeout() {

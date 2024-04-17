@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
@@ -80,6 +81,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 		reader.open(new ExecutionContext());
 		List<KeyComparison> comparisons = readAll(reader);
 		reader.close();
+		Assertions.assertFalse(comparisons.isEmpty());
 		return new KeyspaceComparison(comparisons);
 	}
 
@@ -90,18 +92,11 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	}
 
 	protected KeyComparisonItemReader comparisonReader(TestInfo info) {
-		RedisItemReader<String, String> source = RedisItemReader.struct();
-		source.setClient(redisClient);
-		RedisItemReader<String, String> target = RedisItemReader.struct();
-		target.setClient(targetRedisClient);
-		return comparisonReader(info, source, target);
-	}
-
-	protected KeyComparisonItemReader comparisonReader(TestInfo info, RedisItemReader<String, String> source,
-			RedisItemReader<String, String> target) {
-		KeyComparisonItemReader reader = new KeyComparisonItemReader(source, target);
+		KeyComparisonItemReader reader = RedisItemReader.compare();
 		configure(info, reader, "comparison");
 		reader.setTtlTolerance(Duration.ofMillis(100));
+		reader.setClient(redisClient);
+		reader.setTargetClient(targetRedisClient);
 		return reader;
 	}
 

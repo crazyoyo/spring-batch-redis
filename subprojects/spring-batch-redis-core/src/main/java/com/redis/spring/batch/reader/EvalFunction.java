@@ -29,7 +29,7 @@ public class EvalFunction<K, V> implements Function<List<Object>, KeyValue<K>> {
 				if (iterator.hasNext()) {
 					keyValue.setType(KeyValue.Type.of(toString(iterator.next())));
 					if (iterator.hasNext()) {
-						keyValue.setMemoryUsage((Long) iterator.next());
+						keyValue.setMem((Long) iterator.next());
 						if (iterator.hasNext()) {
 							keyValue.setValue(iterator.next());
 						}

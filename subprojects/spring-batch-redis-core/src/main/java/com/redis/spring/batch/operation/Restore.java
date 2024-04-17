@@ -1,6 +1,7 @@
 package com.redis.spring.batch.operation;
 
-import java.util.List;
+import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import com.redis.spring.batch.KeyValue;
 
@@ -9,26 +10,30 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
 
-public class Restore<K, V> extends AbstractKeyOperation<K, V, KeyValue<K>> {
+public class Restore<K, V, T> extends AbstractKeyValueOperation<K, V, byte[], T> {
 
-	public Restore() {
-		super(KeyValue::getKey);
+	private ToLongFunction<T> ttlFunction = t -> 0;
+
+	public Restore(Function<T, K> keyFunction, Function<T, byte[]> valueFunction) {
+		super(keyFunction, valueFunction);
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public void setTtlFunction(ToLongFunction<T> function) {
+		this.ttlFunction = function;
+	}
+
+	@SuppressWarnings("unchecked")
 	@Override
-	protected void execute(BaseRedisAsyncCommands<K, V> commands, KeyValue<K> item, K key,
-			List<RedisFuture<Object>> outputs) {
-		RedisKeyAsyncCommands<K, V> keyCommands = (RedisKeyAsyncCommands<K, V>) commands;
-		if (item.getValue() == null || item.getTtl() == KeyValue.TTL_KEY_DOES_NOT_EXIST) {
-			outputs.add((RedisFuture) keyCommands.del(item.getKey()));
-		} else {
-			RestoreArgs args = new RestoreArgs().replace(true);
-			if (item.getTtl() > 0) {
-				args.absttl().ttl(item.getTtl());
-			}
-			outputs.add((RedisFuture) keyCommands.restore(item.getKey(), (byte[]) item.getValue(), args));
+	protected RedisFuture<?> execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, byte[] value) {
+		long ttl = ttlFunction.applyAsLong(item);
+		if (value == null || ttl == KeyValue.TTL_NO_KEY) {
+			return ((RedisKeyAsyncCommands<K, V>) commands).del(key);
 		}
+		RestoreArgs args = new RestoreArgs().replace(true);
+		if (ttl > 0) {
+			args.absttl().ttl(ttl);
+		}
+		return ((RedisKeyAsyncCommands<K, V>) commands).restore(key, value, args);
 	}
 
 }

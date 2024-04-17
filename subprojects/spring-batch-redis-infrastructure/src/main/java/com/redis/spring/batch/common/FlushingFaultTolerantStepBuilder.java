@@ -22,7 +22,7 @@ import org.springframework.util.Assert;
 
 public class FlushingFaultTolerantStepBuilder<I, O> extends FaultTolerantStepBuilder<I, O> {
 
-	private Duration flushingInterval = FlushingChunkProvider.DEFAULT_FLUSHING_INTERVAL;
+	private Duration flushInterval = FlushingChunkProvider.DEFAULT_FLUSH_INTERVAL;
 	private Duration idleTimeout = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
 
 	public FlushingFaultTolerantStepBuilder(StepBuilderHelper<?> parent) {
@@ -35,7 +35,7 @@ public class FlushingFaultTolerantStepBuilder<I, O> extends FaultTolerantStepBui
 
 	public FlushingFaultTolerantStepBuilder(FlushingStepBuilder<I, O> parent) {
 		super(parent);
-		this.flushingInterval = parent.getFlushingInterval();
+		this.flushInterval = parent.getFlushInterval();
 		this.idleTimeout = parent.getIdleTimeout();
 	}
 
@@ -49,7 +49,7 @@ public class FlushingFaultTolerantStepBuilder<I, O> extends FaultTolerantStepBui
 		chunkProvider.setMaxSkipsOnRead(maxSkipsOnRead);
 		chunkProvider.setSkipPolicy(readSkipPolicy);
 		chunkProvider.setRollbackClassifier(getRollbackClassifier());
-		chunkProvider.setFlushingInterval(flushingInterval);
+		chunkProvider.setFlushInterval(flushInterval);
 		chunkProvider.setIdleTimeout(idleTimeout);
 		ArrayList<StepListener> listeners = new ArrayList<>(getItemListeners());
 		listeners.addAll(getSkipListeners());
@@ -67,8 +67,8 @@ public class FlushingFaultTolerantStepBuilder<I, O> extends FaultTolerantStepBui
 		return (FlushingFaultTolerantStepBuilder<I, O>) super.chunk(completionPolicy);
 	}
 
-	public FlushingFaultTolerantStepBuilder<I, O> flushingInterval(Duration interval) {
-		this.flushingInterval = interval;
+	public FlushingFaultTolerantStepBuilder<I, O> flushInterval(Duration interval) {
+		this.flushInterval = interval;
 		return this;
 	}
 
