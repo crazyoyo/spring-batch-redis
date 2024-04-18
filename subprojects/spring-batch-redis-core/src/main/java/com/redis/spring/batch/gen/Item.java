@@ -51,6 +51,11 @@ public class Item {
 	}
 
 	@Override
+	public String toString() {
+		return "Item [key=" + key + ", type=" + type + ", value=" + value + ", ttl=" + ttl + "]";
+	}
+
+	@Override
 	public boolean equals(Object obj) {
 		if (this == obj)
 			return true;

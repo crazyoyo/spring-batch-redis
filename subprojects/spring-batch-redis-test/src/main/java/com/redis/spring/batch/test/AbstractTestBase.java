@@ -28,6 +28,7 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.function.FunctionItemProcessor;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -46,9 +47,9 @@ import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.FlushingStepBuilder;
 import com.redis.spring.batch.common.JobFactory;
 import com.redis.spring.batch.common.PollableItemReader;
-import com.redis.spring.batch.gen.GeneratorItemProcessor;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.Item;
+import com.redis.spring.batch.gen.ItemToKeyValueFunction;
 import com.redis.spring.batch.gen.Range;
 import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.operation.Operation;
@@ -75,7 +76,8 @@ public abstract class AbstractTestBase {
 	public static final Duration DEFAULT_AWAIT_POLL_INTERVAL = Duration.ofMillis(1);
 	public static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(3);
 
-	protected static final GeneratorItemProcessor genItemProcessor = new GeneratorItemProcessor();
+	protected static final ItemProcessor<Item, KeyValue<String, Object>> genItemProcessor = new FunctionItemProcessor<>(
+			new ItemToKeyValueFunction());
 
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;

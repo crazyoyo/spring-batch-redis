@@ -1,14 +1,14 @@
 package com.redis.spring.batch.gen;
 
-import org.springframework.batch.item.ItemProcessor;
+import java.util.function.Function;
 
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.KeyValue.Type;
 
-public class GeneratorItemProcessor implements ItemProcessor<Item, KeyValue<String, Object>> {
+public class ItemToKeyValueFunction implements Function<Item, KeyValue<String, Object>> {
 
 	@Override
-	public KeyValue<String, Object> process(Item item) throws Exception {
+	public KeyValue<String, Object> apply(Item item) {
 		KeyValue<String, Object> kv = new KeyValue<>();
 		kv.setKey(item.getKey());
 		kv.setTtl(item.getTtl());

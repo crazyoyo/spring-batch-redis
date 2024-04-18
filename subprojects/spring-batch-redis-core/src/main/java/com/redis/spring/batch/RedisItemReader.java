@@ -128,6 +128,7 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 		if (jobFactory == null) {
 			jobFactory = new JobFactory();
 		}
+		jobFactory.afterPropertiesSet();
 		if (operationExecutor == null) {
 			operationExecutor = new OperationExecutor<>(codec, operation);
 			operationExecutor.setClient(client);
