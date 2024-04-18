@@ -9,7 +9,7 @@ import com.redis.spring.batch.util.BatchUtils;
 
 import io.lettuce.core.codec.RedisCodec;
 
-public class EvalFunction<K, V> implements Function<List<Object>, KeyValue<K>> {
+public class EvalFunction<K, V, T> implements Function<List<Object>, KeyValue<K, T>> {
 
 	private final Function<V, String> toStringValueFunction;
 
@@ -19,9 +19,9 @@ public class EvalFunction<K, V> implements Function<List<Object>, KeyValue<K>> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public KeyValue<K> apply(List<Object> list) {
+	public KeyValue<K, T> apply(List<Object> list) {
 		Iterator<Object> iterator = list.iterator();
-		KeyValue<K> keyValue = new KeyValue<>();
+		KeyValue<K, T> keyValue = new KeyValue<>();
 		if (iterator.hasNext()) {
 			keyValue.setKey((K) iterator.next());
 			if (iterator.hasNext()) {
@@ -31,7 +31,7 @@ public class EvalFunction<K, V> implements Function<List<Object>, KeyValue<K>> {
 					if (iterator.hasNext()) {
 						keyValue.setMem((Long) iterator.next());
 						if (iterator.hasNext()) {
-							keyValue.setValue(iterator.next());
+							keyValue.setValue((T) iterator.next());
 						}
 					}
 				}

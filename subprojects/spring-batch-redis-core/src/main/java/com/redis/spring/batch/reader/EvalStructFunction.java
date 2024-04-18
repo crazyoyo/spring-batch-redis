@@ -15,15 +15,15 @@ import io.lettuce.core.StreamMessage;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.internal.LettuceAssert;
 
-public class EvalStructFunction<K, V> extends EvalFunction<K, V> {
+public class EvalStructFunction<K, V> extends EvalFunction<K, V, Object> {
 
 	public EvalStructFunction(RedisCodec<K, V> codec) {
 		super(codec);
 	}
 
 	@Override
-	public KeyValue<K> apply(List<Object> list) {
-		KeyValue<K> keyValue = super.apply(list);
+	public KeyValue<K, Object> apply(List<Object> list) {
+		KeyValue<K, Object> keyValue = super.apply(list);
 		if (keyValue.getType() != null && keyValue.getValue() != null) {
 			switch (keyValue.getType()) {
 			case HASH:
@@ -49,7 +49,7 @@ public class EvalStructFunction<K, V> extends EvalFunction<K, V> {
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<Sample> timeseries(KeyValue<K> keyValue) {
+	private List<Sample> timeseries(KeyValue<K, Object> keyValue) {
 		List<List<Object>> value = (List<List<Object>>) keyValue.getValue();
 		List<Sample> sampleList = new ArrayList<>();
 		for (List<Object> sample : value) {
@@ -64,7 +64,7 @@ public class EvalStructFunction<K, V> extends EvalFunction<K, V> {
 		return Double.parseDouble(toString(value));
 	}
 
-	private Map<K, V> hash(KeyValue<K> keyValue) {
+	private Map<K, V> hash(KeyValue<K, Object> keyValue) {
 		return map(keyValue.getValue());
 	}
 
@@ -80,12 +80,12 @@ public class EvalStructFunction<K, V> extends EvalFunction<K, V> {
 	}
 
 	@SuppressWarnings("unchecked")
-	private HashSet<V> set(KeyValue<K> keyValue) {
+	private HashSet<V> set(KeyValue<K, Object> keyValue) {
 		return new HashSet<>((List<V>) keyValue.getValue());
 	}
 
 	@SuppressWarnings("unchecked")
-	private Set<ScoredValue<V>> zset(KeyValue<K> keyValue) {
+	private Set<ScoredValue<V>> zset(KeyValue<K, Object> keyValue) {
 		List<Object> list = (List<Object>) keyValue.getValue();
 		LettuceAssert.isTrue(list.size() % 2 == 0, "List size must be a multiple of 2");
 		Set<ScoredValue<V>> values = new HashSet<>();
@@ -97,7 +97,7 @@ public class EvalStructFunction<K, V> extends EvalFunction<K, V> {
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<StreamMessage<K, V>> stream(KeyValue<K> keyValue) {
+	private List<StreamMessage<K, V>> stream(KeyValue<K, Object> keyValue) {
 		List<List<Object>> value = (List<List<Object>>) keyValue.getValue();
 		List<StreamMessage<K, V>> messages = new ArrayList<>();
 		for (List<Object> message : value) {

@@ -25,7 +25,8 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 	private ReadFrom targetReadFrom;
 	private StreamMessageIdPolicy streamMessageIdPolicy = DEFAULT_STREAM_MESSAGE_ID_POLICY;
 
-	public KeyComparisonItemReader(KeyValueRead<String, String> source, KeyValueRead<String, String> target) {
+	public KeyComparisonItemReader(KeyValueRead<String, String, Object> source,
+			KeyValueRead<String, String, Object> target) {
 		super(StringCodec.UTF8, new KeyComparisonRead(source, target));
 	}
 

@@ -83,7 +83,8 @@ class StackToStackTests extends BatchTests {
 	@Test
 	void readStructLive(TestInfo info) throws Exception {
 		enableKeyspaceNotifications();
-		RedisItemReader<byte[], byte[], KeyValue<byte[]>> reader = RedisItemReader.struct(ByteArrayCodec.INSTANCE);
+		RedisItemReader<byte[], byte[], KeyValue<byte[], Object>> reader = RedisItemReader
+				.struct(ByteArrayCodec.INSTANCE);
 		configure(info, reader);
 		reader.setClient(redisClient);
 		reader.setIdleTimeout(Duration.ofSeconds(3));
@@ -93,7 +94,7 @@ class StackToStackTests extends BatchTests {
 		int count = 1234;
 		generate(info, generator(count, Item.Type.HASH, Item.Type.STRING));
 		log.info("generated");
-		List<KeyValue<byte[]>> list = readAll(reader);
+		List<KeyValue<byte[], Object>> list = readAll(reader);
 		Function<byte[], String> toString = BatchUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
 		Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
 		Assertions.assertEquals(count, keys.size());
@@ -106,10 +107,12 @@ class StackToStackTests extends BatchTests {
 		redisCommands.pfadd(key1, "member:1", "member:2");
 		String key2 = "hll:2";
 		redisCommands.pfadd(key2, "member:1", "member:2", "member:3");
-		RedisItemReader<byte[], byte[], KeyValue<byte[]>> reader = RedisItemReader.struct(ByteArrayCodec.INSTANCE);
+		RedisItemReader<byte[], byte[], KeyValue<byte[], Object>> reader = RedisItemReader
+				.struct(ByteArrayCodec.INSTANCE);
 		configure(info, reader);
 		reader.setClient(redisClient);
-		RedisItemWriter<byte[], byte[], KeyValue<byte[]>> writer = RedisItemWriter.struct(ByteArrayCodec.INSTANCE);
+		RedisItemWriter<byte[], byte[], KeyValue<byte[], Object>> writer = RedisItemWriter
+				.struct(ByteArrayCodec.INSTANCE);
 		writer.setClient(targetRedisClient);
 		replicate(info, reader, writer);
 		assertEquals(redisCommands.pfcount(key1), targetRedisCommands.pfcount(key1));
@@ -118,12 +121,12 @@ class StackToStackTests extends BatchTests {
 	@Test
 	void readLiveType(TestInfo info) throws Exception {
 		enableKeyspaceNotifications();
-		RedisItemReader<String, String, KeyValue<String>> reader = structReader(info);
+		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
 		live(reader);
 		reader.setKeyType(Type.HASH.getCode());
 		reader.open(new ExecutionContext());
 		generate(info, generator(100));
-		List<KeyValue<String>> keyValues = readAll(reader);
+		List<KeyValue<String, Object>> keyValues = readAll(reader);
 		reader.close();
 		Assertions.assertTrue(keyValues.stream().allMatch(v -> v.getType() == Type.HASH));
 	}
@@ -132,13 +135,13 @@ class StackToStackTests extends BatchTests {
 	void readStructMemoryUsage(TestInfo info) throws Exception {
 		generate(info, generator(73));
 		long memLimit = 200;
-		RedisItemReader<String, String, KeyValue<String>> reader = structReader(info);
-		((KeyValueRead<String, String>) reader.getOperation()).setMemUsageLimit(DataSize.ofBytes(memLimit));
+		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
+		((KeyValueRead<String, String, Object>) reader.getOperation()).setMemUsageLimit(DataSize.ofBytes(memLimit));
 		reader.open(new ExecutionContext());
-		List<KeyValue<String>> keyValues = readAll(reader);
+		List<KeyValue<String, Object>> keyValues = readAll(reader);
 		reader.close();
 		Assertions.assertFalse(keyValues.isEmpty());
-		for (KeyValue<String> keyValue : keyValues) {
+		for (KeyValue<String, Object> keyValue : keyValues) {
 			Assertions.assertTrue(keyValue.getMem() > 0);
 			if (keyValue.getMem() > memLimit) {
 				Assertions.assertNull(keyValue.getValue());
@@ -155,10 +158,11 @@ class StackToStackTests extends BatchTests {
 		redisCommands.hset(key, hash);
 		long ttl = System.currentTimeMillis() + 123456;
 		redisCommands.pexpireat(key, ttl);
-		RedisItemReader<String, String, KeyValue<String>> reader = structReader(info);
-		((KeyValueRead<String, String>) reader.getOperation()).setMemUsageLimit(KeyValueRead.NO_MEM_USAGE_LIMIT);
+		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
+		((KeyValueRead<String, String, Object>) reader.getOperation())
+				.setMemUsageLimit(KeyValueRead.NO_MEM_USAGE_LIMIT);
 		reader.open(new ExecutionContext());
-		KeyValue<String> ds = reader.read(Arrays.asList(key)).get(0);
+		KeyValue<String, Object> ds = reader.read(Arrays.asList(key)).get(0);
 		Assertions.assertEquals(key, ds.getKey());
 		Assertions.assertEquals(ttl, ds.getTtl());
 		Assertions.assertEquals(Type.HASH, ds.getType());
@@ -173,12 +177,12 @@ class StackToStackTests extends BatchTests {
 		redisCommands.set(key1, "bar");
 		String key2 = "key:2";
 		redisCommands.set(key2, GeneratorItemReader.string(Math.toIntExact(limit.toBytes() * 2)));
-		RedisItemReader<String, String, KeyValue<String>> reader = structReader(info);
-		((KeyValueRead<String, String>) reader.getOperation()).setMemUsageLimit(limit);
+		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
+		((KeyValueRead<String, String, Object>) reader.getOperation()).setMemUsageLimit(limit);
 		reader.open(new ExecutionContext());
-		List<KeyValue<String>> keyValues = readAll(reader);
+		List<KeyValue<String, Object>> keyValues = readAll(reader);
 		reader.close();
-		Map<String, KeyValue<String>> map = keyValues.stream()
+		Map<String, KeyValue<String, Object>> map = keyValues.stream()
 				.collect(Collectors.toMap(s -> s.getKey(), Function.identity()));
 		Assertions.assertNull(map.get(key2).getValue());
 	}
@@ -187,10 +191,12 @@ class StackToStackTests extends BatchTests {
 	void replicateStructByteArray(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(1000);
 		generate(info, gen);
-		RedisItemReader<byte[], byte[], KeyValue<byte[]>> reader = RedisItemReader.struct(ByteArrayCodec.INSTANCE);
+		RedisItemReader<byte[], byte[], KeyValue<byte[], Object>> reader = RedisItemReader
+				.struct(ByteArrayCodec.INSTANCE);
 		configure(info, reader);
 		reader.setClient(redisClient);
-		RedisItemWriter<byte[], byte[], KeyValue<byte[]>> writer = RedisItemWriter.struct(ByteArrayCodec.INSTANCE);
+		RedisItemWriter<byte[], byte[], KeyValue<byte[], Object>> writer = RedisItemWriter
+				.struct(ByteArrayCodec.INSTANCE);
 		writer.setClient(targetRedisClient);
 		replicate(info, reader, writer);
 	}
@@ -198,9 +204,9 @@ class StackToStackTests extends BatchTests {
 	@Test
 	void replicateStructMemLimit(TestInfo info) throws Exception {
 		generate(info, generator(73));
-		RedisItemReader<String, String, KeyValue<String>> reader = structReader(info);
-		((KeyValueRead<String, String>) reader.getOperation()).setMemUsageLimit(DataSize.ofMegabytes(100));
-		RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct();
+		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
+		((KeyValueRead<String, String, Object>) reader.getOperation()).setMemUsageLimit(DataSize.ofMegabytes(100));
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(targetRedisClient);
 		replicate(info, reader, writer);
 	}
@@ -208,10 +214,11 @@ class StackToStackTests extends BatchTests {
 	@Test
 	void replicateDumpMemLimitHigh(TestInfo info) throws Exception {
 		generate(info, generator(73));
-		RedisItemReader<byte[], byte[], KeyValue<byte[]>> reader = dumpReader(info);
-		KeyValueRead<byte[], byte[]> readOperation = (KeyValueRead<byte[], byte[]>) reader.getOperation();
+		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> reader = dumpReader(info);
+		KeyValueRead<byte[], byte[], byte[]> readOperation = (KeyValueRead<byte[], byte[], byte[]>) reader
+				.getOperation();
 		readOperation.setMemUsageLimit(DataSize.ofMegabytes(100));
-		RedisItemWriter<byte[], byte[], KeyValue<byte[]>> writer = RedisItemWriter.dump();
+		RedisItemWriter<byte[], byte[], KeyValue<byte[], byte[]>> writer = RedisItemWriter.dump();
 		writer.setClient(targetRedisClient);
 		replicate(info, reader, writer);
 	}
@@ -220,12 +227,13 @@ class StackToStackTests extends BatchTests {
 	void readDumpMemLimitLow(TestInfo info) throws Exception {
 		generate(info, generator(73));
 		Assertions.assertTrue(redisCommands.dbsize() > 10);
-		RedisItemReader<byte[], byte[], KeyValue<byte[]>> reader = dumpReader(info);
-		KeyValueRead<byte[], byte[]> readOperation = (KeyValueRead<byte[], byte[]>) reader.getOperation();
+		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> reader = dumpReader(info);
+		KeyValueRead<byte[], byte[], byte[]> readOperation = (KeyValueRead<byte[], byte[], byte[]>) reader
+				.getOperation();
 		DataSize memLimit = DataSize.ofBytes(1500);
 		readOperation.setMemUsageLimit(memLimit);
 		reader.open(new ExecutionContext());
-		List<KeyValue<byte[]>> items = readAll(reader);
+		List<KeyValue<byte[], byte[]>> items = readAll(reader);
 		reader.close();
 		Assertions.assertFalse(items.stream().anyMatch(v -> v.getMem() > memLimit.toBytes() && v.getValue() != null));
 	}
@@ -235,7 +243,7 @@ class StackToStackTests extends BatchTests {
 		int count = 1000;
 		GeneratorItemReader reader = generator(count);
 		generate(info, reader);
-		RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct();
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(redisClient);
 		run(info, reader, writer);
 		awaitUntil(() -> keyCount("gen:*") == count);
@@ -246,7 +254,7 @@ class StackToStackTests extends BatchTests {
 	void writeStructMultiExec(TestInfo info) throws Exception {
 		int count = 10;
 		GeneratorItemReader reader = generator(count);
-		RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct();
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(redisClient);
 		writer.setMultiExec(true);
 		run(info, step(info, 1, reader, genItemProcessor, writer));
@@ -323,8 +331,8 @@ class StackToStackTests extends BatchTests {
 	void replicateStruct(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(100);
 		generate(info, gen);
-		RedisItemReader<String, String, KeyValue<String>> reader = structReader(info);
-		RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct();
+		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(targetRedisClient);
 		replicate(info, reader, writer);
 	}
@@ -380,8 +388,8 @@ class StackToStackTests extends BatchTests {
 	void writeDel(TestInfo info) throws Exception {
 		generate(info, generator(73));
 		GeneratorItemReader gen = generator(73);
-		Del<String, String, KeyValue<String>> del = new Del<>(KeyValue::getKey);
-		RedisItemWriter<String, String, KeyValue<String>> writer = writer(del);
+		Del<String, String, KeyValue<String, Object>> del = new Del<>(KeyValue::getKey);
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(del);
 		run(info, gen, writer);
 		assertEquals(0, keyCount(GeneratorItemReader.DEFAULT_KEYSPACE + "*"));
 	}
@@ -390,8 +398,9 @@ class StackToStackTests extends BatchTests {
 	void writeLpush(TestInfo info) throws Exception {
 		int count = 73;
 		GeneratorItemReader gen = generator(count, Item.Type.STRING);
-		Lpush<String, String, KeyValue<String>> lpush = new Lpush<>(KeyValue::getKey, v -> (String) v.getValue());
-		RedisItemWriter<String, String, KeyValue<String>> writer = writer(lpush);
+		Lpush<String, String, KeyValue<String, Object>> lpush = new Lpush<>(KeyValue::getKey,
+				v -> (String) v.getValue());
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(lpush);
 		run(info, gen, writer);
 		assertEquals(count, redisCommands.dbsize());
 		for (String key : redisCommands.keys("*")) {
@@ -403,8 +412,9 @@ class StackToStackTests extends BatchTests {
 	void writeRpush(TestInfo info) throws Exception {
 		int count = 73;
 		GeneratorItemReader gen = generator(count, Item.Type.STRING);
-		Rpush<String, String, KeyValue<String>> rpush = new Rpush<>(KeyValue::getKey, v -> (String) v.getValue());
-		RedisItemWriter<String, String, KeyValue<String>> writer = writer(rpush);
+		Rpush<String, String, KeyValue<String, Object>> rpush = new Rpush<>(KeyValue::getKey,
+				v -> (String) v.getValue());
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(rpush);
 		run(info, gen, writer);
 		assertEquals(count, redisCommands.dbsize());
 		for (String key : redisCommands.keys("*")) {
@@ -417,9 +427,9 @@ class StackToStackTests extends BatchTests {
 	void writeLpushAll(TestInfo info) throws Exception {
 		int count = 73;
 		GeneratorItemReader gen = generator(count, Item.Type.LIST);
-		LpushAll<String, String, KeyValue<String>> lpushAll = new LpushAll<>(KeyValue::getKey,
+		LpushAll<String, String, KeyValue<String, Object>> lpushAll = new LpushAll<>(KeyValue::getKey,
 				v -> (Collection<String>) v.getValue());
-		RedisItemWriter<String, String, KeyValue<String>> writer = writer(lpushAll);
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(lpushAll);
 		run(info, gen, writer);
 		assertEquals(count, redisCommands.dbsize());
 		for (String key : redisCommands.keys("*")) {
@@ -432,9 +442,9 @@ class StackToStackTests extends BatchTests {
 		int count = 73;
 		GeneratorItemReader gen = generator(count, Item.Type.STRING);
 		Duration ttl = Duration.ofMillis(1);
-		Expire<String, String, KeyValue<String>> expire = new Expire<>(KeyValue::getKey);
+		Expire<String, String, KeyValue<String, Object>> expire = new Expire<>(KeyValue::getKey);
 		expire.setTtl(ttl);
-		RedisItemWriter<String, String, KeyValue<String>> writer = writer(expire);
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(expire);
 		run(info, gen, writer);
 		awaitUntil(() -> redisCommands.dbsize() == 0);
 		assertEquals(0, redisCommands.dbsize());
@@ -444,9 +454,9 @@ class StackToStackTests extends BatchTests {
 	void writeExpireAt(TestInfo info) throws Exception {
 		int count = 73;
 		GeneratorItemReader gen = generator(count, Item.Type.STRING);
-		ExpireAt<String, String, KeyValue<String>> expireAt = new ExpireAt<>(KeyValue::getKey);
+		ExpireAt<String, String, KeyValue<String, Object>> expireAt = new ExpireAt<>(KeyValue::getKey);
 		expireAt.setEpochFunction(v -> System.currentTimeMillis());
-		RedisItemWriter<String, String, KeyValue<String>> writer = writer(expireAt);
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(expireAt);
 		run(info, gen, writer);
 		awaitUntil(() -> redisCommands.dbsize() == 0);
 		assertEquals(0, redisCommands.dbsize());
@@ -521,7 +531,7 @@ class StackToStackTests extends BatchTests {
 		GeneratorItemReader gen2 = generator(100, Item.Type.HASH);
 		gen2.setHashOptions(hashOptions(Range.of(10)));
 		generate(testInfo(info, "target"), targetRedisClient, gen2);
-		RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct();
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(targetRedisClient);
 		replicate(info, structReader(info), writer);
 		assertEquals(redisCommands.hgetall("gen:1"), targetRedisCommands.hgetall("gen:1"));
@@ -535,8 +545,8 @@ class StackToStackTests extends BatchTests {
 		GeneratorItemReader gen2 = generator(100, Item.Type.HASH);
 		gen2.setHashOptions(hashOptions(Range.of(10)));
 		generate(testInfo(info, "target"), targetRedisClient, gen2);
-		RedisItemReader<String, String, KeyValue<String>> reader = structReader(info);
-		RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct();
+		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(targetRedisClient);
 		((KeyValueWrite<String, String>) writer.getOperation()).setMode(WriteMode.MERGE);
 		run(testInfo(info, "replicate"), reader, writer);

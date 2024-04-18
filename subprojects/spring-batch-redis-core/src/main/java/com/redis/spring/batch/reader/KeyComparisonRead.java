@@ -33,17 +33,17 @@ import io.lettuce.core.codec.StringCodec;
 
 public class KeyComparisonRead implements InitializingOperation<String, String, String, KeyComparison> {
 
-	private final KeyValueRead<String, String> source;
-	private final KeyValueRead<String, String> target;
+	private final KeyValueRead<String, String, Object> source;
+	private final KeyValueRead<String, String, Object> target;
 
-	private OperationExecutor<String, String, String, KeyValue<String>> targetOperationExecutor;
+	private OperationExecutor<String, String, String, KeyValue<String, Object>> targetOperationExecutor;
 	private StreamMessageIdPolicy streamMessageIdPolicy;
 	private Duration ttlTolerance;
 	private AbstractRedisClient targetClient;
 	private int targetPoolSize;
 	private ReadFrom targetReadFrom;
 
-	public KeyComparisonRead(KeyValueRead<String, String> source, KeyValueRead<String, String> target) {
+	public KeyComparisonRead(KeyValueRead<String, String, Object> source, KeyValueRead<String, String, Object> target) {
 		this.source = source;
 		this.target = target;
 	}
@@ -85,16 +85,16 @@ public class KeyComparisonRead implements InitializingOperation<String, String, 
 	@Override
 	public void execute(BaseRedisAsyncCommands<String, String> commands, Iterable<? extends String> inputs,
 			List<RedisFuture<KeyComparison>> outputs) {
-		List<RedisFuture<KeyValue<String>>> sourceOutputs = new ArrayList<>();
+		List<RedisFuture<KeyValue<String, Object>>> sourceOutputs = new ArrayList<>();
 		source.execute(commands, inputs, sourceOutputs);
-		Map<String, KeyValue<String>> targetItems = targetOperationExecutor.apply(inputs).stream()
+		Map<String, KeyValue<String, Object>> targetItems = targetOperationExecutor.apply(inputs).stream()
 				.collect(Collectors.toMap(KeyValue::getKey, Function.identity()));
 		Stream<RedisFuture<KeyComparison>> results = sourceOutputs.stream()
 				.map(f -> new MappingRedisFuture<>(f, v -> compare(v, targetItems.get(v.getKey()))));
 		results.forEach(outputs::add);
 	}
 
-	private KeyComparison compare(KeyValue<String> source, KeyValue<String> target) {
+	private KeyComparison compare(KeyValue<String, Object> source, KeyValue<String, Object> target) {
 		KeyComparison comparison = new KeyComparison();
 		comparison.setSource(source);
 		comparison.setTarget(target);
@@ -102,7 +102,7 @@ public class KeyComparisonRead implements InitializingOperation<String, String, 
 		return comparison;
 	}
 
-	private Status status(KeyValue<String> source, KeyValue<String> target) {
+	private Status status(KeyValue<String, Object> source, KeyValue<String, Object> target) {
 		if (target == null) {
 			if (source == null) {
 				return Status.OK;
@@ -128,7 +128,7 @@ public class KeyComparisonRead implements InitializingOperation<String, String, 
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private boolean valueEquals(KeyValue<String> source, KeyValue<String> target) {
+	private boolean valueEquals(KeyValue<String, Object> source, KeyValue<String, Object> target) {
 		if (source.getType() == Type.STREAM) {
 			return streamEquals((Collection<StreamMessage>) source.getValue(),
 					(Collection<StreamMessage>) target.getValue());

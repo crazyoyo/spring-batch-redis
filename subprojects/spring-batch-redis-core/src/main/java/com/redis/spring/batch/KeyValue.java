@@ -7,25 +7,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class KeyValue<K> {
-
-	public static final long TTL_NO_KEY = -2;
-
-	private K key;
-	private Type type;
-	private Object value;
-
-	/**
-	 * Expiration POSIX time in milliseconds for this key.
-	 *
-	 */
-	private long ttl;
-
-	/**
-	 * Number of bytes that this key and its value require to be stored in Redis
-	 * RAM. 0 means no memory usage information is available.
-	 */
-	private long mem;
+public class KeyValue<K, V> {
 
 	public enum Type {
 
@@ -53,6 +35,36 @@ public class KeyValue<K> {
 
 	}
 
+	public static final long TTL_NO_KEY = -2;
+
+	private K key;
+	private Type type;
+	private V value;
+
+	/**
+	 * Expiration POSIX time in milliseconds for this key.
+	 *
+	 */
+	private long ttl;
+
+	/**
+	 * Number of bytes that this key and its value require to be stored in Redis
+	 * RAM. 0 means no memory usage information is available.
+	 */
+	private long mem;
+
+	public KeyValue() {
+
+	}
+
+	public KeyValue(KeyValue<K, V> other) {
+		this.key = other.key;
+		this.mem = other.mem;
+		this.ttl = other.ttl;
+		this.type = other.type;
+		this.value = other.value;
+	}
+
 	public K getKey() {
 		return key;
 	}
@@ -69,11 +81,11 @@ public class KeyValue<K> {
 		this.type = type;
 	}
 
-	public Object getValue() {
+	public V getValue() {
 		return value;
 	}
 
-	public void setValue(Object value) {
+	public void setValue(V value) {
 		this.value = value;
 	}
 
@@ -110,7 +122,7 @@ public class KeyValue<K> {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		KeyValue<?> other = (KeyValue<?>) obj;
+		KeyValue<?, ?> other = (KeyValue<?, ?>) obj;
 		return Objects.equals(key, other.key) && mem == other.mem && ttl == other.ttl && type == other.type
 				&& Objects.equals(value, other.value);
 	}

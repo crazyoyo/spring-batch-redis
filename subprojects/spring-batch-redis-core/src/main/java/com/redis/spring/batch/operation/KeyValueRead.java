@@ -19,7 +19,7 @@ import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class KeyValueRead<K, V> implements InitializingOperation<K, V, K, KeyValue<K>> {
+public class KeyValueRead<K, V, T> implements InitializingOperation<K, V, K, KeyValue<K, T>> {
 
 	public enum ValueType {
 		DUMP, STRUCT, TYPE
@@ -33,30 +33,31 @@ public class KeyValueRead<K, V> implements InitializingOperation<K, V, K, KeyVal
 
 	private final ValueType type;
 	private final RedisCodec<K, V> codec;
+	private final Function<List<Object>, KeyValue<K, T>> function;
 	private DataSize memUsageLimit = DEFAULT_MEM_USAGE_LIMIT;
 	private int memUsageSamples = DEFAULT_MEM_USAGE_SAMPLES;
 	private Evalsha<K, V, K> evalsha;
-	private Function<List<Object>, KeyValue<K>> mappingFunction;
 
-	public KeyValueRead(ValueType type, RedisCodec<K, V> codec) {
+	public KeyValueRead(ValueType type, RedisCodec<K, V> codec, Function<List<Object>, KeyValue<K, T>> function) {
 		this.type = type;
 		this.codec = codec;
+		this.function = function;
 	}
 
-	public static KeyValueRead<byte[], byte[]> dump() {
-		return new KeyValueRead<>(ValueType.DUMP, ByteArrayCodec.INSTANCE);
+	public static KeyValueRead<byte[], byte[], byte[]> dump() {
+		return new KeyValueRead<>(ValueType.DUMP, ByteArrayCodec.INSTANCE, new EvalFunction<>(ByteArrayCodec.INSTANCE));
 	}
 
-	public static <K, V> KeyValueRead<K, V> struct(RedisCodec<K, V> codec) {
-		return new KeyValueRead<>(ValueType.STRUCT, codec);
+	public static <K, V> KeyValueRead<K, V, Object> struct(RedisCodec<K, V> codec) {
+		return new KeyValueRead<>(ValueType.STRUCT, codec, new EvalStructFunction<>(codec));
 	}
 
-	public static KeyValueRead<String, String> struct() {
+	public static KeyValueRead<String, String, Object> struct() {
 		return struct(StringCodec.UTF8);
 	}
 
-	public static KeyValueRead<String, String> type() {
-		return new KeyValueRead<>(ValueType.TYPE, StringCodec.UTF8);
+	public static KeyValueRead<String, String, Object> type() {
+		return new KeyValueRead<>(ValueType.TYPE, StringCodec.UTF8, new EvalStructFunction<>(StringCodec.UTF8));
 	}
 
 	public void setMemUsageLimit(DataSize limit) {
@@ -73,19 +74,6 @@ public class KeyValueRead<K, V> implements InitializingOperation<K, V, K, KeyVal
 		String digest = connection.sync().scriptLoad(lua);
 		evalsha = new Evalsha<>(digest, codec, Function.identity());
 		evalsha.setArgs(typeArg(), memLimitArg(), samplesArg());
-		mappingFunction = mappingFunction();
-	}
-
-	private Function<List<Object>, KeyValue<K>> mappingFunction() {
-		switch (type) {
-		case STRUCT:
-		case TYPE:
-			return new EvalStructFunction<>(codec);
-		case DUMP:
-			return new EvalFunction<>(codec);
-		default:
-			return new EvalFunction<>(codec);
-		}
 	}
 
 	private String typeArg() {
@@ -102,10 +90,10 @@ public class KeyValueRead<K, V> implements InitializingOperation<K, V, K, KeyVal
 
 	@Override
 	public void execute(BaseRedisAsyncCommands<K, V> commands, Iterable<? extends K> inputs,
-			List<RedisFuture<KeyValue<K>>> outputs) {
+			List<RedisFuture<KeyValue<K, T>>> outputs) {
 		List<RedisFuture<List<Object>>> evalOutputs = new ArrayList<>();
 		evalsha.execute(commands, inputs, evalOutputs);
-		evalOutputs.stream().map(f -> new MappingRedisFuture<>(f, mappingFunction)).forEach(outputs::add);
+		evalOutputs.stream().map(f -> new MappingRedisFuture<>(f, function)).forEach(outputs::add);
 	}
 
 }

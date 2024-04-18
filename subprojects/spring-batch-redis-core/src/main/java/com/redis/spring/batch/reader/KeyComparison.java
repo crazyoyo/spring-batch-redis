@@ -12,23 +12,23 @@ public class KeyComparison {
 		VALUE // Value mismatch
 	}
 
-	private KeyValue<String> source;
-	private KeyValue<String> target;
+	private KeyValue<String, Object> source;
+	private KeyValue<String, Object> target;
 	private Status status;
 
-	public KeyValue<String> getSource() {
+	public KeyValue<String, Object> getSource() {
 		return source;
 	}
 
-	public void setSource(KeyValue<String> source) {
+	public void setSource(KeyValue<String, Object> source) {
 		this.source = source;
 	}
 
-	public KeyValue<String> getTarget() {
+	public KeyValue<String, Object> getTarget() {
 		return target;
 	}
 
-	public void setTarget(KeyValue<String> target) {
+	public void setTarget(KeyValue<String, Object> target) {
 		this.target = target;
 	}
 

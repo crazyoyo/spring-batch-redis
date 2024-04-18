@@ -91,6 +91,7 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 	private JobExecution jobExecution;
 	private BlockingQueue<T> queue;
 	private OperationExecutor<K, V, K, T> operationExecutor;
+	private ItemReader<K> reader;
 
 	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
 		this.codec = codec;
@@ -105,19 +106,19 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 		return new KeyComparisonItemReader(KeyValueRead.type(), KeyValueRead.type());
 	}
 
-	public static RedisItemReader<byte[], byte[], KeyValue<byte[]>> dump() {
+	public static RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dump() {
 		return new RedisItemReader<>(ByteArrayCodec.INSTANCE, KeyValueRead.dump());
 	}
 
-	public static RedisItemReader<String, String, KeyValue<String>> type() {
+	public static RedisItemReader<String, String, KeyValue<String, Object>> type() {
 		return new RedisItemReader<>(StringCodec.UTF8, KeyValueRead.type());
 	}
 
-	public static RedisItemReader<String, String, KeyValue<String>> struct() {
+	public static RedisItemReader<String, String, KeyValue<String, Object>> struct() {
 		return struct(StringCodec.UTF8);
 	}
 
-	public static <K, V> RedisItemReader<K, V, KeyValue<K>> struct(RedisCodec<K, V> codec) {
+	public static <K, V> RedisItemReader<K, V, KeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
 		return new RedisItemReader<>(codec, KeyValueRead.struct(codec));
 	}
 
@@ -157,7 +158,7 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 
 	private FaultTolerantStepBuilder<K, K> step() {
 		SimpleStepBuilder<K, K> step = stepBuilder();
-		ItemReader<? extends K> reader = reader();
+		reader = reader();
 		step.reader(reader);
 		step.processor(keyProcessor);
 		step.writer(new Writer());
@@ -192,16 +193,16 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 		return mode == ReaderMode.LIVE;
 	}
 
-	private ItemReader<? extends K> reader() {
+	private ItemReader<K> reader() {
 		if (isLive()) {
-			KeyNotificationItemReader<K, V> reader = new KeyNotificationItemReader<>(client, codec);
-			reader.setName(getName() + "-key-notification-reader");
-			reader.setQueueCapacity(notificationQueueCapacity);
-			reader.setDatabase(database);
-			reader.setKeyPattern(keyPattern);
-			reader.setKeyType(keyType);
-			reader.setPollTimeout(pollTimeout);
-			return reader;
+			KeyNotificationItemReader<K, V> notificationReader = new KeyNotificationItemReader<>(client, codec);
+			notificationReader.setName(getName() + "-key-notification-reader");
+			notificationReader.setQueueCapacity(notificationQueueCapacity);
+			notificationReader.setDatabase(database);
+			notificationReader.setKeyPattern(keyPattern);
+			notificationReader.setKeyType(keyType);
+			notificationReader.setPollTimeout(pollTimeout);
+			return notificationReader;
 		}
 		ScanIterator<K> scanIterator = ScanIterator.scan(connection().sync(), scanArgs());
 		return new IteratorItemReader<>(scanIterator);
@@ -277,6 +278,10 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 	@Override
 	protected T doPoll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
+	}
+
+	public ItemReader<K> getReader() {
+		return reader;
 	}
 
 	public Operation<K, V, K, T> getOperation() {

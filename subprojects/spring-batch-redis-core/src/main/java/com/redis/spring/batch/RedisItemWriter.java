@@ -118,15 +118,15 @@ public class RedisItemWriter<K, V, T> implements ItemStreamWriter<T> {
 		this.poolSize = poolSize;
 	}
 
-	public static RedisItemWriter<String, String, KeyValue<String>> struct() {
+	public static RedisItemWriter<String, String, KeyValue<String, Object>> struct() {
 		return struct(StringCodec.UTF8);
 	}
 
-	public static <K, V> RedisItemWriter<K, V, KeyValue<K>> struct(RedisCodec<K, V> codec) {
+	public static <K, V> RedisItemWriter<K, V, KeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
 		return new RedisItemWriter<>(codec, new KeyValueWrite<>());
 	}
 
-	public static RedisItemWriter<byte[], byte[], KeyValue<byte[]>> dump() {
+	public static RedisItemWriter<byte[], byte[], KeyValue<byte[], byte[]>> dump() {
 		return new RedisItemWriter<>(ByteArrayCodec.INSTANCE, new KeyValueRestore<>());
 	}
 

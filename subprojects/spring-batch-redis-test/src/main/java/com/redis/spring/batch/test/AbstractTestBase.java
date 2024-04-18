@@ -173,14 +173,15 @@ public abstract class AbstractTestBase {
 		reader.setClient(redisClient);
 	}
 
-	protected RedisItemReader<byte[], byte[], KeyValue<byte[]>> dumpReader(TestInfo info, String... suffixes) {
-		RedisItemReader<byte[], byte[], KeyValue<byte[]>> reader = RedisItemReader.dump();
+	protected RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dumpReader(TestInfo info, String... suffixes) {
+		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> reader = RedisItemReader.dump();
 		configure(info, reader, suffixes);
 		return reader;
 	}
 
-	protected RedisItemReader<String, String, KeyValue<String>> structReader(TestInfo info, String... suffixes) {
-		RedisItemReader<String, String, KeyValue<String>> reader = RedisItemReader.struct();
+	protected RedisItemReader<String, String, KeyValue<String, Object>> structReader(TestInfo info,
+			String... suffixes) {
+		RedisItemReader<String, String, KeyValue<String, Object>> reader = RedisItemReader.struct();
 		configure(info, reader, suffixes);
 		return reader;
 	}
@@ -309,12 +310,12 @@ public abstract class AbstractTestBase {
 	protected void generate(TestInfo info, AbstractRedisClient client, GeneratorItemReader reader)
 			throws JobExecutionException, InterruptedException {
 		TestInfo testInfo = testInfo(info, "generate");
-		RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct(StringCodec.UTF8);
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct(StringCodec.UTF8);
 		writer.setClient(client);
 		run(testInfo, reader, writer);
 	}
 
-	protected void run(TestInfo info, GeneratorItemReader reader, ItemWriter<KeyValue<String>> writer)
+	protected void run(TestInfo info, GeneratorItemReader reader, ItemWriter<KeyValue<String, Object>> writer)
 			throws JobExecutionException, InterruptedException {
 		run(info, reader, genItemProcessor, writer);
 	}
@@ -400,14 +401,14 @@ public abstract class AbstractTestBase {
 		return BatchUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE).apply(key);
 	}
 
-	protected RedisItemReader<byte[], byte[], KeyValue<byte[]>> dumpReader(TestInfo info) {
-		RedisItemReader<byte[], byte[], KeyValue<byte[]>> reader = RedisItemReader.dump();
+	protected RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dumpReader(TestInfo info) {
+		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> reader = RedisItemReader.dump();
 		configure(info, reader);
 		return reader;
 	}
 
-	protected <K, V> RedisItemReader<K, V, KeyValue<K>> structReader(TestInfo info, RedisCodec<K, V> codec) {
-		RedisItemReader<K, V, KeyValue<K>> reader = RedisItemReader.struct(codec);
+	protected <K, V> RedisItemReader<K, V, KeyValue<K, Object>> structReader(TestInfo info, RedisCodec<K, V> codec) {
+		RedisItemReader<K, V, KeyValue<K, Object>> reader = RedisItemReader.struct(codec);
 		configure(info, reader);
 		return reader;
 	}
