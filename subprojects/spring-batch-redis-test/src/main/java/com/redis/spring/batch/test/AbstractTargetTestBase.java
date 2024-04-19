@@ -94,7 +94,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	protected KeyComparisonItemReader comparisonReader(TestInfo info) {
 		KeyComparisonItemReader reader = RedisItemReader.compare();
 		configure(info, reader, "comparison");
-		reader.setTtlTolerance(Duration.ofMillis(100));
+		reader.getComparatorOptions().setTtlTolerance(Duration.ofMillis(100));
 		reader.setClient(redisClient);
 		reader.setTargetClient(targetRedisClient);
 		return reader;

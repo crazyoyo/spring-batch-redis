@@ -1,7 +1,5 @@
 package com.redis.spring.batch.reader;
 
-import java.time.Duration;
-
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.operation.KeyValueRead;
 
@@ -11,19 +9,12 @@ import io.lettuce.core.codec.StringCodec;
 
 public class KeyComparisonItemReader extends RedisItemReader<String, String, KeyComparison> {
 
-	public enum StreamMessageIdPolicy {
-		COMPARE, IGNORE
-	}
-
-	public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
-	public static final StreamMessageIdPolicy DEFAULT_STREAM_MESSAGE_ID_POLICY = StreamMessageIdPolicy.COMPARE;
 	public static final int DEFAULT_TARGET_POOL_SIZE = RedisItemReader.DEFAULT_POOL_SIZE;
 
-	private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 	private AbstractRedisClient targetClient;
 	private int targetPoolSize = DEFAULT_TARGET_POOL_SIZE;
+	private KeyComparatorOptions comparatorOptions = new KeyComparatorOptions();
 	private ReadFrom targetReadFrom;
-	private StreamMessageIdPolicy streamMessageIdPolicy = DEFAULT_STREAM_MESSAGE_ID_POLICY;
 
 	public KeyComparisonItemReader(KeyValueRead<String, String, Object> source,
 			KeyValueRead<String, String, Object> target) {
@@ -42,23 +33,28 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 		this.targetReadFrom = readFrom;
 	}
 
-	public void setTtlTolerance(Duration ttlTolerance) {
-		this.ttlTolerance = ttlTolerance;
+	public KeyComparatorOptions getComparatorOptions() {
+		return comparatorOptions;
 	}
 
-	public void setStreamMessageIdPolicy(StreamMessageIdPolicy policy) {
-		this.streamMessageIdPolicy = policy;
+	public void setComparatorOptions(KeyComparatorOptions options) {
+		this.comparatorOptions = options;
 	}
 
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		KeyComparisonRead keyComparisonRead = (KeyComparisonRead) operation;
-		keyComparisonRead.setStreamMessageIdPolicy(streamMessageIdPolicy);
 		keyComparisonRead.setTargetClient(targetClient);
 		keyComparisonRead.setTargetPoolSize(targetPoolSize);
 		keyComparisonRead.setTargetReadFrom(targetReadFrom);
-		keyComparisonRead.setTtlTolerance(ttlTolerance);
+		keyComparisonRead.setComparator(comparator());
 		super.doOpen();
+	}
+
+	private KeyComparator comparator() {
+		KeyComparator comparator = new KeyComparator();
+		comparator.setOptions(comparatorOptions);
+		return comparator;
 	}
 
 }
