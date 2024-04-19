@@ -149,14 +149,14 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Assertions.assertEquals(100, (Long) result.get(3), 50);
 		Assertions.assertEquals(value, result.get(4));
 		futures.clear();
-		Instant expireAt = Instant.now().plusSeconds(3600);
+		Instant expireAt = Instant.now().plusSeconds(4321);
 		redisCommands.expireat(key, expireAt);
 		evalsha.setArgs(ValueType.STRUCT.name().toLowerCase(), Long.MAX_VALUE, 5);
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
 		result = OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0);
 		Assertions.assertEquals(5, result.size());
 		Assertions.assertEquals(key, result.get(0));
-		Assertions.assertEquals(expireAt.toEpochMilli(), (Long) result.get(1), 1000);
+		Assertions.assertEquals(expireAt.toEpochMilli(), (Long) result.get(1), 5);
 		Assertions.assertEquals(Type.STRING.getCode(), result.get(2));
 		Assertions.assertEquals(100, (Long) result.get(3), 50);
 		Assertions.assertEquals(value, result.get(4));
@@ -206,7 +206,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
 		keyValue = function.apply(OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0));
 		Assertions.assertEquals(key, keyValue.getKey());
-		Assertions.assertEquals(expireAt.toEpochMilli(), keyValue.getTtl(), 1000);
+		Assertions.assertEquals(expireAt.toEpochMilli(), keyValue.getTtl(), 100);
 		Assertions.assertEquals(Type.STRING, keyValue.getType());
 		Assertions.assertEquals(100, keyValue.getMem(), 50);
 		Assertions.assertEquals(value, keyValue.getValue());
@@ -665,7 +665,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		reader.open(new ExecutionContext());
 		KeyValue<byte[], byte[]> dump = reader.read(Arrays.asList(toByteArray(key))).get(0);
 		Assertions.assertArrayEquals(toByteArray(key), dump.getKey());
-		Assertions.assertTrue(Math.abs(ttl - dump.getTtl()) <= 3);
+		Assertions.assertEquals(ttl, dump.getTtl());
 		redisCommands.del(key);
 		redisCommands.restore(key, (byte[]) dump.getValue(), RestoreArgs.Builder.ttl(ttl).absttl());
 		Assertions.assertEquals(Type.STREAM.getCode(), redisCommands.type(key));

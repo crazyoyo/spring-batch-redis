@@ -1,3 +1,8 @@
+local function unix_ms()
+  local now = redis.call('TIME')
+  return tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
+end
+
 local key = KEYS[1]
 local mode = ARGV[1]
 local memlimit = tonumber(ARGV[2])
@@ -6,9 +11,7 @@ local ttl = redis.call('PTTL', key)
 if ttl == -2 then
   return { key, ttl }
 elseif ttl >= 0 then
-  local e = redis.call('TIME')
-  local time = e[1]*1000 + e[2]/1000
-  ttl = time + ttl
+  ttl = unix_ms() + ttl
 end
 local type = redis.call('TYPE', key)['ok']
 local mem = 0
