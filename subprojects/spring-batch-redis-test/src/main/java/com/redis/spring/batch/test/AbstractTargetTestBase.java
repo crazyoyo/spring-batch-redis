@@ -53,10 +53,12 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	void targetTeardown() {
 		if (targetRedisConnection != null) {
 			targetRedisConnection.close();
+			targetRedisConnection = null;
 		}
 		if (targetRedisClient != null) {
 			targetRedisClient.shutdown();
 			targetRedisClient.getResources().shutdown();
+			targetRedisClient = null;
 		}
 		RedisServer targetRedis = getTargetRedisServer();
 		if (targetRedis instanceof Startable) {

@@ -146,6 +146,10 @@ public class JobFactory implements JobLauncher, InitializingBean {
 		return taskExecutor;
 	}
 
+	public JobBuilder jobBuilder(String name) {
+		return new JobBuilder(name, jobRepository);
+	}
+
 	public void setJobRepository(JobRepository jobRepository) {
 		this.jobRepository = jobRepository;
 	}
@@ -158,12 +162,12 @@ public class JobFactory implements JobLauncher, InitializingBean {
 		this.jobLauncher = jobLauncher;
 	}
 
-	public void setName(String name) {
-		this.name = name;
+	public String getName() {
+		return name;
 	}
 
-	public JobBuilder jobBuilder(String name) {
-		return new JobBuilder(name, jobRepository);
+	public void setName(String name) {
+		this.name = name;
 	}
 
 	public JobLauncher getJobLauncher() {
@@ -176,6 +180,10 @@ public class JobFactory implements JobLauncher, InitializingBean {
 
 	public PlatformTransactionManager getPlatformTransactionManager() {
 		return platformTransactionManager;
+	}
+
+	public JobRepository getJobRepository() {
+		return jobRepository;
 	}
 
 }
