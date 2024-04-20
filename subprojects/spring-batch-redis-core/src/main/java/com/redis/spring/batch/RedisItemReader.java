@@ -98,12 +98,16 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 		this.operation = operation;
 	}
 
-	public static KeyComparisonItemReader compare() {
-		return new KeyComparisonItemReader(KeyValueRead.struct(), KeyValueRead.struct());
+	public static KeyComparisonItemReader<String, String> compare() {
+		return compare(StringCodec.UTF8);
 	}
 
-	public static KeyComparisonItemReader compareQuick() {
-		return new KeyComparisonItemReader(KeyValueRead.type(), KeyValueRead.type());
+	public static <K, V> KeyComparisonItemReader<K, V> compare(RedisCodec<K, V> codec) {
+		return new KeyComparisonItemReader<>(codec, KeyValueRead.struct(codec), KeyValueRead.struct(codec));
+	}
+
+	public static <K, V> KeyComparisonItemReader<K, V> compareQuick(RedisCodec<K, V> codec) {
+		return new KeyComparisonItemReader<>(codec, KeyValueRead.type(codec), KeyValueRead.type(codec));
 	}
 
 	public static RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dump() {
@@ -111,7 +115,11 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 	}
 
 	public static RedisItemReader<String, String, KeyValue<String, Object>> type() {
-		return new RedisItemReader<>(StringCodec.UTF8, KeyValueRead.type());
+		return type(StringCodec.UTF8);
+	}
+
+	public static <K, V> RedisItemReader<K, V, KeyValue<K, Object>> type(RedisCodec<K, V> codec) {
+		return new RedisItemReader<>(codec, KeyValueRead.type(codec));
 	}
 
 	public static RedisItemReader<String, String, KeyValue<String, Object>> struct() {

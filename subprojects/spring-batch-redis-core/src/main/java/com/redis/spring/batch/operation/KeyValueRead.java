@@ -57,7 +57,11 @@ public class KeyValueRead<K, V, T> implements InitializingOperation<K, V, K, Key
 	}
 
 	public static KeyValueRead<String, String, Object> type() {
-		return new KeyValueRead<>(ValueType.TYPE, StringCodec.UTF8, new EvalStructFunction<>(StringCodec.UTF8));
+		return type(StringCodec.UTF8);
+	}
+
+	public static <K, V> KeyValueRead<K, V, Object> type(RedisCodec<K, V> codec) {
+		return new KeyValueRead<>(ValueType.TYPE, codec, new EvalStructFunction<>(codec));
 	}
 
 	public void setMemUsageLimit(DataSize limit) {

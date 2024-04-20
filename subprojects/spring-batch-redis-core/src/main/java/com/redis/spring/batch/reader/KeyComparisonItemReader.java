@@ -5,9 +5,9 @@ import com.redis.spring.batch.operation.KeyValueRead;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
-import io.lettuce.core.codec.StringCodec;
+import io.lettuce.core.codec.RedisCodec;
 
-public class KeyComparisonItemReader extends RedisItemReader<String, String, KeyComparison> {
+public class KeyComparisonItemReader<K, V> extends RedisItemReader<K, V, KeyComparison<K>> {
 
 	public static final int DEFAULT_TARGET_POOL_SIZE = RedisItemReader.DEFAULT_POOL_SIZE;
 
@@ -16,9 +16,9 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 	private KeyComparatorOptions comparatorOptions = new KeyComparatorOptions();
 	private ReadFrom targetReadFrom;
 
-	public KeyComparisonItemReader(KeyValueRead<String, String, Object> source,
-			KeyValueRead<String, String, Object> target) {
-		super(StringCodec.UTF8, new KeyComparisonRead(source, target));
+	public KeyComparisonItemReader(RedisCodec<K, V> codec, KeyValueRead<K, V, Object> source,
+			KeyValueRead<K, V, Object> target) {
+		super(codec, new KeyComparisonRead<>(codec, source, target));
 	}
 
 	public void setTargetClient(AbstractRedisClient client) {
@@ -43,7 +43,7 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 
 	@Override
 	protected synchronized void doOpen() throws Exception {
-		KeyComparisonRead keyComparisonRead = (KeyComparisonRead) operation;
+		KeyComparisonRead<K, V> keyComparisonRead = (KeyComparisonRead<K, V>) operation;
 		keyComparisonRead.setTargetClient(targetClient);
 		keyComparisonRead.setTargetPoolSize(targetPoolSize);
 		keyComparisonRead.setTargetReadFrom(targetReadFrom);
@@ -51,8 +51,8 @@ public class KeyComparisonItemReader extends RedisItemReader<String, String, Key
 		super.doOpen();
 	}
 
-	private KeyComparator comparator() {
-		KeyComparator comparator = new KeyComparator();
+	private KeyComparator<K, V> comparator() {
+		KeyComparator<K, V> comparator = new KeyComparator<>();
 		comparator.setOptions(comparatorOptions);
 		return comparator;
 	}

@@ -5,24 +5,33 @@ import java.util.stream.Collectors;
 
 import com.redis.spring.batch.reader.KeyComparison;
 import com.redis.spring.batch.reader.KeyComparison.Status;
+import com.redis.spring.batch.reader.KeyComparisonItemReader;
 
-public class KeyspaceComparison {
+public class KeyspaceComparison<K> {
 
-	private final List<KeyComparison> keyComparisons;
+	private final List<KeyComparison<K>> keyComparisons;
 
-	public KeyspaceComparison(List<KeyComparison> comparisons) {
+	public KeyspaceComparison(KeyComparisonItemReader<K, ?> reader) throws Exception {
+		this(AbstractTestBase.readAllAndClose(reader));
+	}
+
+	public KeyspaceComparison(List<KeyComparison<K>> comparisons) {
 		this.keyComparisons = comparisons;
 	}
 
-	public boolean isOk() {
-		return mismatches().isEmpty();
+	public List<KeyComparison<K>> getAll() {
+		return keyComparisons;
 	}
 
-	public List<KeyComparison> mismatches() {
+	public boolean isOk() {
+		return !keyComparisons.isEmpty() && mismatches().isEmpty();
+	}
+
+	public List<KeyComparison<K>> mismatches() {
 		return keyComparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
 	}
 
-	public List<KeyComparison> get(Status status) {
+	public List<KeyComparison<K>> get(Status status) {
 		return keyComparisons.stream().filter(c -> c.getStatus() == status).collect(Collectors.toList());
 	}
 

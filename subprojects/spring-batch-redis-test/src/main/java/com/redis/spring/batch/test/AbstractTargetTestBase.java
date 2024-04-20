@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
@@ -77,24 +76,23 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	 * @return keyspace comparison instance
 	 * @throws Exception
 	 */
-	protected KeyspaceComparison compare(TestInfo info) throws Exception {
+	protected KeyspaceComparison<String> compare(TestInfo info) throws Exception {
 		assertDbNotEmpty(redisCommands);
-		KeyComparisonItemReader reader = comparisonReader(testInfo(info, "compare"));
+		KeyComparisonItemReader<String, String> reader = comparisonReader(testInfo(info, "compare"));
 		reader.open(new ExecutionContext());
-		List<KeyComparison> comparisons = readAll(reader);
+		List<KeyComparison<String>> comparisons = readAll(reader);
 		reader.close();
-		Assertions.assertFalse(comparisons.isEmpty());
-		return new KeyspaceComparison(comparisons);
+		return new KeyspaceComparison<>(comparisons);
 	}
 
-	protected void logDiffs(Collection<KeyComparison> diffs) {
-		for (KeyComparison diff : diffs) {
+	protected void logDiffs(Collection<KeyComparison<String>> diffs) {
+		for (KeyComparison<String> diff : diffs) {
 			log.error("{}: {} {}", diff.getStatus(), diff.getSource().getKey(), diff.getSource().getType());
 		}
 	}
 
-	protected KeyComparisonItemReader comparisonReader(TestInfo info) {
-		KeyComparisonItemReader reader = RedisItemReader.compare();
+	protected KeyComparisonItemReader<String, String> comparisonReader(TestInfo info) {
+		KeyComparisonItemReader<String, String> reader = RedisItemReader.compare();
 		configure(info, reader, "comparison");
 		reader.getComparatorOptions().setTtlTolerance(Duration.ofMillis(100));
 		reader.setClient(redisClient);

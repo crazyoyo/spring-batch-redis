@@ -2,10 +2,6 @@ package com.redis.spring.batch.reader;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.util.Assert;
 
@@ -20,20 +16,23 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
-import io.lettuce.core.codec.StringCodec;
+import io.lettuce.core.codec.RedisCodec;
 
-public class KeyComparisonRead implements InitializingOperation<String, String, String, KeyComparison> {
+public class KeyComparisonRead<K, V> implements InitializingOperation<K, V, K, KeyComparison<K>> {
 
-	private final KeyValueRead<String, String, Object> source;
-	private final KeyValueRead<String, String, Object> target;
+	private final KeyValueRead<K, V, Object> source;
+	private final KeyValueRead<K, V, Object> target;
 
-	private OperationExecutor<String, String, String, KeyValue<String, Object>> targetOperationExecutor;
+	private OperationExecutor<K, V, K, KeyValue<K, Object>> targetOperationExecutor;
 	private AbstractRedisClient targetClient;
 	private int targetPoolSize;
 	private ReadFrom targetReadFrom;
-	private KeyComparator comparator = new KeyComparator();
+	private KeyComparator<K, V> comparator = new KeyComparator<>();
+	private RedisCodec<K, V> codec;
 
-	public KeyComparisonRead(KeyValueRead<String, String, Object> source, KeyValueRead<String, String, Object> target) {
+	public KeyComparisonRead(RedisCodec<K, V> codec, KeyValueRead<K, V, Object> source,
+			KeyValueRead<K, V, Object> target) {
+		this.codec = codec;
 		this.source = source;
 		this.target = target;
 	}
@@ -50,16 +49,16 @@ public class KeyComparisonRead implements InitializingOperation<String, String, 
 		this.targetReadFrom = targetReadFrom;
 	}
 
-	public void setComparator(KeyComparator comparator) {
+	public void setComparator(KeyComparator<K, V> comparator) {
 		this.comparator = comparator;
 	}
 
 	@Override
-	public void afterPropertiesSet(StatefulRedisModulesConnection<String, String> connection) throws Exception {
+	public void afterPropertiesSet(StatefulRedisModulesConnection<K, V> connection) throws Exception {
 		Assert.notNull(targetClient, "Target Redis client not set");
 		Assert.isTrue(targetPoolSize > 0, "Target pool size must be strictly positive");
 		source.afterPropertiesSet(connection);
-		targetOperationExecutor = new OperationExecutor<>(StringCodec.UTF8, target);
+		targetOperationExecutor = new OperationExecutor<>(codec, target);
 		targetOperationExecutor.setClient(targetClient);
 		targetOperationExecutor.setPoolSize(targetPoolSize);
 		targetOperationExecutor.setReadFrom(targetReadFrom);
@@ -67,15 +66,16 @@ public class KeyComparisonRead implements InitializingOperation<String, String, 
 	}
 
 	@Override
-	public void execute(BaseRedisAsyncCommands<String, String> commands, Iterable<? extends String> inputs,
-			List<RedisFuture<KeyComparison>> outputs) {
-		List<RedisFuture<KeyValue<String, Object>>> sourceOutputs = new ArrayList<>();
+	public void execute(BaseRedisAsyncCommands<K, V> commands, Iterable<? extends K> inputs,
+			List<RedisFuture<KeyComparison<K>>> outputs) {
+		List<RedisFuture<KeyValue<K, Object>>> sourceOutputs = new ArrayList<>();
 		source.execute(commands, inputs, sourceOutputs);
-		Map<String, KeyValue<String, Object>> targetItems = targetOperationExecutor.apply(inputs).stream()
-				.collect(Collectors.toMap(KeyValue::getKey, Function.identity()));
-		Stream<RedisFuture<KeyComparison>> results = sourceOutputs.stream()
-				.map(f -> new MappingRedisFuture<>(f, v -> comparator.compare(v, targetItems.get(v.getKey()))));
-		results.forEach(outputs::add);
+		List<KeyValue<K, Object>> targetItems = targetOperationExecutor.apply(inputs);
+		for (int index = 0; index < sourceOutputs.size(); index++) {
+			RedisFuture<KeyValue<K, Object>> sourceOutput = sourceOutputs.get(index);
+			KeyValue<K, Object> targetItem = targetItems.get(index);
+			outputs.add(new MappingRedisFuture<>(sourceOutput, v -> comparator.compare(v, targetItem)));
+		}
 	}
 
 }

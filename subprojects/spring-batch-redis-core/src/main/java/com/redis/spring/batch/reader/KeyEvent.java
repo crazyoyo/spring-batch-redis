@@ -1,21 +1,21 @@
 package com.redis.spring.batch.reader;
 
-import java.util.Arrays;
+import java.util.Objects;
 
 import com.redis.spring.batch.KeyValue.Type;
 
 public class KeyEvent<K> {
 
-	private final K key;
+	private final Wrapper<K> key;
 	private final Type type;
 
 	public KeyEvent(K key, Type type) {
-		this.key = key;
+		this.key = new Wrapper<>(key);
 		this.type = type;
 	}
 
 	public K getKey() {
-		return key;
+		return key.getValue();
 	}
 
 	public Type getType() {
@@ -24,27 +24,20 @@ public class KeyEvent<K> {
 
 	@Override
 	public int hashCode() {
-		if (key instanceof byte[]) {
-			return Arrays.hashCode((byte[]) key);
-		}
-		return key.hashCode();
+		return Objects.hash(key);
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings("rawtypes")
 	@Override
 	public boolean equals(Object obj) {
-
-		if (!(obj instanceof KeyEvent)) {
+		if (this == obj)
+			return true;
+		if (obj == null)
 			return false;
-		}
-
-		KeyEvent<K> that = (KeyEvent<K>) obj;
-
-		if (key instanceof byte[] && that.key instanceof byte[]) {
-			return Arrays.equals((byte[]) key, (byte[]) that.key);
-		}
-
-		return key.equals(that.key);
+		if (getClass() != obj.getClass())
+			return false;
+		KeyEvent other = (KeyEvent) obj;
+		return Objects.equals(key, other.key);
 	}
 
 }

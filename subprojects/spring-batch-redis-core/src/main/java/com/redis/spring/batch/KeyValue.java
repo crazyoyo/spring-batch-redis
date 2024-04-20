@@ -7,7 +7,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class KeyValue<K, V> {
+public class KeyValue<K, T> {
 
 	public enum Type {
 
@@ -39,7 +39,7 @@ public class KeyValue<K, V> {
 
 	private K key;
 	private Type type;
-	private V value;
+	private T value;
 
 	/**
 	 * Expiration POSIX time in milliseconds for this key.
@@ -57,7 +57,7 @@ public class KeyValue<K, V> {
 
 	}
 
-	public KeyValue(KeyValue<K, V> other) {
+	public KeyValue(KeyValue<K, T> other) {
 		this.key = other.key;
 		this.mem = other.mem;
 		this.ttl = other.ttl;
@@ -81,11 +81,11 @@ public class KeyValue<K, V> {
 		this.type = type;
 	}
 
-	public V getValue() {
+	public T getValue() {
 		return value;
 	}
 
-	public void setValue(V value) {
+	public void setValue(T value) {
 		this.value = value;
 	}
 

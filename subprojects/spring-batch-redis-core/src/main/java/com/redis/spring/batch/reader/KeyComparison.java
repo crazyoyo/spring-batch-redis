@@ -2,7 +2,7 @@ package com.redis.spring.batch.reader;
 
 import com.redis.spring.batch.KeyValue;
 
-public class KeyComparison {
+public class KeyComparison<K> {
 
 	public enum Status {
 		OK, // No difference
@@ -12,23 +12,23 @@ public class KeyComparison {
 		VALUE // Value mismatch
 	}
 
-	private KeyValue<String, Object> source;
-	private KeyValue<String, Object> target;
+	private KeyValue<K, Object> source;
+	private KeyValue<K, Object> target;
 	private Status status;
 
-	public KeyValue<String, Object> getSource() {
+	public KeyValue<K, Object> getSource() {
 		return source;
 	}
 
-	public void setSource(KeyValue<String, Object> source) {
+	public void setSource(KeyValue<K, Object> source) {
 		this.source = source;
 	}
 
-	public KeyValue<String, Object> getTarget() {
+	public KeyValue<K, Object> getTarget() {
 		return target;
 	}
 
-	public void setTarget(KeyValue<String, Object> target) {
+	public void setTarget(KeyValue<K, Object> target) {
 		this.target = target;
 	}
 

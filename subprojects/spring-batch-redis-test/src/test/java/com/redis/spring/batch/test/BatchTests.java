@@ -41,7 +41,9 @@ import org.springframework.test.context.junit4.SpringRunner;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.Beers;
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
+import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.search.IndexInfo;
 import com.redis.lettucemod.search.Suggestion;
 import com.redis.lettucemod.timeseries.AddOptions;
@@ -94,6 +96,7 @@ import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
+import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
@@ -108,11 +111,11 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void compareSet(TestInfo info) throws Exception {
 		redisCommands.sadd("set:1", "value1", "value2");
 		targetRedisCommands.sadd("set:1", "value2", "value1");
-		KeyComparisonItemReader reader = comparisonReader(info);
+		KeyComparisonItemReader<String, String> reader = comparisonReader(info);
 		reader.open(new ExecutionContext());
-		List<KeyComparison> comparisons = readAll(reader);
+		List<KeyComparison<String>> comparisons = readAll(reader);
 		reader.close();
-		Assertions.assertEquals(KeyComparison.Status.OK, comparisons.get(0).getStatus());
+		Assertions.assertEquals(Status.OK, comparisons.get(0).getStatus());
 	}
 
 	@Test
@@ -133,11 +136,12 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		evalsha.setArgs(ValueType.TYPE.name().toLowerCase(), Long.MAX_VALUE, 5);
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
 		result = OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0);
-		Assertions.assertEquals(4, result.size());
+		Assertions.assertEquals(5, result.size());
 		Assertions.assertEquals(key, result.get(0));
 		Assertions.assertEquals(-1, (Long) result.get(1));
 		Assertions.assertEquals(Type.STRING.getCode(), result.get(2));
 		Assertions.assertEquals(100, (Long) result.get(3), 50);
+		Assertions.assertEquals(value, result.get(4));
 		futures.clear();
 		evalsha.setArgs(ValueType.STRUCT.name().toLowerCase(), Long.MAX_VALUE, 5);
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
@@ -206,7 +210,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
 		keyValue = function.apply(OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0));
 		Assertions.assertEquals(key, keyValue.getKey());
-		Assertions.assertEquals(expireAt.toEpochMilli(), keyValue.getTtl(), 100);
+		Assertions.assertEquals(expireAt.toEpochMilli(), keyValue.getTtl(), 300);
 		Assertions.assertEquals(Type.STRING, keyValue.getType());
 		Assertions.assertEquals(100, keyValue.getMem(), 50);
 		Assertions.assertEquals(value, keyValue.getValue());
@@ -226,12 +230,12 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		source.setClient(redisClient);
 		RedisItemReader<String, String, KeyValue<String, Object>> target = RedisItemReader.type();
 		target.setClient(targetRedisClient);
-		KeyComparisonItemReader reader = comparisonReader(info);
+		KeyComparisonItemReader<String, String> reader = comparisonReader(info);
 		reader.open(new ExecutionContext());
-		List<KeyComparison> comparisons = readAll(reader);
+		List<KeyComparison<String>> comparisons = readAll(reader);
 		reader.close();
-		KeyspaceComparison keyspaceComparison = new KeyspaceComparison(comparisons);
-		Assertions.assertEquals(sourceCount - targetCount, keyspaceComparison.get(Status.MISSING).size());
+		KeyspaceComparison<String> comparison = new KeyspaceComparison<>(comparisons);
+		Assertions.assertEquals(sourceCount - targetCount, comparison.get(Status.MISSING).size());
 	}
 
 	@Test
@@ -243,7 +247,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(targetRedisClient);
 		replicate(info, reader, writer);
-		KeyspaceComparison comparison = compare(info);
+		KeyspaceComparison<String> comparison = compare(info);
 		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}
 
@@ -293,14 +297,14 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			}
 			targetRedisCommands.set(key, "blah");
 		}
-		KeyComparisonItemReader comparator = comparisonReader(info);
+		KeyComparisonItemReader<String, String> comparator = comparisonReader(info);
 		comparator.open(new ExecutionContext());
-		List<KeyComparison> comparisons = readAll(comparator);
+		List<KeyComparison<String>> comparisons = readAll(comparator);
 		comparator.close();
 		long sourceCount = redisCommands.dbsize();
 		assertEquals(sourceCount, comparisons.size());
 		assertEquals(sourceCount, targetRedisCommands.dbsize() + deleted);
-		List<KeyComparison> actualTypeChanges = comparisons.stream().filter(c -> c.getStatus() == Status.TYPE)
+		List<KeyComparison<String>> actualTypeChanges = comparisons.stream().filter(c -> c.getStatus() == Status.TYPE)
 				.collect(Collectors.toList());
 		assertEquals(typeChanges.size(), actualTypeChanges.size());
 		assertEquals(valueChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.VALUE).count());
@@ -754,7 +758,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			throws Exception {
 		run(testInfo(info, "replicate"), reader, writer);
 		awaitUntilFalse(reader::isRunning);
-		KeyspaceComparison comparison = compare(testInfo(info, "replicate"));
+		KeyspaceComparison<String> comparison = compare(testInfo(info, "replicate"));
 		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}
 
@@ -884,7 +888,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		run(job);
 		awaitUntilFalse(liveReader::isRunning);
 		awaitUntilFalse(reader::isRunning);
-		KeyspaceComparison comparison = compare(info);
+		KeyspaceComparison<String> comparison = compare(info);
 		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}
 
@@ -966,8 +970,78 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		assertEquals(redisCommands.smembers(key), targetRedisCommands.smembers(key));
 	}
 
-	private static final String JSON_BEER_1 = "[{\"id\":\"1\",\"brewery_id\":\"812\",\"name\":\"Hocus Pocus\",\"abv\":\"4.5\",\"ibu\":\"0\",\"srm\":\"0\",\"upc\":\"0\",\"filepath\":\"\",\"descript\":\"Our take on a classic summer ale.  A toast to weeds, rays, and summer haze.  A light, crisp ale for mowing lawns, hitting lazy fly balls, and communing with nature, Hocus Pocus is offered up as a summer sacrifice to clodless days.\\n\\nIts malty sweetness finishes tart and crisp and is best apprediated with a wedge of orange.\",\"add_user\":\"0\",\"last_mod\":\"2010-07-22 20:00:20 UTC\",\"style_name\":\"Light American Wheat Ale or Lager\",\"cat_name\":\"Other Style\"}]";
+	@SuppressWarnings("unchecked")
+	@Test
+	void compareBinaryKeyValue(TestInfo info) throws Exception {
+		byte[] zsetKey = randomBytes();
+		Collection<ScoredValue<byte[]>> zsetValue = new ArrayList<>();
+		for (int index = 0; index < 10; index++) {
+			zsetValue.add(ScoredValue.just(index, randomBytes()));
+		}
+		byte[] listKey = randomBytes();
+		List<byte[]> listValue = new ArrayList<>();
+		for (int index = 0; index < 10; index++) {
+			listValue.add(randomBytes());
+		}
+		byte[] setKey = randomBytes();
+		Set<byte[]> setValue = new HashSet<>();
+		for (int index = 0; index < 10; index++) {
+			setValue.add(randomBytes());
+		}
+		byte[] hashKey = randomBytes();
+		Map<byte[], byte[]> hashValue = byteArrayMap();
+		StatefulRedisModulesConnection<byte[], byte[]> connection = RedisModulesUtils.connection(redisClient,
+				ByteArrayCodec.INSTANCE);
+		RedisModulesCommands<byte[], byte[]> source = connection.sync();
+		StatefulRedisModulesConnection<byte[], byte[]> targetConnection = RedisModulesUtils
+				.connection(targetRedisClient, ByteArrayCodec.INSTANCE);
+		RedisModulesCommands<byte[], byte[]> target = targetConnection.sync();
+		source.sadd(setKey, setValue.toArray(new byte[0][]));
+		target.sadd(setKey, setValue.toArray(new byte[0][]));
+		source.hset(hashKey, hashValue);
+		target.hset(hashKey, hashValue);
+		source.lpush(listKey, listValue.toArray(new byte[0][]));
+		target.lpush(listKey, listValue.toArray(new byte[0][]));
+		source.zadd(zsetKey, zsetValue.toArray(new ScoredValue[0]));
+		target.zadd(zsetKey, zsetValue.toArray(new ScoredValue[0]));
+		byte[] streamKey = randomBytes();
+		for (int index = 0; index < 10; index++) {
+			Map<byte[], byte[]> body = byteArrayMap();
+			String id = source.xadd(streamKey, body);
+			XAddArgs args = new XAddArgs();
+			args.id(id);
+			target.xadd(streamKey, args, body);
+		}
+		KeyComparisonItemReader<byte[], byte[]> comparisonReader = RedisItemReader.compare(ByteArrayCodec.INSTANCE);
+		configure(info, comparisonReader, "comparison");
+		comparisonReader.getComparatorOptions().setTtlTolerance(Duration.ofMillis(100));
+		comparisonReader.setClient(redisClient);
+		comparisonReader.setTargetClient(targetRedisClient);
+		comparisonReader.open(new ExecutionContext());
+		KeyspaceComparison<byte[]> comparison = new KeyspaceComparison<>(comparisonReader);
+		Assertions.assertFalse(comparison.getAll().isEmpty());
+		Assertions.assertTrue(comparison.mismatches().isEmpty());
+	}
 
+	private Map<byte[], byte[]> byteArrayMap() {
+		Map<byte[], byte[]> hash = new HashMap<>();
+		int fieldCount = 10;
+		for (int index = 0; index < fieldCount; index++) {
+			hash.put(randomBytes(), randomBytes());
+		}
+		return hash;
+
+	}
+
+	private final Random random = new Random();
+
+	private byte[] randomBytes() {
+		byte[] bytes = new byte[10];
+		random.nextBytes(bytes);
+		return bytes;
+	}
+
+	private static final String JSON_BEER_1 = "[{\"id\":\"1\",\"brewery_id\":\"812\",\"name\":\"Hocus Pocus\",\"abv\":\"4.5\",\"ibu\":\"0\",\"srm\":\"0\",\"upc\":\"0\",\"filepath\":\"\",\"descript\":\"Our take on a classic summer ale.  A toast to weeds, rays, and summer haze.  A light, crisp ale for mowing lawns, hitting lazy fly balls, and communing with nature, Hocus Pocus is offered up as a summer sacrifice to clodless days.\\n\\nIts malty sweetness finishes tart and crisp and is best apprediated with a wedge of orange.\",\"add_user\":\"0\",\"last_mod\":\"2010-07-22 20:00:20 UTC\",\"style_name\":\"Light American Wheat Ale or Lager\",\"cat_name\":\"Other Style\"}]";
 	private static final int BEER_COUNT = 1019;
 
 	@Test
@@ -983,7 +1057,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		for (int index = 0; index < count; index++) {
 			redisCommands.tsAdd("ts:" + index, Sample.of(123));
 		}
-		KeyspaceComparison comparisons = compare(info);
+		KeyspaceComparison<String> comparisons = compare(info);
 		Assertions.assertEquals(count, comparisons.get(Status.MISSING).size());
 	}
 

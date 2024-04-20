@@ -25,8 +25,10 @@ import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.function.FunctionItemProcessor;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
@@ -138,6 +140,15 @@ public abstract class AbstractTestBase {
 
 	public static TestInfo testInfo(TestInfo info, String... suffixes) {
 		return new SimpleTestInfo(info, suffixes);
+	}
+
+	public static <T> List<T> readAllAndClose(ItemStreamReader<T> reader) throws Exception {
+		try {
+			reader.open(new ExecutionContext());
+			return readAll(reader);
+		} finally {
+			reader.close();
+		}
 	}
 
 	public static <T> List<T> readAll(ItemReader<T> reader) throws Exception {
