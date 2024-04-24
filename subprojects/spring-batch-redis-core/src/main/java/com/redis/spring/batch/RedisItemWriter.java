@@ -5,7 +5,9 @@ import java.time.Duration;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.ItemStreamWriter;
+import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
+import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.operation.KeyValueRestore;
 import com.redis.spring.batch.operation.KeyValueWrite;
@@ -19,7 +21,7 @@ import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemWriter<K, V, T> implements ItemStreamWriter<T> {
+public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 
 	public static final int DEFAULT_POOL_SIZE = OperationExecutor.DEFAULT_POOL_SIZE;
 	public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
@@ -36,6 +38,7 @@ public class RedisItemWriter<K, V, T> implements ItemStreamWriter<T> {
 	private OperationExecutor<K, V, T, Object> executor;
 
 	public RedisItemWriter(RedisCodec<K, V> codec, Operation<K, V, T, Object> operation) {
+		setName(ClassUtils.getShortName(getClass()));
 		this.codec = codec;
 		this.operation = operation;
 	}
@@ -46,6 +49,7 @@ public class RedisItemWriter<K, V, T> implements ItemStreamWriter<T> {
 
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
+		Assert.notNull(client, "Redis client not set");
 		if (executor == null) {
 			executor = new OperationExecutor<>(codec, operation());
 			executor.setClient(client);

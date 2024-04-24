@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.KeyValue.DataType;
 import com.redis.spring.batch.reader.KeyComparatorOptions.StreamMessageIdPolicy;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 
@@ -30,13 +31,13 @@ public class KeyComparator<K, V> {
 	}
 
 	private Status status(KeyValue<K, Object> source, KeyValue<K, Object> target) {
-		if (target == null || !target.exists()) {
-			if (source == null || !source.exists()) {
+		if (!KeyValue.exists(target)) {
+			if (!KeyValue.exists(source)) {
 				return Status.OK;
 			}
 			return Status.MISSING;
 		}
-		if (target.getType() != source.getType()) {
+		if (KeyValue.hasType(source) && !source.getType().equalsIgnoreCase(target.getType())) {
 			return Status.TYPE;
 		}
 		if (source.getTtl() != target.getTtl()) {
@@ -62,7 +63,14 @@ public class KeyComparator<K, V> {
 				return false;
 			}
 		}
-		switch (source.getType()) {
+		if (!KeyValue.hasType(source)) {
+			return !KeyValue.hasType(target);
+		}
+		DataType type = KeyValue.type(source);
+		if (type == null) {
+			return Objects.deepEquals(a, b);
+		}
+		switch (type) {
 		case STREAM:
 			return streamEquals((Collection<StreamMessage<K, V>>) a, (Collection<StreamMessage<K, V>>) b);
 		case HASH:

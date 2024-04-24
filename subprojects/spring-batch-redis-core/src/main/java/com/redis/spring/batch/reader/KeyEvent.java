@@ -2,24 +2,22 @@ package com.redis.spring.batch.reader;
 
 import java.util.Objects;
 
-import com.redis.spring.batch.KeyValue.Type;
-
 public class KeyEvent<K> {
 
 	private final Wrapper<K> key;
-	private final Type type;
+	private final String event;
 
-	public KeyEvent(K key, Type type) {
+	public KeyEvent(K key, String event) {
 		this.key = new Wrapper<>(key);
-		this.type = type;
+		this.event = event;
 	}
 
 	public K getKey() {
 		return key.getValue();
 	}
 
-	public Type getType() {
-		return type;
+	public String getEvent() {
+		return event;
 	}
 
 	@Override

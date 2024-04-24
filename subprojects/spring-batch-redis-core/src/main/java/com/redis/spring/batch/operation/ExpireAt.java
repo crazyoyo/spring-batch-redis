@@ -16,12 +16,13 @@ public class ExpireAt<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		super(keyFunction);
 	}
 
-	public void setEpoch(long epoch) {
-		this.epochFunction = t -> epoch;
+	public ExpireAt<K, V, T> epoch(long epoch) {
+		return epoch(t -> epoch);
 	}
 
-	public void setEpochFunction(ToLongFunction<T> epochFunction) {
-		this.epochFunction = epochFunction;
+	public ExpireAt<K, V, T> epoch(ToLongFunction<T> function) {
+		this.epochFunction = function;
+		return this;
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -31,6 +32,12 @@ public class ExpireAt<K, V, T> extends AbstractKeyOperation<K, V, T> {
 		if (millis > 0) {
 			outputs.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).pexpireat(key, millis));
 		}
+	}
+
+	public static <K, V, T> ExpireAt<K, V, T> of(Function<T, K> key, ToLongFunction<T> epoch) {
+		ExpireAt<K, V, T> operation = new ExpireAt<>(key);
+		operation.epoch(epoch);
+		return operation;
 	}
 
 }

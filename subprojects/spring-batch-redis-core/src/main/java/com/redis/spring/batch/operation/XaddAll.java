@@ -21,12 +21,13 @@ public class XaddAll<K, V, T> implements Operation<K, V, T, Object> {
 		this.messagesFunction = messagesFunction;
 	}
 
-	public void setArgs(XAddArgs args) {
-		this.argsFunction = t -> args;
+	public XaddAll<K, V, T> args(XAddArgs args) {
+		return args(t -> args);
 	}
 
-	public void setArgsFunction(Function<StreamMessage<K, V>, XAddArgs> function) {
+	public XaddAll<K, V, T> args(Function<StreamMessage<K, V>, XAddArgs> function) {
 		this.argsFunction = function;
+		return this;
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -44,6 +45,11 @@ public class XaddAll<K, V, T> implements Operation<K, V, T, Object> {
 				futures.add((RedisFuture) streamCommands.xadd(message.getStream(), args, message.getBody()));
 			}
 		}
+	}
+
+	public static <K, V, T> XaddAll<K, V, T> of(Function<T, Collection<StreamMessage<K, V>>> messages,
+			Function<StreamMessage<K, V>, XAddArgs> args) {
+		return new XaddAll<>(messages).args(args);
 	}
 
 }

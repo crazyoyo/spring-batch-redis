@@ -15,30 +15,23 @@ import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public class TsAddAll<K, V, T> implements Operation<K, V, T, Object> {
 
-	private Function<T, K> keyFunction;
-
-	private Function<T, Collection<Sample>> samplesFunction;
+	private final Function<T, K> keyFunction;
+	private final Function<T, Collection<Sample>> samplesFunction;
 
 	private Function<T, AddOptions<K, V>> optionsFunction = t -> null;
 
-	public void setKey(K key) {
-		this.keyFunction = k -> key;
-	}
-
-	public void setKeyFunction(Function<T, K> keyFunction) {
+	public TsAddAll(Function<T, K> keyFunction, Function<T, Collection<Sample>> samplesFunction) {
 		this.keyFunction = keyFunction;
+		this.samplesFunction = samplesFunction;
 	}
 
-	public void setSamplesFunction(Function<T, Collection<Sample>> function) {
-		this.samplesFunction = function;
+	public TsAddAll<K, V, T> options(AddOptions<K, V> options) {
+		return options(t -> options);
 	}
 
-	public void setOptions(AddOptions<K, V> options) {
-		this.optionsFunction = t -> options;
-	}
-
-	public void setOptionsFunction(Function<T, AddOptions<K, V>> function) {
+	public TsAddAll<K, V, T> options(Function<T, AddOptions<K, V>> function) {
 		this.optionsFunction = function;
+		return this;
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -57,6 +50,13 @@ public class TsAddAll<K, V, T> implements Operation<K, V, T, Object> {
 				futures.add((RedisFuture) timeseriesCommands.tsAdd(key, sample, options));
 			}
 		}
+	}
+
+	public static <K, V, T> TsAddAll<K, V, T> of(Function<T, K> key, Function<T, Collection<Sample>> samples,
+			AddOptions<K, V> options) {
+		TsAddAll<K, V, T> operation = new TsAddAll<>(key, samples);
+		operation.options(options);
+		return operation;
 	}
 
 }

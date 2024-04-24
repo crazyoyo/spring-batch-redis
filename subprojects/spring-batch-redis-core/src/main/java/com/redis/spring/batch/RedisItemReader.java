@@ -105,8 +105,8 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 	public static <K, V> KeyComparisonItemReader<K, V> compare(RedisCodec<K, V> codec) {
 		return new KeyComparisonItemReader<>(codec, KeyValueRead.struct(codec), KeyValueRead.struct(codec));
 	}
-	
-	public static KeyComparisonItemReader<String,String> compareQuick() {
+
+	public static KeyComparisonItemReader<String, String> compareQuick() {
 		return compareQuick(StringCodec.UTF8);
 	}
 
@@ -136,7 +136,7 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 
 	@Override
 	protected synchronized void doOpen() throws Exception {
-		Assert.notNull(client, "Redis client not set");
+		Assert.notNull(client, getName() + ": Redis client not set");
 		if (jobFactory == null) {
 			jobFactory = new JobFactory();
 		}

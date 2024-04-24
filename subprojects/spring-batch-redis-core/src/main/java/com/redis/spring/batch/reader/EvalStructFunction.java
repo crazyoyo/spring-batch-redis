@@ -9,6 +9,7 @@ import java.util.Set;
 
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.KeyValue.DataType;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
@@ -24,28 +25,32 @@ public class EvalStructFunction<K, V> extends EvalFunction<K, V, Object> {
 	@Override
 	public KeyValue<K, Object> apply(List<Object> list) {
 		KeyValue<K, Object> keyValue = super.apply(list);
-		if (keyValue.getType() != null && keyValue.getValue() != null) {
-			switch (keyValue.getType()) {
-			case HASH:
-				keyValue.setValue(hash(keyValue));
-				break;
-			case SET:
-				keyValue.setValue(set(keyValue));
-				break;
-			case ZSET:
-				keyValue.setValue(zset(keyValue));
-				break;
-			case STREAM:
-				keyValue.setValue(stream(keyValue));
-				break;
-			case TIMESERIES:
-				keyValue.setValue(timeseries(keyValue));
-				break;
-			default:
-				break;
-			}
-		}
+		keyValue.setValue(value(keyValue));
 		return keyValue;
+	}
+
+	private Object value(KeyValue<K, Object> keyValue) {
+		if (!KeyValue.hasValue(keyValue)) {
+			return null;
+		}
+		DataType type = KeyValue.type(keyValue);
+		if (type == null) {
+			return keyValue.getValue();
+		}
+		switch (type) {
+		case HASH:
+			return hash(keyValue);
+		case SET:
+			return set(keyValue);
+		case ZSET:
+			return zset(keyValue);
+		case STREAM:
+			return stream(keyValue);
+		case TIMESERIES:
+			return timeseries(keyValue);
+		default:
+			return keyValue.getValue();
+		}
 	}
 
 	@SuppressWarnings("unchecked")

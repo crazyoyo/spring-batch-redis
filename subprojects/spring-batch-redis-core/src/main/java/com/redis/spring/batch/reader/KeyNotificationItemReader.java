@@ -11,7 +11,7 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.KeyValue.Type;
+import com.redis.spring.batch.KeyValue.DataType;
 import com.redis.spring.batch.util.BatchUtils;
 import com.redis.spring.batch.util.SetBlockingQueue;
 
@@ -94,21 +94,19 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 	}
 
 	private void keySpaceNotification(K channel, V message) {
-		String key = suffix(channel);
-		String event = valueDecoder.apply(message);
-		addEvent(new KeyEvent<>(keyEncoder.apply(key), keyType(event)));
+		addEvent(keyEncoder.apply(suffix(channel)), valueDecoder.apply(message));
 	}
 
 	@SuppressWarnings("unchecked")
 	private void keyEventNotification(K channel, V message) {
-		String event = suffix(channel);
-		addEvent(new KeyEvent<>((K) message, keyType(event)));
+		addEvent((K) message, suffix(channel));
 	}
 
-	private void addEvent(KeyEvent<K> event) {
-		if (keyType == null || keyType.equals(event.getType().getCode())) {
+	private void addEvent(K key, String event) {
+		DataType type = keyType(event);
+		if (keyType == null || keyType.equalsIgnoreCase(type.getString())) {
 			try {
-				queue.put(event);
+				queue.put(new KeyEvent<>(key, event));
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				throw new ItemStreamException("Interrupted while queueing key event", e);
@@ -202,19 +200,19 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		return wrapper.getKey();
 	}
 
-	private Type keyType(String event) {
+	private DataType keyType(String event) {
 		if (event == null) {
-			return null;
+			return DataType.NONE;
 		}
 		String code = event.toLowerCase();
 		if (code.startsWith("xgroup-")) {
-			return Type.STREAM;
+			return DataType.STREAM;
 		}
 		if (code.startsWith("ts.")) {
-			return Type.TIMESERIES;
+			return DataType.TIMESERIES;
 		}
 		if (code.startsWith("json.")) {
-			return Type.JSON;
+			return DataType.JSON;
 		}
 		switch (code) {
 		case "set":
@@ -222,7 +220,7 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		case "incrby":
 		case "incrbyfloat":
 		case "append":
-			return Type.STRING;
+			return DataType.STRING;
 		case "lpush":
 		case "rpush":
 		case "rpop":
@@ -231,18 +229,18 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		case "lset":
 		case "lrem":
 		case "ltrim":
-			return Type.LIST;
+			return DataType.LIST;
 		case "hset":
 		case "hincrby":
 		case "hincrbyfloat":
 		case "hdel":
-			return Type.HASH;
+			return DataType.HASH;
 		case "sadd":
 		case "spop":
 		case "sinterstore":
 		case "sunionstore":
 		case "sdiffstore":
-			return Type.SET;
+			return DataType.SET;
 		case "zincr":
 		case "zadd":
 		case "zrem":
@@ -251,14 +249,14 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		case "zdiffstore":
 		case "zinterstore":
 		case "zunionstore":
-			return Type.ZSET;
+			return DataType.ZSET;
 		case "xadd":
 		case "xtrim":
 		case "xdel":
 		case "xsetid":
-			return Type.STREAM;
+			return DataType.STREAM;
 		default:
-			return null;
+			return DataType.NONE;
 		}
 	}
 

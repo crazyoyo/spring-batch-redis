@@ -27,7 +27,7 @@ public class EvalFunction<K, V, T> implements Function<List<Object>, KeyValue<K,
 			if (iterator.hasNext()) {
 				keyValue.setTtl((Long) iterator.next());
 				if (iterator.hasNext()) {
-					keyValue.setType(KeyValue.Type.of(toString(iterator.next())));
+					keyValue.setType(toString(iterator.next()));
 					if (iterator.hasNext()) {
 						keyValue.setMem((Long) iterator.next());
 						if (iterator.hasNext()) {
