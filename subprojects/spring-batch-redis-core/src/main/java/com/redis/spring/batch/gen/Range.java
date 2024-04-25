@@ -41,6 +41,14 @@ public class Range {
 		return new Range(value, value);
 	}
 
+	@Override
+	public String toString() {
+		if (min == max) {
+			return String.valueOf(min);
+		}
+		return min + ":" + max;
+	}
+
 	public static Range of(int min, int max) {
 		return new Range(min, max);
 	}
