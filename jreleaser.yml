@@ -3,7 +3,7 @@ project:
   description: Spring Batch Redis
   longDescription: Spring Batch ItemReader and ItemWriter implementations for Redis.
   links:
-    homepage: https://github.com/redis-developer/spring-batch-redis
+    homepage: https://github.com/redis/spring-batch-redis
   authors:
     - Julien Ruaux
   license: Apache-2.0

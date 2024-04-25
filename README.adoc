@@ -1,6 +1,6 @@
 = Spring Batch Redis
 :linkattrs:
-:project-owner:   redis-developer
+:project-owner:   redis
 :project-name:    spring-batch-redis
 :project-group:   com.redis
 :project-version: 4.2.0
@@ -92,4 +92,4 @@ If TTL >= 0 then an additional call is made to `EXPIRE` command.
 
 == Usage
 
-Refer to https://github.com/redis-developer/spring-batch-redis/blob/master/core/spring-batch-redis/src/test/java/com/redis/spring/batch/test/BatchTests.java[unit tests] for usage examples.
+Refer to https://github.com/redis/spring-batch-redis/blob/master/core/spring-batch-redis/src/test/java/com/redis/spring/batch/test/BatchTests.java[unit tests] for usage examples.
