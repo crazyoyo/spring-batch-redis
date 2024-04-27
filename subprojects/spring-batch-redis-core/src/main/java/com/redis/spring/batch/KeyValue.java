@@ -46,19 +46,12 @@ public class KeyValue<K, T> {
 	 */
 	private long ttl;
 
-	/**
-	 * Number of bytes that this key and its value require to be stored in Redis
-	 * RAM. 0 means no memory usage information is available.
-	 */
-	private long mem;
-
 	public KeyValue() {
 
 	}
 
 	public KeyValue(KeyValue<K, T> other) {
 		this.key = other.key;
-		this.mem = other.mem;
 		this.ttl = other.ttl;
 		this.type = other.type;
 		this.value = other.value;
@@ -96,17 +89,9 @@ public class KeyValue<K, T> {
 		this.ttl = ttl;
 	}
 
-	public long getMem() {
-		return mem;
-	}
-
-	public void setMem(long bytes) {
-		this.mem = bytes;
-	}
-
 	@Override
 	public int hashCode() {
-		return Objects.hash(key, mem, ttl, type, value);
+		return Objects.hash(key, ttl, type, value);
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -119,8 +104,8 @@ public class KeyValue<K, T> {
 		if (getClass() != obj.getClass())
 			return false;
 		KeyValue other = (KeyValue) obj;
-		return Objects.equals(key, other.key) && mem == other.mem && ttl == other.ttl
-				&& Objects.equals(type, other.type) && Objects.equals(value, other.value);
+		return Objects.equals(key, other.key) && ttl == other.ttl && Objects.equals(type, other.type)
+				&& Objects.equals(value, other.value);
 	}
 
 	public static boolean exists(KeyValue<?, ?> kv) {

@@ -28,12 +28,11 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.common.FlushingChunkProvider;
 import com.redis.spring.batch.common.FlushingStepBuilder;
 import com.redis.spring.batch.common.JobFactory;
-import com.redis.spring.batch.operation.KeyValueRead;
-import com.redis.spring.batch.operation.Operation;
-import com.redis.spring.batch.operation.OperationExecutor;
 import com.redis.spring.batch.reader.AbstractPollableItemReader;
 import com.redis.spring.batch.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.reader.KeyNotificationItemReader;
+import com.redis.spring.batch.reader.MemKeyValue;
+import com.redis.spring.batch.reader.MemKeyValueRead;
 import com.redis.spring.batch.util.Await;
 import com.redis.spring.batch.util.AwaitTimeoutException;
 import com.redis.spring.batch.util.BatchUtils;
@@ -96,42 +95,6 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
 		this.codec = codec;
 		this.operation = operation;
-	}
-
-	public static KeyComparisonItemReader<String, String> compare() {
-		return compare(StringCodec.UTF8);
-	}
-
-	public static <K, V> KeyComparisonItemReader<K, V> compare(RedisCodec<K, V> codec) {
-		return new KeyComparisonItemReader<>(codec, KeyValueRead.struct(codec), KeyValueRead.struct(codec));
-	}
-
-	public static KeyComparisonItemReader<String, String> compareQuick() {
-		return compareQuick(StringCodec.UTF8);
-	}
-
-	public static <K, V> KeyComparisonItemReader<K, V> compareQuick(RedisCodec<K, V> codec) {
-		return new KeyComparisonItemReader<>(codec, KeyValueRead.type(codec), KeyValueRead.type(codec));
-	}
-
-	public static RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dump() {
-		return new RedisItemReader<>(ByteArrayCodec.INSTANCE, KeyValueRead.dump());
-	}
-
-	public static RedisItemReader<String, String, KeyValue<String, Object>> type() {
-		return type(StringCodec.UTF8);
-	}
-
-	public static <K, V> RedisItemReader<K, V, KeyValue<K, Object>> type(RedisCodec<K, V> codec) {
-		return new RedisItemReader<>(codec, KeyValueRead.type(codec));
-	}
-
-	public static RedisItemReader<String, String, KeyValue<String, Object>> struct() {
-		return struct(StringCodec.UTF8);
-	}
-
-	public static <K, V> RedisItemReader<K, V, KeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
-		return new RedisItemReader<>(codec, KeyValueRead.struct(codec));
 	}
 
 	@Override
@@ -291,6 +254,42 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 	@Override
 	protected T doPoll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
+	}
+
+	public static KeyComparisonItemReader<String, String> compare() {
+		return compare(StringCodec.UTF8);
+	}
+
+	public static <K, V> KeyComparisonItemReader<K, V> compare(RedisCodec<K, V> codec) {
+		return new KeyComparisonItemReader<>(codec, MemKeyValueRead.struct(codec), MemKeyValueRead.struct(codec));
+	}
+
+	public static KeyComparisonItemReader<String, String> compareQuick() {
+		return compareQuick(StringCodec.UTF8);
+	}
+
+	public static <K, V> KeyComparisonItemReader<K, V> compareQuick(RedisCodec<K, V> codec) {
+		return new KeyComparisonItemReader<>(codec, MemKeyValueRead.type(codec), MemKeyValueRead.type(codec));
+	}
+
+	public static RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> dump() {
+		return new RedisItemReader<>(ByteArrayCodec.INSTANCE, MemKeyValueRead.dump());
+	}
+
+	public static RedisItemReader<String, String, MemKeyValue<String, Object>> type() {
+		return type(StringCodec.UTF8);
+	}
+
+	public static <K, V> RedisItemReader<K, V, MemKeyValue<K, Object>> type(RedisCodec<K, V> codec) {
+		return new RedisItemReader<>(codec, MemKeyValueRead.type(codec));
+	}
+
+	public static RedisItemReader<String, String, MemKeyValue<String, Object>> struct() {
+		return struct(StringCodec.UTF8);
+	}
+
+	public static <K, V> RedisItemReader<K, V, MemKeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
+		return new RedisItemReader<>(codec, MemKeyValueRead.struct(codec));
 	}
 
 	public ItemReader<K> getReader() {

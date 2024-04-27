@@ -9,12 +9,11 @@ import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.operation.KeyValueRestore;
-import com.redis.spring.batch.operation.KeyValueWrite;
-import com.redis.spring.batch.operation.MultiExec;
-import com.redis.spring.batch.operation.Operation;
-import com.redis.spring.batch.operation.OperationExecutor;
-import com.redis.spring.batch.operation.ReplicaWait;
+import com.redis.spring.batch.writer.KeyValueRestore;
+import com.redis.spring.batch.writer.KeyValueWrite;
+import com.redis.spring.batch.writer.MultiExec;
+import com.redis.spring.batch.writer.ReplicaWait;
+import com.redis.spring.batch.writer.WriteOperation;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.ByteArrayCodec;
@@ -27,7 +26,7 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 	public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
 
 	private final RedisCodec<K, V> codec;
-	private final Operation<K, V, T, Object> operation;
+	private final WriteOperation<K, V, T> operation;
 
 	private AbstractRedisClient client;
 	private int waitReplicas;
@@ -37,7 +36,7 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 
 	private OperationExecutor<K, V, T, Object> executor;
 
-	public RedisItemWriter(RedisCodec<K, V> codec, Operation<K, V, T, Object> operation) {
+	public RedisItemWriter(RedisCodec<K, V> codec, WriteOperation<K, V, T> operation) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.codec = codec;
 		this.operation = operation;
@@ -75,8 +74,8 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 		executor.apply(items);
 	}
 
-	private Operation<K, V, T, Object> operation() {
-		Operation<K, V, T, Object> actualOperation = operation;
+	private WriteOperation<K, V, T> operation() {
+		WriteOperation<K, V, T> actualOperation = operation;
 		if (waitReplicas > 0) {
 			actualOperation = new ReplicaWait<>(actualOperation, waitReplicas, waitTimeout);
 		}
@@ -134,12 +133,12 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 		return new RedisItemWriter<>(ByteArrayCodec.INSTANCE, new KeyValueRestore<>());
 	}
 
-	public static <T> RedisItemWriter<String, String, T> operation(Operation<String, String, T, Object> operation) {
+	public static <T> RedisItemWriter<String, String, T> operation(WriteOperation<String, String, T> operation) {
 		return operation(StringCodec.UTF8, operation);
 	}
 
 	public static <K, V, T> RedisItemWriter<K, V, T> operation(RedisCodec<K, V> codec,
-			Operation<K, V, T, Object> operation) {
+			WriteOperation<K, V, T> operation) {
 		return new RedisItemWriter<>(codec, operation);
 	}
 

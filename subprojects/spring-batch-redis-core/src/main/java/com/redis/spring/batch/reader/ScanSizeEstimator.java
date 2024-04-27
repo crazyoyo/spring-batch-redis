@@ -13,7 +13,7 @@ import org.springframework.util.StringUtils;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.operation.OperationExecutor;
+import com.redis.spring.batch.OperationExecutor;
 import com.redis.spring.batch.util.Predicates;
 
 import io.lettuce.core.AbstractRedisClient;

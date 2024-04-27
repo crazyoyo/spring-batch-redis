@@ -1,7 +1,6 @@
 package com.redis.spring.batch.reader;
 
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.operation.KeyValueRead;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -16,8 +15,8 @@ public class KeyComparisonItemReader<K, V> extends RedisItemReader<K, V, KeyComp
 	private KeyComparatorOptions comparatorOptions = new KeyComparatorOptions();
 	private ReadFrom targetReadFrom;
 
-	public KeyComparisonItemReader(RedisCodec<K, V> codec, KeyValueRead<K, V, Object> source,
-			KeyValueRead<K, V, Object> target) {
+	public KeyComparisonItemReader(RedisCodec<K, V> codec, MemKeyValueRead<K, V, Object> source,
+			MemKeyValueRead<K, V, Object> target) {
 		super(codec, new KeyComparisonRead<>(codec, source, target));
 	}
 

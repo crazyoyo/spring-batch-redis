@@ -7,10 +7,7 @@ import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.operation.InitializingOperation;
-import com.redis.spring.batch.operation.KeyValueRead;
-import com.redis.spring.batch.operation.MappingRedisFuture;
-import com.redis.spring.batch.operation.OperationExecutor;
+import com.redis.spring.batch.OperationExecutor;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -20,18 +17,18 @@ import io.lettuce.core.codec.RedisCodec;
 
 public class KeyComparisonRead<K, V> implements InitializingOperation<K, V, K, KeyComparison<K>> {
 
-	private final KeyValueRead<K, V, Object> source;
-	private final KeyValueRead<K, V, Object> target;
+	private final MemKeyValueRead<K, V, Object> source;
+	private final MemKeyValueRead<K, V, Object> target;
 
-	private OperationExecutor<K, V, K, KeyValue<K, Object>> targetOperationExecutor;
+	private OperationExecutor<K, V, K, MemKeyValue<K, Object>> targetOperationExecutor;
 	private AbstractRedisClient targetClient;
 	private int targetPoolSize;
 	private ReadFrom targetReadFrom;
 	private KeyComparator<K, V> comparator = new KeyComparator<>();
 	private RedisCodec<K, V> codec;
 
-	public KeyComparisonRead(RedisCodec<K, V> codec, KeyValueRead<K, V, Object> source,
-			KeyValueRead<K, V, Object> target) {
+	public KeyComparisonRead(RedisCodec<K, V> codec, MemKeyValueRead<K, V, Object> source,
+			MemKeyValueRead<K, V, Object> target) {
 		this.codec = codec;
 		this.source = source;
 		this.target = target;
@@ -68,11 +65,11 @@ public class KeyComparisonRead<K, V> implements InitializingOperation<K, V, K, K
 	@Override
 	public void execute(BaseRedisAsyncCommands<K, V> commands, Iterable<? extends K> inputs,
 			List<RedisFuture<KeyComparison<K>>> outputs) {
-		List<RedisFuture<KeyValue<K, Object>>> sourceOutputs = new ArrayList<>();
+		List<RedisFuture<MemKeyValue<K, Object>>> sourceOutputs = new ArrayList<>();
 		source.execute(commands, inputs, sourceOutputs);
-		List<KeyValue<K, Object>> targetItems = targetOperationExecutor.apply(inputs);
+		List<MemKeyValue<K, Object>> targetItems = targetOperationExecutor.apply(inputs);
 		for (int index = 0; index < sourceOutputs.size(); index++) {
-			RedisFuture<KeyValue<K, Object>> sourceOutput = sourceOutputs.get(index);
+			RedisFuture<MemKeyValue<K, Object>> sourceOutput = sourceOutputs.get(index);
 			KeyValue<K, Object> targetItem = targetItems.get(index);
 			outputs.add(new MappingRedisFuture<>(sourceOutput, v -> comparator.compare(v, targetItem)));
 		}

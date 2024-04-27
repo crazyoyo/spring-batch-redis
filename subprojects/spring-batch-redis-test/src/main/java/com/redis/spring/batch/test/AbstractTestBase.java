@@ -28,6 +28,7 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.function.FunctionItemProcessor;
@@ -44,8 +45,8 @@ import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.common.FlushingStepBuilder;
 import com.redis.spring.batch.common.JobFactory;
 import com.redis.spring.batch.common.PollableItemReader;
@@ -54,10 +55,11 @@ import com.redis.spring.batch.gen.Item;
 import com.redis.spring.batch.gen.ItemToKeyValueFunction;
 import com.redis.spring.batch.gen.Range;
 import com.redis.spring.batch.gen.StreamOptions;
-import com.redis.spring.batch.operation.Operation;
+import com.redis.spring.batch.reader.MemKeyValue;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.util.Await;
 import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.writer.WriteOperation;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -186,15 +188,16 @@ public abstract class AbstractTestBase {
 		reader.setClient(redisClient);
 	}
 
-	protected RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dumpReader(TestInfo info, String... suffixes) {
-		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> reader = RedisItemReader.dump();
+	protected RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> dumpReader(TestInfo info,
+			String... suffixes) {
+		RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> reader = RedisItemReader.dump();
 		configure(info, reader, suffixes);
 		return reader;
 	}
 
-	protected RedisItemReader<String, String, KeyValue<String, Object>> structReader(TestInfo info,
+	protected RedisItemReader<String, String, MemKeyValue<String, Object>> structReader(TestInfo info,
 			String... suffixes) {
-		RedisItemReader<String, String, KeyValue<String, Object>> reader = RedisItemReader.struct();
+		RedisItemReader<String, String, MemKeyValue<String, Object>> reader = RedisItemReader.struct();
 		configure(info, reader, suffixes);
 		return reader;
 	}
@@ -208,7 +211,7 @@ public abstract class AbstractTestBase {
 			Await.await().until(() -> redisCommands.pubsubNumpat() > 0);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new RuntimeException("Interrupted", e);
+			throw new ItemStreamException("Interrupted", e);
 		}
 	}
 
@@ -250,16 +253,16 @@ public abstract class AbstractTestBase {
 
 	protected abstract RedisServer getRedisServer();
 
-	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<I> reader, ItemWriter<O> writer) {
+	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<? extends I> reader, ItemWriter<O> writer) {
 		return step(info, reader, null, writer);
 	}
 
-	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
-			ItemWriter<O> writer) {
+	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, ItemReader<? extends I> reader,
+			ItemProcessor<I, O> processor, ItemWriter<O> writer) {
 		return step(info, chunkSize, reader, processor, writer);
 	}
 
-	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, int chunkSize, ItemReader<I> reader,
+	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, int chunkSize, ItemReader<? extends I> reader,
 			ItemProcessor<I, O> processor, ItemWriter<O> writer) {
 		String name = name(info);
 		SimpleStepBuilder<I, O> step = jobFactory.step(name, chunkSize);
@@ -270,11 +273,9 @@ public abstract class AbstractTestBase {
 	}
 
 	public static String name(TestInfo info) {
-		String displayName = info.getDisplayName().replace("(TestInfo)", "");
-		if (info.getTestClass().isPresent()) {
-			displayName += "-" + ClassUtils.getShortName(info.getTestClass().get());
-		}
-		return displayName;
+		StringBuilder displayName = new StringBuilder(info.getDisplayName().replace("(TestInfo)", ""));
+		info.getTestClass().ifPresent(c -> displayName.append("-").append(ClassUtils.getShortName(c)));
+		return displayName.toString();
 	}
 
 	public static AbstractRedisClient client(RedisServer server) {
@@ -304,13 +305,16 @@ public abstract class AbstractTestBase {
 		return jobFactory.jobBuilder(name(info));
 	}
 
-	protected <I, O> void generateAsync(TestInfo info, GeneratorItemReader reader) {
+	protected void generateAsync(TestInfo info, GeneratorItemReader reader) {
 		Executors.newSingleThreadExecutor().execute(() -> {
 			try {
 				awaitPubSub();
 				generate(info, reader);
-			} catch (Exception e) {
-				throw new RuntimeException("Could not run data gen", e);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new ItemStreamException("Data gen interrupted", e);
+			} catch (JobExecutionException e) {
+				throw new ItemStreamException("Could not run data gen", e);
 			}
 		});
 	}
@@ -333,7 +337,7 @@ public abstract class AbstractTestBase {
 		run(info, reader, genItemProcessor, writer);
 	}
 
-	protected <T> JobExecution run(TestInfo info, ItemReader<T> reader, ItemWriter<T> writer)
+	protected <T> JobExecution run(TestInfo info, ItemReader<? extends T> reader, ItemWriter<T> writer)
 			throws JobExecutionException, InterruptedException {
 		return run(info, reader, null, writer);
 	}
@@ -362,12 +366,12 @@ public abstract class AbstractTestBase {
 		redisCommands.configSet("notify-keyspace-events", "AKE");
 	}
 
-	protected <I, O> FlushingStepBuilder<I, O> flushingStep(TestInfo info, PollableItemReader<I> reader,
+	protected <I, S extends I, O> FlushingStepBuilder<S, O> flushingStep(TestInfo info, PollableItemReader<S> reader,
 			ItemWriter<O> writer) {
 		return new FlushingStepBuilder<>(step(info, reader, writer)).idleTimeout(idleTimeout);
 	}
 
-	protected void generateStreams(TestInfo info, int messageCount) throws Exception {
+	protected void generateStreams(TestInfo info, int messageCount) throws JobExecutionException, InterruptedException {
 		GeneratorItemReader gen = generator(3, Item.Type.STREAM);
 		StreamOptions streamOptions = new StreamOptions();
 		streamOptions.setMessageCount(Range.of(messageCount));
@@ -414,19 +418,19 @@ public abstract class AbstractTestBase {
 		return BatchUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE).apply(key);
 	}
 
-	protected RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dumpReader(TestInfo info) {
-		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> reader = RedisItemReader.dump();
+	protected RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> dumpReader(TestInfo info) {
+		RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> reader = RedisItemReader.dump();
 		configure(info, reader);
 		return reader;
 	}
 
-	protected <K, V> RedisItemReader<K, V, KeyValue<K, Object>> structReader(TestInfo info, RedisCodec<K, V> codec) {
-		RedisItemReader<K, V, KeyValue<K, Object>> reader = RedisItemReader.struct(codec);
+	protected <K, V> RedisItemReader<K, V, MemKeyValue<K, Object>> structReader(TestInfo info, RedisCodec<K, V> codec) {
+		RedisItemReader<K, V, MemKeyValue<K, Object>> reader = RedisItemReader.struct(codec);
 		configure(info, reader);
 		return reader;
 	}
 
-	protected <T> RedisItemWriter<String, String, T> writer(Operation<String, String, T, Object> operation) {
+	protected <T> RedisItemWriter<String, String, T> writer(WriteOperation<String, String, T> operation) {
 		RedisItemWriter<String, String, T> writer = RedisItemWriter.operation(operation);
 		writer.setClient(redisClient);
 		return writer;
