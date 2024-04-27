@@ -9,7 +9,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.springframework.util.FileCopyUtils;
-import org.springframework.util.StringUtils;
 
 import com.hrakaroo.glob.GlobPattern;
 import com.redis.lettucemod.RedisModulesClient;
@@ -54,11 +53,6 @@ public class BatchUtils {
 		return encode.andThen(StringCodec.UTF8::decodeValue);
 	}
 
-	public static <K> Function<byte[], K> byteArrayKeyFunction(RedisCodec<K, ?> codec) {
-		Function<byte[], ByteBuffer> encode = ByteArrayCodec.INSTANCE::encodeKey;
-		return encode.andThen(codec::decodeKey);
-	}
-
 	public static <K> Function<K, byte[]> toByteArrayKeyFunction(RedisCodec<K, ?> codec) {
 		Function<K, ByteBuffer> encode = codec::encodeKey;
 		return encode.andThen(ByteArrayCodec.INSTANCE::decodeKey);
@@ -90,9 +84,6 @@ public class BatchUtils {
 	}
 
 	public static Predicate<String> globPredicate(String match) {
-		if (!StringUtils.hasLength(match)) {
-			return s -> true;
-		}
 		return GlobPattern.compile(match)::matches;
 	}
 }

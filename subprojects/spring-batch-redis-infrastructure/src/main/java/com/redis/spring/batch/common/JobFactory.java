@@ -1,5 +1,7 @@
 package com.redis.spring.batch.common;
 
+import java.util.Optional;
+
 import org.hsqldb.jdbc.JDBCDataSource;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.Job;
@@ -32,6 +34,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
 
 public class JobFactory implements JobLauncher, InitializingBean {
+
+	private static final String STEP_ERROR = "Error executing step %s: %s";
 
 	private JobRepository jobRepository;
 	private PlatformTransactionManager platformTransactionManager;
@@ -117,24 +121,31 @@ public class JobFactory implements JobLauncher, InitializingBean {
 	}
 
 	public static JobExecution checkJobExecution(JobExecution jobExecution) throws JobExecutionException {
-		if (jobExecution.getExitStatus().getExitCode().equals(ExitStatus.FAILED.getExitCode())) {
-			for (StepExecution stepExecution : jobExecution.getStepExecutions()) {
-				ExitStatus exitStatus = stepExecution.getExitStatus();
-				if (exitStatus.getExitCode().equals(ExitStatus.FAILED.getExitCode())) {
-					String message = String.format("Error executing step %s in job %s: %s", stepExecution.getStepName(),
-							jobExecution.getJobInstance().getJobName(), exitStatus.getExitDescription());
-					if (stepExecution.getFailureExceptions().isEmpty()) {
-						throw new JobExecutionException(message);
-					}
-					throw new JobExecutionException(message, stepExecution.getFailureExceptions().get(0));
-				}
+		if (isFailed(jobExecution.getExitStatus())) {
+			Optional<JobExecutionException> stepExecutionException = jobExecution.getStepExecutions().stream()
+					.filter(e -> isFailed(e.getExitStatus())).map(JobFactory::stepExecutionException).findAny();
+			if (stepExecutionException.isPresent()) {
+				throw stepExecutionException.get();
 			}
 			if (jobExecution.getAllFailureExceptions().isEmpty()) {
 				throw new JobExecutionException(String.format("Error executing job %s: %s",
-						jobExecution.getJobInstance().getJobName(), jobExecution.getExitStatus().getExitDescription()));
+						jobExecution.getJobInstance(), jobExecution.getExitStatus().getExitDescription()));
 			}
 		}
 		return jobExecution;
+	}
+
+	private static JobExecutionException stepExecutionException(StepExecution stepExecution) {
+		String message = String.format(STEP_ERROR, stepExecution.getStepName(),
+				stepExecution.getExitStatus().getExitDescription());
+		if (stepExecution.getFailureExceptions().isEmpty()) {
+			return new JobExecutionException(message);
+		}
+		return new JobExecutionException(message, stepExecution.getFailureExceptions().get(0));
+	}
+
+	private static boolean isFailed(ExitStatus exitStatus) {
+		return exitStatus.getExitCode().equals(ExitStatus.FAILED.getExitCode());
 	}
 
 	public static ThreadPoolTaskExecutor threadPoolTaskExecutor(int threads) {

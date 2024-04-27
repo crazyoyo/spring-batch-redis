@@ -87,7 +87,7 @@ public class ScanSizeEstimator implements LongSupplier {
 				List<RedisFuture<String>> typeFutures = keys.stream().map(commands::type).collect(Collectors.toList());
 				connection.flushCommands();
 				List<String> types = OperationExecutor.getAll(connection.getTimeout(), typeFutures);
-				Predicate<String> matchPredicate = BatchUtils.globPredicate(keyPattern);
+				Predicate<String> matchPredicate = matchPredicate();
 				Predicate<String> typePredicate = typePredicate();
 				int total = 0;
 				int matchCount = 0;
@@ -115,6 +115,13 @@ public class ScanSizeEstimator implements LongSupplier {
 			}
 		}
 		return UNKNOWN_SIZE;
+	}
+
+	private Predicate<String> matchPredicate() {
+		if (StringUtils.hasLength(keyPattern)) {
+			return BatchUtils.globPredicate(keyPattern);
+		}
+		return s -> true;
 	}
 
 	private Predicate<String> typePredicate() {
