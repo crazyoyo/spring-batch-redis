@@ -321,6 +321,17 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
+	void readStructThreads(TestInfo info) throws Exception {
+		generate(info, generator(73));
+		RedisItemReader<String, String, MemKeyValue<String, Object>> reader = structReader(info);
+		reader.setThreads(8);
+		reader.open(new ExecutionContext());
+		List<MemKeyValue<String, Object>> list = readAll(reader);
+		reader.close();
+		assertEquals(redisCommands.dbsize(), list.size());
+	}
+
+	@Test
 	void readStreamAutoAck(TestInfo info) throws Exception {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamAutoAck";
