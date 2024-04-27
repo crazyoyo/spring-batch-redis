@@ -4,12 +4,13 @@
 :project-name:    spring-batch-redis
 :project-group:   com.redis
 :project-version: 4.2.1
+:artifact-id:     spring-batch-redis-core
 
 image:https://github.com/{project-owner}/{project-name}/actions/workflows/early-access.yml/badge.svg["Build Status", link="https://github.com/{project-owner}/{project-name}/actions/workflows/early-access.yml"]
 image:https://img.shields.io/maven-central/v/{project-group}/{project-name}[Download, link="https://search.maven.org/#search|ga|1|{project-name}"]
 image:https://codecov.io/gh/{project-owner}/{project-name}/branch/master/graph/badge.svg["Coverage", link="https://codecov.io/gh/{project-owner}/{project-name}"]
 
-ItemReader and ItemWriter implementations for Redis based on https://lettuce.io[Lettuce].
+ItemReader and ItemWriter implementations for Redis.
 
 == Getting Started
 
@@ -22,7 +23,7 @@ Add Spring Batch Redis dependency to your POM file:
 ----
 <dependency>
     <groupId>{project-group}</groupId>
-    <artifactId>{project-name}</artifactId>
+    <artifactId>{artifact-id}</artifactId>
     <version>{project-version}</version>
 </dependency>
 ----
@@ -35,27 +36,36 @@ Add Spring Batch Redis dependency to your `build.gradle` file
 .build.gradle
 ----
 dependencies {
-    implementation '{project-group}:{project-name}:{project-version}'
+    implementation '{project-group}:{artifact-id}:{project-version}'
 }
 ----
 
 == Data Types
-Spring Batch Redis supports two data types: key dumps (bytes) and key values (data structure-specific objects).
+`RedisItemReader<K,V,T>` and `RedisItemWriter<K,V,T>` support a single data type called `KeyValue` that has the following fields:
+* `key` of type `K` representing the Redis key.
+* `type` of type `String` representing the type of that Redis key (`string`, `hash`, `list`, ...).
+* `ttl` of type `long` representing the key's absolute expiration epoch time in milliseconds.
+* `value` of type:
+** `byte[]` for `dump` reader.
+** `Object` for `struct` reader. The type of the object depends on the type of the Redis key (`V` for `string`, `Map<K,V>` for `hash`, `List<V>` for `list`, ...). See <<_data_structures,Data Structures>> below for more details.
+* `mem` of type `long` representing the memory usage of that key in Redis. This is only populated when `memUsageLimit` on `MemKeyValueRead` operation is strictly greater than 0.
 
-=== Key Dumps
-A key dump object stores a key, its TTL in milliseconds, and its binary representation (byte array).
-
+[[_data_structures]]
 === Data Structures
-A `DataStructure` object stores a key, its TTL in seconds, the type of data structure (hash, list, ...), and its Java representation.
+Values for `struct` readers `RedisItemReader<K,V,T>` are Java object representations of the underlying Redis data-structures:
 
-* Hash: `HGETALL` -> `Map<String,String>`
-* List: `LRANGE` -> `List<String>`
-* Set: `SMEMBERS` -> `Set<String>`
-* Stream: `XRANGE` -> `List<StreamMessage<String, String>>`
-* String: `GET` -> `String`
-* Sorted Set: `ZRANGE` -> `List<ScoredValue<String>>`
+* `hash`: `java.util.Map<K,V>`
+* `list`: `java.util.List<V>`
+* `set`: `java.util.Set<V>`
+* `stream`: `java.util.List<io.lettuce.core.StreamMessage<K,V>>`
+* `string`: `V`
+* `zset`: `java.util.Set<io.lettuce.core.ScoredValue<V>>`
+* `json`: `V`
+* `timeseries`: `java.util.List<com.redis.lettucemod.timeseries.Sample>>`
 
-NOTE: `StreamMessage` and `ScoredValue` are Lettuce core types (`io.lettuce.core` package).
+These generic classes `<K,V>` depend on the `RedisCodec` used to initialize the reader:
+* `StringCodec`: `java.lang.String`
+* `ByteArrayCodec`: `byte[]`
 
 == Item Readers
 
@@ -66,30 +76,30 @@ NOTE: `StreamMessage` and `ScoredValue` are Lettuce core types (`io.lettuce.core
 
 == Item Writers
 
-`RedisItemWriter` can perform both inserts or deletes depending on the value and TTL in the incoming object. 
+`RedisItemWriter` can perform both inserts or deletes depending on the value and TTL in the incoming object.
 If value is null or TTL is -2 then the `DEL` command is called, otherwise a write is performed.
 
-Item writers support two different data types:
+Item writers support two different payload (value) types:
 
 === Key Dump
 
-`DumpItemWriter` accepts key dumps (`KeyValue` with a `byte[]` value) and calls the RESTORE command with the byte array and TTL if any.
+The writer accepts key dumps (`KeyValue` with a `byte[]` value) and calls the RESTORE command with the byte array and TTL if any.
 
-=== Struct
+=== Data Structure
 
-`StructItemWriter` takes `KeyValue` objects and calls the write command specific to the data type:
+The writer takes `KeyValue` objects and calls the write command specific to the data type:
 
-* Hash -> HSET
-* JSON -> JSON.SET
-* List -> LPUSH
-* Set -> SADD
-* Stream -> XADD
-* String -> SET
-* Sorted Set -> ZADD
-* TimeSeries -> TS.ADD
+* `hash`: `HSET`
+* `json`: `JSON.SET`
+* `list`: `RPUSH`
+* `set`: `SADD`
+* `stream`: `XADD`
+* `string`: `SET`
+* `zset`: `ZADD`
+* `timeseries`: `TS.ADD`
 
-If TTL >= 0 then an additional call is made to `EXPIRE` command.
+If TTL >= 0 then an additional call is made to the `EXPIREAT` command.
 
 == Usage
 
-Refer to https://github.com/redis/spring-batch-redis/blob/master/core/spring-batch-redis/src/test/java/com/redis/spring/batch/test/BatchTests.java[unit tests] for usage examples.
+Refer to https://github.com/redis/spring-batch-redis/blob/main/subprojects/spring-batch-redis-test/src/test/java/com/redis/spring/batch/test/BatchTests.java[unit tests] for usage examples.
