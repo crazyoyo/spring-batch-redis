@@ -10,7 +10,7 @@ import org.springframework.batch.core.JobInstance;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.launch.support.SimpleJobLauncher;
+import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.repository.JobRepository;
@@ -105,7 +105,7 @@ class JobFactoryTests {
 	@Test
 	void testSetters() {
 		JobFactory factory = new JobFactory();
-		JobLauncher launcher = new SimpleJobLauncher();
+		JobLauncher launcher = new TaskExecutorJobLauncher();
 		SimpleJobRepository repository = new SimpleJobRepository();
 		String name = "name";
 		ResourcelessTransactionManager transactionManager = new ResourcelessTransactionManager();

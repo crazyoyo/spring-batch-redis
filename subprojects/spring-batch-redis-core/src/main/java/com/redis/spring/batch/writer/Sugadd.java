@@ -5,14 +5,13 @@ import java.util.function.Predicate;
 
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.search.Suggestion;
-import com.redis.spring.batch.util.Predicates;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
 
 public class Sugadd<K, V, T> extends AbstractKeyValueOperation<K, V, Suggestion<V>, T> {
 
-	private Predicate<T> incrPredicate = Predicates.isFalse();
+	private Predicate<T> incrPredicate = t -> false;
 
 	public Sugadd(Function<T, K> keyFunction, Function<T, Suggestion<V>> suggestionFunction) {
 		super(keyFunction, suggestionFunction);

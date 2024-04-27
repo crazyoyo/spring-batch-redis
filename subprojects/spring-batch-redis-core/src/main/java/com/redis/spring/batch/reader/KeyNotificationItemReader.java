@@ -1,5 +1,6 @@
 package com.redis.spring.batch.reader;
 
+import java.util.HashSet;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -7,13 +8,11 @@ import java.util.function.Function;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.KeyValue.DataType;
 import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.util.SetBlockingQueue;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
@@ -49,8 +48,9 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 	private String keyPattern;
 	private String keyType;
 
-	private BlockingQueue<KeyEvent<K>> queue;
+	private BlockingQueue<K> queue;
 	private AutoCloseable publisher;
+	private HashSet<Wrapper<K>> keySet;
 
 	public KeyNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		setName(ClassUtils.getShortName(getClass()));
@@ -61,7 +61,7 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		this.valueDecoder = BatchUtils.toStringValueFunction(codec);
 	}
 
-	public BlockingQueue<KeyEvent<K>> getQueue() {
+	public BlockingQueue<K> getQueue() {
 		return queue;
 	}
 
@@ -84,9 +84,11 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		Assert.notNull(client, "Redis client not set");
+		if (keySet == null) {
+			keySet = new HashSet<>(queueCapacity);
+		}
 		if (queue == null) {
-			BlockingQueue<KeyEvent<K>> actualQueue = new LinkedBlockingQueue<>(queueCapacity);
-			queue = new SetBlockingQueue<>(actualQueue, queueCapacity);
+			queue = new LinkedBlockingQueue<>(queueCapacity);
 		}
 		if (publisher == null) {
 			publisher = publisher();
@@ -105,11 +107,13 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 	private void addEvent(K key, String event) {
 		DataType type = keyType(event);
 		if (keyType == null || keyType.equalsIgnoreCase(type.getString())) {
-			try {
-				queue.put(new KeyEvent<>(key, event));
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				throw new ItemStreamException("Interrupted while queueing key event", e);
+			Wrapper<K> wrapper = new Wrapper<>(key);
+			if (keySet.contains(wrapper)) {
+				return;
+			}
+			boolean added = queue.offer(key);
+			if (added) {
+				keySet.add(wrapper);
 			}
 		}
 	}
@@ -189,15 +193,17 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 			}
 			queue = null;
 		}
+		keySet = null;
 	}
 
 	@Override
 	protected K doPoll(long timeout, TimeUnit unit) throws InterruptedException {
-		KeyEvent<K> wrapper = queue.poll(timeout, unit);
-		if (wrapper == null) {
+		K key = queue.poll(timeout, unit);
+		if (key == null) {
 			return null;
 		}
-		return wrapper.getKey();
+		keySet.remove(new Wrapper<>(key));
+		return key;
 	}
 
 	private DataType keyType(String event) {

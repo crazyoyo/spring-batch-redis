@@ -901,7 +901,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			redisCommands.zadd(key, 2, "member2");
 			redisCommands.zadd(key, 3, "member3");
 			awaitUntil(() -> keyReader.getQueue().size() == 1);
-			Assertions.assertEquals(key, keyReader.getQueue().take().getKey());
+			Assertions.assertEquals(key, keyReader.getQueue().take());
 		} finally {
 			keyReader.close();
 		}

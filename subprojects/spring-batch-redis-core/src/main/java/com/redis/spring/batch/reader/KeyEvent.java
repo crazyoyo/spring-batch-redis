@@ -4,16 +4,16 @@ import java.util.Objects;
 
 public class KeyEvent<K> {
 
-	private final Wrapper<K> key;
+	private final K key;
 	private final String event;
 
 	public KeyEvent(K key, String event) {
-		this.key = new Wrapper<>(key);
+		this.key = key;
 		this.event = event;
 	}
 
 	public K getKey() {
-		return key.getValue();
+		return key;
 	}
 
 	public String getEvent() {

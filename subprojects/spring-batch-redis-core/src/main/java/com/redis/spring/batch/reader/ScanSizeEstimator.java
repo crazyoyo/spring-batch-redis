@@ -14,7 +14,7 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.OperationExecutor;
-import com.redis.spring.batch.util.Predicates;
+import com.redis.spring.batch.util.BatchUtils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
@@ -87,7 +87,7 @@ public class ScanSizeEstimator implements LongSupplier {
 				List<RedisFuture<String>> typeFutures = keys.stream().map(commands::type).collect(Collectors.toList());
 				connection.flushCommands();
 				List<String> types = OperationExecutor.getAll(connection.getTimeout(), typeFutures);
-				Predicate<String> matchPredicate = Predicates.glob(keyPattern);
+				Predicate<String> matchPredicate = BatchUtils.globPredicate(keyPattern);
 				Predicate<String> typePredicate = typePredicate();
 				int total = 0;
 				int matchCount = 0;
@@ -121,7 +121,7 @@ public class ScanSizeEstimator implements LongSupplier {
 		if (StringUtils.hasLength(keyType)) {
 			return keyType::equalsIgnoreCase;
 		}
-		return Predicates.isTrue();
+		return s -> true;
 	}
 
 }
