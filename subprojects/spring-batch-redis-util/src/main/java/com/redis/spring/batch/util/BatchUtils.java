@@ -64,36 +64,12 @@ public class BatchUtils {
 		return encode.andThen(ByteArrayCodec.INSTANCE::decodeKey);
 	}
 
-	public static <V> Function<byte[], V> byteArrayValueFunction(RedisCodec<?, V> codec) {
-		Function<byte[], ByteBuffer> encode = ByteArrayCodec.INSTANCE::encodeValue;
-		return encode.andThen(codec::decodeValue);
-	}
-
-	public static <V> Function<V, byte[]> toByteArrayValueFunction(RedisCodec<?, V> codec) {
-		Function<V, ByteBuffer> encode = codec::encodeValue;
-		return encode.andThen(ByteArrayCodec.INSTANCE::decodeValue);
-	}
-
-	public static Supplier<StatefulRedisModulesConnection<String, String>> supplier(AbstractRedisClient client) {
-		return supplier(client, StringCodec.UTF8);
-	}
-
-	public static Supplier<StatefulRedisModulesConnection<String, String>> supplier(AbstractRedisClient client,
-			ReadFrom readFrom) {
-		return supplier(client, StringCodec.UTF8, readFrom);
-	}
-
-	public static <K, V> Supplier<StatefulRedisModulesConnection<K, V>> supplier(AbstractRedisClient client,
-			RedisCodec<K, V> codec) {
-		return supplier(client, codec, null);
-	}
-
 	public static <K, V> Supplier<StatefulRedisModulesConnection<K, V>> supplier(AbstractRedisClient client,
 			RedisCodec<K, V> codec, ReadFrom readFrom) {
 		if (client instanceof RedisModulesClusterClient) {
 			return () -> connection((RedisModulesClusterClient) client, codec, readFrom);
 		}
-		return () -> connection((RedisModulesClient) client, codec);
+		return () -> ((RedisModulesClient) client).connect(codec);
 	}
 
 	public static <K, V> StatefulRedisModulesConnection<K, V> connection(AbstractRedisClient client,
@@ -101,16 +77,7 @@ public class BatchUtils {
 		if (client instanceof RedisModulesClusterClient) {
 			return connection((RedisModulesClusterClient) client, codec, readFrom);
 		}
-		return connection((RedisModulesClient) client, codec);
-	}
-
-	public static StatefulRedisModulesConnection<String, String> connection(AbstractRedisClient client) {
-		return connection(client, StringCodec.UTF8, null);
-	}
-
-	public static <K, V> StatefulRedisModulesConnection<K, V> connection(RedisModulesClient client,
-			RedisCodec<K, V> codec) {
-		return client.connect(codec);
+		return ((RedisModulesClient) client).connect(codec);
 	}
 
 	public static <K, V> StatefulRedisModulesConnection<K, V> connection(RedisModulesClusterClient client,

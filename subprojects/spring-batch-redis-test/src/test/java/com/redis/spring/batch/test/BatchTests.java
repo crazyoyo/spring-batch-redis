@@ -125,7 +125,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Evalsha<String, String, String> evalsha = new Evalsha<>(digest, StringCodec.UTF8, Function.identity());
 		evalsha.setArgs(ValueType.STRUCT.name().toLowerCase(), 0, 0);
 		List<RedisFuture<List<Object>>> futures = new ArrayList<>();
-		RedisModulesAsyncCommands<String, String> asyncCommands = BatchUtils.connection(redisClient).async();
+		RedisModulesAsyncCommands<String, String> asyncCommands = BatchUtils
+				.connection(redisClient, StringCodec.UTF8, null).async();
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
 		List<Object> result = OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0);
 		Assertions.assertEquals(Arrays.asList(key, -1L, DataType.STRING.getString(), 0L, value), result);
@@ -173,7 +174,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Evalsha<String, String, String> evalsha = new Evalsha<>(digest, StringCodec.UTF8, Function.identity());
 		evalsha.setArgs(ValueType.STRUCT.name().toLowerCase(), Long.MAX_VALUE, 5);
 		List<RedisFuture<List<Object>>> futures = new ArrayList<>();
-		RedisModulesAsyncCommands<String, String> asyncCommands = BatchUtils.connection(redisClient).async();
+		RedisModulesAsyncCommands<String, String> asyncCommands = BatchUtils
+				.connection(redisClient, StringCodec.UTF8, null).async();
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
 		EvalFunction<String, String, Object> function = new EvalFunction<>(StringCodec.UTF8);
 		MemKeyValue<String, Object> keyValue = function
