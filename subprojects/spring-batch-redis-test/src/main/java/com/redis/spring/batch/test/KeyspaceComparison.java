@@ -23,10 +23,6 @@ public class KeyspaceComparison<K> {
 		return keyComparisons;
 	}
 
-	public boolean isOk() {
-		return !keyComparisons.isEmpty() && mismatches().isEmpty();
-	}
-
 	public List<KeyComparison<K>> mismatches() {
 		return keyComparisons.stream().filter(c -> c.getStatus() != Status.OK).collect(Collectors.toList());
 	}
