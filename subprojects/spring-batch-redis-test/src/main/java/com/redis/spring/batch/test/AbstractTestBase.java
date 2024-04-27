@@ -45,8 +45,8 @@ import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.RedisItemReader.ReaderMode;
+import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.FlushingStepBuilder;
 import com.redis.spring.batch.common.JobFactory;
 import com.redis.spring.batch.common.PollableItemReader;
@@ -137,7 +137,7 @@ public abstract class AbstractTestBase {
 	@BeforeEach
 	void flushAll() throws InterruptedException {
 		redisCommands.flushall();
-		awaitUntil(() -> redisCommands.pubsubNumpat() == 0);
+		awaitUntilNoSubscribers();
 	}
 
 	public static TestInfo testInfo(TestInfo info, String... suffixes) {
@@ -206,13 +206,17 @@ public abstract class AbstractTestBase {
 		return redisCommands.keys(pattern).size();
 	}
 
-	protected void awaitPubSub() {
+	protected void awaitUntilSubscribers() {
 		try {
-			Await.await().until(() -> redisCommands.pubsubNumpat() > 0);
+			awaitUntil(() -> redisCommands.pubsubNumpat() > 0);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new ItemStreamException("Interrupted", e);
 		}
+	}
+
+	protected void awaitUntilNoSubscribers() throws InterruptedException {
+		awaitUntil(() -> redisCommands.pubsubNumpat() == 0);
 	}
 
 	public int getChunkSize() {
@@ -308,7 +312,7 @@ public abstract class AbstractTestBase {
 	protected void generateAsync(TestInfo info, GeneratorItemReader reader) {
 		Executors.newSingleThreadExecutor().execute(() -> {
 			try {
-				awaitPubSub();
+				awaitUntilSubscribers();
 				generate(info, reader);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();

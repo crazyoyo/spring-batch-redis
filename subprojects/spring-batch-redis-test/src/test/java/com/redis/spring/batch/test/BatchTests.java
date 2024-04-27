@@ -884,8 +884,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Job job = job(info).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "flow")))
 				.split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
 		run(job);
-		awaitUntilFalse(liveReader::isRunning);
-		awaitUntilFalse(reader::isRunning);
+		awaitUntilNoSubscribers();
 		KeyspaceComparison<String> comparison = compare(info);
 		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}
@@ -945,6 +944,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 				Item.Type.ZSET);
 		generateAsync(testInfo(info, "genasync"), gen);
 		run(info, step);
+		awaitUntilNoSubscribers();
 		Assertions.assertEquals(Collections.emptyList(), compare(info).mismatches());
 	}
 
@@ -961,10 +961,11 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		FlushingStepBuilder<MemKeyValue<String, Object>, KeyValue<String, Object>> step = flushingStep(info, reader,
 				writer);
 		Executors.newSingleThreadExecutor().execute(() -> {
-			awaitPubSub();
+			awaitUntilSubscribers();
 			redisCommands.srem(key, "5");
 		});
 		run(info, step);
+		awaitUntilNoSubscribers();
 		assertEquals(redisCommands.smembers(key), targetRedisCommands.smembers(key));
 	}
 
