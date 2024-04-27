@@ -5,12 +5,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.springframework.util.FileCopyUtils;
 
-import com.hrakaroo.glob.GlobPattern;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
@@ -83,7 +81,4 @@ public class BatchUtils {
 		return connection;
 	}
 
-	public static Predicate<String> globPredicate(String match) {
-		return GlobPattern.compile(match)::matches;
-	}
 }

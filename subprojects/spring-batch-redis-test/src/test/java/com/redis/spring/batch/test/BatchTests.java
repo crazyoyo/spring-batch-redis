@@ -68,7 +68,6 @@ import com.redis.spring.batch.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.reader.KeyNotificationItemReader;
 import com.redis.spring.batch.reader.MemKeyValue;
 import com.redis.spring.batch.reader.MemKeyValueRead.ValueType;
-import com.redis.spring.batch.reader.ScanSizeEstimator;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
 import com.redis.spring.batch.util.BatchUtils;
@@ -309,19 +308,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		assertEquals(valueChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.VALUE).count());
 		assertEquals(ttlChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.TTL).count());
 		assertEquals(deleted, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());
-	}
-
-	@Test
-	void estimateScanSize(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(3000, Item.Type.HASH, Item.Type.STRING);
-		generate(info, gen);
-		long expectedCount = redisCommands.dbsize();
-		ScanSizeEstimator estimator = new ScanSizeEstimator(redisClient);
-		estimator.setKeyPattern(GeneratorItemReader.DEFAULT_KEYSPACE + ":*");
-		estimator.setSamples(300);
-		assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
-		estimator.setKeyType(DataType.HASH.getString());
-		assertEquals(expectedCount / 2, estimator.getAsLong(), expectedCount / 10);
 	}
 
 	@Test
