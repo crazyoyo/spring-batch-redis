@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 
 public class Await {
@@ -35,11 +36,11 @@ public class Await {
 	 * Blocks until test is true
 	 *
 	 * @param test boolean supplier to wait for
-	 * @throws InterruptedException  if interrupted while waiting
-	 * @throws AwaitTimeoutException if condition was not fulfilled within timeout
-	 *                               duration
+	 * @throws InterruptedException if interrupted while waiting
+	 * @throws TimeoutException     if condition not fulfilled within timeout
+	 *                              duration
 	 */
-	public void until(BooleanSupplier test) throws InterruptedException {
+	public void until(BooleanSupplier test) throws TimeoutException, InterruptedException {
 		ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 		try {
 			executor.scheduleWithFixedDelay(() -> {
@@ -49,14 +50,14 @@ public class Await {
 			}, initialDelay.toMillis(), delay.toMillis(), TimeUnit.MILLISECONDS);
 			boolean terminated = executor.awaitTermination(timeout.toMillis(), TimeUnit.MILLISECONDS);
 			if (!terminated) {
-				throw new AwaitTimeoutException(String.format("Condition not fulfilled within %s", timeout));
+				throw new TimeoutException(String.format("Condition not fulfilled within %s", timeout));
 			}
 		} finally {
 			executor.shutdown();
 		}
 	}
 
-	public void untilFalse(BooleanSupplier test) throws InterruptedException {
+	public void untilFalse(BooleanSupplier test) throws TimeoutException, InterruptedException {
 		until(() -> !test.getAsBoolean());
 	}
 

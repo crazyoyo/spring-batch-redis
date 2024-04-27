@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 
 import org.junit.jupiter.api.AfterAll;
@@ -135,7 +136,7 @@ public abstract class AbstractTestBase {
 	}
 
 	@BeforeEach
-	void flushAll() throws InterruptedException {
+	void flushAll() throws TimeoutException, InterruptedException {
 		redisCommands.flushall();
 		awaitUntilNoSubscribers();
 	}
@@ -212,10 +213,12 @@ public abstract class AbstractTestBase {
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new ItemStreamException("Interrupted", e);
+		} catch (TimeoutException e) {
+			throw new ItemStreamException("Timeout while waiting for subscribers", e);
 		}
 	}
 
-	protected void awaitUntilNoSubscribers() throws InterruptedException {
+	protected void awaitUntilNoSubscribers() throws TimeoutException, InterruptedException {
 		awaitUntil(() -> redisCommands.pubsubNumpat() == 0);
 	}
 
@@ -289,19 +292,19 @@ public abstract class AbstractTestBase {
 		return RedisModulesClient.create(server.getRedisURI());
 	}
 
-	public void awaitRunning(JobExecution jobExecution) throws InterruptedException {
+	public void awaitRunning(JobExecution jobExecution) throws TimeoutException, InterruptedException {
 		awaitUntil(jobExecution::isRunning);
 	}
 
-	public void awaitTermination(JobExecution jobExecution) throws InterruptedException {
+	public void awaitTermination(JobExecution jobExecution) throws TimeoutException, InterruptedException {
 		awaitUntilFalse(jobExecution::isRunning);
 	}
 
-	protected void awaitUntilFalse(BooleanSupplier evaluator) throws InterruptedException {
+	protected void awaitUntilFalse(BooleanSupplier evaluator) throws TimeoutException, InterruptedException {
 		awaitUntil(() -> !evaluator.getAsBoolean());
 	}
 
-	protected void awaitUntil(BooleanSupplier evaluator) throws InterruptedException {
+	protected void awaitUntil(BooleanSupplier evaluator) throws TimeoutException, InterruptedException {
 		Await.await().initialDelay(pollDelay).delay(awaitPollInterval).timeout(awaitTimeout).until(evaluator);
 	}
 
@@ -317,19 +320,19 @@ public abstract class AbstractTestBase {
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				throw new ItemStreamException("Data gen interrupted", e);
-			} catch (JobExecutionException e) {
+			} catch (Exception e) {
 				throw new ItemStreamException("Could not run data gen", e);
 			}
 		});
 	}
 
 	protected void generate(TestInfo info, GeneratorItemReader reader)
-			throws JobExecutionException, InterruptedException {
+			throws JobExecutionException, TimeoutException, InterruptedException {
 		generate(info, redisClient, reader);
 	}
 
 	protected void generate(TestInfo info, AbstractRedisClient client, GeneratorItemReader reader)
-			throws JobExecutionException, InterruptedException {
+			throws JobExecutionException, TimeoutException, InterruptedException {
 		TestInfo testInfo = testInfo(info, "generate");
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct(StringCodec.UTF8);
 		writer.setClient(client);
@@ -337,22 +340,22 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void run(TestInfo info, GeneratorItemReader reader, ItemWriter<KeyValue<String, Object>> writer)
-			throws JobExecutionException, InterruptedException {
+			throws JobExecutionException, TimeoutException, InterruptedException {
 		run(info, reader, genItemProcessor, writer);
 	}
 
 	protected <T> JobExecution run(TestInfo info, ItemReader<? extends T> reader, ItemWriter<T> writer)
-			throws JobExecutionException, InterruptedException {
+			throws JobExecutionException, TimeoutException, InterruptedException {
 		return run(info, reader, null, writer);
 	}
 
 	protected <I, O> JobExecution run(TestInfo info, ItemReader<I> reader, ItemProcessor<I, O> processor,
-			ItemWriter<O> writer) throws JobExecutionException, InterruptedException {
+			ItemWriter<O> writer) throws JobExecutionException, TimeoutException, InterruptedException {
 		return run(info, step(info, reader, processor, writer));
 	}
 
 	protected <I, O> JobExecution run(TestInfo info, SimpleStepBuilder<I, O> step)
-			throws JobExecutionException, InterruptedException {
+			throws JobExecutionException, TimeoutException, InterruptedException {
 		return run(job(info).start(faultTolerant(step).build()).build());
 	}
 
@@ -360,7 +363,7 @@ public abstract class AbstractTestBase {
 		return step.faultTolerant().retryPolicy(new MaxAttemptsRetryPolicy()).retry(RedisCommandTimeoutException.class);
 	}
 
-	protected JobExecution run(Job job) throws JobExecutionException, InterruptedException {
+	protected JobExecution run(Job job) throws JobExecutionException, TimeoutException, InterruptedException {
 		JobExecution execution = jobFactory.run(job);
 		awaitUntilFalse(execution::isRunning);
 		return execution;
@@ -375,7 +378,8 @@ public abstract class AbstractTestBase {
 		return new FlushingStepBuilder<>(step(info, reader, writer)).idleTimeout(idleTimeout);
 	}
 
-	protected void generateStreams(TestInfo info, int messageCount) throws JobExecutionException, InterruptedException {
+	protected void generateStreams(TestInfo info, int messageCount)
+			throws JobExecutionException, TimeoutException, InterruptedException {
 		GeneratorItemReader gen = generator(3, Item.Type.STREAM);
 		StreamOptions streamOptions = new StreamOptions();
 		streamOptions.setMessageCount(Range.of(messageCount));

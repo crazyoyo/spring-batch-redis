@@ -333,7 +333,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamAutoAck(TestInfo info) throws InterruptedException {
+	void readStreamAutoAck(TestInfo info) throws Exception {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamAutoAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
@@ -390,7 +390,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamManualAckRecover(TestInfo info) throws InterruptedException {
+	void readStreamManualAckRecover(TestInfo info) throws Exception {
 		String stream = "stream1";
 		Consumer<String> consumer = Consumer.from("batchtests-readStreamManualAckRecover", "consumer1");
 		final StreamItemReader<String, String> reader = streamReader(info, stream, consumer);
@@ -426,7 +426,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamManualAckRecoverUncommitted(TestInfo info) throws InterruptedException {
+	void readStreamManualAckRecoverUncommitted(TestInfo info) throws Exception {
 		String stream = "stream1";
 		String consumerGroup = "batchtests-readStreamManualAckRecoverUncommitted";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");
@@ -506,7 +506,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void readStreamRecoverManualAckToAutoAck(TestInfo info) throws InterruptedException {
+	void readStreamRecoverManualAckToAutoAck(TestInfo info) throws Exception {
 		String stream = "stream1";
 		String consumerGroup = "readStreamRecoverManualAckToAutoAck";
 		Consumer<String> consumer = Consumer.from(consumerGroup, "consumer1");

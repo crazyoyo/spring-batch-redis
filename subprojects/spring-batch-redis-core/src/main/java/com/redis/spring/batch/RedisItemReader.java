@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -34,7 +35,6 @@ import com.redis.spring.batch.reader.KeyNotificationItemReader;
 import com.redis.spring.batch.reader.MemKeyValue;
 import com.redis.spring.batch.reader.MemKeyValueRead;
 import com.redis.spring.batch.util.Await;
-import com.redis.spring.batch.util.AwaitTimeoutException;
 import com.redis.spring.batch.util.BatchUtils;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -123,7 +123,7 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				throw e;
-			} catch (AwaitTimeoutException e) {
+			} catch (TimeoutException e) {
 				List<Throwable> exceptions = jobExecution.getAllFailureExceptions();
 				if (!CollectionUtils.isEmpty(exceptions)) {
 					throw new JobExecutionException("Job execution unsuccessful", exceptions.get(0));
@@ -205,7 +205,7 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 	}
 
 	@Override
-	protected synchronized void doClose() throws InterruptedException {
+	protected synchronized void doClose() throws TimeoutException, InterruptedException {
 		if (!queue.isEmpty()) {
 			log.warn(String.format("%s queue still contains %,d elements", getName(), queue.size()));
 		}
