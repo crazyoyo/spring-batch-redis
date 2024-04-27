@@ -29,7 +29,6 @@ import org.springframework.boot.sql.init.DatabaseInitializationMode;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.ClassUtils;
 
@@ -146,15 +145,6 @@ public class JobFactory implements JobLauncher, InitializingBean {
 
 	private static boolean isFailed(ExitStatus exitStatus) {
 		return exitStatus.getExitCode().equals(ExitStatus.FAILED.getExitCode());
-	}
-
-	public static ThreadPoolTaskExecutor threadPoolTaskExecutor(int threads) {
-		ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-		taskExecutor.setMaxPoolSize(threads);
-		taskExecutor.setCorePoolSize(threads);
-		taskExecutor.setQueueCapacity(threads);
-		taskExecutor.initialize();
-		return taskExecutor;
 	}
 
 	public JobBuilder jobBuilder(String name) {

@@ -22,6 +22,7 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.SynchronizedItemReader;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 
@@ -139,7 +140,12 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 		step.processor(keyProcessor);
 		step.writer(new Writer());
 		if (threads > 1) {
-			step.taskExecutor(JobFactory.threadPoolTaskExecutor(threads));
+			ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+			taskExecutor.setMaxPoolSize(threads);
+			taskExecutor.setCorePoolSize(threads);
+			taskExecutor.setQueueCapacity(threads);
+			taskExecutor.afterPropertiesSet();
+			step.taskExecutor(taskExecutor);
 			if (!isLive()) {
 				step.reader(new SynchronizedItemReader<>(reader));
 			}
