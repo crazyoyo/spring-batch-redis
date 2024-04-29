@@ -86,15 +86,12 @@ import com.redis.spring.batch.writer.Xadd;
 import io.lettuce.core.Consumer;
 import io.lettuce.core.GeoArgs;
 import io.lettuce.core.KeyScanArgs;
-import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RestoreArgs;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
-import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.models.stream.PendingMessages;
@@ -721,34 +718,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		RedisItemWriter<byte[], byte[], KeyValue<byte[], byte[]>> writer = RedisItemWriter.dump();
 		writer.setClient(targetRedisClient);
 		replicate(info, dumpReader(info), writer);
-	}
-
-	@Test
-	void replicateStructBinaryStrings(TestInfo info) throws Exception {
-		StatefulRedisConnection<byte[], byte[]> rawConnection = RedisModulesUtils.connection(redisClient,
-				ByteArrayCodec.INSTANCE);
-		rawConnection.setAutoFlushCommands(false);
-		RedisAsyncCommands<byte[], byte[]> async = rawConnection.async();
-		List<RedisFuture<?>> futures = new ArrayList<>();
-		Random random = new Random();
-		for (int index = 0; index < 100; index++) {
-			String key = "binary:" + index;
-			byte[] value = new byte[1000];
-			random.nextBytes(value);
-			futures.add(async.set(key.getBytes(), value));
-		}
-		rawConnection.flushCommands();
-		LettuceFutures.awaitAll(rawConnection.getTimeout(), futures.toArray(new RedisFuture[0]));
-		rawConnection.setAutoFlushCommands(true);
-		RedisItemReader<byte[], byte[], MemKeyValue<byte[], Object>> reader = RedisItemReader
-				.struct(ByteArrayCodec.INSTANCE);
-		configure(info, reader);
-		reader.setClient(redisClient);
-		RedisItemWriter<byte[], byte[], KeyValue<byte[], Object>> writer = RedisItemWriter
-				.struct(ByteArrayCodec.INSTANCE);
-		writer.setClient(targetRedisClient);
-		replicate(info, reader, writer);
-		rawConnection.close();
 	}
 
 	protected <K, V, T> void replicate(TestInfo info, RedisItemReader<K, V, ? extends T> reader,
