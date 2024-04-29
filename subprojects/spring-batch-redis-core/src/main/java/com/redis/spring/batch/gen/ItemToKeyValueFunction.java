@@ -1,16 +1,23 @@
 package com.redis.spring.batch.gen;
 
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.KeyValue.DataType;
 import com.redis.spring.batch.gen.Item.Type;
 
-public class ItemToKeyValueFunction implements Function<Item, KeyValue<String, Object>> {
+public class ItemToKeyValueFunction<T extends KeyValue<String, Object>> implements Function<Item, T> {
+
+	private final Supplier<T> factory;
+
+	public ItemToKeyValueFunction(Supplier<T> factory) {
+		this.factory = factory;
+	}
 
 	@Override
-	public KeyValue<String, Object> apply(Item item) {
-		KeyValue<String, Object> kv = new KeyValue<>();
+	public T apply(Item item) {
+		T kv = factory.get();
 		kv.setKey(item.getKey());
 		kv.setTtl(item.getTtl());
 		kv.setType(toRedisTypeString(item.getType()));

@@ -82,7 +82,7 @@ public abstract class AbstractTestBase {
 	public static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(3);
 
 	protected static final ItemProcessor<Item, KeyValue<String, Object>> genItemProcessor = new FunctionItemProcessor<>(
-			new ItemToKeyValueFunction());
+			new ItemToKeyValueFunction<>(KeyValue::new));
 
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
