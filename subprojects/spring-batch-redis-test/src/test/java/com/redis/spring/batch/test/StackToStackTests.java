@@ -513,6 +513,29 @@ class StackToStackTests extends BatchTests {
 		assertEquals(values.size(), redisCommands.scard(key));
 	}
 
+	@Test
+	void writeStream(TestInfo info) throws Exception {
+		String stream = "stream:0";
+		List<Map<String, String>> messages = new ArrayList<>();
+		for (int index = 0; index < 100; index++) {
+			Map<String, String> body = new HashMap<>();
+			body.put("field1", "value1");
+			body.put("field2", "value2");
+			messages.add(body);
+		}
+		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
+		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(keyFunction(stream), Function.identity());
+		RedisItemWriter<String, String, Map<String, String>> writer = writer(xadd);
+		run(info, reader, writer);
+		Assertions.assertEquals(messages.size(), redisCommands.xlen(stream));
+		List<StreamMessage<String, String>> xrange = redisCommands.xrange(stream,
+				io.lettuce.core.Range.create("-", "+"));
+		for (int index = 0; index < xrange.size(); index++) {
+			StreamMessage<String, String> message = xrange.get(index);
+			Assertions.assertEquals(messages.get(index), message.getBody());
+		}
+	}
+
 	private MapOptions hashOptions(Range fieldCount) {
 		MapOptions options = new MapOptions();
 		options.setFieldCount(fieldCount);

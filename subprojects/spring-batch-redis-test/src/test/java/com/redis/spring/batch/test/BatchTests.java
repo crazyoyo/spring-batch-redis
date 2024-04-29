@@ -81,7 +81,6 @@ import com.redis.spring.batch.writer.JsonSet;
 import com.redis.spring.batch.writer.Sugadd;
 import com.redis.spring.batch.writer.TsAdd;
 import com.redis.spring.batch.writer.TsAddAll;
-import com.redis.spring.batch.writer.Xadd;
 
 import io.lettuce.core.Consumer;
 import io.lettuce.core.GeoArgs;
@@ -806,29 +805,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		JobExecution execution = run(info, reader, writer);
 		List<Throwable> exceptions = execution.getAllFailureExceptions();
 		assertEquals("Insufficient replication level (0/1)", exceptions.get(0).getCause().getCause().getMessage());
-	}
-
-	@Test
-	void writeStream(TestInfo info) throws Exception {
-		String stream = "stream:0";
-		List<Map<String, String>> messages = new ArrayList<>();
-		for (int index = 0; index < 100; index++) {
-			Map<String, String> body = new HashMap<>();
-			body.put("field1", "value1");
-			body.put("field2", "value2");
-			messages.add(body);
-		}
-		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(keyFunction(stream), Function.identity());
-		RedisItemWriter<String, String, Map<String, String>> writer = writer(xadd);
-		run(info, reader, writer);
-		Assertions.assertEquals(messages.size(), redisCommands.xlen(stream));
-		List<StreamMessage<String, String>> xrange = redisCommands.xrange(stream,
-				io.lettuce.core.Range.create("-", "+"));
-		for (int index = 0; index < xrange.size(); index++) {
-			StreamMessage<String, String> message = xrange.get(index);
-			Assertions.assertEquals(messages.get(index), message.getBody());
-		}
 	}
 
 	private <K, V, T> void replicateLive(TestInfo info, RedisItemReader<K, V, ? extends T> reader,
