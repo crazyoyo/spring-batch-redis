@@ -232,19 +232,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void compareStreams(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(10);
-		gen.setTypes(DataType.STREAM);
-		generate(info, gen);
-		RedisItemReader<String, String, MemKeyValue<String, Object>> reader = structReader(info);
-		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
-		writer.setClient(targetRedisClient);
-		replicate(info, reader, writer);
-		KeyspaceComparison<String> comparison = compare(info);
-		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
-	}
-
-	@Test
 	void compareStatus(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(120);
 		generate(info, gen);

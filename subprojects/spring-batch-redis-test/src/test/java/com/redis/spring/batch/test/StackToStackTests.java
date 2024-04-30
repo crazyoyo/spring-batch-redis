@@ -7,6 +7,7 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -570,6 +571,19 @@ class StackToStackTests extends BatchTests {
 		run(testInfo(info, "replicate"), reader, writer);
 		Map<String, String> actual = targetRedisCommands.hgetall("gen:1");
 		assertEquals(10, actual.size());
+	}
+
+	@Test
+	void compareStreams(TestInfo info) throws Exception {
+		GeneratorItemReader gen = generator(10);
+		gen.setTypes(DataType.STREAM);
+		generate(info, gen);
+		RedisItemReader<String, String, MemKeyValue<String, Object>> reader = structReader(info);
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
+		writer.setClient(targetRedisClient);
+		replicate(info, reader, writer);
+		KeyspaceComparison<String> comparison = compare(info);
+		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}
 
 }
