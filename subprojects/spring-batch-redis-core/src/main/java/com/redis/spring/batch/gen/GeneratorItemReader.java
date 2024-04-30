@@ -17,17 +17,19 @@ import org.springframework.util.ClassUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
-import com.redis.spring.batch.gen.Item.Type;
+import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.KeyValue.DataType;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
-public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<Item> {
+public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<KeyValue<String, Object>> {
 
 	public static final String DEFAULT_KEYSPACE = "gen";
 	public static final String DEFAULT_KEY_SEPARATOR = ":";
 	public static final Range DEFAULT_KEY_RANGE = Range.from(1);
-	protected static final List<Type> DEFAULT_TYPES = Arrays.asList(Type.values());
+	protected static final List<DataType> DEFAULT_TYPES = Arrays.asList(DataType.HASH, DataType.JSON, DataType.LIST,
+			DataType.SET, DataType.STREAM, DataType.STRING, DataType.TIMESERIES, DataType.ZSET);
 
 	private static final int LEFT_LIMIT = 48; // numeral '0'
 	private static final int RIGHT_LIMIT = 122; // letter 'z'
@@ -46,14 +48,14 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	private CollectionOptions setOptions = new CollectionOptions();
 	private StringOptions stringOptions = new StringOptions();
 	private ZsetOptions zsetOptions = new ZsetOptions();
-	private List<Type> types = DEFAULT_TYPES;
+	private List<DataType> types = DEFAULT_TYPES;
 	private int maxItemCount;
 
 	public GeneratorItemReader() {
 		setName(ClassUtils.getShortName(getClass()));
 	}
 
-	public static List<Type> defaultTypes() {
+	public static List<DataType> defaultTypes() {
 		return DEFAULT_TYPES;
 	}
 
@@ -113,7 +115,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		return keyspace;
 	}
 
-	public List<Type> getTypes() {
+	public List<DataType> getTypes() {
 		return types;
 	}
 
@@ -157,11 +159,11 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		this.keyspace = keyspace;
 	}
 
-	public void setTypes(Type... types) {
+	public void setTypes(DataType... types) {
 		setTypes(Arrays.asList(types));
 	}
 
-	public void setTypes(List<Type> types) {
+	public void setTypes(List<DataType> types) {
 		this.types = types;
 	}
 
@@ -178,7 +180,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		return builder.toString();
 	}
 
-	private Object value(Type type) throws JsonProcessingException {
+	private Object value(DataType type) throws JsonProcessingException {
 		switch (type) {
 		case HASH:
 			return map(hashOptions);
@@ -203,7 +205,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
 	private List<Sample> samples() {
 		List<Sample> samples = new ArrayList<>();
-		long size = randomLong(timeSeriesOptions.getSampleCount());
+		int size = randomInt(timeSeriesOptions.getSampleCount());
 		long startTime = timeSeriesStartTime();
 		for (int index = 0; index < size; index++) {
 			long time = startTime + getCurrentItemCount() + index;
@@ -228,7 +230,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	private Collection<StreamMessage<String, String>> streamMessages() {
 		String key = key();
 		Collection<StreamMessage<String, String>> messages = new ArrayList<>();
-		for (int elementIndex = 0; elementIndex < randomLong(streamOptions.getMessageCount()); elementIndex++) {
+		for (int elementIndex = 0; elementIndex < randomInt(streamOptions.getMessageCount()); elementIndex++) {
 			messages.add(new StreamMessage<>(key, null, map(streamOptions.getBodyOptions())));
 		}
 		return messages;
@@ -236,7 +238,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
 	private Map<String, String> map(MapOptions options) {
 		Map<String, String> hash = new HashMap<>();
-		for (int index = 0; index < randomLong(options.getFieldCount()); index++) {
+		for (int index = 0; index < randomInt(options.getFieldCount()); index++) {
 			int fieldIndex = index + 1;
 			hash.put("field" + fieldIndex, string(options.getFieldLength()));
 		}
@@ -244,11 +246,11 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	private String string(Range range) {
-		long length = randomLong(range);
+		int length = randomInt(range);
 		return string(length);
 	}
 
-	public static String string(long length) {
+	public static String string(int length) {
 		return random.ints(LEFT_LIMIT, RIGHT_LIMIT + 1).filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
 				.limit(length).collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
 				.toString();
@@ -257,18 +259,18 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	private List<String> members(CollectionOptions options) {
 		List<String> members = new ArrayList<>();
 		int spread = options.getMemberRange().getMax() - options.getMemberRange().getMin() + 1;
-		for (int index = 0; index < randomLong(options.getMemberCount()); index++) {
+		for (int index = 0; index < randomInt(options.getMemberCount()); index++) {
 			int memberId = options.getMemberRange().getMin() + index % spread;
 			members.add(String.valueOf(memberId));
 		}
 		return members;
 	}
 
-	private long randomLong(Range range) {
+	private int randomInt(Range range) {
 		if (range.getMin() == range.getMax()) {
 			return range.getMin();
 		}
-		return ThreadLocalRandom.current().nextLong(range.getMin(), range.getMax());
+		return ThreadLocalRandom.current().nextInt(range.getMin(), range.getMax());
 	}
 
 	private double randomDouble(Range range) {
@@ -289,11 +291,11 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	@Override
-	protected Item doRead() throws JsonProcessingException {
-		Item struct = new Item();
+	protected KeyValue<String, Object> doRead() throws JsonProcessingException {
+		KeyValue<String, Object> struct = new KeyValue<>();
 		struct.setKey(key());
-		Type type = types.get(getCurrentItemCount() % types.size());
-		struct.setType(type);
+		DataType type = types.get(getCurrentItemCount() % types.size());
+		struct.setType(type.getString());
 		struct.setValue(value(type));
 		if (expiration != null) {
 			struct.setTtl(ttl());
@@ -302,7 +304,7 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	private long ttl() {
-		return System.currentTimeMillis() + randomLong(expiration);
+		return System.currentTimeMillis() + randomInt(expiration);
 	}
 
 	@Override

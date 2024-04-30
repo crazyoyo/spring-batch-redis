@@ -28,11 +28,10 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.KeyValue.DataType;
+import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.gen.Item;
 import com.redis.spring.batch.gen.MapOptions;
 import com.redis.spring.batch.gen.Range;
 import com.redis.spring.batch.reader.MemKeyValue;
@@ -46,13 +45,13 @@ import com.redis.spring.batch.writer.Expire;
 import com.redis.spring.batch.writer.ExpireAt;
 import com.redis.spring.batch.writer.Hset;
 import com.redis.spring.batch.writer.KeyValueWrite;
+import com.redis.spring.batch.writer.KeyValueWrite.WriteMode;
 import com.redis.spring.batch.writer.Lpush;
 import com.redis.spring.batch.writer.LpushAll;
 import com.redis.spring.batch.writer.Rpush;
 import com.redis.spring.batch.writer.Sadd;
 import com.redis.spring.batch.writer.Xadd;
 import com.redis.spring.batch.writer.Zadd;
-import com.redis.spring.batch.writer.KeyValueWrite.WriteMode;
 import com.redis.testcontainers.RedisStackContainer;
 
 import io.lettuce.core.Consumer;
@@ -88,7 +87,7 @@ class StackToStackTests extends BatchTests {
 		live(reader);
 		reader.open(new ExecutionContext());
 		int count = 1234;
-		generate(info, generator(count, Item.Type.HASH, Item.Type.STRING));
+		generate(info, generator(count, DataType.HASH, DataType.STRING));
 		List<MemKeyValue<byte[], Object>> list = readAll(reader);
 		Function<byte[], String> toString = BatchUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
 		Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
@@ -253,7 +252,7 @@ class StackToStackTests extends BatchTests {
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(redisClient);
 		writer.setMultiExec(true);
-		run(info, step(info, 1, reader, genItemProcessor, writer));
+		run(info, step(info, 1, reader, null, writer));
 		assertEquals(count, redisCommands.dbsize());
 	}
 
@@ -393,7 +392,7 @@ class StackToStackTests extends BatchTests {
 	@Test
 	void writeLpush(TestInfo info) throws Exception {
 		int count = 73;
-		GeneratorItemReader gen = generator(count, Item.Type.STRING);
+		GeneratorItemReader gen = generator(count, DataType.STRING);
 		Lpush<String, String, KeyValue<String, Object>> lpush = new Lpush<>(KeyValue::getKey,
 				v -> (String) v.getValue());
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(lpush);
@@ -407,7 +406,7 @@ class StackToStackTests extends BatchTests {
 	@Test
 	void writeRpush(TestInfo info) throws Exception {
 		int count = 73;
-		GeneratorItemReader gen = generator(count, Item.Type.STRING);
+		GeneratorItemReader gen = generator(count, DataType.STRING);
 		Rpush<String, String, KeyValue<String, Object>> rpush = new Rpush<>(KeyValue::getKey,
 				v -> (String) v.getValue());
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(rpush);
@@ -422,7 +421,7 @@ class StackToStackTests extends BatchTests {
 	@Test
 	void writeLpushAll(TestInfo info) throws Exception {
 		int count = 73;
-		GeneratorItemReader gen = generator(count, Item.Type.LIST);
+		GeneratorItemReader gen = generator(count, DataType.LIST);
 		LpushAll<String, String, KeyValue<String, Object>> lpushAll = new LpushAll<>(KeyValue::getKey,
 				v -> (Collection<String>) v.getValue());
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(lpushAll);
@@ -436,7 +435,7 @@ class StackToStackTests extends BatchTests {
 	@Test
 	void writeExpire(TestInfo info) throws Exception {
 		int count = 73;
-		GeneratorItemReader gen = generator(count, Item.Type.STRING);
+		GeneratorItemReader gen = generator(count, DataType.STRING);
 		Duration ttl = Duration.ofMillis(1);
 		Expire<String, String, KeyValue<String, Object>> expire = new Expire<>(KeyValue::getKey);
 		expire.setTtl(ttl);
@@ -449,7 +448,7 @@ class StackToStackTests extends BatchTests {
 	@Test
 	void writeExpireAt(TestInfo info) throws Exception {
 		int count = 73;
-		GeneratorItemReader gen = generator(count, Item.Type.STRING);
+		GeneratorItemReader gen = generator(count, DataType.STRING);
 		ExpireAt<String, String, KeyValue<String, Object>> expireAt = new ExpireAt<>(KeyValue::getKey);
 		expireAt.epoch(v -> System.currentTimeMillis());
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(expireAt);
@@ -544,10 +543,10 @@ class StackToStackTests extends BatchTests {
 
 	@Test
 	void writeStructOverwrite(TestInfo info) throws Exception {
-		GeneratorItemReader gen1 = generator(100, Item.Type.HASH);
+		GeneratorItemReader gen1 = generator(100, DataType.HASH);
 		gen1.setHashOptions(hashOptions(Range.of(5)));
 		generate(info, gen1);
-		GeneratorItemReader gen2 = generator(100, Item.Type.HASH);
+		GeneratorItemReader gen2 = generator(100, DataType.HASH);
 		gen2.setHashOptions(hashOptions(Range.of(10)));
 		generate(testInfo(info, "target"), targetRedisClient, gen2);
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
@@ -558,10 +557,10 @@ class StackToStackTests extends BatchTests {
 
 	@Test
 	void writeStructMerge(TestInfo info) throws Exception {
-		GeneratorItemReader gen1 = generator(100, Item.Type.HASH);
+		GeneratorItemReader gen1 = generator(100, DataType.HASH);
 		gen1.setHashOptions(hashOptions(Range.of(5)));
 		generate(info, gen1);
-		GeneratorItemReader gen2 = generator(100, Item.Type.HASH);
+		GeneratorItemReader gen2 = generator(100, DataType.HASH);
 		gen2.setHashOptions(hashOptions(Range.of(10)));
 		generate(testInfo(info, "target"), targetRedisClient, gen2);
 		RedisItemReader<String, String, MemKeyValue<String, Object>> reader = structReader(info);

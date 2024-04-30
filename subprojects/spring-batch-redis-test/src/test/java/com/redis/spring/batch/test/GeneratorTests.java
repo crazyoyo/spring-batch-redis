@@ -12,9 +12,9 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
+import com.redis.spring.batch.KeyValue;
 import com.redis.spring.batch.gen.CollectionOptions;
 import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.gen.Item;
 import com.redis.spring.batch.gen.StreamOptions;
 
 class GeneratorTests {
@@ -24,13 +24,14 @@ class GeneratorTests {
 		int count = 123;
 		GeneratorItemReader reader = new GeneratorItemReader();
 		reader.setMaxItemCount(count);
-		List<Item> list = readAll(reader);
+		List<KeyValue<String, Object>> list = readAll(reader);
 		Assertions.assertEquals(count, list.size());
 	}
 
-	private List<Item> readAll(GeneratorItemReader reader) throws UnexpectedInputException, ParseException, Exception {
-		List<Item> list = new ArrayList<>();
-		Item ds;
+	private List<KeyValue<String, Object>> readAll(GeneratorItemReader reader)
+			throws UnexpectedInputException, ParseException, Exception {
+		List<KeyValue<String, Object>> list = new ArrayList<>();
+		KeyValue<String, Object> ds;
 		while ((ds = reader.read()) != null) {
 			list.add(ds);
 		}
@@ -42,10 +43,10 @@ class GeneratorTests {
 		int count = 123;
 		GeneratorItemReader reader = new GeneratorItemReader();
 		reader.setMaxItemCount(count);
-		List<Item> list = readAll(reader);
+		List<KeyValue<String, Object>> list = readAll(reader);
 		Assertions.assertEquals(count, list.size());
-		for (Item ds : list) {
-			switch (ds.getType()) {
+		for (KeyValue<String, Object> ds : list) {
+			switch (KeyValue.type(ds)) {
 			case SET:
 			case LIST:
 			case ZSET:
@@ -67,7 +68,7 @@ class GeneratorTests {
 		GeneratorItemReader reader = new GeneratorItemReader();
 		reader.setMaxItemCount(10);
 		reader.open(new ExecutionContext());
-		Item keyValue = reader.read();
+		KeyValue<String, Object> keyValue = reader.read();
 		Assertions.assertEquals(GeneratorItemReader.DEFAULT_KEYSPACE + GeneratorItemReader.DEFAULT_KEY_SEPARATOR
 				+ GeneratorItemReader.DEFAULT_KEY_RANGE.getMin(), keyValue.getKey());
 		String lastKey;
@@ -84,7 +85,7 @@ class GeneratorTests {
 		GeneratorItemReader reader = new GeneratorItemReader();
 		reader.open(new ExecutionContext());
 		reader.setMaxItemCount(456);
-		Item ds1 = reader.read();
+		KeyValue<String, Object> ds1 = reader.read();
 		assertEquals("gen:1", ds1.getKey());
 		int actualCount = 1;
 		while (reader.read() != null) {

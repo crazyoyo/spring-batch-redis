@@ -57,7 +57,6 @@ import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
 import com.redis.spring.batch.common.FlushingStepBuilder;
 import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.gen.Item;
 import com.redis.spring.batch.gen.Range;
 import com.redis.spring.batch.gen.TimeSeriesOptions;
 import com.redis.spring.batch.reader.EvalFunction;
@@ -235,7 +234,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void compareStreams(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(10);
-		gen.setTypes(Item.Type.STREAM);
+		gen.setTypes(DataType.STREAM);
 		generate(info, gen);
 		RedisItemReader<String, String, MemKeyValue<String, Object>> reader = structReader(info);
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
@@ -811,7 +810,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			RedisItemWriter<K, V, T> writer, RedisItemReader<K, V, ? extends T> liveReader,
 			RedisItemWriter<K, V, T> liveWriter) throws Exception {
 		live(liveReader);
-		Item.Type[] types = new Item.Type[] { Item.Type.HASH, Item.Type.STRING };
+		DataType[] types = new DataType[] { DataType.HASH, DataType.STRING };
 		generate(info, generator(300, types));
 		TaskletStep step = faultTolerant(step(new SimpleTestInfo(info, "step"), reader, writer)).build();
 		SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "snapshotFlow"))).start(step)
@@ -884,8 +883,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		writer.setClient(targetRedisClient);
 		FlushingStepBuilder<MemKeyValue<byte[], byte[]>, KeyValue<byte[], byte[]>> step = flushingStep(info, reader,
 				writer);
-		GeneratorItemReader gen = generator(100, Item.Type.HASH, Item.Type.LIST, Item.Type.SET, Item.Type.STRING,
-				Item.Type.ZSET);
+		GeneratorItemReader gen = generator(100, DataType.HASH, DataType.LIST, DataType.SET, DataType.STRING,
+				DataType.ZSET);
 		generateAsync(testInfo(info, "genasync"), gen);
 		run(info, step);
 		awaitUntilNoSubscribers();
@@ -1104,7 +1103,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 	@Test
 	void writeJsonDel(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(73, Item.Type.JSON);
+		GeneratorItemReader gen = generator(73, DataType.JSON);
 		generate(info, gen);
 		JsonDel<String, String, KeyValue<String, Object>> jsonDel = new JsonDel<>(KeyValue::getKey);
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(jsonDel);
@@ -1137,7 +1136,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void writeTsAddAll(TestInfo info) throws Exception {
 		int count = 10;
-		GeneratorItemReader reader = generator(count, Item.Type.TIMESERIES);
+		GeneratorItemReader reader = generator(count, DataType.TIMESERIES);
 		AddOptions<String, String> addOptions = AddOptions.<String, String>builder().policy(DuplicatePolicy.LAST)
 				.build();
 		TsAddAll<String, String, KeyValue<String, Object>> tsadd = new TsAddAll<>(KeyValue::getKey,

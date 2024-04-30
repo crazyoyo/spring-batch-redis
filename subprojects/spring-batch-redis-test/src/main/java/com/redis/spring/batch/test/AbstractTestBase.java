@@ -32,7 +32,6 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.function.FunctionItemProcessor;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -45,6 +44,7 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.KeyValue.DataType;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.RedisItemWriter;
@@ -52,8 +52,6 @@ import com.redis.spring.batch.common.FlushingStepBuilder;
 import com.redis.spring.batch.common.JobFactory;
 import com.redis.spring.batch.common.PollableItemReader;
 import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.gen.Item;
-import com.redis.spring.batch.gen.ItemToKeyValueFunction;
 import com.redis.spring.batch.gen.Range;
 import com.redis.spring.batch.gen.StreamOptions;
 import com.redis.spring.batch.reader.MemKeyValue;
@@ -80,9 +78,6 @@ public abstract class AbstractTestBase {
 	public static final Duration DEFAULT_POLL_DELAY = Duration.ZERO;
 	public static final Duration DEFAULT_AWAIT_POLL_INTERVAL = Duration.ofMillis(1);
 	public static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(3);
-
-	protected static final ItemProcessor<Item, KeyValue<String, Object>> genItemProcessor = new FunctionItemProcessor<>(
-			new ItemToKeyValueFunction<>(KeyValue::new));
 
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
@@ -167,7 +162,7 @@ public abstract class AbstractTestBase {
 		Assertions.assertTrue(commands.dbsize() > 0, "Redis database is empty");
 	}
 
-	protected GeneratorItemReader generator(int count, Item.Type... types) {
+	protected GeneratorItemReader generator(int count, DataType... types) {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(count);
 		if (!ObjectUtils.isEmpty(types)) {
@@ -339,11 +334,6 @@ public abstract class AbstractTestBase {
 		run(testInfo, reader, writer);
 	}
 
-	protected void run(TestInfo info, GeneratorItemReader reader, ItemWriter<KeyValue<String, Object>> writer)
-			throws JobExecutionException, TimeoutException, InterruptedException {
-		run(info, reader, genItemProcessor, writer);
-	}
-
 	protected <T> JobExecution run(TestInfo info, ItemReader<? extends T> reader, ItemWriter<T> writer)
 			throws JobExecutionException, TimeoutException, InterruptedException {
 		return run(info, reader, null, writer);
@@ -380,7 +370,7 @@ public abstract class AbstractTestBase {
 
 	protected void generateStreams(TestInfo info, int messageCount)
 			throws JobExecutionException, TimeoutException, InterruptedException {
-		GeneratorItemReader gen = generator(3, Item.Type.STREAM);
+		GeneratorItemReader gen = generator(3, DataType.STREAM);
 		StreamOptions streamOptions = new StreamOptions();
 		streamOptions.setMessageCount(Range.of(messageCount));
 		gen.setStreamOptions(streamOptions);

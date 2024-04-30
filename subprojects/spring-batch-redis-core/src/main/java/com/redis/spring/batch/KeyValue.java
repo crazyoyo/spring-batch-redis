@@ -14,7 +14,7 @@ public class KeyValue<K, T> {
 
 		NONE("none"), HASH("hash"), JSON("ReJSON-RL"), LIST("list"), SET("set"), STREAM("stream"), STRING("string"),
 		TIMESERIES("TSDB-TYPE"), ZSET("zset");
-
+		
 		private static final Map<String, DataType> TYPE_MAP = Stream.of(DataType.values())
 				.collect(Collectors.toMap(t -> t.getString().toLowerCase(), Function.identity()));
 
@@ -39,10 +39,8 @@ public class KeyValue<K, T> {
 	private K key;
 	private String type;
 	private T value;
-
 	/**
 	 * Expiration POSIX time in milliseconds for this key.
-	 *
 	 */
 	private long ttl;
 
