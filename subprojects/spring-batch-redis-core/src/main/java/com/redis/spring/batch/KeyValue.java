@@ -39,9 +39,6 @@ public class KeyValue<K, T> {
 	private K key;
 	private String type;
 	private T value;
-	/**
-	 * Expiration POSIX time in milliseconds for this key.
-	 */
 	private long ttl;
 
 	public KeyValue() {
@@ -79,6 +76,10 @@ public class KeyValue<K, T> {
 		this.value = value;
 	}
 
+	/**
+	 * 
+	 * @return Expiration POSIX time in milliseconds
+	 */
 	public long getTtl() {
 		return ttl;
 	}
