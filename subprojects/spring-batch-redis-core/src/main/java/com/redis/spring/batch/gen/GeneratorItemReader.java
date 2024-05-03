@@ -17,8 +17,8 @@ import org.springframework.util.ClassUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redis.lettucemod.timeseries.Sample;
-import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.KeyValue.DataType;
+import com.redis.spring.batch.common.DataType;
+import com.redis.spring.batch.common.KeyValue;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;

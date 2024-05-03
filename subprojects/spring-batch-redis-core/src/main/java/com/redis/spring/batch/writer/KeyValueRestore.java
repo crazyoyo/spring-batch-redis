@@ -1,6 +1,6 @@
 package com.redis.spring.batch.writer;
 
-import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.common.KeyValue;
 
 public class KeyValueRestore<K, V> extends Restore<K, V, KeyValue<K, byte[]>> {
 

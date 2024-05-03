@@ -1,11 +1,7 @@
-package com.redis.spring.batch;
+package com.redis.spring.batch.common;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -15,7 +11,6 @@ import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.reader.InitializingOperation;
-import com.redis.spring.batch.util.BatchUtils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
@@ -71,7 +66,9 @@ public class OperationExecutor<K, V, I, O> implements InitializingBean, AutoClos
 
 	@Override
 	public void close() {
-		pool.close();
+		if (pool != null) {
+			pool.close();
+		}
 	}
 
 	public List<O> apply(Iterable<? extends I> items) {
@@ -81,7 +78,7 @@ public class OperationExecutor<K, V, I, O> implements InitializingBean, AutoClos
 			List<RedisFuture<O>> futures = new ArrayList<>();
 			operation.execute(commands, items, futures);
 			connection.flushCommands();
-			List<O> out = getAll(connection.getTimeout(), futures);
+			List<O> out = BatchUtils.getAll(connection.getTimeout(), futures);
 			connection.setAutoFlushCommands(true);
 			return out;
 		} catch (InterruptedException e) {
@@ -90,28 +87,6 @@ public class OperationExecutor<K, V, I, O> implements InitializingBean, AutoClos
 		} catch (Exception e) {
 			throw Exceptions.fromSynchronization(e);
 		}
-	}
-
-	public static <T> List<T> getAll(Duration timeout, Iterable<RedisFuture<T>> futures)
-			throws TimeoutException, InterruptedException, ExecutionException {
-		List<T> items = new ArrayList<>();
-		long nanos = timeout.toNanos();
-		long time = System.nanoTime();
-		for (RedisFuture<T> f : futures) {
-			if (timeout.isNegative()) {
-				items.add(f.get());
-			} else {
-				if (nanos < 0) {
-					throw new TimeoutException(String.format("Timed out after %s", timeout));
-				}
-				T item = f.get(nanos, TimeUnit.NANOSECONDS);
-				items.add(item);
-				long now = System.nanoTime();
-				nanos -= now - time;
-				time = now;
-			}
-		}
-		return items;
 	}
 
 }

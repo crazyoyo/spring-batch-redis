@@ -28,16 +28,14 @@ public class ExpireAt<K, V, T> extends AbstractKeyOperation<K, V, T> {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	protected void execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, List<RedisFuture<Object>> outputs) {
-		long millis = epochFunction.applyAsLong(item);
-		if (millis > 0) {
-			outputs.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).pexpireat(key, millis));
+		long ttl = epochFunction.applyAsLong(item);
+		if (ttl > 0) {
+			outputs.add((RedisFuture) ((RedisKeyAsyncCommands<K, V>) commands).pexpireat(key, ttl));
 		}
 	}
 
 	public static <K, V, T> ExpireAt<K, V, T> of(Function<T, K> key, ToLongFunction<T> epoch) {
-		ExpireAt<K, V, T> operation = new ExpireAt<>(key);
-		operation.epoch(epoch);
-		return operation;
+		return new ExpireAt<K, V, T>(key).epoch(epoch);
 	}
 
 }

@@ -6,8 +6,8 @@ import java.util.List;
 import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.OperationExecutor;
+import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.OperationExecutor;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;

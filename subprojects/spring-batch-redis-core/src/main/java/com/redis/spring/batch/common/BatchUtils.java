@@ -1,9 +1,15 @@
-package com.redis.spring.batch.util;
+package com.redis.spring.batch.common;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -16,11 +22,12 @@ import com.redis.lettucemod.cluster.api.StatefulRedisModulesClusterConnection;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
+import io.lettuce.core.RedisFuture;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class BatchUtils {
+public abstract class BatchUtils {
 
 	private BatchUtils() {
 	}
@@ -56,12 +63,15 @@ public class BatchUtils {
 		return encode.andThen(ByteArrayCodec.INSTANCE::decodeKey);
 	}
 
+	@SuppressWarnings("resource")
 	public static <K, V> Supplier<StatefulRedisModulesConnection<K, V>> supplier(AbstractRedisClient client,
 			RedisCodec<K, V> codec, ReadFrom readFrom) {
 		if (client instanceof RedisModulesClusterClient) {
-			return () -> connection((RedisModulesClusterClient) client, codec, readFrom);
+			RedisModulesClusterClient clusterClient = (RedisModulesClusterClient) client;
+			return () -> connection(clusterClient, codec, readFrom);
 		}
-		return () -> ((RedisModulesClient) client).connect(codec);
+		RedisModulesClient redisClient = (RedisModulesClient) client;
+		return () -> redisClient.connect(codec);
 	}
 
 	public static <K, V> StatefulRedisModulesConnection<K, V> connection(AbstractRedisClient client,
@@ -72,13 +82,35 @@ public class BatchUtils {
 		return ((RedisModulesClient) client).connect(codec);
 	}
 
-	public static <K, V> StatefulRedisModulesConnection<K, V> connection(RedisModulesClusterClient client,
+	public static <K, V> StatefulRedisModulesClusterConnection<K, V> connection(RedisModulesClusterClient client,
 			RedisCodec<K, V> codec, ReadFrom readFrom) {
 		StatefulRedisModulesClusterConnection<K, V> connection = client.connect(codec);
 		if (readFrom != null) {
 			connection.setReadFrom(readFrom);
 		}
 		return connection;
+	}
+
+	public static <T> List<T> getAll(Duration timeout, Iterable<RedisFuture<T>> futures)
+			throws TimeoutException, InterruptedException, ExecutionException {
+		List<T> items = new ArrayList<>();
+		long nanos = timeout.toNanos();
+		long time = System.nanoTime();
+		for (RedisFuture<T> f : futures) {
+			if (timeout.isNegative()) {
+				items.add(f.get());
+			} else {
+				if (nanos < 0) {
+					throw new TimeoutException(String.format("Timed out after %s", timeout));
+				}
+				T item = f.get(nanos, TimeUnit.NANOSECONDS);
+				items.add(item);
+				long now = System.nanoTime();
+				nanos -= now - time;
+				time = now;
+			}
+		}
+		return items;
 	}
 
 }

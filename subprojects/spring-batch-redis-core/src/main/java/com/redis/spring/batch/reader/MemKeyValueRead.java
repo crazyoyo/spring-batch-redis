@@ -8,7 +8,7 @@ import java.util.function.Function;
 import org.springframework.util.unit.DataSize;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.common.BatchUtils;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.BaseRedisAsyncCommands;
@@ -41,35 +41,6 @@ public class MemKeyValueRead<K, V, T> implements InitializingOperation<K, V, K, 
 		this.function = function;
 	}
 
-	public static MemKeyValueRead<byte[], byte[], byte[]> dump() {
-		return new MemKeyValueRead<>(ValueType.DUMP, ByteArrayCodec.INSTANCE,
-				new EvalFunction<>(ByteArrayCodec.INSTANCE));
-	}
-
-	public static <K, V> MemKeyValueRead<K, V, Object> struct(RedisCodec<K, V> codec) {
-		return new MemKeyValueRead<>(ValueType.STRUCT, codec, new EvalStructFunction<>(codec));
-	}
-
-	public static MemKeyValueRead<String, String, Object> struct() {
-		return struct(StringCodec.UTF8);
-	}
-
-	public static MemKeyValueRead<String, String, Object> type() {
-		return type(StringCodec.UTF8);
-	}
-
-	public static <K, V> MemKeyValueRead<K, V, Object> type(RedisCodec<K, V> codec) {
-		return new MemKeyValueRead<>(ValueType.TYPE, codec, new EvalStructFunction<>(codec));
-	}
-
-	public void setMemUsageLimit(DataSize limit) {
-		this.memUsageLimit = limit;
-	}
-
-	public void setMemUsageSamples(int samples) {
-		this.memUsageSamples = samples;
-	}
-
 	@Override
 	public void afterPropertiesSet(StatefulRedisModulesConnection<K, V> connection) throws IOException {
 		String lua = BatchUtils.readFile(SCRIPT_FILENAME);
@@ -96,6 +67,43 @@ public class MemKeyValueRead<K, V, T> implements InitializingOperation<K, V, K, 
 		List<RedisFuture<List<Object>>> evalOutputs = new ArrayList<>();
 		evalsha.execute(commands, inputs, evalOutputs);
 		evalOutputs.stream().map(f -> new MappingRedisFuture<>(f, function)).forEach(outputs::add);
+	}
+
+	public DataSize getMemUsageLimit() {
+		return memUsageLimit;
+	}
+
+	public void setMemUsageLimit(DataSize limit) {
+		this.memUsageLimit = limit;
+	}
+
+	public int getMemUsageSamples() {
+		return memUsageSamples;
+	}
+
+	public void setMemUsageSamples(int samples) {
+		this.memUsageSamples = samples;
+	}
+
+	public static MemKeyValueRead<byte[], byte[], byte[]> dump() {
+		return new MemKeyValueRead<>(ValueType.DUMP, ByteArrayCodec.INSTANCE,
+				new EvalFunction<>(ByteArrayCodec.INSTANCE));
+	}
+
+	public static <K, V> MemKeyValueRead<K, V, Object> struct(RedisCodec<K, V> codec) {
+		return new MemKeyValueRead<>(ValueType.STRUCT, codec, new EvalStructFunction<>(codec));
+	}
+
+	public static MemKeyValueRead<String, String, Object> struct() {
+		return struct(StringCodec.UTF8);
+	}
+
+	public static MemKeyValueRead<String, String, Object> type() {
+		return type(StringCodec.UTF8);
+	}
+
+	public static <K, V> MemKeyValueRead<K, V, Object> type(RedisCodec<K, V> codec) {
+		return new MemKeyValueRead<>(ValueType.TYPE, codec, new EvalStructFunction<>(codec));
 	}
 
 }

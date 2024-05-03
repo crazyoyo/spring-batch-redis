@@ -3,8 +3,8 @@ package com.redis.spring.batch.reader;
 import java.util.List;
 import java.util.function.Function;
 
-import com.redis.spring.batch.Operation;
-import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.common.BatchUtils;
+import com.redis.spring.batch.common.Operation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.ScriptOutputType;

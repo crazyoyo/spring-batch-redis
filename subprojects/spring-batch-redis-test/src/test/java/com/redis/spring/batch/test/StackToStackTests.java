@@ -15,6 +15,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -28,10 +29,11 @@ import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.util.unit.DataSize;
 
-import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.KeyValue.DataType;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.common.BatchUtils;
+import com.redis.spring.batch.common.DataType;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.MapOptions;
 import com.redis.spring.batch.gen.Range;
@@ -39,8 +41,6 @@ import com.redis.spring.batch.reader.MemKeyValue;
 import com.redis.spring.batch.reader.MemKeyValueRead;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
-import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.util.ToScoredValueFunction;
 import com.redis.spring.batch.writer.Del;
 import com.redis.spring.batch.writer.Expire;
 import com.redis.spring.batch.writer.ExpireAt;
@@ -59,6 +59,7 @@ import io.lettuce.core.Consumer;
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.Range.Boundary;
 import io.lettuce.core.ScanIterator;
+import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.codec.ByteArrayCodec;
 
@@ -437,9 +438,8 @@ class StackToStackTests extends BatchTests {
 	void writeExpire(TestInfo info) throws Exception {
 		int count = 73;
 		GeneratorItemReader gen = generator(count, DataType.STRING);
-		Duration ttl = Duration.ofMillis(1);
 		Expire<String, String, KeyValue<String, Object>> expire = new Expire<>(KeyValue::getKey);
-		expire.setTtl(ttl);
+		expire.ttl(1L);
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(expire);
 		run(info, gen, writer);
 		awaitUntil(() -> redisCommands.dbsize() == 0);
@@ -461,41 +461,16 @@ class StackToStackTests extends BatchTests {
 	@Test
 	void writeZset(TestInfo info) throws Exception {
 		String key = "zadd";
-		List<ZValue> values = new ArrayList<>();
-		for (int index = 0; index < 100; index++) {
-			values.add(new ZValue(String.valueOf(index), index % 10));
-		}
-		ListItemReader<ZValue> reader = new ListItemReader<>(values);
-		Zadd<String, String, ZValue> zadd = new Zadd<>(keyFunction(key),
-				new ToScoredValueFunction<>(ZValue::getMember, ZValue::getScore));
-		RedisItemWriter<String, String, ZValue> writer = writer(zadd);
+		List<ScoredValue<String>> values = IntStream.range(0, 100)
+				.mapToObj(index -> ScoredValue.just(index % 10, String.valueOf(index))).collect(Collectors.toList());
+		ListItemReader<ScoredValue<String>> reader = new ListItemReader<>(values);
+		Zadd<String, String, ScoredValue<String>> zadd = new Zadd<>(keyFunction(key), Function.identity());
+		RedisItemWriter<String, String, ScoredValue<String>> writer = writer(zadd);
 		run(info, reader, writer);
 		assertEquals(1, redisCommands.dbsize());
 		assertEquals(values.size(), redisCommands.zcard(key));
 		assertEquals(60, redisCommands
 				.zrangebyscore(key, io.lettuce.core.Range.from(Boundary.including(0), Boundary.including(5))).size());
-	}
-
-	private static class ZValue {
-
-		private String member;
-
-		private double score;
-
-		public ZValue(String member, double score) {
-			super();
-			this.member = member;
-			this.score = score;
-		}
-
-		public String getMember() {
-			return member;
-		}
-
-		public double getScore() {
-			return score;
-		}
-
 	}
 
 	@Test

@@ -11,8 +11,8 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.KeyValue.DataType;
-import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.common.BatchUtils;
+import com.redis.spring.batch.common.DataType;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;

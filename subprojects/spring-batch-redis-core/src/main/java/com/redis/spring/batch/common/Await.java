@@ -1,4 +1,4 @@
-package com.redis.spring.batch.util;
+package com.redis.spring.batch.common;
 
 import java.time.Duration;
 import java.util.concurrent.Executors;

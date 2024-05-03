@@ -13,12 +13,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -50,12 +50,12 @@ import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.KeyValue.DataType;
-import com.redis.spring.batch.OperationExecutor;
 import com.redis.spring.batch.RedisItemReader;
 import com.redis.spring.batch.RedisItemWriter;
+import com.redis.spring.batch.common.BatchUtils;
+import com.redis.spring.batch.common.DataType;
 import com.redis.spring.batch.common.FlushingStepBuilder;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.gen.GeneratorItemReader;
 import com.redis.spring.batch.gen.Range;
 import com.redis.spring.batch.gen.TimeSeriesOptions;
@@ -69,10 +69,6 @@ import com.redis.spring.batch.reader.MemKeyValue;
 import com.redis.spring.batch.reader.MemKeyValueRead.ValueType;
 import com.redis.spring.batch.reader.StreamItemReader;
 import com.redis.spring.batch.reader.StreamItemReader.AckPolicy;
-import com.redis.spring.batch.util.BatchUtils;
-import com.redis.spring.batch.util.ToGeoValueFunction;
-import com.redis.spring.batch.util.ToSampleFunction;
-import com.redis.spring.batch.util.ToSuggestionFunction;
 import com.redis.spring.batch.writer.Geoadd;
 import com.redis.spring.batch.writer.Hset;
 import com.redis.spring.batch.writer.JsonDel;
@@ -83,6 +79,7 @@ import com.redis.spring.batch.writer.TsAddAll;
 
 import io.lettuce.core.Consumer;
 import io.lettuce.core.GeoArgs;
+import io.lettuce.core.GeoValue;
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RestoreArgs;
@@ -122,12 +119,12 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		RedisModulesAsyncCommands<String, String> asyncCommands = BatchUtils
 				.connection(redisClient, StringCodec.UTF8, null).async();
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
-		List<Object> result = OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0);
+		List<Object> result = BatchUtils.getAll(redisConnection.getTimeout(), futures).get(0);
 		Assertions.assertEquals(Arrays.asList(key, -1L, DataType.STRING.getString(), 0L, value), result);
 		futures.clear();
 		evalsha.setArgs(ValueType.TYPE.name().toLowerCase(), Long.MAX_VALUE, 5);
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
-		result = OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0);
+		result = BatchUtils.getAll(redisConnection.getTimeout(), futures).get(0);
 		Assertions.assertEquals(5, result.size());
 		Assertions.assertEquals(key, result.get(0));
 		Assertions.assertEquals(-1, (Long) result.get(1));
@@ -137,7 +134,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		futures.clear();
 		evalsha.setArgs(ValueType.STRUCT.name().toLowerCase(), Long.MAX_VALUE, 5);
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
-		result = OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0);
+		result = BatchUtils.getAll(redisConnection.getTimeout(), futures).get(0);
 		Assertions.assertEquals(5, result.size());
 		Assertions.assertEquals(key, result.get(0));
 		Assertions.assertEquals(-1, (Long) result.get(1));
@@ -149,7 +146,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		redisCommands.expireat(key, expireAt);
 		evalsha.setArgs(ValueType.STRUCT.name().toLowerCase(), Long.MAX_VALUE, 5);
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
-		result = OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0);
+		result = BatchUtils.getAll(redisConnection.getTimeout(), futures).get(0);
 		Assertions.assertEquals(5, result.size());
 		Assertions.assertEquals(key, result.get(0));
 		Assertions.assertEquals(expireAt.toEpochMilli(), (Long) result.get(1), 5);
@@ -173,7 +170,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
 		EvalFunction<String, String, Object> function = new EvalFunction<>(StringCodec.UTF8);
 		MemKeyValue<String, Object> keyValue = function
-				.apply(OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0));
+				.apply(BatchUtils.getAll(redisConnection.getTimeout(), futures).get(0));
 		Assertions.assertEquals(key, keyValue.getKey());
 		Assertions.assertEquals(-1, keyValue.getTtl());
 		Assertions.assertEquals(DataType.STRING, KeyValue.type(keyValue));
@@ -182,7 +179,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		futures.clear();
 		evalsha.setArgs(ValueType.TYPE.name().toLowerCase(), Long.MAX_VALUE, 5);
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
-		keyValue = function.apply(OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0));
+		keyValue = function.apply(BatchUtils.getAll(redisConnection.getTimeout(), futures).get(0));
 		Assertions.assertEquals(key, keyValue.getKey());
 		Assertions.assertEquals(-1, keyValue.getTtl());
 		Assertions.assertEquals(DataType.STRING, KeyValue.type(keyValue));
@@ -190,7 +187,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		futures.clear();
 		evalsha.setArgs(ValueType.STRUCT.name().toLowerCase(), Long.MAX_VALUE, 5);
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
-		keyValue = function.apply(OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0));
+		keyValue = function.apply(BatchUtils.getAll(redisConnection.getTimeout(), futures).get(0));
 		Assertions.assertEquals(key, keyValue.getKey());
 		Assertions.assertEquals(-1, keyValue.getTtl());
 		Assertions.assertEquals(DataType.STRING, KeyValue.type(keyValue));
@@ -201,7 +198,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		redisCommands.expireat(key, expireAt);
 		evalsha.setArgs(ValueType.STRUCT.name().toLowerCase(), Long.MAX_VALUE, 5);
 		evalsha.execute(asyncCommands, Arrays.asList(key), futures);
-		keyValue = function.apply(OperationExecutor.getAll(redisConnection.getTimeout(), futures).get(0));
+		keyValue = function.apply(BatchUtils.getAll(redisConnection.getTimeout(), futures).get(0));
 		Assertions.assertEquals(key, keyValue.getKey());
 		Assertions.assertEquals(expireAt.toEpochMilli(), keyValue.getTtl(), 300);
 		Assertions.assertEquals(DataType.STRING, KeyValue.type(keyValue));
@@ -738,13 +735,16 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		ListItemReader<Geo> reader = new ListItemReader<>(
 				Arrays.asList(new Geo("Venice Breakwater", -118.476056, 33.985728),
 						new Geo("Long Beach National", -73.667022, 40.582739)));
-		Geoadd<String, String, Geo> geoadd = new Geoadd<>(keyFunction("geoset"),
-				new ToGeoValueFunction<>(Geo::getMember, Geo::getLongitude, Geo::getLatitude));
+		Geoadd<String, String, Geo> geoadd = new Geoadd<>(keyFunction("geoset"), this::geoValue);
 		RedisItemWriter<String, String, Geo> writer = writer(geoadd);
 		run(info, reader, writer);
 		Set<String> radius1 = redisCommands.georadius("geoset", -118, 34, 100, GeoArgs.Unit.mi);
 		assertEquals(1, radius1.size());
 		assertTrue(radius1.contains("Venice Breakwater"));
+	}
+
+	private GeoValue<String> geoValue(Geo geo) {
+		return GeoValue.just(geo.getLongitude(), geo.getLatitude(), geo.getMember());
 	}
 
 	private static class Geo {
@@ -1034,8 +1034,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
 		}
 		ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
-		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(keyFunction(key),
-				new ToSuggestionFunction<>(Suggestion::getString, Suggestion::getScore, Suggestion::getPayload));
+		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(keyFunction(key), Function.identity());
 		RedisItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
 		run(info, reader, writer);
 		assertEquals(1, redisCommands.dbsize());
@@ -1050,9 +1049,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			values.add(Suggestion.string("word" + index).score(index + 1).payload("payload" + index).build());
 		}
 		ListItemReader<Suggestion<String>> reader = new ListItemReader<>(values);
-		ToSuggestionFunction<String, Suggestion<String>> converter = new ToSuggestionFunction<>(Suggestion::getString,
-				Suggestion::getScore, Suggestion::getPayload);
-		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(keyFunction(key), converter);
+		Sugadd<String, String, Suggestion<String>> sugadd = new Sugadd<>(keyFunction(key), Function.identity());
 		sugadd.setIncr(true);
 		RedisItemWriter<String, String, Suggestion<String>> writer = writer(sugadd);
 		run(info, reader, writer);
@@ -1063,14 +1060,12 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	@Test
 	void writeTimeseries(TestInfo info) throws Exception {
 		String key = "ts";
-		Map<Long, Double> samples = new HashMap<>();
-		for (int index = 0; index < 100; index++) {
-			samples.put(Instant.now().toEpochMilli() + index, (double) index);
-		}
-		TsAdd<String, String, Entry<Long, Double>> tsAdd = new TsAdd<>(keyFunction(key),
-				new ToSampleFunction<>(e -> e.getKey(), e -> e.getValue()));
-		ListItemReader<Entry<Long, Double>> reader = new ListItemReader<>(new ArrayList<>(samples.entrySet()));
-		RedisItemWriter<String, String, Entry<Long, Double>> writer = writer(tsAdd);
+		long now = Instant.now().toEpochMilli();
+		List<Sample> samples = IntStream.range(0, 100).mapToObj(index -> Sample.of(now + index, index))
+				.collect(Collectors.toList());
+		TsAdd<String, String, Sample> tsAdd = new TsAdd<>(keyFunction(key), Function.identity());
+		ListItemReader<Sample> reader = new ListItemReader<>(samples);
+		RedisItemWriter<String, String, Sample> writer = writer(tsAdd);
 		run(info, reader, writer);
 		assertEquals(1, redisCommands.dbsize());
 	}

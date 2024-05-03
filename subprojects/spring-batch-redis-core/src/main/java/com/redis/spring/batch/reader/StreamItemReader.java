@@ -12,8 +12,8 @@ import java.util.stream.StreamSupport;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import com.redis.spring.batch.common.BatchUtils;
 import com.redis.spring.batch.common.PollableItemReader;
-import com.redis.spring.batch.util.BatchUtils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;

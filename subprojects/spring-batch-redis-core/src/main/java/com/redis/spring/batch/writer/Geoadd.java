@@ -27,8 +27,7 @@ public class Geoadd<K, V, T> extends AbstractKeyValueOperation<K, V, GeoValue<V>
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	protected RedisFuture execute(BaseRedisAsyncCommands<K, V> commands, T item, K key, GeoValue<V> value) {
-		GeoAddArgs args = argsFunction.apply(item);
-		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, args, value);
+		return ((RedisGeoAsyncCommands<K, V>) commands).geoadd(key, argsFunction.apply(item), value);
 	}
 
 }

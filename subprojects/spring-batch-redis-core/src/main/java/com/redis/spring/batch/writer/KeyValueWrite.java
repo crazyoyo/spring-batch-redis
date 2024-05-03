@@ -7,9 +7,9 @@ import java.util.stream.StreamSupport;
 
 import com.redis.lettucemod.timeseries.AddOptions;
 import com.redis.lettucemod.timeseries.DuplicatePolicy;
-import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.KeyValue.DataType;
-import com.redis.spring.batch.Operation;
+import com.redis.spring.batch.common.DataType;
+import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Operation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.StreamMessage;

@@ -10,8 +10,8 @@ import java.util.stream.Collectors;
 
 import org.springframework.util.CollectionUtils;
 
-import com.redis.spring.batch.KeyValue;
-import com.redis.spring.batch.KeyValue.DataType;
+import com.redis.spring.batch.common.DataType;
+import com.redis.spring.batch.common.KeyValue;
 import com.redis.spring.batch.reader.KeyComparatorOptions.StreamMessageIdPolicy;
 import com.redis.spring.batch.reader.KeyComparison.Status;
 
@@ -40,16 +40,18 @@ public class KeyComparator<K, V> {
 		if (KeyValue.hasType(source) && !source.getType().equalsIgnoreCase(target.getType())) {
 			return Status.TYPE;
 		}
-		if (source.getTtl() != target.getTtl()) {
-			long delta = Math.abs(source.getTtl() - target.getTtl());
-			if (delta > options.getTtlTolerance().toMillis()) {
-				return Status.TTL;
-			}
+		if (!ttlEquals(source, target)) {
+			return Status.TTL;
 		}
 		if (!valueEquals(source, target)) {
 			return Status.VALUE;
 		}
 		return Status.OK;
+	}
+
+	private boolean ttlEquals(KeyValue<K, Object> source, KeyValue<K, Object> target) {
+		long diff = Math.abs(source.getTtl() - target.getTtl());
+		return diff <= options.getTtlTolerance().toMillis();
 	}
 
 	@SuppressWarnings("unchecked")

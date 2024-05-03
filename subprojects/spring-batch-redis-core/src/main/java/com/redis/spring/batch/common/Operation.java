@@ -1,4 +1,4 @@
-package com.redis.spring.batch;
+package com.redis.spring.batch.common;
 
 import java.util.List;
 import java.util.Map;

@@ -27,16 +27,18 @@ import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import com.redis.spring.batch.common.Await;
+import com.redis.spring.batch.common.BatchUtils;
 import com.redis.spring.batch.common.FlushingChunkProvider;
 import com.redis.spring.batch.common.FlushingStepBuilder;
 import com.redis.spring.batch.common.JobFactory;
+import com.redis.spring.batch.common.Operation;
+import com.redis.spring.batch.common.OperationExecutor;
 import com.redis.spring.batch.reader.AbstractPollableItemReader;
 import com.redis.spring.batch.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.reader.KeyNotificationItemReader;
 import com.redis.spring.batch.reader.MemKeyValue;
 import com.redis.spring.batch.reader.MemKeyValueRead;
-import com.redis.spring.batch.util.Await;
-import com.redis.spring.batch.util.BatchUtils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.KeyScanArgs;

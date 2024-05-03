@@ -3,7 +3,7 @@ package com.redis.spring.batch.writer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
-import com.redis.spring.batch.KeyValue;
+import com.redis.spring.batch.common.KeyValue;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RestoreArgs;

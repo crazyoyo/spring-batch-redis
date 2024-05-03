@@ -9,6 +9,9 @@ import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
+import com.redis.spring.batch.common.KeyValue;
+import com.redis.spring.batch.common.Operation;
+import com.redis.spring.batch.common.OperationExecutor;
 import com.redis.spring.batch.writer.KeyValueRestore;
 import com.redis.spring.batch.writer.KeyValueWrite;
 import com.redis.spring.batch.writer.MultiExec;

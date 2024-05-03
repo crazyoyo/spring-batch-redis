@@ -4,7 +4,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 
-import com.redis.spring.batch.util.BatchUtils;
+import com.redis.spring.batch.common.BatchUtils;
 
 import io.lettuce.core.codec.RedisCodec;
 
@@ -23,20 +23,21 @@ public class EvalFunction<K, V, T> implements Function<List<Object>, MemKeyValue
 		MemKeyValue<K, T> keyValue = new MemKeyValue<>();
 		if (iterator.hasNext()) {
 			keyValue.setKey((K) iterator.next());
-			if (iterator.hasNext()) {
-				keyValue.setTtl((Long) iterator.next());
-				if (iterator.hasNext()) {
-					keyValue.setType(toString(iterator.next()));
-					if (iterator.hasNext()) {
-						keyValue.setMem((Long) iterator.next());
-						if (iterator.hasNext()) {
-							keyValue.setValue((T) iterator.next());
-						}
-					}
-				}
-			}
+		}
+		if (iterator.hasNext()) {
+			keyValue.setTtl((Long) iterator.next());
+		}
+		if (iterator.hasNext()) {
+			keyValue.setType(toString(iterator.next()));
+		}
+		if (iterator.hasNext()) {
+			keyValue.setMem((Long) iterator.next());
+		}
+		if (iterator.hasNext()) {
+			keyValue.setValue((T) iterator.next());
 		}
 		return keyValue;
+
 	}
 
 	@SuppressWarnings("unchecked")
