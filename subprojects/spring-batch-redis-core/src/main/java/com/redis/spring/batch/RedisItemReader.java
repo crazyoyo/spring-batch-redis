@@ -8,8 +8,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -66,8 +64,6 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = KeyNotificationItemReader.DEFAULT_QUEUE_CAPACITY;
 	public static final ReaderMode DEFAULT_MODE = ReaderMode.SNAPSHOT;
-
-	private final Log log = LogFactory.getLog(RedisItemReader.class);
 
 	private final RedisCodec<K, V> codec;
 	protected final Operation<K, V, K, T> operation;
@@ -214,9 +210,6 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 
 	@Override
 	protected synchronized void doClose() throws TimeoutException, InterruptedException {
-		if (!queue.isEmpty()) {
-			log.warn(String.format("%s queue still contains %,d elements", getName(), queue.size()));
-		}
 		if (jobExecution != null) {
 			Await.await().untilFalse(jobExecution::isRunning);
 			jobExecution = null;
@@ -298,6 +291,10 @@ public class RedisItemReader<K, V, T> extends AbstractPollableItemReader<T> {
 
 	public static <K, V> RedisItemReader<K, V, MemKeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
 		return new RedisItemReader<>(codec, MemKeyValueRead.struct(codec));
+	}
+
+	public BlockingQueue<T> getQueue() {
+		return queue;
 	}
 
 	public ItemReader<K> getReader() {
