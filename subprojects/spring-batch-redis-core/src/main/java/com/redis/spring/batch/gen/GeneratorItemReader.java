@@ -4,12 +4,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
@@ -183,24 +185,44 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	private Object value(DataType type) throws JsonProcessingException {
 		switch (type) {
 		case HASH:
-			return map(hashOptions);
+			return hash();
 		case LIST:
-			return members(listOptions);
+			return list();
 		case SET:
-			return new HashSet<>(members(setOptions));
+			return set();
 		case STREAM:
 			return streamMessages();
 		case STRING:
-			return string(stringOptions.getLength());
+			return string();
 		case ZSET:
 			return zset();
 		case JSON:
-			return mapper.writeValueAsString(map(jsonOptions));
+			return json();
 		case TIMESERIES:
 			return samples();
 		default:
 			return null;
 		}
+	}
+
+	private String json() throws JsonProcessingException {
+		return mapper.writeValueAsString(map(jsonOptions));
+	}
+
+	private Map<String, String> hash() {
+		return map(hashOptions);
+	}
+
+	private String string() {
+		return string(stringOptions.getLength());
+	}
+
+	private List<String> list() {
+		return members(listOptions).collect(Collectors.toList());
+	}
+
+	private Set<String> set() {
+		return members(setOptions).collect(Collectors.toSet());
 	}
 
 	private List<Sample> samples() {
@@ -218,8 +240,8 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 		return timeSeriesOptions.getStartTime().toEpochMilli();
 	}
 
-	private List<ScoredValue<String>> zset() {
-		return members(zsetOptions).stream().map(this::scoredValue).collect(Collectors.toList());
+	private Set<ScoredValue<String>> zset() {
+		return members(zsetOptions).map(this::scoredValue).collect(Collectors.toSet());
 	}
 
 	private ScoredValue<String> scoredValue(String value) {
@@ -256,14 +278,10 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 				.toString();
 	}
 
-	private List<String> members(CollectionOptions options) {
-		List<String> members = new ArrayList<>();
+	private Stream<String> members(CollectionOptions options) {
 		int spread = options.getMemberRange().getMax() - options.getMemberRange().getMin() + 1;
-		for (int index = 0; index < randomInt(options.getMemberCount()); index++) {
-			int memberId = options.getMemberRange().getMin() + index % spread;
-			members.add(String.valueOf(memberId));
-		}
-		return members;
+		return IntStream.range(0, randomInt(options.getMemberCount()))
+				.map(i -> options.getMemberRange().getMin() + i % spread).mapToObj(String::valueOf);
 	}
 
 	private int randomInt(Range range) {

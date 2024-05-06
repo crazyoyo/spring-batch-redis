@@ -1,6 +1,7 @@
 package com.redis.spring.batch.reader;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -54,7 +55,7 @@ public class EvalStructFunction<K, V> extends EvalFunction<K, V, Object> {
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<Sample> timeseries(MemKeyValue<K, Object> keyValue) {
+	private Collection<Sample> timeseries(MemKeyValue<K, Object> keyValue) {
 		List<List<Object>> value = (List<List<Object>>) keyValue.getValue();
 		List<Sample> sampleList = new ArrayList<>();
 		for (List<Object> sample : value) {
@@ -102,7 +103,7 @@ public class EvalStructFunction<K, V> extends EvalFunction<K, V, Object> {
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<StreamMessage<K, V>> stream(MemKeyValue<K, Object> keyValue) {
+	private Collection<StreamMessage<K, V>> stream(MemKeyValue<K, Object> keyValue) {
 		List<List<Object>> value = (List<List<Object>>) keyValue.getValue();
 		List<StreamMessage<K, V>> messages = new ArrayList<>();
 		for (List<Object> message : value) {
