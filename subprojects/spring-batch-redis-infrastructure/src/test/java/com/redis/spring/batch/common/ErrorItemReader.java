@@ -14,6 +14,8 @@ import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 import org.springframework.util.Assert;
 
+import com.redis.spring.batch.item.PollableItemReader;
+
 public class ErrorItemReader<T> implements PollableItemReader<T> {
 
 	public static final float DEFAULT_ERROR_RATE = .5f;

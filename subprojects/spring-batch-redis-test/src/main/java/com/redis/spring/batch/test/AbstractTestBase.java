@@ -43,22 +43,21 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.RedisItemReader.ReaderMode;
-import com.redis.spring.batch.RedisItemWriter;
-import com.redis.spring.batch.common.Await;
-import com.redis.spring.batch.common.BatchUtils;
-import com.redis.spring.batch.common.DataType;
-import com.redis.spring.batch.common.FlushingStepBuilder;
-import com.redis.spring.batch.common.JobFactory;
-import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.common.PollableItemReader;
-import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.gen.Range;
-import com.redis.spring.batch.gen.StreamOptions;
-import com.redis.spring.batch.reader.MemKeyValue;
-import com.redis.spring.batch.reader.StreamItemReader;
-import com.redis.spring.batch.writer.WriteOperation;
+import com.redis.spring.batch.Await;
+import com.redis.spring.batch.JobFactory;
+import com.redis.spring.batch.item.PollableItemReader;
+import com.redis.spring.batch.item.redis.RedisItemReader;
+import com.redis.spring.batch.item.redis.RedisItemWriter;
+import com.redis.spring.batch.item.redis.common.BatchUtils;
+import com.redis.spring.batch.item.redis.common.DataType;
+import com.redis.spring.batch.item.redis.common.KeyValue;
+import com.redis.spring.batch.item.redis.gen.GeneratorItemReader;
+import com.redis.spring.batch.item.redis.gen.Range;
+import com.redis.spring.batch.item.redis.gen.StreamOptions;
+import com.redis.spring.batch.item.redis.reader.MemKeyValue;
+import com.redis.spring.batch.item.redis.reader.StreamItemReader;
+import com.redis.spring.batch.item.redis.writer.WriteOperation;
+import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -172,7 +171,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void live(RedisItemReader<?, ?, ?> reader) {
-		reader.setMode(ReaderMode.LIVE);
+		reader.setFlushing(true);
 		reader.setIdleTimeout(idleTimeout);
 	}
 

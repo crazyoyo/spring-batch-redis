@@ -23,6 +23,10 @@ import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import com.redis.spring.batch.JobFactory;
+import com.redis.spring.batch.step.FlushingFaultTolerantStepBuilder;
+import com.redis.spring.batch.step.FlushingStepBuilder;
+
 import io.lettuce.core.RedisCommandTimeoutException;
 
 @SpringBootTest(classes = BatchTestApplication.class)

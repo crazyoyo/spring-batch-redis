@@ -18,6 +18,8 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 
+import com.redis.spring.batch.JobFactory;
+
 class JobFactoryTests {
 
 	@Test

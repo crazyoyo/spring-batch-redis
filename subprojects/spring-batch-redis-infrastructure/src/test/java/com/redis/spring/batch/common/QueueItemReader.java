@@ -7,6 +7,8 @@ import org.springframework.batch.item.NonTransientResourceException;
 import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
+import com.redis.spring.batch.item.PollableItemReader;
+
 public class QueueItemReader<T> implements PollableItemReader<T> {
 
 	private final BlockingQueue<T> queue;

@@ -12,10 +12,10 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ParseException;
 import org.springframework.batch.item.UnexpectedInputException;
 
-import com.redis.spring.batch.common.KeyValue;
-import com.redis.spring.batch.gen.CollectionOptions;
-import com.redis.spring.batch.gen.GeneratorItemReader;
-import com.redis.spring.batch.gen.StreamOptions;
+import com.redis.spring.batch.item.redis.common.KeyValue;
+import com.redis.spring.batch.item.redis.gen.CollectionOptions;
+import com.redis.spring.batch.item.redis.gen.GeneratorItemReader;
+import com.redis.spring.batch.item.redis.gen.StreamOptions;
 
 class GeneratorTests {
 

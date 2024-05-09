@@ -16,9 +16,9 @@ import org.testcontainers.lifecycle.Startable;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.RedisItemReader;
-import com.redis.spring.batch.reader.KeyComparison;
-import com.redis.spring.batch.reader.KeyComparisonItemReader;
+import com.redis.spring.batch.item.redis.RedisItemReader;
+import com.redis.spring.batch.item.redis.reader.KeyComparison;
+import com.redis.spring.batch.item.redis.reader.KeyComparisonItemReader;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;

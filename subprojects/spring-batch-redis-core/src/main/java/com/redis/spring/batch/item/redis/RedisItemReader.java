@@ -1,0 +1,234 @@
+package com.redis.spring.batch.item.redis;
+
+import java.util.List;
+import java.util.concurrent.TimeoutException;
+
+import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.support.IteratorItemReader;
+import org.springframework.util.Assert;
+
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import com.redis.spring.batch.item.AbstractAsyncItemReader;
+import com.redis.spring.batch.item.redis.common.BatchUtils;
+import com.redis.spring.batch.item.redis.common.Operation;
+import com.redis.spring.batch.item.redis.common.OperationExecutor;
+import com.redis.spring.batch.item.redis.reader.KeyComparisonItemReader;
+import com.redis.spring.batch.item.redis.reader.KeyNotificationItemReader;
+import com.redis.spring.batch.item.redis.reader.MemKeyValue;
+import com.redis.spring.batch.item.redis.reader.MemKeyValueRead;
+
+import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.KeyScanArgs;
+import io.lettuce.core.ReadFrom;
+import io.lettuce.core.RedisCommandExecutionException;
+import io.lettuce.core.RedisCommandTimeoutException;
+import io.lettuce.core.ScanIterator;
+import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
+
+public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
+
+	public static final int DEFAULT_POOL_SIZE = OperationExecutor.DEFAULT_POOL_SIZE;
+	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = KeyNotificationItemReader.DEFAULT_QUEUE_CAPACITY;
+
+	private final RedisCodec<K, V> codec;
+	protected final Operation<K, V, K, T> operation;
+	private AbstractRedisClient client;
+	private int poolSize = DEFAULT_POOL_SIZE;
+	private int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
+	private ReadFrom readFrom;
+	private String keyPattern;
+	private String keyType;
+	private long scanCount;
+	private int database;
+
+	private OperationExecutor<K, V, K, T> operationExecutor;
+
+	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
+		this.codec = codec;
+		this.operation = operation;
+	}
+
+	@Override
+	protected synchronized void doOpen() throws Exception {
+		Assert.notNull(client, getName() + ": Redis client not set");
+		if (operationExecutor == null) {
+			operationExecutor = new OperationExecutor<>(codec, operation);
+			operationExecutor.setClient(client);
+			operationExecutor.setPoolSize(poolSize);
+			operationExecutor.setReadFrom(readFrom);
+			operationExecutor.afterPropertiesSet();
+		}
+		super.doOpen();
+	}
+
+	@Override
+	protected FaultTolerantStepBuilder<K, K> faultTolerant(SimpleStepBuilder<K, K> step) {
+		FaultTolerantStepBuilder<K, K> ftStep = super.faultTolerant(step);
+		ftStep.skip(RedisCommandExecutionException.class);
+		ftStep.noRetry(RedisCommandExecutionException.class);
+		ftStep.noSkip(RedisCommandTimeoutException.class);
+		ftStep.retry(RedisCommandTimeoutException.class);
+		return ftStep;
+	}
+
+	@Override
+	protected ItemReader<K> reader() {
+		if (isFlushing()) {
+			KeyNotificationItemReader<K, V> notificationReader = new KeyNotificationItemReader<>(client, codec);
+			notificationReader.setName(getName() + "-key-notification-reader");
+			notificationReader.setQueueCapacity(notificationQueueCapacity);
+			notificationReader.setDatabase(database);
+			notificationReader.setKeyPattern(keyPattern);
+			notificationReader.setKeyType(keyType);
+			notificationReader.setPollTimeout(pollTimeout);
+			return notificationReader;
+		}
+		ScanIterator<K> scanIterator = ScanIterator.scan(connection().sync(), scanArgs());
+		return new IteratorItemReader<>(scanIterator);
+	}
+
+	@Override
+	public List<T> read(Iterable<? extends K> keys) {
+		return operationExecutor.apply(keys);
+	}
+
+	private StatefulRedisModulesConnection<K, V> connection() {
+		return BatchUtils.connection(client, codec, readFrom);
+	}
+
+	@Override
+	protected synchronized void doClose() throws TimeoutException, InterruptedException {
+		super.doClose();
+		if (operationExecutor != null) {
+			operationExecutor.close();
+			operationExecutor = null;
+		}
+	}
+
+	private KeyScanArgs scanArgs() {
+		KeyScanArgs args = new KeyScanArgs();
+		if (scanCount > 0) {
+			args.limit(scanCount);
+		}
+		if (keyPattern != null) {
+			args.match(keyPattern);
+		}
+		if (keyType != null) {
+			args.type(keyType);
+		}
+		return args;
+	}
+
+	public static KeyComparisonItemReader<String, String> compare() {
+		return compare(StringCodec.UTF8);
+	}
+
+	public static <K, V> KeyComparisonItemReader<K, V> compare(RedisCodec<K, V> codec) {
+		return new KeyComparisonItemReader<>(codec, MemKeyValueRead.struct(codec), MemKeyValueRead.struct(codec));
+	}
+
+	public static KeyComparisonItemReader<String, String> compareQuick() {
+		return compareQuick(StringCodec.UTF8);
+	}
+
+	public static <K, V> KeyComparisonItemReader<K, V> compareQuick(RedisCodec<K, V> codec) {
+		return new KeyComparisonItemReader<>(codec, MemKeyValueRead.type(codec), MemKeyValueRead.type(codec));
+	}
+
+	public static RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> dump() {
+		return new RedisItemReader<>(ByteArrayCodec.INSTANCE, MemKeyValueRead.dump());
+	}
+
+	public static RedisItemReader<String, String, MemKeyValue<String, Object>> type() {
+		return type(StringCodec.UTF8);
+	}
+
+	public static <K, V> RedisItemReader<K, V, MemKeyValue<K, Object>> type(RedisCodec<K, V> codec) {
+		return new RedisItemReader<>(codec, MemKeyValueRead.type(codec));
+	}
+
+	public static RedisItemReader<String, String, MemKeyValue<String, Object>> struct() {
+		return struct(StringCodec.UTF8);
+	}
+
+	public static <K, V> RedisItemReader<K, V, MemKeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
+		return new RedisItemReader<>(codec, MemKeyValueRead.struct(codec));
+	}
+
+	public Operation<K, V, K, T> getOperation() {
+		return operation;
+	}
+
+	public RedisCodec<K, V> getCodec() {
+		return codec;
+	}
+
+	public AbstractRedisClient getClient() {
+		return client;
+	}
+
+	public void setClient(AbstractRedisClient client) {
+		this.client = client;
+	}
+
+	public int getPoolSize() {
+		return poolSize;
+	}
+
+	public void setPoolSize(int poolSize) {
+		this.poolSize = poolSize;
+	}
+
+	public String getKeyPattern() {
+		return keyPattern;
+	}
+
+	public void setKeyPattern(String keyPattern) {
+		this.keyPattern = keyPattern;
+	}
+
+	public String getKeyType() {
+		return keyType;
+	}
+
+	public void setKeyType(String keyType) {
+		this.keyType = keyType;
+	}
+
+	public long getScanCount() {
+		return scanCount;
+	}
+
+	public void setScanCount(long scanCount) {
+		this.scanCount = scanCount;
+	}
+
+	public ReadFrom getReadFrom() {
+		return readFrom;
+	}
+
+	public void setReadFrom(ReadFrom readFrom) {
+		this.readFrom = readFrom;
+	}
+
+	public int getNotificationQueueCapacity() {
+		return notificationQueueCapacity;
+	}
+
+	public void setNotificationQueueCapacity(int notificationQueueCapacity) {
+		this.notificationQueueCapacity = notificationQueueCapacity;
+	}
+
+	public int getDatabase() {
+		return database;
+	}
+
+	public void setDatabase(int database) {
+		this.database = database;
+	}
+
+}

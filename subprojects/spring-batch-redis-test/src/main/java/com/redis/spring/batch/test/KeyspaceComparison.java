@@ -3,9 +3,9 @@ package com.redis.spring.batch.test;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.redis.spring.batch.reader.KeyComparison;
-import com.redis.spring.batch.reader.KeyComparison.Status;
-import com.redis.spring.batch.reader.KeyComparisonItemReader;
+import com.redis.spring.batch.item.redis.reader.KeyComparison;
+import com.redis.spring.batch.item.redis.reader.KeyComparisonItemReader;
+import com.redis.spring.batch.item.redis.reader.KeyComparison.Status;
 
 public class KeyspaceComparison<K> {
 
