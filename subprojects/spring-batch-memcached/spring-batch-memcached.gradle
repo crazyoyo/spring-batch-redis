@@ -1,0 +1,21 @@
+dependencies {
+    api 'org.springframework.batch:spring-batch-core'
+    api group: 'com.amazonaws', name: 'elasticache-java-cluster-client', version: memcachedClientVersion
+    implementation project(':spring-batch-redis-infrastructure')
+    testImplementation group: 'com.redis', name: 'testcontainers-memcached', version: testcontainersRedisVersion
+    testImplementation 'org.awaitility:awaitility'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.batch:spring-batch-test'
+}
+
+compileJava {
+    options.compilerArgs += ["-AprojectPath=${project.group}/${project.name}"]
+}
+
+if (!(project.findProperty('automatic.module.name.skip') ?: false).toBoolean()) {
+    jar {
+        manifest {
+            attributes('Automatic-Module-Name': project.findProperty('automatic.module.name'))
+        }
+    }
+}
