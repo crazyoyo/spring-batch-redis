@@ -31,8 +31,8 @@ public class MemcachedItemReader extends AbstractAsyncItemReader<LruMetadumpEntr
 
 	@Override
 	protected synchronized void doOpen() throws Exception {
-		super.doOpen();
 		processorClient = clientSupplier.get();
+		super.doOpen();
 	}
 
 	@Override
