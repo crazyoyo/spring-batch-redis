@@ -2,6 +2,8 @@ package com.redis.spring.batch.item.redis.gen;
 
 import java.time.Instant;
 
+import com.redis.spring.batch.Range;
+
 public class TimeSeriesOptions {
 
 	public static final Range DEFAULT_SAMPLE_COUNT = Range.of(10);

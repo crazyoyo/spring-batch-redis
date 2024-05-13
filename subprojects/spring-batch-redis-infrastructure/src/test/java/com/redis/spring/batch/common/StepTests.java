@@ -17,13 +17,19 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.springframework.batch.core.ItemReadListener;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.PlatformTransactionManager;
 
-import com.redis.spring.batch.JobFactory;
+import com.redis.spring.batch.JobUtils;
 import com.redis.spring.batch.step.FlushingFaultTolerantStepBuilder;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 
@@ -33,13 +39,17 @@ import io.lettuce.core.RedisCommandTimeoutException;
 @TestInstance(Lifecycle.PER_CLASS)
 class StepTests {
 
-	private JobFactory jobFactory;
+	private JobRepository jobRepository;
+	private PlatformTransactionManager transactionManager;
+	private TaskExecutorJobLauncher jobLauncher;
 
 	@BeforeAll
 	void initialize() throws Exception {
-		jobFactory = new JobFactory();
-		jobFactory.setName("steptests");
-		jobFactory.afterPropertiesSet();
+		jobRepository = JobUtils.jobRepositoryFactoryBean().getObject();
+		transactionManager = JobUtils.resourcelessTransactionManager();
+		jobLauncher = new TaskExecutorJobLauncher();
+		jobLauncher.setJobRepository(jobRepository);
+		jobLauncher.afterPropertiesSet();
 	}
 
 	@Test
@@ -48,16 +58,24 @@ class StepTests {
 		List<String> list = IntStream.range(0, 100).mapToObj(String::valueOf).collect(Collectors.toList());
 		ErrorItemReader<String> reader = new ErrorItemReader<>(new ListItemReader<>(list));
 		ListItemWriter<String> writer = new ListItemWriter<>();
-		String name = "readKeyValueFaultTolerance";
-		FlushingStepBuilder<String, String> step = new FlushingStepBuilder<>(jobFactory.step(name, 1));
+		String name = "flushingFaultTolerantStep";
+		FlushingStepBuilder<String, String> step = new FlushingStepBuilder<>(step(name, 1));
 		step.reader(reader);
 		step.writer(writer);
 		step.idleTimeout(Duration.ofMillis(300));
 		FlushingFaultTolerantStepBuilder<String, String> ftStep = step.faultTolerant();
 		ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
-		Job job = jobFactory.jobBuilder(name).start(ftStep.build()).build();
-		jobFactory.run(job);
+		Job job = job(name).start(ftStep.build()).build();
+		jobLauncher.run(job, new JobParameters());
 		assertEquals(count * ErrorItemReader.DEFAULT_ERROR_RATE, writer.getWrittenItems().size());
+	}
+
+	private <I, O> SimpleStepBuilder<I, O> step(String name, int chunkSize) {
+		return new StepBuilder(name, jobRepository).chunk(chunkSize, transactionManager);
+	}
+
+	private JobBuilder job(String name) {
+		return new JobBuilder(name, jobRepository);
 	}
 
 	@Test
@@ -66,15 +84,15 @@ class StepTests {
 		List<Integer> items = IntStream.range(0, 100).boxed().collect(Collectors.toList());
 		ErrorItemReader<Integer> reader = new ErrorItemReader<>(new ListItemReader<>(items));
 		ListItemWriter<Integer> writer = new ListItemWriter<>();
-		SimpleStepBuilder<Integer, Integer> step = jobFactory.step(name, 1);
+		SimpleStepBuilder<Integer, Integer> step = step(name, 1);
 		step.reader(reader);
 		step.writer(writer);
 		FlushingFaultTolerantStepBuilder<Integer, Integer> ftStep = new FlushingFaultTolerantStepBuilder<>(step);
 		ftStep.idleTimeout(Duration.ofMillis(300));
 		ftStep.skip(RedisCommandTimeoutException.class);
 		ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
-		Job job = jobFactory.jobBuilder(name).start(ftStep.build()).build();
-		jobFactory.run(job);
+		Job job = job(name).start(ftStep.build()).build();
+		jobLauncher.run(job, new JobParameters());
 		assertEquals(items.size(), writer.getWrittenItems().size() * 2);
 	}
 
@@ -85,7 +103,7 @@ class StepTests {
 		BlockingQueue<String> queue = new LinkedBlockingDeque<>(count);
 		QueueItemReader<String> reader = new QueueItemReader<>(queue);
 		ListItemWriter<String> writer = new ListItemWriter<>();
-		FlushingStepBuilder<String, String> step = new FlushingStepBuilder<>(jobFactory.step(name, 50));
+		FlushingStepBuilder<String, String> step = new FlushingStepBuilder<>(step(name, 50));
 		step.reader(reader);
 		step.writer(writer);
 		step.idleTimeout(Duration.ofMillis(500));
@@ -106,9 +124,8 @@ class StepTests {
 				});
 			}
 		});
-		Job job = jobFactory.jobBuilder(name).start(step.build()).build();
-		jobFactory.run(job);
-		writer.getWrittenItems().forEach(System.out::println);
+		Job job = job(name).start(step.build()).build();
+		jobLauncher.run(job, new JobParameters());
 		assertEquals(count, writer.getWrittenItems().size());
 	}
 

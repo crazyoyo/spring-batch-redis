@@ -1,5 +1,7 @@
 package com.redis.spring.batch.item.redis.gen;
 
+import com.redis.spring.batch.Range;
+
 public class StringOptions {
 
     public static final Range DEFAULT_LENGTH = Range.of(100);

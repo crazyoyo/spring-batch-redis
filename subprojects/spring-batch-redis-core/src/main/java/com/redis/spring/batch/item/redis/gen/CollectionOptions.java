@@ -1,5 +1,7 @@
 package com.redis.spring.batch.item.redis.gen;
 
+import com.redis.spring.batch.Range;
+
 public class CollectionOptions {
 
     public static final Range DEFAULT_MEMBER_RANGE = Range.of(1, 100);

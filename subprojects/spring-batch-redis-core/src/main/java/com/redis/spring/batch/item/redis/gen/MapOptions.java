@@ -1,5 +1,7 @@
 package com.redis.spring.batch.item.redis.gen;
 
+import com.redis.spring.batch.Range;
+
 public class MapOptions {
 
 	public static final Range DEFAULT_FIELD_COUNT = Range.of(10);

@@ -8,7 +8,6 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
@@ -23,9 +22,13 @@ import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
+import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
@@ -33,6 +36,7 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.ObjectUtils;
@@ -44,7 +48,8 @@ import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.Await;
-import com.redis.spring.batch.JobFactory;
+import com.redis.spring.batch.JobUtils;
+import com.redis.spring.batch.Range;
 import com.redis.spring.batch.item.PollableItemReader;
 import com.redis.spring.batch.item.redis.RedisItemReader;
 import com.redis.spring.batch.item.redis.RedisItemWriter;
@@ -52,7 +57,6 @@ import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.DataType;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.gen.GeneratorItemReader;
-import com.redis.spring.batch.item.redis.gen.Range;
 import com.redis.spring.batch.item.redis.gen.StreamOptions;
 import com.redis.spring.batch.item.redis.reader.MemKeyValue;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader;
@@ -88,7 +92,9 @@ public abstract class AbstractTestBase {
 	protected AbstractRedisClient redisClient;
 	protected StatefulRedisModulesConnection<String, String> redisConnection;
 	protected RedisModulesCommands<String, String> redisCommands;
-	protected JobFactory jobFactory;
+	protected JobRepository jobRepository;
+	private PlatformTransactionManager transactionManager;
+	private TaskExecutorJobLauncher jobLauncher;
 
 	public static RedisURI redisURI(RedisServer server) {
 		return RedisURI.create(server.getRedisURI());
@@ -109,9 +115,11 @@ public abstract class AbstractTestBase {
 		redisClient = client(redis);
 		redisConnection = RedisModulesUtils.connection(redisClient);
 		redisCommands = redisConnection.sync();
-		jobFactory = new JobFactory();
-		jobFactory.setName(UUID.randomUUID().toString());
-		jobFactory.afterPropertiesSet();
+		jobRepository = JobUtils.jobRepositoryFactoryBean().getObject();
+		transactionManager = JobUtils.resourcelessTransactionManager();
+		jobLauncher = new TaskExecutorJobLauncher();
+		jobLauncher.setJobRepository(jobRepository);
+		jobLauncher.afterPropertiesSet();
 	}
 
 	@AfterAll
@@ -179,7 +187,7 @@ public abstract class AbstractTestBase {
 		List<String> allSuffixes = new ArrayList<>(Arrays.asList(suffixes));
 		allSuffixes.add("reader");
 		reader.setName(name(testInfo(info, allSuffixes.toArray(new String[0]))));
-		reader.setJobFactory(jobFactory);
+		reader.setJobRepository(jobRepository);
 		reader.setClient(redisClient);
 	}
 
@@ -266,11 +274,15 @@ public abstract class AbstractTestBase {
 	protected <I, O> SimpleStepBuilder<I, O> step(TestInfo info, int chunkSize, ItemReader<? extends I> reader,
 			ItemProcessor<I, O> processor, ItemWriter<O> writer) {
 		String name = name(info);
-		SimpleStepBuilder<I, O> step = jobFactory.step(name, chunkSize);
+		SimpleStepBuilder<I, O> step = step(name, chunkSize);
 		step.reader(reader);
 		step.processor(processor);
 		step.writer(writer);
 		return step;
+	}
+
+	protected <I, O> SimpleStepBuilder<I, O> step(String name, int chunkSize) {
+		return new StepBuilder(name, jobRepository).chunk(chunkSize, transactionManager);
 	}
 
 	public static String name(TestInfo info) {
@@ -303,7 +315,11 @@ public abstract class AbstractTestBase {
 	}
 
 	protected JobBuilder job(TestInfo info) {
-		return jobFactory.jobBuilder(name(info));
+		return job(name(info));
+	}
+
+	protected JobBuilder job(String name) {
+		return new JobBuilder(name, jobRepository);
 	}
 
 	protected void generateAsync(TestInfo info, GeneratorItemReader reader) {
@@ -353,7 +369,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected JobExecution run(Job job) throws JobExecutionException, TimeoutException, InterruptedException {
-		JobExecution execution = jobFactory.run(job);
+		JobExecution execution = jobLauncher.run(job, new JobParameters());
 		awaitUntilFalse(execution::isRunning);
 		return execution;
 	}

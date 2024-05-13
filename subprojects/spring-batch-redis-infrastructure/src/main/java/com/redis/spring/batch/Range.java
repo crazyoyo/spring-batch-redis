@@ -1,4 +1,4 @@
-package com.redis.spring.batch.item.redis.gen;
+package com.redis.spring.batch;
 
 import java.util.Objects;
 

@@ -7,18 +7,25 @@ import java.util.concurrent.TimeoutException;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
+import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.SynchronizedItemReader;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.Await;
-import com.redis.spring.batch.JobFactory;
+import com.redis.spring.batch.JobUtils;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 
@@ -33,7 +40,6 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 
 	private ItemReader<S> reader;
 	private ItemProcessor<S, S> processor;
-	private JobFactory jobFactory;
 	private boolean flushing;
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private int threads = DEFAULT_THREADS;
@@ -41,6 +47,8 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 	private int retryLimit = DEFAULT_RETRY_LIMIT;
 	private Duration flushInterval = DEFAULT_FLUSH_INTERVAL;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
+	private JobRepository jobRepository;
+	private PlatformTransactionManager transactionManager = JobUtils.resourcelessTransactionManager();
 
 	private JobExecution jobExecution;
 
@@ -51,19 +59,22 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		super.doOpen();
-		if (jobFactory == null) {
-			jobFactory = new JobFactory();
+		if (jobRepository == null) {
+			jobRepository = JobUtils.jobRepositoryFactoryBean().getObject();
 		}
-		jobFactory.afterPropertiesSet();
 		if (jobExecution == null) {
 			SimpleStepBuilder<S, S> step = step();
-			Job job = jobFactory.jobBuilder(getName()).start(step.build()).build();
+			Job job = new JobBuilder(getName(), jobRepository).start(step.build()).build();
 			jobExecution = runJob(job);
 		}
 	}
 
-	private JobExecution runJob(Job job) throws InterruptedException, JobExecutionException {
-		JobExecution execution = jobFactory.runAsync(job);
+	private JobExecution runJob(Job job) throws Exception {
+		TaskExecutorJobLauncher jobLauncher = new TaskExecutorJobLauncher();
+		jobLauncher.setJobRepository(jobRepository);
+		jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+		jobLauncher.afterPropertiesSet();
+		JobExecution execution = jobLauncher.run(job, new JobParameters());
 		try {
 			Await.await().until(() -> execution.isRunning() || execution.getStatus().isUnsuccessful());
 		} catch (InterruptedException e) {
@@ -132,7 +143,7 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 	}
 
 	private SimpleStepBuilder<S, S> stepBuilder() {
-		SimpleStepBuilder<S, S> step = jobFactory.step(getName(), chunkSize);
+		SimpleStepBuilder<S, S> step = new StepBuilder(getName(), jobRepository).chunk(chunkSize, transactionManager);
 		if (flushing) {
 			FlushingStepBuilder<S, S> flushingStep = new FlushingStepBuilder<>(step);
 			flushingStep.flushInterval(flushInterval);
@@ -147,12 +158,20 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 		return jobExecution == null || !jobExecution.isRunning();
 	}
 
-	public JobFactory getJobFactory() {
-		return jobFactory;
+	public JobRepository getJobRepository() {
+		return jobRepository;
 	}
 
-	public void setJobFactory(JobFactory jobFactory) {
-		this.jobFactory = jobFactory;
+	public void setJobRepository(JobRepository jobRepository) {
+		this.jobRepository = jobRepository;
+	}
+
+	public PlatformTransactionManager getTransactionManager() {
+		return transactionManager;
+	}
+
+	public void setTransactionManager(PlatformTransactionManager transactionManager) {
+		this.transactionManager = transactionManager;
 	}
 
 	public boolean isFlushing() {

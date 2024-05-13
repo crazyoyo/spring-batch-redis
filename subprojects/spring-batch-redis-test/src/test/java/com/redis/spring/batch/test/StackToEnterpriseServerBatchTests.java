@@ -8,7 +8,7 @@ import com.redis.enterprise.testcontainers.RedisEnterpriseServer;
 import com.redis.testcontainers.RedisStackContainer;
 
 @EnabledIfEnvironmentVariable(named = RedisEnterpriseServer.ENV_HOST, matches = ".*")
-class StackToEnterpriseServerTests extends BatchTests {
+class StackToEnterpriseServerBatchTests extends BatchTests {
 
 	private static final RedisStackContainer source = RedisContainerFactory.stack();
 

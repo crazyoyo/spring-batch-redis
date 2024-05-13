@@ -1,5 +1,7 @@
 package com.redis.spring.batch.item.redis.gen;
 
+import com.redis.spring.batch.Range;
+
 public class ZsetOptions extends CollectionOptions {
 
     public static final Range DEFAULT_SCORE = Range.of(0, 100);

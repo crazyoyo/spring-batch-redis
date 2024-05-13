@@ -1,5 +1,7 @@
 package com.redis.spring.batch.item.redis.gen;
 
+import com.redis.spring.batch.Range;
+
 public class StreamOptions {
 
 	public static final Range DEFAULT_MESSAGE_COUNT = Range.of(10);
