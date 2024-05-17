@@ -12,7 +12,7 @@ public abstract class AbstractQueuePollableItemReader<T> extends AbstractPollabl
 
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
-	private BlockingQueue<T> queue;
+	protected BlockingQueue<T> queue;
 
 	@Override
 	protected synchronized void doOpen() throws Exception {
@@ -24,10 +24,6 @@ public abstract class AbstractQueuePollableItemReader<T> extends AbstractPollabl
 	@Override
 	protected synchronized void doClose() throws Exception {
 		queue = null;
-	}
-
-	protected boolean isQueueEmpty() {
-		return queue.isEmpty();
 	}
 
 	/**
@@ -46,14 +42,6 @@ public abstract class AbstractQueuePollableItemReader<T> extends AbstractPollabl
 	@Override
 	protected T doPoll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
-	}
-
-	protected void put(T element) throws InterruptedException {
-		queue.put(element);
-	}
-
-	protected boolean offer(T element) {
-		return queue.offer(element);
 	}
 
 	public BlockingQueue<T> getQueue() {

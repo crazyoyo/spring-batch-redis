@@ -1,35 +1,45 @@
 package com.redis.spring.batch.item.redis.reader;
 
+import java.util.List;
+
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
+
+import com.redis.spring.batch.item.AbstractAsyncItemReader;
 import com.redis.spring.batch.item.redis.RedisItemReader;
 
-import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.ReadFrom;
-import io.lettuce.core.codec.RedisCodec;
-
-public class KeyComparisonItemReader<K, V> extends RedisItemReader<K, V, KeyComparison<K>> {
+public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<MemKeyValue<K, Object>, KeyComparison<K>> {
 
 	public static final int DEFAULT_TARGET_POOL_SIZE = RedisItemReader.DEFAULT_POOL_SIZE;
 
-	private AbstractRedisClient targetClient;
-	private int targetPoolSize = DEFAULT_TARGET_POOL_SIZE;
+	private final RedisItemReader<K, V, MemKeyValue<K, Object>> sourceReader;
+	private final RedisItemReader<K, V, MemKeyValue<K, Object>> targetReader;
 	private KeyComparatorOptions comparatorOptions = new KeyComparatorOptions();
-	private ReadFrom targetReadFrom;
 
-	public KeyComparisonItemReader(RedisCodec<K, V> codec, MemKeyValueRead<K, V, Object> source,
-			MemKeyValueRead<K, V, Object> target) {
-		super(codec, new KeyComparisonRead<>(codec, source, target));
+	public KeyComparisonItemReader(RedisItemReader<K, V, MemKeyValue<K, Object>> sourceReader,
+			RedisItemReader<K, V, MemKeyValue<K, Object>> targetReader) {
+		this.sourceReader = sourceReader;
+		this.targetReader = targetReader;
 	}
 
-	public void setTargetClient(AbstractRedisClient client) {
-		this.targetClient = client;
+	public RedisItemReader<K, V, MemKeyValue<K, Object>> getSourceReader() {
+		return sourceReader;
 	}
 
-	public void setTargetPoolSize(int size) {
-		this.targetPoolSize = size;
+	public RedisItemReader<K, V, MemKeyValue<K, Object>> getTargetReader() {
+		return targetReader;
 	}
 
-	public void setTargetReadFrom(ReadFrom readFrom) {
-		this.targetReadFrom = readFrom;
+	@Override
+	protected ItemReader<MemKeyValue<K, Object>> reader() {
+		return sourceReader;
+	}
+
+	@Override
+	protected ItemProcessor<Iterable<? extends MemKeyValue<K, Object>>, List<KeyComparison<K>>> writeProcessor() {
+		KeyComparator<K, V> comparator = new KeyComparator<>();
+		comparator.setOptions(comparatorOptions);
+		return new KeyComparisonItemProcessor<>(targetReader.operationExecutor(), comparator);
 	}
 
 	public KeyComparatorOptions getComparatorOptions() {
@@ -38,22 +48,6 @@ public class KeyComparisonItemReader<K, V> extends RedisItemReader<K, V, KeyComp
 
 	public void setComparatorOptions(KeyComparatorOptions options) {
 		this.comparatorOptions = options;
-	}
-
-	@Override
-	protected synchronized void doOpen() throws Exception {
-		KeyComparisonRead<K, V> keyComparisonRead = (KeyComparisonRead<K, V>) operation;
-		keyComparisonRead.setTargetClient(targetClient);
-		keyComparisonRead.setTargetPoolSize(targetPoolSize);
-		keyComparisonRead.setTargetReadFrom(targetReadFrom);
-		keyComparisonRead.setComparator(comparator());
-		super.doOpen();
-	}
-
-	private KeyComparator<K, V> comparator() {
-		KeyComparator<K, V> comparator = new KeyComparator<>();
-		comparator.setOptions(comparatorOptions);
-		return comparator;
 	}
 
 }

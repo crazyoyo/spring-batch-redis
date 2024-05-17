@@ -14,7 +14,6 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
@@ -117,23 +116,11 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 
 	protected abstract ItemReader<S> reader();
 
-	private ItemWriter<? super S> writer() {
-		return new ProcessingQueueItemWriter();
+	protected abstract ItemProcessor<Iterable<? extends S>, List<T>> writeProcessor();
+
+	private ItemWriter<S> writer() {
+		return new ProcessingItemWriter<>(writeProcessor(), new QueueItemWriter<>(queue));
 	}
-
-	private class ProcessingQueueItemWriter implements ItemWriter<S> {
-
-		@Override
-		public void write(Chunk<? extends S> chunk) throws InterruptedException {
-			List<T> elements = read(chunk);
-			for (T element : elements) {
-				put(element);
-			}
-		}
-
-	}
-
-	protected abstract List<T> read(Iterable<? extends S> chunk);
 
 	protected FaultTolerantStepBuilder<S, S> faultTolerant(SimpleStepBuilder<S, S> step) {
 		FaultTolerantStepBuilder<S, S> ftStep = step.faultTolerant();

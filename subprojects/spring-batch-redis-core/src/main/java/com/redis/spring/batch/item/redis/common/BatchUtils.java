@@ -10,8 +10,12 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.springframework.util.FileCopyUtils;
 
@@ -23,6 +27,7 @@ import com.redis.lettucemod.cluster.api.StatefulRedisModulesClusterConnection;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
 import io.lettuce.core.RedisFuture;
+import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
@@ -32,10 +37,20 @@ public abstract class BatchUtils {
 	private BatchUtils() {
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public static <K, V, T, O> List<RedisFuture<O>> executeAll(RedisAsyncCommands<K, V> commands,
+			Iterable<? extends T> items, BiFunction<RedisAsyncCommands<K, V>, T, RedisFuture<?>> function) {
+		return (List) BatchUtils.stream(items).map(item -> function.apply(commands, item)).collect(Collectors.toList());
+	}
+
 	public static String readFile(String filename) throws IOException {
 		try (InputStream inputStream = BatchUtils.class.getClassLoader().getResourceAsStream(filename)) {
 			return FileCopyUtils.copyToString(new InputStreamReader(inputStream));
 		}
+	}
+
+	public static <T> Stream<T> stream(Iterable<T> items) {
+		return StreamSupport.stream(items.spliterator(), false);
 	}
 
 	public static <K> Function<String, K> stringKeyFunction(RedisCodec<K, ?> codec) {
@@ -97,6 +112,9 @@ public abstract class BatchUtils {
 		long nanos = timeout.toNanos();
 		long time = System.nanoTime();
 		for (RedisFuture<T> f : futures) {
+			if (f == null) {
+				continue;
+			}
 			if (timeout.isNegative()) {
 				items.add(f.get());
 			} else {

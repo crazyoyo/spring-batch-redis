@@ -1,32 +1,34 @@
 package com.redis.spring.batch.item.redis.common;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.springframework.beans.factory.InitializingBean;
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemStream;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.spring.batch.item.redis.reader.InitializingOperation;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ReadFrom;
-import io.lettuce.core.RedisCommandInterruptedException;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.BaseRedisAsyncCommands;
+import io.lettuce.core.RedisNoScriptException;
 import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.internal.Exceptions;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
-public class OperationExecutor<K, V, I, O> implements InitializingBean, AutoCloseable {
+public class OperationExecutor<K, V, I, O> implements ItemStream, ItemProcessor<Iterable<? extends I>, List<O>> {
 
 	public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
 	private final Operation<K, V, I, O> operation;
 	private final RedisCodec<K, V> codec;
+
 	private AbstractRedisClient client;
 	private ReadFrom readFrom;
 	private int poolSize = DEFAULT_POOL_SIZE;
@@ -42,6 +44,59 @@ public class OperationExecutor<K, V, I, O> implements InitializingBean, AutoClos
 		this.client = client;
 	}
 
+	@Override
+	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
+		Assert.notNull(client, "Redis client not set");
+		initializeOperation();
+		GenericObjectPoolConfig<StatefulRedisModulesConnection<K, V>> config = new GenericObjectPoolConfig<>();
+		config.setMaxTotal(poolSize);
+		Supplier<StatefulRedisModulesConnection<K, V>> supplier = BatchUtils.supplier(client, codec, readFrom);
+		pool = ConnectionPoolSupport.createGenericObjectPool(supplier, config);
+	}
+
+	private void initializeOperation() {
+		if (operation instanceof InitializingOperation) {
+			InitializingOperation<K, V, I, O> initializingOperation = (InitializingOperation<K, V, I, O>) operation;
+			initializingOperation.setClient(client);
+			try {
+				initializingOperation.afterPropertiesSet();
+			} catch (Exception e) {
+				throw new ItemStreamException(e);
+			}
+		}
+	}
+
+	@Override
+	public synchronized void close() {
+		if (pool != null) {
+			pool.close();
+			pool = null;
+		}
+	}
+
+	@Override
+	public List<O> process(Iterable<? extends I> items) throws Exception {
+		try (StatefulRedisModulesConnection<K, V> connection = pool.borrowObject()) {
+			connection.setAutoFlushCommands(false);
+			try {
+				return execute(connection, items);
+			} catch (RedisNoScriptException e) {
+				// Potential fail-over of Redis shard(s). Need to reload the LUA script.
+				initializeOperation();
+				return execute(connection, items);
+			} finally {
+				connection.setAutoFlushCommands(true);
+			}
+		}
+	}
+
+	private List<O> execute(StatefulRedisModulesConnection<K, V> connection, Iterable<? extends I> items)
+			throws TimeoutException, InterruptedException, ExecutionException {
+		List<RedisFuture<O>> futures = operation.execute(connection.async(), items);
+		connection.flushCommands();
+		return BatchUtils.getAll(connection.getTimeout(), futures);
+	}
+
 	public void setReadFrom(ReadFrom readFrom) {
 		this.readFrom = readFrom;
 	}
@@ -50,43 +105,12 @@ public class OperationExecutor<K, V, I, O> implements InitializingBean, AutoClos
 		this.poolSize = poolSize;
 	}
 
-	@Override
-	public void afterPropertiesSet() throws Exception {
-		Assert.notNull(client, "Redis client not set");
-		GenericObjectPoolConfig<StatefulRedisModulesConnection<K, V>> config = new GenericObjectPoolConfig<>();
-		config.setMaxTotal(poolSize);
-		Supplier<StatefulRedisModulesConnection<K, V>> supplier = BatchUtils.supplier(client, codec, readFrom);
-		pool = ConnectionPoolSupport.createGenericObjectPool(supplier, config);
-		if (operation instanceof InitializingOperation) {
-			try (StatefulRedisModulesConnection<K, V> connection = pool.borrowObject()) {
-				((InitializingOperation<K, V, I, O>) operation).afterPropertiesSet(connection);
-			}
-		}
+	public ReadFrom getReadFrom() {
+		return readFrom;
 	}
 
-	@Override
-	public void close() {
-		if (pool != null) {
-			pool.close();
-		}
-	}
-
-	public List<O> apply(Iterable<? extends I> items) {
-		try (StatefulRedisModulesConnection<K, V> connection = pool.borrowObject()) {
-			connection.setAutoFlushCommands(false);
-			BaseRedisAsyncCommands<K, V> commands = connection.async();
-			List<RedisFuture<O>> futures = new ArrayList<>();
-			operation.execute(commands, items, futures);
-			connection.flushCommands();
-			List<O> out = BatchUtils.getAll(connection.getTimeout(), futures);
-			connection.setAutoFlushCommands(true);
-			return out;
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new RedisCommandInterruptedException(e);
-		} catch (Exception e) {
-			throw Exceptions.fromSynchronization(e);
-		}
+	public int getPoolSize() {
+		return poolSize;
 	}
 
 }

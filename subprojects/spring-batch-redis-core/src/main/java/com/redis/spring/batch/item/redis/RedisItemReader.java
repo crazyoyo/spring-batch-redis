@@ -1,8 +1,5 @@
 package com.redis.spring.batch.item.redis;
 
-import java.util.List;
-import java.util.concurrent.TimeoutException;
-
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
@@ -14,7 +11,6 @@ import com.redis.spring.batch.item.AbstractAsyncItemReader;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.Operation;
 import com.redis.spring.batch.item.redis.common.OperationExecutor;
-import com.redis.spring.batch.item.redis.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.MemKeyValue;
 import com.redis.spring.batch.item.redis.reader.MemKeyValueRead;
@@ -35,8 +31,8 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = KeyNotificationItemReader.DEFAULT_QUEUE_CAPACITY;
 
 	private final RedisCodec<K, V> codec;
-	protected final Operation<K, V, K, T> operation;
-	private AbstractRedisClient client;
+	private final Operation<K, V, K, T> operation;
+
 	private int poolSize = DEFAULT_POOL_SIZE;
 	private int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
 	private ReadFrom readFrom;
@@ -45,24 +41,15 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 	private long scanCount;
 	private int database;
 
-	private OperationExecutor<K, V, K, T> operationExecutor;
+	private AbstractRedisClient client;
 
 	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
 		this.codec = codec;
 		this.operation = operation;
 	}
 
-	@Override
-	protected synchronized void doOpen() throws Exception {
-		Assert.notNull(client, getName() + ": Redis client not set");
-		if (operationExecutor == null) {
-			operationExecutor = new OperationExecutor<>(codec, operation);
-			operationExecutor.setClient(client);
-			operationExecutor.setPoolSize(poolSize);
-			operationExecutor.setReadFrom(readFrom);
-			operationExecutor.afterPropertiesSet();
-		}
-		super.doOpen();
+	public Operation<K, V, K, T> getOperation() {
+		return operation;
 	}
 
 	@Override
@@ -92,21 +79,21 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 	}
 
 	@Override
-	public List<T> read(Iterable<? extends K> keys) {
-		return operationExecutor.apply(keys);
+	protected OperationExecutor<K, V, K, T> writeProcessor() {
+		return operationExecutor();
+	}
+
+	public OperationExecutor<K, V, K, T> operationExecutor() {
+		Assert.notNull(client, getName() + ": Redis client not set");
+		OperationExecutor<K, V, K, T> executor = new OperationExecutor<>(codec, operation);
+		executor.setClient(client);
+		executor.setPoolSize(poolSize);
+		executor.setReadFrom(readFrom);
+		return executor;
 	}
 
 	private StatefulRedisModulesConnection<K, V> connection() {
 		return BatchUtils.connection(client, codec, readFrom);
-	}
-
-	@Override
-	protected synchronized void doClose() throws TimeoutException, InterruptedException {
-		super.doClose();
-		if (operationExecutor != null) {
-			operationExecutor.close();
-			operationExecutor = null;
-		}
 	}
 
 	private KeyScanArgs scanArgs() {
@@ -121,22 +108,6 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 			args.type(keyType);
 		}
 		return args;
-	}
-
-	public static KeyComparisonItemReader<String, String> compare() {
-		return compare(StringCodec.UTF8);
-	}
-
-	public static <K, V> KeyComparisonItemReader<K, V> compare(RedisCodec<K, V> codec) {
-		return new KeyComparisonItemReader<>(codec, MemKeyValueRead.struct(codec), MemKeyValueRead.struct(codec));
-	}
-
-	public static KeyComparisonItemReader<String, String> compareQuick() {
-		return compareQuick(StringCodec.UTF8);
-	}
-
-	public static <K, V> KeyComparisonItemReader<K, V> compareQuick(RedisCodec<K, V> codec) {
-		return new KeyComparisonItemReader<>(codec, MemKeyValueRead.type(codec), MemKeyValueRead.type(codec));
 	}
 
 	public static RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> dump() {
@@ -157,10 +128,6 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 
 	public static <K, V> RedisItemReader<K, V, MemKeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
 		return new RedisItemReader<>(codec, MemKeyValueRead.struct(codec));
-	}
-
-	public Operation<K, V, K, T> getOperation() {
-		return operation;
 	}
 
 	public RedisCodec<K, V> getCodec() {

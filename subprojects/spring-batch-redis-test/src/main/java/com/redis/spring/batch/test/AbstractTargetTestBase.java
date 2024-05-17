@@ -19,10 +19,13 @@ import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.item.redis.RedisItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyComparison;
 import com.redis.spring.batch.item.redis.reader.KeyComparisonItemReader;
+import com.redis.spring.batch.item.redis.reader.MemKeyValue;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisURI;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 
 public abstract class AbstractTargetTestBase extends AbstractTestBase {
 
@@ -78,7 +81,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	 */
 	protected KeyspaceComparison<String> compare(TestInfo info) throws Exception {
 		assertDbNotEmpty(redisCommands);
-		KeyComparisonItemReader<String, String> reader = comparisonReader(testInfo(info, "compare"));
+		KeyComparisonItemReader<String, String> reader = comparisonReader(info);
 		reader.open(new ExecutionContext());
 		List<KeyComparison<String>> comparisons = readAll(reader);
 		reader.close();
@@ -92,12 +95,18 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	}
 
 	protected KeyComparisonItemReader<String, String> comparisonReader(TestInfo info) {
-		KeyComparisonItemReader<String, String> reader = RedisItemReader.compare();
-		configure(info, reader, "comparison");
-		reader.getComparatorOptions().setTtlTolerance(Duration.ofMillis(100));
-		reader.setClient(redisClient);
-		reader.setTargetClient(targetRedisClient);
-		return reader;
+		return comparisonReader(info, StringCodec.UTF8);
+	}
+
+	protected <K, V> KeyComparisonItemReader<K, V> comparisonReader(TestInfo info, RedisCodec<K, V> codec) {
+		RedisItemReader<K, V, MemKeyValue<K, Object>> sourceReader = RedisItemReader.struct(codec);
+		configure(info, sourceReader);
+		RedisItemReader<K, V, MemKeyValue<K, Object>> targetReader = RedisItemReader.struct(codec);
+		targetReader.setClient(targetRedisClient);
+		KeyComparisonItemReader<K, V> comparisonReader = new KeyComparisonItemReader<>(sourceReader, targetReader);
+		comparisonReader.getComparatorOptions().setTtlTolerance(Duration.ofMillis(100));
+		setName(info, comparisonReader, "comparison");
+		return comparisonReader;
 	}
 
 }

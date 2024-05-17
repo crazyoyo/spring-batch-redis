@@ -39,19 +39,35 @@ public class EvalStructFunction<K, V> extends EvalFunction<K, V, Object> {
 			return keyValue.getValue();
 		}
 		switch (type) {
+		case JSON:
+			return string(keyValue);
 		case HASH:
 			return hash(keyValue);
+		case LIST:
+			return members(keyValue);
 		case SET:
 			return set(keyValue);
-		case ZSET:
-			return zset(keyValue);
 		case STREAM:
 			return stream(keyValue);
+		case STRING:
+			return string(keyValue);
 		case TIMESERIES:
 			return timeseries(keyValue);
+		case ZSET:
+			return zset(keyValue);
 		default:
 			return keyValue.getValue();
 		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private Collection<V> members(MemKeyValue<K, Object> keyValue) {
+		return (Collection<V>) keyValue.getValue();
+	}
+
+	@SuppressWarnings("unchecked")
+	private V string(MemKeyValue<K, Object> keyValue) {
+		return (V) keyValue.getValue();
 	}
 
 	@SuppressWarnings("unchecked")
@@ -85,9 +101,8 @@ public class EvalStructFunction<K, V> extends EvalFunction<K, V, Object> {
 		return map;
 	}
 
-	@SuppressWarnings("unchecked")
 	private Set<V> set(MemKeyValue<K, Object> keyValue) {
-		return new HashSet<>((List<V>) keyValue.getValue());
+		return new HashSet<>(members(keyValue));
 	}
 
 	@SuppressWarnings("unchecked")

@@ -4,32 +4,30 @@ import java.time.Duration;
 
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamException;
-import org.springframework.batch.item.support.AbstractItemStreamItemWriter;
+import org.springframework.batch.item.ItemStreamWriter;
 import org.springframework.util.Assert;
-import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.common.Operation;
 import com.redis.spring.batch.item.redis.common.OperationExecutor;
 import com.redis.spring.batch.item.redis.writer.KeyValueRestore;
 import com.redis.spring.batch.item.redis.writer.KeyValueWrite;
-import com.redis.spring.batch.item.redis.writer.MultiExec;
-import com.redis.spring.batch.item.redis.writer.ReplicaWait;
-import com.redis.spring.batch.item.redis.writer.WriteOperation;
+import com.redis.spring.batch.item.redis.writer.KeyValueWrite.WriteMode;
+import com.redis.spring.batch.item.redis.writer.operation.MultiExec;
+import com.redis.spring.batch.item.redis.writer.operation.ReplicaWait;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
+public class RedisItemWriter<K, V, T> implements ItemStreamWriter<T> {
 
 	public static final int DEFAULT_POOL_SIZE = OperationExecutor.DEFAULT_POOL_SIZE;
 	public static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(1);
 
 	private final RedisCodec<K, V> codec;
-	private final WriteOperation<K, V, T> operation;
+	private final Operation<K, V, T, Object> operation;
 
 	private AbstractRedisClient client;
 	private int waitReplicas;
@@ -37,10 +35,9 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 	private boolean multiExec;
 	private int poolSize = DEFAULT_POOL_SIZE;
 
-	private OperationExecutor<K, V, T, Object> executor;
+	private OperationExecutor<K, V, T, Object> operationExecutor;
 
-	public RedisItemWriter(RedisCodec<K, V> codec, WriteOperation<K, V, T> operation) {
-		setName(ClassUtils.getShortName(getClass()));
+	public RedisItemWriter(RedisCodec<K, V> codec, Operation<K, V, T, Object> operation) {
 		this.codec = codec;
 		this.operation = operation;
 	}
@@ -49,43 +46,76 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 		return operation;
 	}
 
+	public static RedisItemWriter<String, String, KeyValue<String, Object>> struct() {
+		return struct(StringCodec.UTF8);
+	}
+
+	public static <K, V> RedisItemWriter<K, V, KeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
+		return new RedisItemWriter<>(codec, new KeyValueWrite<>());
+	}
+
+	public static RedisItemWriter<String, String, KeyValue<String, Object>> struct(WriteMode mode) {
+		return struct(StringCodec.UTF8, mode);
+	}
+
+	public static <K, V> RedisItemWriter<K, V, KeyValue<K, Object>> struct(RedisCodec<K, V> codec, WriteMode mode) {
+		return new RedisItemWriter<>(codec, KeyValueWrite.create(mode));
+	}
+
+	public static RedisItemWriter<byte[], byte[], KeyValue<byte[], byte[]>> dump() {
+		return new RedisItemWriter<>(ByteArrayCodec.INSTANCE, new KeyValueRestore<>());
+	}
+
 	@Override
 	public synchronized void open(ExecutionContext executionContext) {
 		Assert.notNull(client, "Redis client not set");
-		if (executor == null) {
-			executor = new OperationExecutor<>(codec, operation());
-			executor.setClient(client);
-			executor.setPoolSize(poolSize);
-			try {
-				executor.afterPropertiesSet();
-			} catch (Exception e) {
-				throw new ItemStreamException("Could not initialize operation executor", e);
-			}
+		if (operationExecutor == null) {
+			operationExecutor = new OperationExecutor<>(codec, operation());
+			operationExecutor.setClient(client);
+			operationExecutor.setPoolSize(poolSize);
+			operationExecutor.open(executionContext);
 		}
 	}
 
 	@Override
 	public synchronized void close() {
-		if (executor != null) {
-			executor.close();
-			executor = null;
+		if (operationExecutor != null) {
+			operationExecutor.close();
+			operationExecutor = null;
 		}
 	}
 
 	@Override
-	public void write(Chunk<? extends T> items) {
-		executor.apply(items);
+	public void write(Chunk<? extends T> items) throws Exception {
+		operationExecutor.process(items);
 	}
 
-	private WriteOperation<K, V, T> operation() {
-		WriteOperation<K, V, T> actualOperation = operation;
+	private Operation<K, V, T, Object> operation() {
+		return multiExec(waitReplicas(operation));
+
+	}
+
+	private Operation<K, V, T, Object> waitReplicas(Operation<K, V, T, Object> operation) {
 		if (waitReplicas > 0) {
-			actualOperation = new ReplicaWait<>(actualOperation, waitReplicas, waitTimeout);
+			return new ReplicaWait<>(operation, waitReplicas, waitTimeout);
 		}
+		return operation;
+	}
+
+	private Operation<K, V, T, Object> multiExec(Operation<K, V, T, Object> operation) {
 		if (multiExec) {
-			actualOperation = new MultiExec<>(actualOperation);
+			return new MultiExec<>(operation);
 		}
-		return actualOperation;
+		return operation;
+	}
+
+	public static <T> RedisItemWriter<String, String, T> operation(Operation<String, String, T, Object> operation) {
+		return operation(StringCodec.UTF8, operation);
+	}
+
+	public static <K, V, T> RedisItemWriter<K, V, T> operation(RedisCodec<K, V> codec,
+			Operation<K, V, T, Object> operation) {
+		return new RedisItemWriter<>(codec, operation);
 	}
 
 	public void setClient(AbstractRedisClient client) {
@@ -122,27 +152,6 @@ public class RedisItemWriter<K, V, T> extends AbstractItemStreamItemWriter<T> {
 
 	public void setPoolSize(int poolSize) {
 		this.poolSize = poolSize;
-	}
-
-	public static RedisItemWriter<String, String, KeyValue<String, Object>> struct() {
-		return struct(StringCodec.UTF8);
-	}
-
-	public static <K, V> RedisItemWriter<K, V, KeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
-		return new RedisItemWriter<>(codec, new KeyValueWrite<>());
-	}
-
-	public static RedisItemWriter<byte[], byte[], KeyValue<byte[], byte[]>> dump() {
-		return new RedisItemWriter<>(ByteArrayCodec.INSTANCE, new KeyValueRestore<>());
-	}
-
-	public static <T> RedisItemWriter<String, String, T> operation(WriteOperation<String, String, T> operation) {
-		return operation(StringCodec.UTF8, operation);
-	}
-
-	public static <K, V, T> RedisItemWriter<K, V, T> operation(RedisCodec<K, V> codec,
-			WriteOperation<K, V, T> operation) {
-		return new RedisItemWriter<>(codec, operation);
 	}
 
 }

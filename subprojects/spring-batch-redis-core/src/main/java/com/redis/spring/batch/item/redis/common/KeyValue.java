@@ -58,7 +58,11 @@ public class KeyValue<K, T> {
 	}
 
 	public static boolean exists(KeyValue<?, ?> kv) {
-		return kv.getTtl() != TTL_NO_KEY && type(kv) != DataType.NONE;
+		return kv != null && hasKey(kv) && kv.getTtl() != TTL_NO_KEY && type(kv) != DataType.NONE;
+	}
+
+	public static boolean hasKey(KeyValue<?, ?> kv) {
+		return kv.getKey() != null;
 	}
 
 	public static boolean hasTtl(KeyValue<?, ?> kv) {
