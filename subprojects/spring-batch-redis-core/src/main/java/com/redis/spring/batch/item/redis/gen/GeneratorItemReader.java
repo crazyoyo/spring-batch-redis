@@ -52,7 +52,6 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	private StringOptions stringOptions = new StringOptions();
 	private ZsetOptions zsetOptions = new ZsetOptions();
 	private List<DataType> types = DEFAULT_TYPES;
-	private int maxItemCount;
 
 	public GeneratorItemReader() {
 		setName(ClassUtils.getShortName(getClass()));
@@ -324,16 +323,6 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
 	private long ttl() {
 		return System.currentTimeMillis() + randomInt(expiration);
-	}
-
-	@Override
-	public void setMaxItemCount(int count) {
-		super.setMaxItemCount(count);
-		this.maxItemCount = count;
-	}
-
-	public int getMaxItemCount() {
-		return maxItemCount;
 	}
 
 }

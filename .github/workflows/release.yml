@@ -10,6 +10,11 @@ on:
         description: Branch
         default: main
         required: true
+      tasks:
+        description: Tasks
+        default: 'build aggregateTestReports publish'
+        required: false
+        type: string
 
 jobs:
   release:
@@ -18,7 +23,7 @@ jobs:
     with:
       branch: ${{ github.event.inputs.branch }}
       version: ${{ github.event.inputs.version }}
-      tasks: build aggregateTestReports publish
+      tasks: ${{ github.event.inputs.tasks }}
       java-version: 21
     secrets:
       github-token: ${{ secrets.GIT_ACCESS_TOKEN }}

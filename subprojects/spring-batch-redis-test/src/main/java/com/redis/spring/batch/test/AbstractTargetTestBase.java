@@ -17,6 +17,7 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.item.redis.RedisItemReader;
+import com.redis.spring.batch.item.redis.reader.DefaultKeyComparator;
 import com.redis.spring.batch.item.redis.reader.KeyComparison;
 import com.redis.spring.batch.item.redis.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.item.redis.reader.MemKeyValue;
@@ -104,7 +105,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 		RedisItemReader<K, V, MemKeyValue<K, Object>> targetReader = RedisItemReader.struct(codec);
 		targetReader.setClient(targetRedisClient);
 		KeyComparisonItemReader<K, V> comparisonReader = new KeyComparisonItemReader<>(sourceReader, targetReader);
-		comparisonReader.getComparatorOptions().setTtlTolerance(Duration.ofMillis(100));
+		((DefaultKeyComparator<K, V>) comparisonReader.getComparator()).setTtlTolerance(Duration.ofMillis(100));
 		setName(info, comparisonReader, "comparison");
 		return comparisonReader;
 	}

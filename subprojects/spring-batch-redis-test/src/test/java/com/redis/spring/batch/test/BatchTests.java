@@ -59,6 +59,7 @@ import com.redis.spring.batch.item.redis.common.DataType;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.gen.GeneratorItemReader;
 import com.redis.spring.batch.item.redis.gen.TimeSeriesOptions;
+import com.redis.spring.batch.item.redis.reader.DefaultKeyComparator;
 import com.redis.spring.batch.item.redis.reader.EvalFunction;
 import com.redis.spring.batch.item.redis.reader.Evalsha;
 import com.redis.spring.batch.item.redis.reader.KeyComparison;
@@ -928,7 +929,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			target.xadd(streamKey, args, body);
 		}
 		KeyComparisonItemReader<byte[], byte[]> comparisonReader = comparisonReader(info, ByteArrayCodec.INSTANCE);
-		comparisonReader.getComparatorOptions().setTtlTolerance(Duration.ofMillis(100));
+		((DefaultKeyComparator<byte[], byte[]>) comparisonReader.getComparator())
+				.setTtlTolerance(Duration.ofMillis(100));
 		comparisonReader.open(new ExecutionContext());
 		KeyspaceComparison<byte[]> comparison = new KeyspaceComparison<>(readAll(comparisonReader));
 		comparisonReader.close();

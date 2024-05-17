@@ -14,7 +14,8 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<MemKe
 
 	private final RedisItemReader<K, V, MemKeyValue<K, Object>> sourceReader;
 	private final RedisItemReader<K, V, MemKeyValue<K, Object>> targetReader;
-	private KeyComparatorOptions comparatorOptions = new KeyComparatorOptions();
+
+	private KeyComparator<K, V> comparator = new DefaultKeyComparator<>();
 
 	public KeyComparisonItemReader(RedisItemReader<K, V, MemKeyValue<K, Object>> sourceReader,
 			RedisItemReader<K, V, MemKeyValue<K, Object>> targetReader) {
@@ -37,17 +38,15 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<MemKe
 
 	@Override
 	protected ItemProcessor<Iterable<? extends MemKeyValue<K, Object>>, List<KeyComparison<K>>> writeProcessor() {
-		KeyComparator<K, V> comparator = new KeyComparator<>();
-		comparator.setOptions(comparatorOptions);
 		return new KeyComparisonItemProcessor<>(targetReader.operationExecutor(), comparator);
 	}
 
-	public KeyComparatorOptions getComparatorOptions() {
-		return comparatorOptions;
+	public KeyComparator<K, V> getComparator() {
+		return comparator;
 	}
 
-	public void setComparatorOptions(KeyComparatorOptions options) {
-		this.comparatorOptions = options;
+	public void setComparator(KeyComparator<K, V> comparator) {
+		this.comparator = comparator;
 	}
 
 }
