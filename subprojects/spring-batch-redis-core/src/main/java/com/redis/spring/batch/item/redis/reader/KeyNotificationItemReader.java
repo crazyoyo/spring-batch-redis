@@ -1,6 +1,8 @@
 package com.redis.spring.batch.item.redis.reader;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -43,6 +45,19 @@ public class KeyNotificationItemReader<K, V> extends AbstractQueuePollableItemRe
 
 	private AutoCloseable publisher;
 	private HashSet<Wrapper<K>> keySet;
+	private List<KeyEventListener<K>> eventListeners = new ArrayList<>();
+
+	public enum KeyEventStatus {
+
+		QUEUE_FULL, KEY_TYPE, DUPLICATE
+
+	}
+
+	public static interface KeyEventListener<K> {
+
+		void onKeyEvent(K key, String event, KeyEventStatus status);
+
+	}
 
 	public KeyNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		setName(ClassUtils.getShortName(getClass()));
@@ -51,6 +66,10 @@ public class KeyNotificationItemReader<K, V> extends AbstractQueuePollableItemRe
 		this.keyEncoder = BatchUtils.stringKeyFunction(codec);
 		this.keyDecoder = BatchUtils.toStringKeyFunction(codec);
 		this.valueDecoder = BatchUtils.toStringValueFunction(codec);
+	}
+
+	public void addEventListener(KeyEventListener<K> listener) {
+		eventListeners.add(listener);
 	}
 
 	public String pubSubPattern() {
@@ -100,17 +119,29 @@ public class KeyNotificationItemReader<K, V> extends AbstractQueuePollableItemRe
 	}
 
 	private void addEvent(K key, String event) {
-		DataType type = keyType(event);
-		if (keyType == null || keyType.equalsIgnoreCase(type.getString())) {
+		if (acceptType(event)) {
 			Wrapper<K> wrapper = new Wrapper<>(key);
 			if (keySet.contains(wrapper)) {
-				return;
+				notifyListeners(key, event, KeyEventStatus.DUPLICATE);
+			} else {
+				boolean added = queue.offer(key);
+				if (added) {
+					keySet.add(wrapper);
+				} else {
+					notifyListeners(key, event, KeyEventStatus.QUEUE_FULL);
+				}
 			}
-			boolean added = offer(key);
-			if (added) {
-				keySet.add(wrapper);
-			}
+		} else {
+			notifyListeners(key, event, KeyEventStatus.KEY_TYPE);
 		}
+	}
+
+	private void notifyListeners(K key, String event, KeyEventStatus status) {
+		eventListeners.forEach(l -> l.onKeyEvent(key, event, status));
+	}
+
+	private boolean acceptType(String event) {
+		return keyType == null || keyType.equalsIgnoreCase(keyType(event).getString());
 	}
 
 	private NotificationConsumer<K, V> notificationConsumer() {
