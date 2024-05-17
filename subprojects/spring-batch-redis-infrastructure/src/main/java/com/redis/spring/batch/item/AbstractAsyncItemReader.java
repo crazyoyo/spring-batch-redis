@@ -32,8 +32,6 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 
 	public static final int DEFAULT_THREADS = 1;
 	public static final int DEFAULT_CHUNK_SIZE = 50;
-	public static final int DEFAULT_SKIP_LIMIT = 0;
-	public static final int DEFAULT_RETRY_LIMIT = 0;
 	public static final Duration DEFAULT_FLUSH_INTERVAL = FlushingChunkProvider.DEFAULT_FLUSH_INTERVAL;
 	public static final Duration DEFAULT_IDLE_TIMEOUT = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
 
@@ -42,8 +40,8 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 	private boolean flushing;
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private int threads = DEFAULT_THREADS;
-	private int skipLimit = DEFAULT_SKIP_LIMIT;
-	private int retryLimit = DEFAULT_RETRY_LIMIT;
+	private int skipLimit;
+	private int retryLimit;
 	private Duration flushInterval = DEFAULT_FLUSH_INTERVAL;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
 	private JobRepository jobRepository;

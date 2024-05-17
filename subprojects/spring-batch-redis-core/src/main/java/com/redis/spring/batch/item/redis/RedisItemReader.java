@@ -4,6 +4,7 @@ import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.support.IteratorItemReader;
+import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
@@ -29,6 +30,7 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 
 	public static final int DEFAULT_POOL_SIZE = OperationExecutor.DEFAULT_POOL_SIZE;
 	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = KeyNotificationItemReader.DEFAULT_QUEUE_CAPACITY;
+	public static final int DEFAULT_RETRY_LIMIT = MaxAttemptsRetryPolicy.DEFAULT_MAX_ATTEMPTS;
 
 	private final RedisCodec<K, V> codec;
 	private final Operation<K, V, K, T> operation;
@@ -44,6 +46,7 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 	private AbstractRedisClient client;
 
 	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
+		setRetryLimit(DEFAULT_RETRY_LIMIT);
 		this.codec = codec;
 		this.operation = operation;
 	}
