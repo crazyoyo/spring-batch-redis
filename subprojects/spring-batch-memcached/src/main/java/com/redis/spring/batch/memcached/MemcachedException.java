@@ -1,4 +1,4 @@
-package com.redis.spring.batch.memcached.common;
+package com.redis.spring.batch.memcached;
 
 @SuppressWarnings("serial")
 public class MemcachedException extends RuntimeException {

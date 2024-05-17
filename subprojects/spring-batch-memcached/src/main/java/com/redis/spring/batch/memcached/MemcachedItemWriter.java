@@ -11,10 +11,6 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamWriter;
 
-import com.redis.spring.batch.memcached.common.ByteArrayTranscoder;
-import com.redis.spring.batch.memcached.common.MemcachedException;
-import com.redis.spring.batch.memcached.common.MemcachedUtils;
-
 import net.spy.memcached.MemcachedClient;
 import net.spy.memcached.internal.OperationFuture;
 import net.spy.memcached.transcoders.Transcoder;

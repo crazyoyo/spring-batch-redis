@@ -1,4 +1,4 @@
-package com.redis.spring.batch.memcached.gen;
+package com.redis.spring.batch.memcached;
 
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -6,13 +6,14 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.memcached.MemcachedEntry;
+import com.redis.spring.batch.Range;
 
 public class MemcachedGeneratorItemReader extends AbstractItemCountingItemStreamItemReader<MemcachedEntry> {
 
 	public static final String DEFAULT_KEYSPACE = "gen";
 	public static final String DEFAULT_KEY_SEPARATOR = ":";
 	public static final Range DEFAULT_KEY_RANGE = Range.from(1);
+	public static final Range DEFAULT_STRING_LENGTH = Range.of(100);
 
 	private static final Random random = new Random();
 
@@ -20,7 +21,7 @@ public class MemcachedGeneratorItemReader extends AbstractItemCountingItemStream
 	private String keyspace = DEFAULT_KEYSPACE;
 	private Range keyRange = DEFAULT_KEY_RANGE;
 	private Range expiration;
-	private StringOptions stringOptions = new StringOptions();
+	private Range stringLength = DEFAULT_STRING_LENGTH;
 
 	private int startTime;
 
@@ -42,7 +43,7 @@ public class MemcachedGeneratorItemReader extends AbstractItemCountingItemStream
 	}
 
 	private byte[] value() {
-		int length = randomInt(stringOptions.getLength());
+		int length = randomInt(stringLength);
 		byte[] value = new byte[length];
 		random.nextBytes(value);
 		return value;
@@ -96,10 +97,6 @@ public class MemcachedGeneratorItemReader extends AbstractItemCountingItemStream
 		return expiration;
 	}
 
-	public StringOptions getStringOptions() {
-		return stringOptions;
-	}
-
 	public String getKeyspace() {
 		return keyspace;
 	}
@@ -108,12 +105,16 @@ public class MemcachedGeneratorItemReader extends AbstractItemCountingItemStream
 		this.expiration = range;
 	}
 
-	public void setStringOptions(StringOptions options) {
-		this.stringOptions = options;
-	}
-
 	public void setKeyspace(String keyspace) {
 		this.keyspace = keyspace;
+	}
+
+	public Range getStringLength() {
+		return stringLength;
+	}
+
+	public void setStringLength(Range range) {
+		this.stringLength = range;
 	}
 
 }

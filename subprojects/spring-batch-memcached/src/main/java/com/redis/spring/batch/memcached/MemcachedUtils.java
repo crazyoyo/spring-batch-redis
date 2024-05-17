@@ -1,4 +1,4 @@
-package com.redis.spring.batch.memcached.common;
+package com.redis.spring.batch.memcached;
 
 import java.time.Duration;
 import java.util.ArrayList;

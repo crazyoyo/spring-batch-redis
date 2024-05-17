@@ -8,7 +8,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.redis.spring.batch.item.AbstractQueuePollableItemReader;
-import com.redis.spring.batch.memcached.common.MemcachedException;
+import com.redis.spring.batch.memcached.MemcachedException;
 import com.redis.spring.batch.memcached.reader.LruCrawlerMetadumpOperation.Callback;
 
 import net.spy.memcached.MemcachedClient;
@@ -30,8 +30,6 @@ public class LruMetadumpItemReader extends AbstractQueuePollableItemReader<LruMe
 		super.doOpen();
 		if (client == null) {
 			client = clientSupplier.get();
-		}
-		if (latch == null) {
 			latch = client.broadcastOp(
 					(n, l) -> new LruCrawlerMetadumpOperationImpl("all", new MetadumpCallback(l, this::safePut)));
 		}
@@ -39,7 +37,7 @@ public class LruMetadumpItemReader extends AbstractQueuePollableItemReader<LruMe
 
 	private void safePut(LruMetadumpEntry entry) {
 		try {
-			put(entry);
+			queue.put(entry);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new MemcachedException("Interrupted while trying to add entry to queue", e);
@@ -57,7 +55,7 @@ public class LruMetadumpItemReader extends AbstractQueuePollableItemReader<LruMe
 
 	@Override
 	public boolean isComplete() {
-		return latch.getCount() == 0 && isQueueEmpty();
+		return latch.getCount() == 0 && queue.isEmpty();
 	}
 
 	private static class MetadumpCallback implements Callback {

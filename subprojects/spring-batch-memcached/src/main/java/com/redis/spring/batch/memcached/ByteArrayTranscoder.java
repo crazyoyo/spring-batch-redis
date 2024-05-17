@@ -1,4 +1,4 @@
-package com.redis.spring.batch.memcached.common;
+package com.redis.spring.batch.memcached;
 
 import net.spy.memcached.CachedData;
 import net.spy.memcached.compat.SpyObject;

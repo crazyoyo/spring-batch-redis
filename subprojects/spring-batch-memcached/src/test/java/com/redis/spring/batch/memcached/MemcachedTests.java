@@ -23,9 +23,7 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.util.ClassUtils;
 import org.testcontainers.utility.DockerImageName;
 
-import com.redis.spring.batch.memcached.common.ByteArrayTranscoder;
-import com.redis.spring.batch.memcached.gen.MemcachedGeneratorItemReader;
-import com.redis.spring.batch.memcached.gen.Range;
+import com.redis.spring.batch.Range;
 import com.redis.testcontainers.MemcachedContainer;
 
 import net.spy.memcached.MemcachedClient;
