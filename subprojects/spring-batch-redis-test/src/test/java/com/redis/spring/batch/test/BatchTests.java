@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -66,6 +67,7 @@ import com.redis.spring.batch.item.redis.reader.KeyComparison;
 import com.redis.spring.batch.item.redis.reader.KeyComparison.Status;
 import com.redis.spring.batch.item.redis.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyNotificationItemReader;
+import com.redis.spring.batch.item.redis.reader.KeyScanNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.MemKeyValue;
 import com.redis.spring.batch.item.redis.reader.MemKeyValueRead.ValueType;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader;
@@ -804,6 +806,27 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		awaitUntilNoSubscribers();
 		KeyspaceComparison<String> comparison = compare(info);
 		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
+	}
+
+	@Test
+	void keyScanNotificationReader(TestInfo info) throws Exception {
+		enableKeyspaceNotifications();
+		int scanCount = 10;
+		IntStream.range(0, scanCount).forEach(i -> redisCommands.set("scan:" + i, "value" + i));
+		KeyScanNotificationItemReader<String, String> reader = new KeyScanNotificationItemReader<>(redisClient,
+				StringCodec.UTF8, new IteratorItemReader<>(ScanIterator.scan(redisCommands)));
+		setName(info, reader);
+		reader.setName(JSON_BEER_1);
+		reader.open(new ExecutionContext());
+		int notificationCount = 10;
+		IntStream.range(0, notificationCount).forEach(i -> redisCommands.set("notification:" + i, "value" + i));
+		Set<String> keys = new HashSet<>();
+		String key;
+		while ((key = reader.poll(10, TimeUnit.MILLISECONDS)) != null) {
+			keys.add(key);
+		}
+		reader.close();
+		Assertions.assertEquals(scanCount + notificationCount, keys.size());
 	}
 
 	@Test

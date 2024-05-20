@@ -37,7 +37,6 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 
 	private ItemReader<S> reader;
 	private ItemProcessor<S, S> processor;
-	private boolean flushing;
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private int threads = DEFAULT_THREADS;
 	private int skipLimit;
@@ -129,7 +128,7 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 
 	private SimpleStepBuilder<S, S> stepBuilder() {
 		SimpleStepBuilder<S, S> step = new StepBuilder(getName(), jobRepository).chunk(chunkSize, transactionManager);
-		if (flushing) {
+		if (isFlushing()) {
 			FlushingStepBuilder<S, S> flushingStep = new FlushingStepBuilder<>(step);
 			flushingStep.flushInterval(flushInterval);
 			flushingStep.idleTimeout(idleTimeout);
@@ -159,13 +158,7 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 		this.transactionManager = transactionManager;
 	}
 
-	public boolean isFlushing() {
-		return flushing;
-	}
-
-	public void setFlushing(boolean flushing) {
-		this.flushing = flushing;
-	}
+	protected abstract boolean isFlushing();
 
 	public JobExecution getJobExecution() {
 		return jobExecution;

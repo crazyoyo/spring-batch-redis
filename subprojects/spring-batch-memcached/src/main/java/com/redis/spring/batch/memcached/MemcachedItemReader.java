@@ -22,6 +22,11 @@ public class MemcachedItemReader extends AbstractAsyncItemReader<LruMetadumpEntr
 	}
 
 	@Override
+	protected boolean isFlushing() {
+		return false;
+	}
+
+	@Override
 	protected ItemReader<LruMetadumpEntry> reader() {
 		return new LruMetadumpItemReader(clientSupplier);
 	}

@@ -54,6 +54,7 @@ import com.redis.spring.batch.JobUtils;
 import com.redis.spring.batch.Range;
 import com.redis.spring.batch.item.PollableItemReader;
 import com.redis.spring.batch.item.redis.RedisItemReader;
+import com.redis.spring.batch.item.redis.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.item.redis.RedisItemWriter;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.DataType;
@@ -183,7 +184,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void live(RedisItemReader<?, ?, ?> reader) {
-		reader.setFlushing(true);
+		reader.setMode(ReaderMode.LIVE);
 		reader.setIdleTimeout(idleTimeout);
 	}
 

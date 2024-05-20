@@ -23,6 +23,11 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<MemKe
 		this.targetReader = targetReader;
 	}
 
+	@Override
+	protected boolean isFlushing() {
+		return false;
+	}
+
 	public RedisItemReader<K, V, MemKeyValue<K, Object>> getSourceReader() {
 		return sourceReader;
 	}

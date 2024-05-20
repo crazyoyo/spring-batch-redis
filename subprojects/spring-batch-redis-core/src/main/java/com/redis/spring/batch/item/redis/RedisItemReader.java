@@ -13,6 +13,7 @@ import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.Operation;
 import com.redis.spring.batch.item.redis.common.OperationExecutor;
 import com.redis.spring.batch.item.redis.reader.KeyNotificationItemReader;
+import com.redis.spring.batch.item.redis.reader.KeyScanNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.MemKeyValue;
 import com.redis.spring.batch.item.redis.reader.MemKeyValueRead;
 
@@ -28,13 +29,19 @@ import io.lettuce.core.codec.StringCodec;
 
 public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 
+	public enum ReaderMode {
+		SCAN, LIVE, LIVE_SCAN
+	}
+
 	public static final int DEFAULT_POOL_SIZE = OperationExecutor.DEFAULT_POOL_SIZE;
 	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = KeyNotificationItemReader.DEFAULT_QUEUE_CAPACITY;
 	public static final int DEFAULT_RETRY_LIMIT = MaxAttemptsRetryPolicy.DEFAULT_MAX_ATTEMPTS;
+	public static final ReaderMode DEFAULT_MODE = ReaderMode.SCAN;
 
 	private final RedisCodec<K, V> codec;
 	private final Operation<K, V, K, T> operation;
 
+	private ReaderMode mode = DEFAULT_MODE;
 	private int poolSize = DEFAULT_POOL_SIZE;
 	private int notificationQueueCapacity = DEFAULT_NOTIFICATION_QUEUE_CAPACITY;
 	private ReadFrom readFrom;
@@ -66,19 +73,45 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 	}
 
 	@Override
-	protected ItemReader<K> reader() {
-		if (isFlushing()) {
-			KeyNotificationItemReader<K, V> notificationReader = new KeyNotificationItemReader<>(client, codec);
-			notificationReader.setName(getName() + "-key-notification-reader");
-			notificationReader.setQueueCapacity(notificationQueueCapacity);
-			notificationReader.setDatabase(database);
-			notificationReader.setKeyPattern(keyPattern);
-			notificationReader.setKeyType(keyType);
-			notificationReader.setPollTimeout(pollTimeout);
-			return notificationReader;
+	protected boolean isFlushing() {
+		switch (mode) {
+		case LIVE:
+		case LIVE_SCAN:
+			return true;
+		default:
+			return false;
 		}
-		ScanIterator<K> scanIterator = ScanIterator.scan(connection().sync(), scanArgs());
-		return new IteratorItemReader<>(scanIterator);
+	}
+
+	@Override
+	protected ItemReader<K> reader() {
+		switch (mode) {
+		case LIVE:
+			return notificationReader();
+		case LIVE_SCAN:
+			return scanAndNotificationReader();
+		default:
+			return scanReader();
+		}
+	}
+
+	private ItemReader<K> scanAndNotificationReader() {
+		return new KeyScanNotificationItemReader<>(client, codec, scanReader());
+	}
+
+	private IteratorItemReader<K> scanReader() {
+		return new IteratorItemReader<>(ScanIterator.scan(connection().sync(), scanArgs()));
+	}
+
+	private KeyNotificationItemReader<K, V> notificationReader() {
+		KeyNotificationItemReader<K, V> reader = new KeyNotificationItemReader<>(client, codec);
+		reader.setName(getName() + "-key-notification-reader");
+		reader.setQueueCapacity(notificationQueueCapacity);
+		reader.setDatabase(database);
+		reader.setKeyPattern(keyPattern);
+		reader.setKeyType(keyType);
+		reader.setPollTimeout(pollTimeout);
+		return reader;
 	}
 
 	@Override
@@ -199,6 +232,14 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 
 	public void setDatabase(int database) {
 		this.database = database;
+	}
+
+	public ReaderMode getMode() {
+		return mode;
+	}
+
+	public void setMode(ReaderMode mode) {
+		this.mode = mode;
 	}
 
 }
