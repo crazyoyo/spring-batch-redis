@@ -8,7 +8,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.redis.spring.batch.item.AbstractQueuePollableItemReader;
-import com.redis.spring.batch.memcached.MemcachedException;
 import com.redis.spring.batch.memcached.reader.LruCrawlerMetadumpOperation.Callback;
 
 import net.spy.memcached.MemcachedClient;
@@ -40,7 +39,7 @@ public class LruMetadumpItemReader extends AbstractQueuePollableItemReader<LruMe
 			queue.put(entry);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new MemcachedException("Interrupted while trying to add entry to queue", e);
+			throw new RuntimeException("Interrupted while trying to add entry to queue", e);
 		}
 	}
 

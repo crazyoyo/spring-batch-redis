@@ -8,7 +8,6 @@ import java.util.stream.Stream;
 
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamWriter;
 
 import net.spy.memcached.MemcachedClient;
@@ -31,14 +30,14 @@ public class MemcachedItemWriter implements ItemStreamWriter<MemcachedEntry> {
 	}
 
 	@Override
-	public synchronized void open(ExecutionContext executionContext) throws ItemStreamException {
+	public synchronized void open(ExecutionContext executionContext) {
 		if (client == null) {
 			client = clientSupplier.get();
 		}
 	}
 
 	@Override
-	public synchronized void close() throws ItemStreamException {
+	public synchronized void close() {
 		if (client != null) {
 			client.shutdown();
 			client = null;
@@ -52,7 +51,7 @@ public class MemcachedItemWriter implements ItemStreamWriter<MemcachedEntry> {
 		for (int index = 0; index < results.size(); index++) {
 			Boolean result = results.get(index);
 			if (!Boolean.TRUE.equals(result)) {
-				throw new MemcachedException("Could not write key " + chunk.getItems().get(index).getKey());
+				throw new Exception("Could not write key " + chunk.getItems().get(index).getKey());
 			}
 		}
 	}
