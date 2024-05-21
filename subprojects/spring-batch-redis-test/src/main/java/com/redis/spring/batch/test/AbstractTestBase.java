@@ -184,7 +184,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void live(RedisItemReader<?, ?, ?> reader) {
-		reader.setMode(ReaderMode.LIVE);
+		reader.setMode(ReaderMode.LIVEONLY);
 		reader.setIdleTimeout(idleTimeout);
 	}
 

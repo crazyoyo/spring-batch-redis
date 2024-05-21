@@ -19,14 +19,13 @@ public class KeyScanNotificationItemReader<K, V> extends KeyNotificationItemRead
 
 	@Override
 	protected K doPoll(long timeout, TimeUnit unit) throws InterruptedException {
-		K key;
-		if (queue.isEmpty() || (key = super.doPoll(timeout, unit)) == null) {
-			key = scanReader.read();
-			if (queue.contains(new Wrapper<>(key))) {
-				return null;
+		if (queue.isEmpty()) {
+			K key = scanReader.read();
+			if (key != null && !queue.contains(new Wrapper<>(key))) {
+				return key;
 			}
 		}
-		return key;
+		return super.doPoll(timeout, unit);
 	}
 
 }

@@ -30,7 +30,7 @@ import io.lettuce.core.codec.StringCodec;
 public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 
 	public enum ReaderMode {
-		SCAN, LIVE, LIVE_SCAN
+		SCAN, LIVE, LIVEONLY
 	}
 
 	public static final int DEFAULT_POOL_SIZE = OperationExecutor.DEFAULT_POOL_SIZE;
@@ -75,8 +75,8 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 	@Override
 	protected boolean isFlushing() {
 		switch (mode) {
+		case LIVEONLY:
 		case LIVE:
-		case LIVE_SCAN:
 			return true;
 		default:
 			return false;
@@ -86,16 +86,16 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 	@Override
 	protected ItemReader<K> reader() {
 		switch (mode) {
-		case LIVE:
+		case LIVEONLY:
 			return notificationReader();
-		case LIVE_SCAN:
-			return scanAndNotificationReader();
+		case LIVE:
+			return scanNotificationReader();
 		default:
 			return scanReader();
 		}
 	}
 
-	private ItemReader<K> scanAndNotificationReader() {
+	private ItemReader<K> scanNotificationReader() {
 		return new KeyScanNotificationItemReader<>(client, codec, scanReader());
 	}
 
