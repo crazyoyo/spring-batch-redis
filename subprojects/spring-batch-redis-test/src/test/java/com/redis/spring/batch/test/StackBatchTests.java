@@ -29,6 +29,7 @@ import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.util.unit.DataSize;
 
+import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.Range;
 import com.redis.spring.batch.item.redis.RedisItemReader;
 import com.redis.spring.batch.item.redis.RedisItemWriter;
@@ -41,6 +42,7 @@ import com.redis.spring.batch.item.redis.gen.MapOptions;
 import com.redis.spring.batch.item.redis.reader.MemKeyValue;
 import com.redis.spring.batch.item.redis.reader.MemKeyValueRead;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader;
+import com.redis.spring.batch.item.redis.reader.KeyComparison.Status;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader.AckPolicy;
 import com.redis.spring.batch.item.redis.writer.KeyValueWrite.WriteMode;
 import com.redis.spring.batch.item.redis.writer.operation.Del;
@@ -75,6 +77,16 @@ class StackBatchTests extends BatchTests {
 	@Override
 	protected RedisStackContainer getTargetRedisServer() {
 		return target;
+	}
+
+	@Test
+	void compareTimeseries(TestInfo info) throws Exception {
+		int count = 123;
+		for (int index = 0; index < count; index++) {
+			redisCommands.tsAdd("ts:" + index, Sample.of(123));
+		}
+		KeyspaceComparison<String> comparisons = compare(info);
+		Assertions.assertEquals(count, comparisons.get(Status.MISSING).size());
 	}
 
 	@Test

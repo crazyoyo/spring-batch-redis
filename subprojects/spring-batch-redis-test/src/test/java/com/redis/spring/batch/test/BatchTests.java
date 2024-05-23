@@ -990,16 +990,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void compareTimeseries(TestInfo info) throws Exception {
-		int count = 123;
-		for (int index = 0; index < count; index++) {
-			redisCommands.tsAdd("ts:" + index, Sample.of(123));
-		}
-		KeyspaceComparison<String> comparisons = compare(info);
-		Assertions.assertEquals(count, comparisons.get(Status.MISSING).size());
-	}
-
-	@Test
 	void readTimeseries(TestInfo info) throws Exception {
 		String key = "myts";
 		Sample[] samples = { Sample.of(System.currentTimeMillis(), 1.1),

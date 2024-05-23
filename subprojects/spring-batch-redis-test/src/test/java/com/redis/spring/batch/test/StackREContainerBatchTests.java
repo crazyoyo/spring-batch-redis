@@ -7,19 +7,19 @@ import com.redis.enterprise.testcontainers.RedisEnterpriseContainer;
 import com.redis.testcontainers.RedisStackContainer;
 
 @EnabledOnOs(OS.LINUX)
-class REContainerStackTests extends BatchTests {
+class StackREContainerBatchTests extends BatchTests {
 
-	private static final RedisEnterpriseContainer source = RedisContainerFactory.enterprise();
+	private static final RedisStackContainer source = RedisContainerFactory.stack();
 
-	private static final RedisStackContainer target = RedisContainerFactory.stack();
+	private static final RedisEnterpriseContainer target = RedisContainerFactory.enterprise();
 
 	@Override
-	protected RedisEnterpriseContainer getRedisServer() {
+	protected RedisStackContainer getRedisServer() {
 		return source;
 	}
 
 	@Override
-	protected RedisStackContainer getTargetRedisServer() {
+	protected RedisEnterpriseContainer getTargetRedisServer() {
 		return target;
 	}
 

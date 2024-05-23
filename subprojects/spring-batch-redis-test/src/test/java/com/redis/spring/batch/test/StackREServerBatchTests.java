@@ -5,25 +5,24 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import com.redis.enterprise.Database;
 import com.redis.enterprise.RedisModule;
 import com.redis.enterprise.testcontainers.RedisEnterpriseServer;
-import com.redis.testcontainers.RedisServer;
 import com.redis.testcontainers.RedisStackContainer;
 
 @EnabledIfEnvironmentVariable(named = RedisEnterpriseServer.ENV_HOST, matches = ".*")
-class REServerStackTests extends BatchTests {
+class StackREServerBatchTests extends BatchTests {
 
-	private static final RedisEnterpriseServer source = new RedisEnterpriseServer()
+	private static final RedisStackContainer source = RedisContainerFactory.stack();
+
+	private static final RedisEnterpriseServer target = new RedisEnterpriseServer()
 			.withDatabase(Database.builder().shardCount(2).port(12001).ossCluster(true)
 					.modules(RedisModule.JSON, RedisModule.SEARCH, RedisModule.TIMESERIES).build());
 
-	private static final RedisStackContainer target = RedisContainerFactory.stack();
-
 	@Override
-	public RedisServer getRedisServer() {
+	protected RedisStackContainer getRedisServer() {
 		return source;
 	}
 
 	@Override
-	protected RedisStackContainer getTargetRedisServer() {
+	protected RedisEnterpriseServer getTargetRedisServer() {
 		return target;
 	}
 
