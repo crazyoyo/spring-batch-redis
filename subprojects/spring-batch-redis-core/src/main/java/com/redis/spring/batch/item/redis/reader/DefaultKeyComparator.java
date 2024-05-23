@@ -20,15 +20,10 @@ import io.lettuce.core.StreamMessage;
 
 public class DefaultKeyComparator<K, V> implements KeyComparator<K, V> {
 
-	public enum StreamMessageIdPolicy {
-		COMPARE, IGNORE
-	}
-
 	public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
-	public static final StreamMessageIdPolicy DEFAULT_STREAM_MESSAGE_ID_POLICY = StreamMessageIdPolicy.COMPARE;
 
 	private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
-	private StreamMessageIdPolicy streamMessageIdPolicy = DEFAULT_STREAM_MESSAGE_ID_POLICY;
+	private boolean ignoreStreamMessageId;
 
 	@Override
 	public KeyComparison<K> compare(KeyValue<K, Object> source, KeyValue<K, Object> target) {
@@ -158,8 +153,7 @@ public class DefaultKeyComparator<K, V> implements KeyComparator<K, V> {
 			if (!equals(sourceMessage.getStream(), targetMessage.getStream())) {
 				return false;
 			}
-			if (streamMessageIdPolicy == StreamMessageIdPolicy.COMPARE
-					&& !Objects.equals(sourceMessage.getId(), targetMessage.getId())) {
+			if (!ignoreStreamMessageId && !Objects.equals(sourceMessage.getId(), targetMessage.getId())) {
 				return false;
 			}
 			if (!mapEquals(sourceMessage.getBody(), targetMessage.getBody())) {
@@ -177,12 +171,12 @@ public class DefaultKeyComparator<K, V> implements KeyComparator<K, V> {
 		this.ttlTolerance = ttlTolerance;
 	}
 
-	public StreamMessageIdPolicy getStreamMessageIdPolicy() {
-		return streamMessageIdPolicy;
+	public boolean isIgnoreStreamMessageId() {
+		return ignoreStreamMessageId;
 	}
 
-	public void setStreamMessageIdPolicy(StreamMessageIdPolicy streamMessageIdPolicy) {
-		this.streamMessageIdPolicy = streamMessageIdPolicy;
+	public void setIgnoreStreamMessageId(boolean ignore) {
+		this.ignoreStreamMessageId = ignore;
 	}
 
 }
