@@ -15,6 +15,7 @@ import org.springframework.batch.item.UnexpectedInputException;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.gen.CollectionOptions;
 import com.redis.spring.batch.item.redis.gen.GeneratorItemReader;
+import com.redis.spring.batch.item.redis.gen.GeneratorOptions;
 import com.redis.spring.batch.item.redis.gen.StreamOptions;
 
 class GeneratorTests {
@@ -69,13 +70,13 @@ class GeneratorTests {
 		reader.setMaxItemCount(10);
 		reader.open(new ExecutionContext());
 		KeyValue<String, Object> keyValue = reader.read();
-		Assertions.assertEquals(GeneratorItemReader.DEFAULT_KEYSPACE + GeneratorItemReader.DEFAULT_KEY_SEPARATOR
-				+ GeneratorItemReader.DEFAULT_KEY_RANGE.getMin(), keyValue.getKey());
+		Assertions.assertEquals(GeneratorOptions.DEFAULT_KEYSPACE + GeneratorOptions.DEFAULT_KEY_SEPARATOR
+				+ GeneratorOptions.DEFAULT_KEY_RANGE.getMin(), keyValue.getKey());
 		String lastKey;
 		do {
 			lastKey = keyValue.getKey();
 		} while ((keyValue = reader.read()) != null);
-		Assertions.assertEquals(GeneratorItemReader.DEFAULT_KEYSPACE + GeneratorItemReader.DEFAULT_KEY_SEPARATOR + 10,
+		Assertions.assertEquals(GeneratorOptions.DEFAULT_KEYSPACE + GeneratorOptions.DEFAULT_KEY_SEPARATOR + 10,
 				lastKey);
 	}
 

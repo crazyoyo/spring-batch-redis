@@ -36,6 +36,7 @@ import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.DataType;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.gen.GeneratorItemReader;
+import com.redis.spring.batch.item.redis.gen.GeneratorOptions;
 import com.redis.spring.batch.item.redis.gen.MapOptions;
 import com.redis.spring.batch.item.redis.reader.MemKeyValue;
 import com.redis.spring.batch.item.redis.reader.MemKeyValueRead;
@@ -384,7 +385,7 @@ class StackBatchTests extends BatchTests {
 		Del<String, String, KeyValue<String, Object>> del = new Del<>(KeyValue::getKey);
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = writer(del);
 		run(info, gen, writer);
-		assertEquals(0, keyCount(GeneratorItemReader.DEFAULT_KEYSPACE + "*"));
+		assertEquals(0, keyCount(GeneratorOptions.DEFAULT_KEYSPACE + "*"));
 	}
 
 	@Test
@@ -518,10 +519,10 @@ class StackBatchTests extends BatchTests {
 	@Test
 	void writeStructOverwrite(TestInfo info) throws Exception {
 		GeneratorItemReader gen1 = generator(100, DataType.HASH);
-		gen1.setHashOptions(hashOptions(Range.of(5)));
+		gen1.getOptions().setHashOptions(hashOptions(Range.of(5)));
 		generate(info, gen1);
 		GeneratorItemReader gen2 = generator(100, DataType.HASH);
-		gen2.setHashOptions(hashOptions(Range.of(10)));
+		gen2.getOptions().setHashOptions(hashOptions(Range.of(10)));
 		generate(testInfo(info, "target"), targetRedisClient, gen2);
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(targetRedisClient);
@@ -532,10 +533,10 @@ class StackBatchTests extends BatchTests {
 	@Test
 	void writeStructMerge(TestInfo info) throws Exception {
 		GeneratorItemReader gen1 = generator(100, DataType.HASH);
-		gen1.setHashOptions(hashOptions(Range.of(5)));
+		gen1.getOptions().setHashOptions(hashOptions(Range.of(5)));
 		generate(info, gen1);
 		GeneratorItemReader gen2 = generator(100, DataType.HASH);
-		gen2.setHashOptions(hashOptions(Range.of(10)));
+		gen2.getOptions().setHashOptions(hashOptions(Range.of(10)));
 		generate(testInfo(info, "target"), targetRedisClient, gen2);
 		RedisItemReader<String, String, MemKeyValue<String, Object>> reader = structReader(info);
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct(WriteMode.MERGE);
@@ -548,7 +549,7 @@ class StackBatchTests extends BatchTests {
 	@Test
 	void compareStreams(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(10);
-		gen.setTypes(DataType.STREAM);
+		gen.getOptions().setTypes(DataType.STREAM);
 		generate(info, gen);
 		RedisItemReader<String, String, MemKeyValue<String, Object>> reader = structReader(info);
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();

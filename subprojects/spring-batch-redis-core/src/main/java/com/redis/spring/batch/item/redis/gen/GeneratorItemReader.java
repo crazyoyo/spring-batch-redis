@@ -1,7 +1,6 @@
 package com.redis.spring.batch.item.redis.gen;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -28,156 +27,29 @@ import io.lettuce.core.StreamMessage;
 
 public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<KeyValue<String, Object>> {
 
-	public static final String DEFAULT_KEYSPACE = "gen";
-	public static final String DEFAULT_KEY_SEPARATOR = ":";
-	public static final Range DEFAULT_KEY_RANGE = Range.from(1);
-	protected static final List<DataType> DEFAULT_TYPES = Arrays.asList(DataType.HASH, DataType.JSON, DataType.LIST,
-			DataType.SET, DataType.STREAM, DataType.STRING, DataType.TIMESERIES, DataType.ZSET);
-
 	private static final int LEFT_LIMIT = 48; // numeral '0'
 	private static final int RIGHT_LIMIT = 122; // letter 'z'
 	private static final Random random = new Random();
 	private final ObjectMapper mapper = new ObjectMapper();
 
-	private String keySeparator = DEFAULT_KEY_SEPARATOR;
-	private String keyspace = DEFAULT_KEYSPACE;
-	private Range keyRange = DEFAULT_KEY_RANGE;
-	private Range expiration;
-	private MapOptions hashOptions = new MapOptions();
-	private StreamOptions streamOptions = new StreamOptions();
-	private TimeSeriesOptions timeSeriesOptions = new TimeSeriesOptions();
-	private MapOptions jsonOptions = new MapOptions();
-	private CollectionOptions listOptions = new CollectionOptions();
-	private CollectionOptions setOptions = new CollectionOptions();
-	private StringOptions stringOptions = new StringOptions();
-	private ZsetOptions zsetOptions = new ZsetOptions();
-	private List<DataType> types = DEFAULT_TYPES;
+	private GeneratorOptions options = new GeneratorOptions();
 
 	public GeneratorItemReader() {
 		setName(ClassUtils.getShortName(getClass()));
 	}
 
-	public static List<DataType> defaultTypes() {
-		return DEFAULT_TYPES;
-	}
-
-	public String getKeySeparator() {
-		return keySeparator;
-	}
-
-	public void setKeySeparator(String keySeparator) {
-		this.keySeparator = keySeparator;
-	}
-
-	public void setKeyRange(Range range) {
-		this.keyRange = range;
-	}
-
-	public Range getKeyRange() {
-		return keyRange;
-	}
-
-	public Range getExpiration() {
-		return expiration;
-	}
-
-	public MapOptions getHashOptions() {
-		return hashOptions;
-	}
-
-	public StreamOptions getStreamOptions() {
-		return streamOptions;
-	}
-
-	public TimeSeriesOptions getTimeSeriesOptions() {
-		return timeSeriesOptions;
-	}
-
-	public MapOptions getJsonOptions() {
-		return jsonOptions;
-	}
-
-	public CollectionOptions getListOptions() {
-		return listOptions;
-	}
-
-	public CollectionOptions getSetOptions() {
-		return setOptions;
-	}
-
-	public StringOptions getStringOptions() {
-		return stringOptions;
-	}
-
-	public ZsetOptions getZsetOptions() {
-		return zsetOptions;
-	}
-
-	public String getKeyspace() {
-		return keyspace;
-	}
-
-	public List<DataType> getTypes() {
-		return types;
-	}
-
-	public void setExpiration(Range range) {
-		this.expiration = range;
-	}
-
-	public void setHashOptions(MapOptions options) {
-		this.hashOptions = options;
-	}
-
-	public void setStreamOptions(StreamOptions options) {
-		this.streamOptions = options;
-	}
-
-	public void setJsonOptions(MapOptions options) {
-		this.jsonOptions = options;
-	}
-
-	public void setTimeSeriesOptions(TimeSeriesOptions options) {
-		this.timeSeriesOptions = options;
-	}
-
-	public void setListOptions(CollectionOptions options) {
-		this.listOptions = options;
-	}
-
-	public void setSetOptions(CollectionOptions options) {
-		this.setOptions = options;
-	}
-
-	public void setZsetOptions(ZsetOptions options) {
-		this.zsetOptions = options;
-	}
-
-	public void setStringOptions(StringOptions options) {
-		this.stringOptions = options;
-	}
-
-	public void setKeyspace(String keyspace) {
-		this.keyspace = keyspace;
-	}
-
-	public void setTypes(DataType... types) {
-		setTypes(Arrays.asList(types));
-	}
-
-	public void setTypes(List<DataType> types) {
-		this.types = types;
-	}
-
 	private String key() {
-		int index = keyRange.getMin() + (getCurrentItemCount() - 1) % (keyRange.getMax() - keyRange.getMin());
-		return key(index);
+		return key(index(options.getKeyRange()));
+	}
+
+	private int index(Range range) {
+		return range.getMin() + (getCurrentItemCount() - 1) % (range.getMax() - range.getMin());
 	}
 
 	public String key(int index) {
 		StringBuilder builder = new StringBuilder();
-		builder.append(keyspace);
-		builder.append(keySeparator);
+		builder.append(options.getKeyspace());
+		builder.append(options.getKeySeparator());
 		builder.append(index);
 		return builder.toString();
 	}
@@ -206,28 +78,28 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	private String json() throws JsonProcessingException {
-		return mapper.writeValueAsString(map(jsonOptions));
+		return mapper.writeValueAsString(map(options.getJsonOptions()));
 	}
 
 	private Map<String, String> hash() {
-		return map(hashOptions);
+		return map(options.getHashOptions());
 	}
 
 	private String string() {
-		return string(stringOptions.getLength());
+		return string(options.getStringOptions().getLength());
 	}
 
 	private List<String> list() {
-		return members(listOptions).collect(Collectors.toList());
+		return members(options.getListOptions()).collect(Collectors.toList());
 	}
 
 	private Set<String> set() {
-		return members(setOptions).collect(Collectors.toSet());
+		return members(options.getSetOptions()).collect(Collectors.toSet());
 	}
 
 	private List<Sample> samples() {
 		List<Sample> samples = new ArrayList<>();
-		int size = randomInt(timeSeriesOptions.getSampleCount());
+		int size = randomInt(options.getTimeSeriesOptions().getSampleCount());
 		long startTime = timeSeriesStartTime();
 		for (int index = 0; index < size; index++) {
 			long time = startTime + getCurrentItemCount() + index;
@@ -237,23 +109,24 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	private long timeSeriesStartTime() {
-		return timeSeriesOptions.getStartTime().toEpochMilli();
+		return options.getTimeSeriesOptions().getStartTime().toEpochMilli();
 	}
 
 	private Set<ScoredValue<String>> zset() {
-		return members(zsetOptions).map(this::scoredValue).collect(Collectors.toSet());
+		return members(options.getZsetOptions()).map(this::scoredValue).collect(Collectors.toSet());
 	}
 
 	private ScoredValue<String> scoredValue(String value) {
-		double score = randomDouble(zsetOptions.getScore());
+		double score = randomDouble(options.getZsetOptions().getScore());
 		return ScoredValue.just(score, value);
 	}
 
 	private Collection<StreamMessage<String, String>> streamMessages() {
 		String key = key();
 		Collection<StreamMessage<String, String>> messages = new ArrayList<>();
-		for (int elementIndex = 0; elementIndex < randomInt(streamOptions.getMessageCount()); elementIndex++) {
-			messages.add(new StreamMessage<>(key, null, map(streamOptions.getBodyOptions())));
+		for (int elementIndex = 0; elementIndex < randomInt(
+				options.getStreamOptions().getMessageCount()); elementIndex++) {
+			messages.add(new StreamMessage<>(key, null, map(options.getStreamOptions().getBodyOptions())));
 		}
 		return messages;
 	}
@@ -312,17 +185,24 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	protected KeyValue<String, Object> doRead() throws JsonProcessingException {
 		KeyValue<String, Object> struct = new KeyValue<>();
 		struct.setKey(key());
-		DataType type = types.get(getCurrentItemCount() % types.size());
+		DataType type = options.getTypes().get(getCurrentItemCount() % options.getTypes().size());
 		struct.setType(type.getString());
 		struct.setValue(value(type));
-		if (expiration != null) {
+		if (options.getExpiration() != null) {
 			struct.setTtl(ttl());
 		}
 		return struct;
 	}
 
 	private long ttl() {
-		return System.currentTimeMillis() + randomInt(expiration);
+		return System.currentTimeMillis() + randomInt(options.getExpiration());
 	}
 
+	public GeneratorOptions getOptions() {
+		return options;
+	}
+
+	public void setOptions(GeneratorOptions options) {
+		this.options = options;
+	}
 }

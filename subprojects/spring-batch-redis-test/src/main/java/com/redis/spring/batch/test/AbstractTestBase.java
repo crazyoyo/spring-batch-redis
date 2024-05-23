@@ -178,7 +178,7 @@ public abstract class AbstractTestBase {
 		GeneratorItemReader gen = new GeneratorItemReader();
 		gen.setMaxItemCount(count);
 		if (!ObjectUtils.isEmpty(types)) {
-			gen.setTypes(types);
+			gen.getOptions().setTypes(types);
 		}
 		return gen;
 	}
@@ -402,7 +402,7 @@ public abstract class AbstractTestBase {
 		GeneratorItemReader gen = generator(3, DataType.STREAM);
 		StreamOptions streamOptions = new StreamOptions();
 		streamOptions.setMessageCount(Range.of(messageCount));
-		gen.setStreamOptions(streamOptions);
+		gen.getOptions().setStreamOptions(streamOptions);
 		generate(info, gen);
 	}
 

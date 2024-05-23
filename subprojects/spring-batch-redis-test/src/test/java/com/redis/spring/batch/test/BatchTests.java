@@ -703,11 +703,11 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	void replicateStructEmptyCollections(TestInfo info) throws Exception {
 		GeneratorItemReader gen = generator(123);
 		Range cardinality = Range.of(0);
-		gen.getHashOptions().setFieldCount(cardinality);
-		gen.getSetOptions().setMemberCount(cardinality);
-		gen.getStreamOptions().setMessageCount(cardinality);
-		gen.getTimeSeriesOptions().setSampleCount(cardinality);
-		gen.getZsetOptions().setMemberCount(cardinality);
+		gen.getOptions().getHashOptions().setFieldCount(cardinality);
+		gen.getOptions().getSetOptions().setMemberCount(cardinality);
+		gen.getOptions().getStreamOptions().setMessageCount(cardinality);
+		gen.getOptions().getTimeSeriesOptions().setSampleCount(cardinality);
+		gen.getOptions().getZsetOptions().setMemberCount(cardinality);
 		generate(info, gen);
 		RedisItemReader<String, String, MemKeyValue<String, Object>> reader = structReader(info);
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
@@ -794,8 +794,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		FlushingStepBuilder<? extends KeyValue<K, T>, KeyValue<K, T>> flushingStepBuilder = flushingStep(
 				new SimpleTestInfo(info, "liveStep"), liveReader, liveWriter);
 		GeneratorItemReader liveGen = generator(700, types);
-		liveGen.setExpiration(Range.of(100));
-		liveGen.setKeyRange(Range.from(300));
+		liveGen.getOptions().setExpiration(Range.of(100));
+		liveGen.getOptions().setKeyRange(Range.from(300));
 		generateAsync(testInfo(info, "genasync"), liveGen);
 		TaskletStep liveStep = faultTolerant(flushingStepBuilder).build();
 		SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "liveFlow"))).start(liveStep)
