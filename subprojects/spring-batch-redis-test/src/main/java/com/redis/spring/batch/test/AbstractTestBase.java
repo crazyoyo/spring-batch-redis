@@ -36,6 +36,7 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
@@ -121,8 +122,10 @@ public abstract class AbstractTestBase {
 		redisCommands = redisConnection.sync();
 		redisAsyncCommands = redisConnection.async();
 		jobRepository = JobUtils.jobRepositoryFactoryBean().getObject();
+		Assert.notNull(jobRepository, "Job repository is null");
 		transactionManager = JobUtils.resourcelessTransactionManager();
 		jobLauncher = new TaskExecutorJobLauncher();
+		jobLauncher.setTaskExecutor(new SyncTaskExecutor());
 		jobLauncher.setJobRepository(jobRepository);
 		jobLauncher.afterPropertiesSet();
 	}
