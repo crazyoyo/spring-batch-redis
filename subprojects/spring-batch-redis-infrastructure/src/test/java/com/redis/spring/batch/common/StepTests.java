@@ -28,6 +28,7 @@ import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.JobUtils;
 import com.redis.spring.batch.step.FlushingFaultTolerantStepBuilder;
@@ -45,7 +46,7 @@ class StepTests {
 
 	@BeforeAll
 	void initialize() throws Exception {
-		jobRepository = JobUtils.jobRepositoryFactoryBean().getObject();
+		jobRepository = JobUtils.jobRepositoryFactoryBean(ClassUtils.getShortName(getClass())).getObject();
 		transactionManager = JobUtils.resourcelessTransactionManager();
 		jobLauncher = new TaskExecutorJobLauncher();
 		jobLauncher.setJobRepository(jobRepository);

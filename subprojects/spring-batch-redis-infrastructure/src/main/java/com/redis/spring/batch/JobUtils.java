@@ -25,9 +25,9 @@ public abstract class JobUtils {
 		return new ResourcelessTransactionManager();
 	}
 
-	public static JobRepositoryFactoryBean jobRepositoryFactoryBean() throws Exception {
+	public static JobRepositoryFactoryBean jobRepositoryFactoryBean(String name) throws Exception {
 		JobRepositoryFactoryBean bean = new JobRepositoryFactoryBean();
-		bean.setDataSource(hsqldbDataSource("redis"));
+		bean.setDataSource(hsqldbDataSource(name));
 		bean.setDatabaseType("HSQL");
 		bean.setTransactionManager(resourcelessTransactionManager());
 		bean.afterPropertiesSet();

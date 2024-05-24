@@ -34,6 +34,7 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 	public static final int DEFAULT_CHUNK_SIZE = 50;
 	public static final Duration DEFAULT_FLUSH_INTERVAL = FlushingChunkProvider.DEFAULT_FLUSH_INTERVAL;
 	public static final Duration DEFAULT_IDLE_TIMEOUT = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
+	public static final String DEFAULT_JOB_REPOSITORY_NAME = "redis";
 
 	private ItemReader<S> reader;
 	private ItemProcessor<S, S> processor;
@@ -43,20 +44,17 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 	private int retryLimit;
 	private Duration flushInterval = DEFAULT_FLUSH_INTERVAL;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
+	private String jobRepositoryName = DEFAULT_JOB_REPOSITORY_NAME;
 	private JobRepository jobRepository;
 	private PlatformTransactionManager transactionManager = JobUtils.resourcelessTransactionManager();
 
 	private JobExecution jobExecution;
 
-	public ItemReader<S> getReader() {
-		return reader;
-	}
-
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		super.doOpen();
 		if (jobRepository == null) {
-			jobRepository = JobUtils.jobRepositoryFactoryBean().getObject();
+			jobRepository = JobUtils.jobRepositoryFactoryBean(jobRepositoryName).getObject();
 		}
 		if (jobExecution == null) {
 			SimpleStepBuilder<S, S> step = step();
@@ -142,6 +140,14 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 		return jobExecution == null || !jobExecution.isRunning();
 	}
 
+	public String getJobRepositoryName() {
+		return jobRepositoryName;
+	}
+
+	public void setJobRepositoryName(String name) {
+		this.jobRepositoryName = name;
+	}
+
 	public JobRepository getJobRepository() {
 		return jobRepository;
 	}
@@ -162,6 +168,10 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 
 	public JobExecution getJobExecution() {
 		return jobExecution;
+	}
+
+	public ItemReader<S> getReader() {
+		return reader;
 	}
 
 	public ItemProcessor<S, S> getProcessor() {
