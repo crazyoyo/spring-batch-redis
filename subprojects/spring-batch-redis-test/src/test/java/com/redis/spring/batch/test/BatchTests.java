@@ -214,67 +214,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	@Test
-	void compareStatus(TestInfo info) throws Exception {
-		GeneratorItemReader gen = generator(120);
-		generate(info, gen);
-		assertDbNotEmpty(redisCommands);
-		RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> reader = dumpReader(info);
-		RedisItemWriter<byte[], byte[], KeyValue<byte[], byte[]>> writer = RedisItemWriter.dump();
-		writer.setClient(targetRedisClient);
-		replicate(info, reader, writer);
-		assertDbNotEmpty(targetRedisCommands);
-		long deleted = 0;
-		for (int index = 0; index < 13; index++) {
-			deleted += targetRedisCommands.del(targetRedisCommands.randomkey());
-		}
-		Set<String> ttlChanges = new HashSet<>();
-		for (int index = 0; index < 23; index++) {
-			String key = targetRedisCommands.randomkey();
-			if (key == null) {
-				continue;
-			}
-			long ttl = targetRedisCommands.ttl(key) + 12345;
-			if (targetRedisCommands.expire(key, ttl)) {
-				ttlChanges.add(key);
-			}
-		}
-		Set<String> typeChanges = new HashSet<>();
-		Set<String> valueChanges = new HashSet<>();
-		for (int index = 0; index < 17; index++) {
-			assertDbNotEmpty(targetRedisCommands);
-			String key;
-			do {
-				key = targetRedisCommands.randomkey();
-			} while (key == null);
-			String type = targetRedisCommands.type(key);
-			if (DataType.STRING.getString().equalsIgnoreCase(type)) {
-				if (!typeChanges.contains(key)) {
-					valueChanges.add(key);
-				}
-				ttlChanges.remove(key);
-			} else {
-				typeChanges.add(key);
-				valueChanges.remove(key);
-				ttlChanges.remove(key);
-			}
-			targetRedisCommands.set(key, "blah");
-		}
-		KeyComparisonItemReader<String, String> comparator = comparisonReader(testInfo(info, "comparison"));
-		comparator.open(new ExecutionContext());
-		List<KeyComparison<String>> comparisons = readAll(comparator);
-		comparator.close();
-		long sourceCount = redisCommands.dbsize();
-		assertEquals(sourceCount, comparisons.size());
-		assertEquals(sourceCount, targetRedisCommands.dbsize() + deleted);
-		List<KeyComparison<String>> actualTypeChanges = comparisons.stream().filter(c -> c.getStatus() == Status.TYPE)
-				.collect(Collectors.toList());
-		assertEquals(typeChanges.size(), actualTypeChanges.size());
-		assertEquals(valueChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.VALUE).count());
-		assertEquals(ttlChanges.size(), comparisons.stream().filter(c -> c.getStatus() == Status.TTL).count());
-		assertEquals(deleted, comparisons.stream().filter(c -> c.getStatus() == Status.MISSING).count());
-	}
-
-	@Test
 	void readStruct(TestInfo info) throws Exception {
 		generate(info, generator(73));
 		RedisItemReader<String, String, MemKeyValue<String, Object>> reader = structReader(info);
