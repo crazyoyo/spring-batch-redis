@@ -64,7 +64,7 @@ public abstract class JobUtils {
 		return jobExecution;
 	}
 
-	private static JobExecutionException stepExecutionException(StepExecution stepExecution) {
+	public static JobExecutionException stepExecutionException(StepExecution stepExecution) {
 		String message = String.format(STEP_ERROR, stepExecution.getStepName(),
 				stepExecution.getExitStatus().getExitDescription());
 		if (stepExecution.getFailureExceptions().isEmpty()) {
@@ -73,7 +73,7 @@ public abstract class JobUtils {
 		return new JobExecutionException(message, stepExecution.getFailureExceptions().get(0));
 	}
 
-	private static boolean isFailed(ExitStatus exitStatus) {
+	public static boolean isFailed(ExitStatus exitStatus) {
 		return exitStatus.getExitCode().equals(ExitStatus.FAILED.getExitCode());
 	}
 

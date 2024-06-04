@@ -19,7 +19,7 @@ import com.redis.spring.batch.item.redis.reader.KeyComparison.Status;
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
 
-public class DefaultKeyComparator<K, V> implements KeyComparator<K, V> {
+public class DefaultKeyComparator<K, V> implements KeyComparator<K> {
 
 	public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 

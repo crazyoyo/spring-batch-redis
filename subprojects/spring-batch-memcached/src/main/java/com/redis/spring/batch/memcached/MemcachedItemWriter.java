@@ -51,7 +51,7 @@ public class MemcachedItemWriter implements ItemStreamWriter<MemcachedEntry> {
 		for (int index = 0; index < results.size(); index++) {
 			Boolean result = results.get(index);
 			if (!Boolean.TRUE.equals(result)) {
-				throw new MemcachedWriteException("Could not write key " + chunk.getItems().get(index).getKey());
+				throw new MemcachedException("Could not write key " + chunk.getItems().get(index).getKey());
 			}
 		}
 	}

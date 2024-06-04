@@ -19,9 +19,9 @@ public class KeyComparisonItemProcessor<K, V, T extends KeyValue<K, Object>>
 		implements ItemProcessor<Iterable<? extends T>, List<KeyComparison<K>>>, ItemStream {
 
 	private final OperationExecutor<K, V, K, T> reader;
-	private final KeyComparator<K, V> comparator;
+	private final KeyComparator<K> comparator;
 
-	public KeyComparisonItemProcessor(OperationExecutor<K, V, K, T> reader, KeyComparator<K, V> comparator) {
+	public KeyComparisonItemProcessor(OperationExecutor<K, V, K, T> reader, KeyComparator<K> comparator) {
 		this.reader = reader;
 		this.comparator = comparator;
 	}
