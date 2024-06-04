@@ -1,15 +1,20 @@
 package com.redis.spring.batch.item.redis.common;
 
+import java.util.Objects;
+
 import org.springframework.util.StringUtils;
 
 public class KeyValue<K, T> {
 
+	public static final long TTL_NONE = -1;
 	public static final long TTL_NO_KEY = -2;
 
 	private K key;
 	private String type;
 	private T value;
+	private long time;
 	private long ttl;
+	private long memoryUsage;
 
 	public KeyValue() {
 	}
@@ -19,6 +24,49 @@ public class KeyValue<K, T> {
 		this.ttl = other.ttl;
 		this.type = other.type;
 		this.value = other.value;
+		this.memoryUsage = other.memoryUsage;
+		this.time = other.time;
+	}
+
+	public static boolean exists(KeyValue<?, ?> keyValue) {
+		return keyValue != null && hasKey(keyValue) && keyValue.getTtl() != TTL_NO_KEY
+				&& type(keyValue) != DataType.NONE;
+	}
+
+	public static boolean hasKey(KeyValue<?, ?> keyValue) {
+		return keyValue.key != null;
+	}
+
+	public static boolean hasTtl(KeyValue<?, ?> keyValue) {
+		return keyValue.getTtl() > 0;
+	}
+
+	public static boolean hasValue(KeyValue<?, ?> keyValue) {
+		return keyValue.getValue() != null;
+	}
+
+	public static boolean hasType(KeyValue<?, ?> keyValue) {
+		return StringUtils.hasLength(keyValue.getType());
+	}
+
+	public static DataType type(KeyValue<?, ?> keyValue) {
+		if (hasType(keyValue)) {
+			return DataType.of(keyValue.getType());
+		}
+		return null;
+	}
+
+	/**
+	 * 
+	 * @param keyValue the KeyValue to get expiration time from
+	 * @return Expiration time of a Redis key or -1 if no expire time is set for
+	 *         this key
+	 */
+	public static long absoluteTTL(KeyValue<?, ?> keyValue) {
+		if (hasTtl(keyValue)) {
+			return keyValue.getTime() + keyValue.getTtl();
+		}
+		return TTL_NONE;
 	}
 
 	public K getKey() {
@@ -47,7 +95,21 @@ public class KeyValue<K, T> {
 
 	/**
 	 * 
-	 * @return Expiration POSIX time in milliseconds
+	 * @return number of bytes that a Redis key and its value require to be stored
+	 *         in RAM
+	 */
+	public long getMemoryUsage() {
+		return memoryUsage;
+	}
+
+	public void setMemoryUsage(long mem) {
+		this.memoryUsage = mem;
+	}
+
+	/**
+	 * 
+	 * @return remaining time to live in milliseconds of a Redis key that has an
+	 *         expire set
 	 */
 	public long getTtl() {
 		return ttl;
@@ -57,31 +119,39 @@ public class KeyValue<K, T> {
 		this.ttl = ttl;
 	}
 
-	public static boolean exists(KeyValue<?, ?> kv) {
-		return kv != null && hasKey(kv) && kv.getTtl() != TTL_NO_KEY && type(kv) != DataType.NONE;
+	/**
+	 * 
+	 * @return POSIX time in milliseconds when the key was read from Redis
+	 */
+	public long getTime() {
+		return time;
 	}
 
-	public static boolean hasKey(KeyValue<?, ?> kv) {
-		return kv.getKey() != null;
+	public void setTime(long time) {
+		this.time = time;
 	}
 
-	public static boolean hasTtl(KeyValue<?, ?> kv) {
-		return kv.getTtl() > 0;
+	@Override
+	public String toString() {
+		return "KeyValue [key=" + key + "]";
 	}
 
-	public static boolean hasValue(KeyValue<?, ?> keyValue) {
-		return keyValue.getValue() != null;
+	@Override
+	public int hashCode() {
+		return Objects.hash(KeyWrapper.hashCode(key), memoryUsage, time, ttl, type, value);
 	}
 
-	public static boolean hasType(KeyValue<?, ?> keyValue) {
-		return StringUtils.hasLength(keyValue.getType());
-	}
-
-	public static DataType type(KeyValue<?, ?> keyValue) {
-		if (hasType(keyValue)) {
-			return DataType.of(keyValue.getType());
-		}
-		return null;
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		KeyValue<?, ?> other = (KeyValue<?, ?>) obj;
+		return KeyWrapper.equals(this, other) && memoryUsage == other.memoryUsage && time == other.time
+				&& ttl == other.ttl && Objects.equals(type, other.type) && Objects.equals(value, other.value);
 	}
 
 }

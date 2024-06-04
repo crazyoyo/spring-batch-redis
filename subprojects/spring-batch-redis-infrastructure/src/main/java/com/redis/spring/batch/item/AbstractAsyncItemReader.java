@@ -2,6 +2,9 @@ package com.redis.spring.batch.item;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.springframework.batch.core.Job;
@@ -11,9 +14,9 @@ import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
@@ -28,13 +31,16 @@ import com.redis.spring.batch.JobUtils;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 
-public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollableItemReader<T> {
+public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItemReader<T> {
 
 	public static final int DEFAULT_THREADS = 1;
 	public static final int DEFAULT_CHUNK_SIZE = 50;
 	public static final Duration DEFAULT_FLUSH_INTERVAL = FlushingChunkProvider.DEFAULT_FLUSH_INTERVAL;
 	public static final Duration DEFAULT_IDLE_TIMEOUT = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
 	public static final String DEFAULT_JOB_REPOSITORY_NAME = "redis";
+	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
+
+	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
 	private ItemReader<S> reader;
 	private ItemProcessor<S, S> processor;
@@ -48,11 +54,14 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 	private JobRepository jobRepository;
 	private PlatformTransactionManager transactionManager = JobUtils.resourcelessTransactionManager();
 
+	private BlockingQueue<T> queue;
 	private JobExecution jobExecution;
 
 	@Override
 	protected synchronized void doOpen() throws Exception {
-		super.doOpen();
+		if (queue == null) {
+			queue = new LinkedBlockingQueue<>(queueCapacity);
+		}
 		if (jobRepository == null) {
 			jobRepository = JobUtils.jobRepositoryFactoryBean(jobRepositoryName).getObject();
 		}
@@ -61,6 +70,11 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 			Job job = new JobBuilder(getName(), jobRepository).start(step.build()).build();
 			jobExecution = runJob(job);
 		}
+	}
+
+	@Override
+	protected T doPoll(long timeout, TimeUnit unit) throws InterruptedException {
+		return queue.poll(timeout, unit);
 	}
 
 	private JobExecution runJob(Job job) throws Exception {
@@ -89,9 +103,10 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 			Await.await().untilFalse(jobExecution::isRunning);
 			jobExecution = null;
 		}
+		queue = null;
 	}
 
-	private FaultTolerantStepBuilder<S, S> step() {
+	private SimpleStepBuilder<S, S> step() {
 		SimpleStepBuilder<S, S> step = stepBuilder();
 		reader = reader();
 		step.reader(reader);
@@ -114,14 +129,25 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 	protected abstract ItemProcessor<Iterable<? extends S>, List<T>> writeProcessor();
 
 	private ItemWriter<S> writer() {
-		return new ProcessingItemWriter<>(writeProcessor(), new QueueItemWriter<>(queue));
+		return new ProcessingItemWriter<>(writeProcessor(), new Writer());
 	}
 
-	protected FaultTolerantStepBuilder<S, S> faultTolerant(SimpleStepBuilder<S, S> step) {
-		FaultTolerantStepBuilder<S, S> ftStep = step.faultTolerant();
-		ftStep.retryLimit(retryLimit);
-		ftStep.skipLimit(skipLimit);
-		return ftStep;
+	private class Writer implements ItemWriter<T> {
+
+		@Override
+		public void write(Chunk<? extends T> chunk) throws InterruptedException {
+			for (T element : chunk) {
+				queue.put(element);
+			}
+		}
+
+	}
+
+	protected SimpleStepBuilder<S, S> faultTolerant(SimpleStepBuilder<S, S> step) {
+		if (retryLimit != 0 || skipLimit != 0) {
+			return JobUtils.faultTolerant(step).retryLimit(retryLimit).skipLimit(skipLimit);
+		}
+		return step;
 	}
 
 	private SimpleStepBuilder<S, S> stepBuilder() {
@@ -138,6 +164,18 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractQueuePollabl
 	@Override
 	public boolean isComplete() {
 		return jobExecution == null || !jobExecution.isRunning();
+	}
+
+	public BlockingQueue<T> getQueue() {
+		return queue;
+	}
+
+	public int getQueueCapacity() {
+		return queueCapacity;
+	}
+
+	public void setQueueCapacity(int queueCapacity) {
+		this.queueCapacity = queueCapacity;
 	}
 
 	public String getJobRepositoryName() {

@@ -3,14 +3,18 @@ package com.redis.spring.batch.item.redis.reader;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.springframework.util.ClassUtils;
 
-import com.redis.spring.batch.item.AbstractQueuePollableItemReader;
+import com.redis.spring.batch.item.AbstractPollableItemReader;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.DataType;
+import com.redis.spring.batch.item.redis.common.KeyWrapper;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
@@ -19,11 +23,12 @@ import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 
-public class KeyNotificationItemReader<K, V> extends AbstractQueuePollableItemReader<K> {
+public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<K> {
+
+	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 
 	private static final String KEYSPACE_PATTERN = "__keyspace@%s__:%s";
 	private static final String KEYEVENT_PATTERN = "__keyevent@%s__:*";
-
 	private static final String SEPARATOR = ":";
 
 	private final KeyNotificationDataTypeFunction dataTypeFunction = new KeyNotificationDataTypeFunction();
@@ -33,14 +38,14 @@ public class KeyNotificationItemReader<K, V> extends AbstractQueuePollableItemRe
 	private final Function<K, String> keyDecoder;
 	private final Function<V, String> valueDecoder;
 
-	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
-
+	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 	private int database;
 	private String keyPattern;
 	private String keyType;
 
+	protected BlockingQueue<KeyWrapper<K>> queue;
 	private AutoCloseable publisher;
-	private HashSet<Wrapper<K>> keySet;
+	private Set<KeyWrapper<K>> keySet;
 	private List<KeyEventListener<K>> notificationListeners = new ArrayList<>();
 
 	public KeyNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
@@ -74,9 +79,12 @@ public class KeyNotificationItemReader<K, V> extends AbstractQueuePollableItemRe
 
 	@Override
 	protected synchronized void doOpen() throws Exception {
-		super.doOpen();
+		if (queue == null) {
+			queue = new LinkedBlockingQueue<>(queueCapacity);
+		}
+
 		if (keySet == null) {
-			keySet = new HashSet<>(getQueueCapacity());
+			keySet = new HashSet<>(queueCapacity);
 		}
 		if (publisher == null) {
 			publisher = publisher();
@@ -90,7 +98,7 @@ public class KeyNotificationItemReader<K, V> extends AbstractQueuePollableItemRe
 			publisher = null;
 		}
 		keySet = null;
-		super.doClose();
+		queue = null;
 	}
 
 	private void keySpaceNotification(K channel, V message) {
@@ -104,11 +112,11 @@ public class KeyNotificationItemReader<K, V> extends AbstractQueuePollableItemRe
 
 	private void addEvent(K key, String event) {
 		if (acceptType(event)) {
-			Wrapper<K> wrapper = new Wrapper<>(key);
+			KeyWrapper<K> wrapper = new KeyWrapper<>(key);
 			if (keySet.contains(wrapper)) {
 				notifyListeners(key, event, KeyNotificationStatus.DUPLICATE);
 			} else {
-				boolean added = queue.offer(key);
+				boolean added = queue.offer(wrapper);
 				if (added) {
 					keySet.add(wrapper);
 				} else {
@@ -162,12 +170,24 @@ public class KeyNotificationItemReader<K, V> extends AbstractQueuePollableItemRe
 
 	@Override
 	protected K doPoll(long timeout, TimeUnit unit) throws InterruptedException {
-		K key = super.doPoll(timeout, unit);
+		KeyWrapper<K> key = queue.poll(timeout, unit);
 		if (key == null) {
 			return null;
 		}
-		keySet.remove(new Wrapper<>(key));
-		return key;
+		keySet.remove(key);
+		return key.getKey();
+	}
+
+	public BlockingQueue<KeyWrapper<K>> getQueue() {
+		return queue;
+	}
+
+	public int getQueueCapacity() {
+		return queueCapacity;
+	}
+
+	public void setQueueCapacity(int queueCapacity) {
+		this.queueCapacity = queueCapacity;
 	}
 
 	public int getDatabase() {

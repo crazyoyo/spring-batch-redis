@@ -1,27 +1,23 @@
 package com.redis.spring.batch.item.redis;
 
-import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
-import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.support.IteratorItemReader;
-import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.item.AbstractAsyncItemReader;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
+import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.common.Operation;
 import com.redis.spring.batch.item.redis.common.OperationExecutor;
 import com.redis.spring.batch.item.redis.reader.KeyNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyScanNotificationItemReader;
-import com.redis.spring.batch.item.redis.reader.MemKeyValue;
-import com.redis.spring.batch.item.redis.reader.MemKeyValueRead;
+import com.redis.spring.batch.item.redis.reader.KeyValueRead;
+import com.redis.spring.batch.item.redis.reader.KeyValueStructRead;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.ReadFrom;
-import io.lettuce.core.RedisCommandExecutionException;
-import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.ScanIterator;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
@@ -35,7 +31,6 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 
 	public static final int DEFAULT_POOL_SIZE = OperationExecutor.DEFAULT_POOL_SIZE;
 	public static final int DEFAULT_NOTIFICATION_QUEUE_CAPACITY = KeyNotificationItemReader.DEFAULT_QUEUE_CAPACITY;
-	public static final int DEFAULT_RETRY_LIMIT = MaxAttemptsRetryPolicy.DEFAULT_MAX_ATTEMPTS;
 	public static final ReaderMode DEFAULT_MODE = ReaderMode.SCAN;
 
 	private final RedisCodec<K, V> codec;
@@ -53,23 +48,12 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 	private AbstractRedisClient client;
 
 	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
-		setRetryLimit(DEFAULT_RETRY_LIMIT);
 		this.codec = codec;
 		this.operation = operation;
 	}
 
 	public Operation<K, V, K, T> getOperation() {
 		return operation;
-	}
-
-	@Override
-	protected FaultTolerantStepBuilder<K, K> faultTolerant(SimpleStepBuilder<K, K> step) {
-		FaultTolerantStepBuilder<K, K> ftStep = super.faultTolerant(step);
-		ftStep.skip(RedisCommandExecutionException.class);
-		ftStep.noRetry(RedisCommandExecutionException.class);
-		ftStep.noSkip(RedisCommandTimeoutException.class);
-		ftStep.retry(RedisCommandTimeoutException.class);
-		return ftStep;
 	}
 
 	@Override
@@ -146,24 +130,24 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 		return args;
 	}
 
-	public static RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> dump() {
-		return new RedisItemReader<>(ByteArrayCodec.INSTANCE, MemKeyValueRead.dump());
+	public static RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dump() {
+		return new RedisItemReader<>(ByteArrayCodec.INSTANCE, KeyValueRead.dump(ByteArrayCodec.INSTANCE));
 	}
 
-	public static RedisItemReader<String, String, MemKeyValue<String, Object>> type() {
+	public static RedisItemReader<String, String, KeyValue<String, Object>> type() {
 		return type(StringCodec.UTF8);
 	}
 
-	public static <K, V> RedisItemReader<K, V, MemKeyValue<K, Object>> type(RedisCodec<K, V> codec) {
-		return new RedisItemReader<>(codec, MemKeyValueRead.type(codec));
+	public static <K, V> RedisItemReader<K, V, KeyValue<K, Object>> type(RedisCodec<K, V> codec) {
+		return new RedisItemReader<>(codec, KeyValueRead.type(codec));
 	}
 
-	public static RedisItemReader<String, String, MemKeyValue<String, Object>> struct() {
+	public static RedisItemReader<String, String, KeyValue<String, Object>> struct() {
 		return struct(StringCodec.UTF8);
 	}
 
-	public static <K, V> RedisItemReader<K, V, MemKeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
-		return new RedisItemReader<>(codec, MemKeyValueRead.struct(codec));
+	public static <K, V> RedisItemReader<K, V, KeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
+		return new RedisItemReader<>(codec, new KeyValueStructRead<>(codec));
 	}
 
 	public RedisCodec<K, V> getCodec() {

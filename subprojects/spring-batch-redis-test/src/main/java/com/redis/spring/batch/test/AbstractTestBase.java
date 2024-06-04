@@ -19,6 +19,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -29,6 +31,7 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
@@ -37,7 +40,7 @@ import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemStreamSupport;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.core.task.SyncTaskExecutor;
-import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
+import org.springframework.retry.policy.NeverRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -63,14 +66,12 @@ import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.common.Operation;
 import com.redis.spring.batch.item.redis.gen.GeneratorItemReader;
 import com.redis.spring.batch.item.redis.gen.StreamOptions;
-import com.redis.spring.batch.item.redis.reader.MemKeyValue;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
-import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.codec.ByteArrayCodec;
@@ -85,6 +86,8 @@ public abstract class AbstractTestBase {
 	public static final Duration DEFAULT_POLL_DELAY = Duration.ZERO;
 	public static final Duration DEFAULT_AWAIT_POLL_INTERVAL = Duration.ofMillis(1);
 	public static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(3);
+
+	protected final Logger log = LoggerFactory.getLogger(getClass());
 
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
@@ -203,21 +206,20 @@ public abstract class AbstractTestBase {
 		streamSupport.setName(name(testInfo(info, allSuffixes.toArray(new String[0]))));
 	}
 
-	protected RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> dumpReader(TestInfo info,
-			String... suffixes) {
-		RedisItemReader<byte[], byte[], MemKeyValue<byte[], byte[]>> reader = RedisItemReader.dump();
+	protected RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dumpReader(TestInfo info, String... suffixes) {
+		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> reader = RedisItemReader.dump();
 		configure(info, reader, suffixes);
 		return reader;
 	}
 
-	protected RedisItemReader<String, String, MemKeyValue<String, Object>> structReader(TestInfo info,
+	protected RedisItemReader<String, String, KeyValue<String, Object>> structReader(TestInfo info,
 			String... suffixes) {
 		return structReader(info, StringCodec.UTF8, suffixes);
 	}
 
-	protected <K, V> RedisItemReader<K, V, MemKeyValue<K, Object>> structReader(TestInfo info, RedisCodec<K, V> codec,
+	protected <K, V> RedisItemReader<K, V, KeyValue<K, Object>> structReader(TestInfo info, RedisCodec<K, V> codec,
 			String... suffixes) {
-		RedisItemReader<K, V, MemKeyValue<K, Object>> reader = RedisItemReader.struct(codec);
+		RedisItemReader<K, V, KeyValue<K, Object>> reader = RedisItemReader.struct(codec);
 		configure(info, reader, suffixes);
 		return reader;
 	}
@@ -382,7 +384,11 @@ public abstract class AbstractTestBase {
 	}
 
 	protected <I, O> FaultTolerantStepBuilder<I, O> faultTolerant(SimpleStepBuilder<I, O> step) {
-		return step.faultTolerant().retryPolicy(new MaxAttemptsRetryPolicy()).retry(RedisCommandTimeoutException.class);
+		FaultTolerantStepBuilder<I, O> ftStep = step.faultTolerant();
+		ftStep.skipPolicy(new AlwaysSkipItemSkipPolicy());
+		ftStep.retryPolicy(new NeverRetryPolicy());
+		JobUtils.faultTolerant(ftStep);
+		return ftStep;
 	}
 
 	protected JobExecution run(Job job) throws JobExecutionException, TimeoutException, InterruptedException {

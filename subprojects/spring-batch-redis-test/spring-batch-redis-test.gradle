@@ -7,7 +7,7 @@ config {
 dependencies {
     api project(':spring-batch-redis-core')
     api 'org.junit.jupiter:junit-jupiter-api'
-    api group: 'org.testcontainers', name: 'junit-jupiter'
+    api 'org.testcontainers:junit-jupiter'
     api group: 'com.redis', name: 'testcontainers-redis', version: testcontainersRedisVersion
     api group: 'com.redis', name: 'testcontainers-redis-enterprise', version: testcontainersRedisVersion
     api group: 'com.redis', name: 'lettucemod', version: lettucemodVersion

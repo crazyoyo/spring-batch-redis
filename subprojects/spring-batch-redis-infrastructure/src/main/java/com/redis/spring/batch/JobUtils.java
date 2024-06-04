@@ -1,6 +1,8 @@
 package com.redis.spring.batch;
 
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 import org.hsqldb.jdbc.JDBCDataSource;
 import org.springframework.batch.core.ExitStatus;
@@ -8,6 +10,8 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
+import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
+import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.boot.autoconfigure.batch.BatchDataSourceScriptDatabaseInitializer;
 import org.springframework.boot.autoconfigure.batch.BatchProperties.Jdbc;
@@ -71,6 +75,15 @@ public abstract class JobUtils {
 
 	private static boolean isFailed(ExitStatus exitStatus) {
 		return exitStatus.getExitCode().equals(ExitStatus.FAILED.getExitCode());
+	}
+
+	public static <I, O> FaultTolerantStepBuilder<I, O> faultTolerant(SimpleStepBuilder<I, O> step) {
+		FaultTolerantStepBuilder<I, O> faultTolerantStep = step.faultTolerant();
+		faultTolerantStep.skip(ExecutionException.class);
+		faultTolerantStep.noRetry(ExecutionException.class);
+		faultTolerantStep.noSkip(TimeoutException.class);
+		faultTolerantStep.retry(TimeoutException.class);
+		return faultTolerantStep;
 	}
 
 }

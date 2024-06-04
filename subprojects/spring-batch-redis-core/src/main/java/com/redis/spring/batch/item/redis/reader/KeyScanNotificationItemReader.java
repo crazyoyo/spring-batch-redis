@@ -4,6 +4,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.item.support.IteratorItemReader;
 
+import com.redis.spring.batch.item.redis.common.KeyWrapper;
+
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.RedisCodec;
 
@@ -21,7 +23,7 @@ public class KeyScanNotificationItemReader<K, V> extends KeyNotificationItemRead
 	protected K doPoll(long timeout, TimeUnit unit) throws InterruptedException {
 		if (queue.isEmpty()) {
 			K key = scanReader.read();
-			if (key != null && !queue.contains(new Wrapper<>(key))) {
+			if (key != null && !queue.contains(new KeyWrapper<>(key))) {
 				return key;
 			}
 		}

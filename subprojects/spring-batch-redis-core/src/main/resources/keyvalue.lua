@@ -1,14 +1,6 @@
-local function unix_ms ()
+local function time ()
   local now = redis.call('TIME')
-  return tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
-end
-
-local function absttl (key)
-  local ttl = redis.call('PTTL', key)
-  if ttl < 0 then
-    return ttl
-  end
-  return unix_ms() + ttl
+  return tonumber(now[1]) * 1000
 end
 
 local function struct_value (key, type)
@@ -39,28 +31,26 @@ local function struct_value (key, type)
   return nil
 end
 
-local function value (mode, key, type)
-  if mode == 'dump' then
-    return redis.call('DUMP', key)
-  end
-  return struct_value(key, type)
-end
-
 local key = KEYS[1]
-local mode = ARGV[1]
-local memlimit = tonumber(ARGV[2])
-local samples = tonumber(ARGV[3])
-local ttl = absttl(key)
-if ttl == -2 then
-  return { key, ttl }
-end
-local type = redis.call('TYPE', key)['ok']
+local time = time()
+local ttl = redis.call('PTTL', key)
+local type = nil
 local mem = 0
-if memlimit > 0 then
-  mem = redis.call('MEMORY', 'USAGE', key, 'SAMPLES', samples)
-  if mem > memlimit then
-    return { key, ttl, type, mem }
+local value = nil
+if ttl ~= -2 then
+  type = redis.call('TYPE', key)['ok']
+  local memlimit = tonumber(ARGV[2])  
+  if memlimit > 0 then
+    local samples = tonumber(ARGV[3])
+    mem = redis.call('MEMORY', 'USAGE', key, 'SAMPLES', samples)
+  end
+  if mem <= memlimit then
+    local mode = ARGV[1]
+    if mode == 'DUMP' then
+      value = redis.call('DUMP', key)
+    elseif mode == 'STRUCT' then
+      value = struct_value(key, type)
+    end
   end
 end
-local value = value(mode, key, type)
-return { key, ttl, type, mem, value }
+return { key, time, ttl, type, mem, value }

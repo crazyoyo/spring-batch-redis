@@ -8,8 +8,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.ExecutionContext;
 import org.testcontainers.lifecycle.Startable;
 
@@ -17,10 +15,10 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.item.redis.RedisItemReader;
+import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.reader.DefaultKeyComparator;
 import com.redis.spring.batch.item.redis.reader.KeyComparison;
 import com.redis.spring.batch.item.redis.reader.KeyComparisonItemReader;
-import com.redis.spring.batch.item.redis.reader.MemKeyValue;
 import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -29,8 +27,6 @@ import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
 public abstract class AbstractTargetTestBase extends AbstractTestBase {
-
-	private final Logger log = LoggerFactory.getLogger(AbstractTargetTestBase.class);
 
 	protected RedisURI targetRedisURI;
 	protected AbstractRedisClient targetRedisClient;
@@ -100,9 +96,9 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 	}
 
 	protected <K, V> KeyComparisonItemReader<K, V> comparisonReader(TestInfo info, RedisCodec<K, V> codec) {
-		RedisItemReader<K, V, MemKeyValue<K, Object>> sourceReader = RedisItemReader.struct(codec);
+		RedisItemReader<K, V, KeyValue<K, Object>> sourceReader = RedisItemReader.struct(codec);
 		configure(info, sourceReader);
-		RedisItemReader<K, V, MemKeyValue<K, Object>> targetReader = RedisItemReader.struct(codec);
+		RedisItemReader<K, V, KeyValue<K, Object>> targetReader = RedisItemReader.struct(codec);
 		targetReader.setClient(targetRedisClient);
 		KeyComparisonItemReader<K, V> comparisonReader = new KeyComparisonItemReader<>(sourceReader, targetReader);
 		((DefaultKeyComparator<K, V>) comparisonReader.getComparator()).setTtlTolerance(Duration.ofMillis(100));

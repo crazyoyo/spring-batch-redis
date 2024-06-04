@@ -13,6 +13,7 @@ import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.item.redis.common.DataType;
 import com.redis.spring.batch.item.redis.common.KeyValue;
+import com.redis.spring.batch.item.redis.common.KeyWrapper;
 import com.redis.spring.batch.item.redis.reader.KeyComparison.Status;
 
 import io.lettuce.core.ScoredValue;
@@ -54,7 +55,7 @@ public class DefaultKeyComparator<K, V> implements KeyComparator<K, V> {
 	}
 
 	private boolean ttlEquals(KeyValue<K, Object> source, KeyValue<K, Object> target) {
-		long diff = Math.abs(source.getTtl() - target.getTtl());
+		long diff = Math.abs(KeyValue.absoluteTTL(source) - KeyValue.absoluteTTL(target));
 		return diff <= ttlTolerance.toMillis();
 	}
 
@@ -101,7 +102,7 @@ public class DefaultKeyComparator<K, V> implements KeyComparator<K, V> {
 	}
 
 	private Object wrapZset(Set<ScoredValue<V>> collection) {
-		return collection.stream().map(v -> ScoredValue.just(v.getScore(), new Wrapper<>(v.getValue())))
+		return collection.stream().map(v -> ScoredValue.just(v.getScore(), new KeyWrapper<>(v.getValue())))
 				.collect(Collectors.toSet());
 	}
 
@@ -113,25 +114,25 @@ public class DefaultKeyComparator<K, V> implements KeyComparator<K, V> {
 		return Objects.deepEquals(wrapCollection(a), wrapCollection(b));
 	}
 
-	private Collection<Wrapper<V>> wrapCollection(Collection<V> collection) {
-		return collection.stream().map(Wrapper::new).collect(Collectors.toList());
+	private Collection<KeyWrapper<V>> wrapCollection(Collection<V> collection) {
+		return collection.stream().map(KeyWrapper::new).collect(Collectors.toList());
 	}
 
-	private Set<Wrapper<V>> wrapSet(Set<V> set) {
-		return set.stream().map(Wrapper::new).collect(Collectors.toSet());
+	private Set<KeyWrapper<V>> wrapSet(Set<V> set) {
+		return set.stream().map(KeyWrapper::new).collect(Collectors.toSet());
 	}
 
 	private <T> boolean equals(T a, T b) {
-		return new Wrapper<>(a).equals(new Wrapper<>(b));
+		return new KeyWrapper<>(a).equals(new KeyWrapper<>(b));
 	}
 
 	private boolean mapEquals(Map<K, V> source, Map<K, V> target) {
 		return wrap(source).equals(wrap(target));
 	}
 
-	private Map<Wrapper<K>, Wrapper<V>> wrap(Map<K, V> source) {
-		Map<Wrapper<K>, Wrapper<V>> wrapper = new HashMap<>();
-		source.forEach((k, v) -> wrapper.put(new Wrapper<>(k), new Wrapper<>(v)));
+	private Map<KeyWrapper<K>, KeyWrapper<V>> wrap(Map<K, V> source) {
+		Map<KeyWrapper<K>, KeyWrapper<V>> wrapper = new HashMap<>();
+		source.forEach((k, v) -> wrapper.put(new KeyWrapper<>(k), new KeyWrapper<>(v)));
 		return wrapper;
 	}
 

@@ -79,7 +79,7 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 
 	private ExpireAt<K, V, KeyValue<K, Object>> expire() {
 		ExpireAt<K, V, KeyValue<K, Object>> operation = new ExpireAt<>(KeyValue::getKey);
-		operation.setTimestampFunction(KeyValue::getTtl);
+		operation.setTimestampFunction(KeyValue::absoluteTTL);
 		return operation;
 	}
 
