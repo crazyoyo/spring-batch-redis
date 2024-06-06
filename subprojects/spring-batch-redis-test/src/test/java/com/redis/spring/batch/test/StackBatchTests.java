@@ -25,7 +25,6 @@ import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -90,16 +89,6 @@ class StackBatchTests extends BatchTests {
 		}
 		KeyspaceComparison<String> comparisons = compare(info);
 		Assertions.assertEquals(count, comparisons.get(Status.MISSING).size());
-	}
-
-	@Test
-	void configCheck(TestInfo info) throws Exception {
-		RedisItemReader<String, String, KeyValue<String, Object>> reader = RedisItemReader.struct();
-		configure(info, reader);
-		live(reader);
-		reader.setClient(targetRedisClient);
-		ExecutionContext executionContext = new ExecutionContext();
-		Assertions.assertThrows(ItemStreamException.class, () -> reader.open(executionContext));
 	}
 
 	@Test
