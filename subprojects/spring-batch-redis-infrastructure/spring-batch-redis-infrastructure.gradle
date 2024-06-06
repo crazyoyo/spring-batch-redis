@@ -1,5 +1,6 @@
 dependencies {
     api 'org.springframework.batch:spring-batch-core'
+    implementation 'org.awaitility:awaitility'
     implementation 'org.springframework.boot:spring-boot-autoconfigure'
     implementation 'org.hsqldb:hsqldb'
     testImplementation group: 'com.redis', name: 'lettucemod', version: lettucemodVersion

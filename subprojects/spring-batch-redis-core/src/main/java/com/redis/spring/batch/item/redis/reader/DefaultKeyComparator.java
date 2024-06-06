@@ -4,27 +4,46 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 
 import org.springframework.util.CollectionUtils;
 
+import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.DataType;
 import com.redis.spring.batch.item.redis.common.KeyValue;
-import com.redis.spring.batch.item.redis.common.KeyWrapper;
 import com.redis.spring.batch.item.redis.reader.KeyComparison.Status;
 
 import io.lettuce.core.ScoredValue;
 import io.lettuce.core.StreamMessage;
+import io.lettuce.core.codec.RedisCodec;
 
 public class DefaultKeyComparator<K, V> implements KeyComparator<K> {
 
 	public static final Duration DEFAULT_TTL_TOLERANCE = Duration.ofMillis(100);
 
+	private final ToIntFunction<K> keyHashCode;
+	private final ToIntFunction<V> valueHashCode;
+
 	private Duration ttlTolerance = DEFAULT_TTL_TOLERANCE;
 	private boolean ignoreStreamMessageId;
+
+	public DefaultKeyComparator(RedisCodec<K, V> codec) {
+		this.keyHashCode = BatchUtils.hashCodeFunction(codec);
+		this.valueHashCode = BatchUtils.hashCodeFunction(codec);
+	}
+
+	private int keyHashCode(K key) {
+		return keyHashCode.applyAsInt(key);
+	}
+
+	private int valueHashCode(V value) {
+		return valueHashCode.applyAsInt(value);
+	}
 
 	@Override
 	public KeyComparison<K> compare(KeyValue<K, Object> source, KeyValue<K, Object> target) {
@@ -78,62 +97,65 @@ public class DefaultKeyComparator<K, V> implements KeyComparator<K> {
 			return Objects.deepEquals(a, b);
 		}
 		switch (type) {
-		case STREAM:
-			return streamEquals((Collection<StreamMessage<K, V>>) a, (Collection<StreamMessage<K, V>>) b);
+		case JSON:
+		case STRING:
+			return valueEquals((V) a, (V) b);
 		case HASH:
 			return mapEquals((Map<K, V>) a, (Map<K, V>) b);
-		case JSON:
-			return equals((V) a, (V) b);
 		case LIST:
 			return collectionEquals((Collection<V>) a, (Collection<V>) b);
 		case SET:
-			return setEquals((Set<V>) a, (Set<V>) b);
-		case STRING:
-			return equals((V) a, (V) b);
+			return setEquals((Collection<V>) a, (Collection<V>) b);
+		case STREAM:
+			return streamEquals((Collection<StreamMessage<K, V>>) a, (Collection<StreamMessage<K, V>>) b);
 		case ZSET:
-			return zsetEquals((Set<ScoredValue<V>>) a, (Set<ScoredValue<V>>) b);
+			return zsetEquals((Collection<ScoredValue<V>>) a, (Collection<ScoredValue<V>>) b);
 		default:
 			return Objects.deepEquals(a, b);
 		}
 	}
 
-	private boolean zsetEquals(Set<ScoredValue<V>> a, Set<ScoredValue<V>> b) {
-		return Objects.deepEquals(wrapZset(a), wrapZset(b));
+	private boolean zsetEquals(Collection<ScoredValue<V>> source, Collection<ScoredValue<V>> target) {
+		return Objects.deepEquals(hashCodeZset(source), hashCodeZset(target));
 	}
 
-	private Object wrapZset(Set<ScoredValue<V>> collection) {
-		return collection.stream().map(v -> ScoredValue.just(v.getScore(), new KeyWrapper<>(v.getValue())))
-				.collect(Collectors.toSet());
+	private boolean setEquals(Collection<V> source, Collection<V> target) {
+		return Objects.deepEquals(hashCodeSet(source), hashCodeSet(target));
 	}
 
-	private boolean setEquals(Set<V> a, Set<V> b) {
-		return Objects.deepEquals(wrapSet(a), wrapSet(b));
-	}
-
-	private boolean collectionEquals(Collection<V> a, Collection<V> b) {
-		return Objects.deepEquals(wrapCollection(a), wrapCollection(b));
-	}
-
-	private Collection<KeyWrapper<V>> wrapCollection(Collection<V> collection) {
-		return collection.stream().map(KeyWrapper::new).collect(Collectors.toList());
-	}
-
-	private Set<KeyWrapper<V>> wrapSet(Set<V> set) {
-		return set.stream().map(KeyWrapper::new).collect(Collectors.toSet());
-	}
-
-	private <T> boolean equals(T a, T b) {
-		return new KeyWrapper<>(a).equals(new KeyWrapper<>(b));
+	private boolean collectionEquals(Collection<V> source, Collection<V> target) {
+		return Objects.deepEquals(hashCodeList(source), hashCodeList(target));
 	}
 
 	private boolean mapEquals(Map<K, V> source, Map<K, V> target) {
-		return wrap(source).equals(wrap(target));
+		return Objects.deepEquals(hashCodeMap(source), hashCodeMap(target));
 	}
 
-	private Map<KeyWrapper<K>, KeyWrapper<V>> wrap(Map<K, V> source) {
-		Map<KeyWrapper<K>, KeyWrapper<V>> wrapper = new HashMap<>();
-		source.forEach((k, v) -> wrapper.put(new KeyWrapper<>(k), new KeyWrapper<>(v)));
-		return wrapper;
+	private Set<ScoredValue<Integer>> hashCodeZset(Collection<ScoredValue<V>> zset) {
+		return zset.stream().map(v -> ScoredValue.just(v.getScore(), valueHashCode(v.getValue())))
+				.collect(Collectors.toSet());
+	}
+
+	private Set<Integer> hashCodeSet(Collection<V> set) {
+		return set.stream().map(this::valueHashCode).collect(Collectors.toSet());
+	}
+
+	private List<Integer> hashCodeList(Collection<V> collection) {
+		return collection.stream().map(this::valueHashCode).collect(Collectors.toList());
+	}
+
+	private Map<Integer, Integer> hashCodeMap(Map<K, V> map) {
+		Map<Integer, Integer> intMap = new HashMap<>();
+		map.forEach((k, v) -> intMap.put(keyHashCode(k), valueHashCode(v)));
+		return intMap;
+	}
+
+	private boolean keyEquals(K source, K target) {
+		return keyHashCode(source) == keyHashCode(target);
+	}
+
+	private boolean valueEquals(V source, V target) {
+		return valueHashCode(source) == valueHashCode(target);
 	}
 
 	private boolean streamEquals(Collection<StreamMessage<K, V>> source, Collection<StreamMessage<K, V>> target) {
@@ -151,7 +173,7 @@ public class DefaultKeyComparator<K, V> implements KeyComparator<K> {
 			}
 			StreamMessage<K, V> sourceMessage = sourceIterator.next();
 			StreamMessage<K, V> targetMessage = targetIterator.next();
-			if (!equals(sourceMessage.getStream(), targetMessage.getStream())) {
+			if (!keyEquals(sourceMessage.getStream(), targetMessage.getStream())) {
 				return false;
 			}
 			if (!ignoreStreamMessageId && !Objects.equals(sourceMessage.getId(), targetMessage.getId())) {

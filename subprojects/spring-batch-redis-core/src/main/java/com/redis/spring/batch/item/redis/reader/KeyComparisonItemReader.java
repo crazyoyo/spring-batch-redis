@@ -21,7 +21,7 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<KeyVa
 	private final RedisItemReader<K, V, KeyValue<K, Object>> sourceReader;
 	private final RedisItemReader<K, V, KeyValue<K, Object>> targetReader;
 
-	private KeyComparator<K> comparator = new DefaultKeyComparator<>();
+	private KeyComparator<K> comparator;
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
 	private BlockingQueue<KeyComparison<K>> queue;
@@ -30,6 +30,7 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<KeyVa
 			RedisItemReader<K, V, KeyValue<K, Object>> targetReader) {
 		this.sourceReader = sourceReader;
 		this.targetReader = targetReader;
+		this.comparator = new DefaultKeyComparator<>(sourceReader.getCodec());
 	}
 
 	@Override

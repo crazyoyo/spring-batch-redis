@@ -2,9 +2,11 @@ package com.redis.spring.batch.test;
 
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
@@ -85,6 +87,12 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 		return new KeyspaceComparison<>(comparisons);
 	}
 
+	protected void assertCompare(TestInfo info) throws Exception {
+		KeyspaceComparison<String> comparison = compare(info);
+		Assertions.assertFalse(comparison.getAll().isEmpty());
+		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
+	}
+
 	protected void logDiffs(Collection<KeyComparison<String>> diffs) {
 		for (KeyComparison<String> diff : diffs) {
 			log.error("{}: {} {}", diff.getStatus(), diff.getSource().getKey(), diff.getSource().getType());
@@ -95,14 +103,15 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 		return comparisonReader(info, StringCodec.UTF8);
 	}
 
+	@SuppressWarnings("unchecked")
 	protected <K, V> KeyComparisonItemReader<K, V> comparisonReader(TestInfo info, RedisCodec<K, V> codec) {
 		RedisItemReader<K, V, KeyValue<K, Object>> sourceReader = RedisItemReader.struct(codec);
-		configure(info, sourceReader);
+		configure(testInfo(info, "compare", "source"), sourceReader);
 		RedisItemReader<K, V, KeyValue<K, Object>> targetReader = RedisItemReader.struct(codec);
 		targetReader.setClient(targetRedisClient);
 		KeyComparisonItemReader<K, V> comparisonReader = new KeyComparisonItemReader<>(sourceReader, targetReader);
 		((DefaultKeyComparator<K, V>) comparisonReader.getComparator()).setTtlTolerance(Duration.ofMillis(100));
-		setName(info, comparisonReader, "comparison");
+		setName(info, comparisonReader, "compare");
 		return comparisonReader;
 	}
 

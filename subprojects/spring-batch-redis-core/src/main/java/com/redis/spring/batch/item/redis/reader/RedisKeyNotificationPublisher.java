@@ -5,29 +5,41 @@ import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
-public class RedisKeyNotificationPublisher<K, V> implements AutoCloseable {
+public class RedisKeyNotificationPublisher<K, V> implements KeyNotificationPublisher {
 
-	private final StatefulRedisPubSubConnection<K, V> connection;
-	private final K pattern;
+	private final RedisClient client;
+	private final RedisCodec<K, V> codec;
 	private final RedisPubSubListener<K, V> listener;
+	private final K pattern;
 
-	@SuppressWarnings("unchecked")
+	private StatefulRedisPubSubConnection<K, V> connection;
+
 	public RedisKeyNotificationPublisher(RedisClient client, RedisCodec<K, V> codec, RedisPubSubListener<K, V> listener,
 			K pattern) {
-		this.connection = client.connectPubSub(codec);
+		this.client = client;
+		this.codec = codec;
 		this.listener = listener;
 		this.pattern = pattern;
-		connection.addListener(listener);
-		connection.sync().psubscribe(pattern);
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public synchronized void open() {
+		if (connection == null) {
+			connection = client.connectPubSub(codec);
+			connection.addListener(listener);
+			connection.sync().psubscribe(pattern);
+		}
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
 	public synchronized void close() {
-		if (connection.isOpen()) {
+		if (connection != null) {
 			connection.sync().punsubscribe(pattern);
 			connection.removeListener(listener);
 			connection.close();
+			connection = null;
 		}
 	}
 

@@ -6,13 +6,16 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -129,6 +132,13 @@ public abstract class BatchUtils {
 			}
 		}
 		return items;
+	}
+
+	public static <K> ToIntFunction<K> hashCodeFunction(RedisCodec<?, ?> codec) {
+		if (codec instanceof ByteArrayCodec) {
+			return k -> Arrays.hashCode((byte[]) k);
+		}
+		return Objects::hashCode;
 	}
 
 }

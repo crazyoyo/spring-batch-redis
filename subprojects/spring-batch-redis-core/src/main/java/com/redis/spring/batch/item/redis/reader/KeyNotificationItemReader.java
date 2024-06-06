@@ -1,20 +1,21 @@
 package com.redis.spring.batch.item.redis.reader;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.item.AbstractPollableItemReader;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.DataType;
-import com.redis.spring.batch.item.redis.common.KeyWrapper;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
@@ -31,34 +32,31 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 	private static final String KEYEVENT_PATTERN = "__keyevent@%s__:*";
 	private static final String SEPARATOR = ":";
 
-	private final KeyNotificationDataTypeFunction dataTypeFunction = new KeyNotificationDataTypeFunction();
 	private final AbstractRedisClient client;
 	private final RedisCodec<K, V> codec;
+	private final ToIntFunction<Object> keyHashCodeFunction;
 	private final Function<String, K> keyEncoder;
 	private final Function<K, String> keyDecoder;
 	private final Function<V, String> valueDecoder;
+	private final Map<KeyNotificationStatus, AtomicLong> statusCounts = Stream.of(KeyNotificationStatus.values())
+			.collect(Collectors.toMap(Function.identity(), s -> new AtomicLong()));
 
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 	private int database;
 	private String keyPattern;
 	private String keyType;
 
-	protected BlockingQueue<KeyWrapper<K>> queue;
-	private AutoCloseable publisher;
-	private Set<KeyWrapper<K>> keySet;
-	private List<KeyEventListener<K>> notificationListeners = new ArrayList<>();
+	protected BlockingQueue<K> queue;
+	private KeyNotificationPublisher publisher;
 
 	public KeyNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.client = client;
 		this.codec = codec;
+		this.keyHashCodeFunction = BatchUtils.hashCodeFunction(codec);
 		this.keyEncoder = BatchUtils.stringKeyFunction(codec);
 		this.keyDecoder = BatchUtils.toStringKeyFunction(codec);
 		this.valueDecoder = BatchUtils.toStringValueFunction(codec);
-	}
-
-	public void addEventListener(KeyEventListener<K> listener) {
-		notificationListeners.add(listener);
 	}
 
 	public String pubSubPattern() {
@@ -82,13 +80,14 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		if (queue == null) {
 			queue = new LinkedBlockingQueue<>(queueCapacity);
 		}
-
-		if (keySet == null) {
-			keySet = new HashSet<>(queueCapacity);
-		}
 		if (publisher == null) {
 			publisher = publisher();
+			publisher.open();
 		}
+	}
+
+	public boolean isOpen() {
+		return publisher != null;
 	}
 
 	@Override
@@ -97,47 +96,107 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 			publisher.close();
 			publisher = null;
 		}
-		keySet = null;
 		queue = null;
 	}
 
 	private void keySpaceNotification(K channel, V message) {
-		addEvent(keyEncoder.apply(suffix(channel)), valueDecoder.apply(message));
+		K key = keyEncoder.apply(suffix(channel));
+		String event = valueDecoder.apply(message);
+		notification(key, event);
 	}
 
 	@SuppressWarnings("unchecked")
 	private void keyEventNotification(K channel, V message) {
-		addEvent((K) message, suffix(channel));
+		K key = (K) message;
+		String event = suffix(channel);
+		notification(key, event);
 	}
 
-	private void addEvent(K key, String event) {
-		if (acceptType(event)) {
-			KeyWrapper<K> wrapper = new KeyWrapper<>(key);
-			if (keySet.contains(wrapper)) {
-				notifyListeners(key, event, KeyNotificationStatus.DUPLICATE);
-			} else {
-				boolean added = queue.offer(wrapper);
-				if (added) {
-					keySet.add(wrapper);
-				} else {
-					notifyListeners(key, event, KeyNotificationStatus.QUEUE_FULL);
-				}
-			}
-		} else {
-			notifyListeners(key, event, KeyNotificationStatus.KEY_TYPE);
+	private void notification(K key, String event) {
+		statusCounts.get(addNotification(key, event)).incrementAndGet();
+	}
+
+	private KeyNotificationStatus addNotification(K key, String event) {
+		if (!acceptEvent(event)) {
+			return KeyNotificationStatus.REJECTED;
 		}
+		boolean removed = queue.removeIf(k -> keyEquals(k, key));
+		if (removed) {
+			return KeyNotificationStatus.DEBOUNCED;
+		}
+		boolean added = queue.offer(key);
+		if (added) {
+			return KeyNotificationStatus.ACCEPTED;
+		}
+		return KeyNotificationStatus.DROPPED;
 	}
 
-	private void notifyListeners(K key, String event, KeyNotificationStatus status) {
-		notificationListeners.forEach(l -> l.event(key, event, status));
+	private boolean keyEquals(K key, K other) {
+		return keyHashCodeFunction.applyAsInt(key) == keyHashCodeFunction.applyAsInt(other);
 	}
 
-	private boolean acceptType(String event) {
+	private boolean acceptEvent(String event) {
 		return keyType == null || keyType.equalsIgnoreCase(eventDataType(event).getString());
 	}
 
 	private DataType eventDataType(String event) {
-		return dataTypeFunction.apply(event);
+		if (event == null) {
+			return DataType.NONE;
+		}
+		String code = event.toLowerCase();
+		if (code.startsWith("xgroup-")) {
+			return DataType.STREAM;
+		}
+		if (code.startsWith("ts.")) {
+			return DataType.TIMESERIES;
+		}
+		if (code.startsWith("json.")) {
+			return DataType.JSON;
+		}
+		switch (code) {
+		case "set":
+		case "setrange":
+		case "incrby":
+		case "incrbyfloat":
+		case "append":
+			return DataType.STRING;
+		case "lpush":
+		case "rpush":
+		case "rpop":
+		case "lpop":
+		case "linsert":
+		case "lset":
+		case "lrem":
+		case "ltrim":
+			return DataType.LIST;
+		case "hset":
+		case "hincrby":
+		case "hincrbyfloat":
+		case "hdel":
+			return DataType.HASH;
+		case "sadd":
+		case "spop":
+		case "sinterstore":
+		case "sunionstore":
+		case "sdiffstore":
+			return DataType.SET;
+		case "zincr":
+		case "zadd":
+		case "zrem":
+		case "zrembyscore":
+		case "zrembyrank":
+		case "zdiffstore":
+		case "zinterstore":
+		case "zunionstore":
+			return DataType.ZSET;
+		case "xadd":
+		case "xtrim":
+		case "xdel":
+		case "xsetid":
+			return DataType.STREAM;
+		default:
+			return DataType.NONE;
+		}
 	}
 
 	private KeyNotificationConsumer<K, V> notificationConsumer() {
@@ -156,7 +215,7 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		return null;
 	}
 
-	private AutoCloseable publisher() {
+	private KeyNotificationPublisher publisher() {
 		String pubSubPattern = pubSubPattern();
 		K pattern = keyEncoder.apply(pubSubPattern);
 		KeyNotificationConsumer<K, V> consumer = notificationConsumer();
@@ -170,16 +229,20 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 
 	@Override
 	protected K doPoll(long timeout, TimeUnit unit) throws InterruptedException {
-		KeyWrapper<K> key = queue.poll(timeout, unit);
-		if (key == null) {
-			return null;
-		}
-		keySet.remove(key);
-		return key.getKey();
+		return queue.poll(timeout, unit);
 	}
 
-	public BlockingQueue<KeyWrapper<K>> getQueue() {
+	public BlockingQueue<K> getQueue() {
 		return queue;
+	}
+
+	public List<KeyNotificationStatusCount> statusCounts() {
+		return statusCounts.entrySet().stream().map(e -> new KeyNotificationStatusCount(e.getKey(), e.getValue().get()))
+				.collect(Collectors.toList());
+	}
+
+	public long count(KeyNotificationStatus status) {
+		return statusCounts.get(status).get();
 	}
 
 	public int getQueueCapacity() {
@@ -202,16 +265,16 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		return keyPattern;
 	}
 
-	public void setKeyPattern(String keyPattern) {
-		this.keyPattern = keyPattern;
+	public void setKeyPattern(String pattern) {
+		this.keyPattern = pattern;
 	}
 
 	public String getKeyType() {
 		return keyType;
 	}
 
-	public void setKeyType(String keyType) {
-		this.keyType = keyType;
+	public void setKeyType(String type) {
+		this.keyType = type;
 	}
 
 }

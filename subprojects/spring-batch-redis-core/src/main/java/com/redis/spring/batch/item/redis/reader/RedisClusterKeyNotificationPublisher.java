@@ -5,30 +5,42 @@ import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 import io.lettuce.core.codec.RedisCodec;
 
-public class RedisClusterKeyNotificationPublisher<K, V> implements AutoCloseable {
+public class RedisClusterKeyNotificationPublisher<K, V> implements KeyNotificationPublisher {
 
-	private final StatefulRedisClusterPubSubConnection<K, V> connection;
+	private final RedisClusterClient client;
+	private final RedisCodec<K, V> codec;
 	private final RedisClusterPubSubListener<K, V> listener;
 	private final K pattern;
 
-	@SuppressWarnings("unchecked")
+	private StatefulRedisClusterPubSubConnection<K, V> connection;
+
 	public RedisClusterKeyNotificationPublisher(RedisClusterClient client, RedisCodec<K, V> codec,
 			RedisClusterPubSubListener<K, V> listener, K pattern) {
-		this.connection = client.connectPubSub(codec);
+		this.client = client;
+		this.codec = codec;
 		this.listener = listener;
 		this.pattern = pattern;
-		this.connection.setNodeMessagePropagation(true);
-		this.connection.addListener(listener);
-		this.connection.sync().upstream().commands().psubscribe(pattern);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public synchronized void close() throws Exception {
-		if (connection.isOpen()) {
+	public synchronized void open() {
+		if (connection == null) {
+			connection = client.connectPubSub(codec);
+			connection.setNodeMessagePropagation(true);
+			connection.addListener(listener);
+			connection.sync().upstream().commands().psubscribe(pattern);
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public synchronized void close() {
+		if (connection != null) {
 			connection.sync().upstream().commands().punsubscribe(pattern);
 			connection.removeListener(listener);
 			connection.close();
+			connection = null;
 		}
 	}
 

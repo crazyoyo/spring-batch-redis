@@ -11,12 +11,13 @@ import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.reader.KeyComparison.Status;
 
 import io.lettuce.core.StreamMessage;
+import io.lettuce.core.codec.StringCodec;
 
 class KeyComparatorTests {
 
 	@Test
 	void testStreamMessageId() {
-		DefaultKeyComparator<String, String> comparator = new DefaultKeyComparator<>();
+		DefaultKeyComparator<String, String> comparator = new DefaultKeyComparator<>(StringCodec.UTF8);
 		String key = "key:1";
 		String type = "stream";
 		String messageId = "12345";

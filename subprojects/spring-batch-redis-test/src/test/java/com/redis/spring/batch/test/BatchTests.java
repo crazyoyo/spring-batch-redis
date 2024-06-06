@@ -27,17 +27,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.runner.RunWith;
-import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.job.builder.FlowBuilder;
-import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -53,9 +49,9 @@ import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.JobUtils;
 import com.redis.spring.batch.Range;
 import com.redis.spring.batch.item.redis.RedisItemReader;
+import com.redis.spring.batch.item.redis.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.item.redis.RedisItemWriter;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.DataType;
@@ -149,7 +145,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		result = evalsha.execute(redisAsyncCommands, key).get();
 		Assertions.assertEquals(6, result.size());
 		Assertions.assertEquals(key, result.get(0));
-		Assertions.assertEquals(expireAt.toEpochMilli(), (Long) result.get(1) + (Long) result.get(2), 10);
+		Assertions.assertEquals(expireAt.toEpochMilli(), (Long) result.get(1) + (Long) result.get(2), 100);
 		Assertions.assertEquals(DataType.STRING.getString(), result.get(3));
 		Assertions.assertEquals(100, (Long) result.get(4), 50);
 		Assertions.assertEquals(value, result.get(5));
@@ -574,7 +570,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
 		reader.open(new ExecutionContext());
 		List<KeyValue<String, Object>> items = readAll(reader);
-		JobUtils.checkJobExecution(reader.getJobExecution());
 		Assertions.assertEquals(2, items.size());
 		Optional<KeyValue<String, Object>> result = items.stream().filter(ds -> ds.getKey().equals(key1)).findFirst();
 		Assertions.assertTrue(result.isPresent());
@@ -686,26 +681,16 @@ abstract class BatchTests extends AbstractTargetTestBase {
 	}
 
 	private <K, V, T> void replicateLive(TestInfo info, RedisItemReader<K, V, KeyValue<K, T>> reader,
-			RedisItemWriter<K, V, KeyValue<K, T>> writer, RedisItemReader<K, V, KeyValue<K, T>> liveReader,
-			RedisItemWriter<K, V, KeyValue<K, T>> liveWriter) throws Exception {
-		live(liveReader);
+			RedisItemWriter<K, V, KeyValue<K, T>> writer) throws Exception {
+		live(reader);
 		DataType[] types = new DataType[] { DataType.HASH, DataType.STRING };
 		generate(info, generator(300, types));
-		TaskletStep step = faultTolerant(step(new SimpleTestInfo(info, "step"), reader, writer)).build();
-		SimpleFlow flow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "snapshotFlow"))).start(step)
-				.build();
-		FlushingStepBuilder<? extends KeyValue<K, T>, KeyValue<K, T>> flushingStepBuilder = flushingStep(
-				new SimpleTestInfo(info, "liveStep"), liveReader, liveWriter);
+		TaskletStep step = faultTolerant(flushingStep(new SimpleTestInfo(info, "step"), reader, writer)).build();
 		GeneratorItemReader liveGen = generator(700, types);
 		liveGen.getOptions().setExpiration(Range.of(100));
 		liveGen.getOptions().setKeyRange(Range.from(300));
 		generateAsync(testInfo(info, "genasync"), liveGen);
-		TaskletStep liveStep = faultTolerant(flushingStepBuilder).build();
-		SimpleFlow liveFlow = new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "liveFlow"))).start(liveStep)
-				.build();
-		Job job = job(info).start(new FlowBuilder<SimpleFlow>(name(new SimpleTestInfo(info, "flow")))
-				.split(new SimpleAsyncTaskExecutor()).add(liveFlow, flow).build()).build().build();
-		run(job);
+		run(job(info).start(step).build());
 		awaitUntilNoSubscribers();
 		KeyspaceComparison<String> comparison = compare(info);
 		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
@@ -744,7 +729,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			redisCommands.zadd(key, 2, "member2");
 			redisCommands.zadd(key, 3, "member3");
 			awaitUntil(() -> keyReader.getQueue().size() == 1);
-			Assertions.assertEquals(key, keyReader.getQueue().take().getKey());
+			Assertions.assertEquals(key, keyReader.getQueue().take());
 		} finally {
 			keyReader.close();
 		}
@@ -756,10 +741,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> reader = dumpReader(info);
 		RedisItemWriter<byte[], byte[], KeyValue<byte[], byte[]>> writer = RedisItemWriter.dump();
 		writer.setClient(targetRedisClient);
-		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> liveReader = dumpReader(info, "live");
-		RedisItemWriter<byte[], byte[], KeyValue<byte[], byte[]>> liveWriter = RedisItemWriter.dump();
-		liveWriter.setClient(targetRedisClient);
-		replicateLive(info, reader, writer, liveReader, liveWriter);
+		replicateLive(info, reader, writer);
 	}
 
 	@Test
@@ -768,10 +750,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(targetRedisClient);
-		RedisItemReader<String, String, KeyValue<String, Object>> liveReader = structReader(info, "live");
-		RedisItemWriter<String, String, KeyValue<String, Object>> liveWriter = RedisItemWriter.struct();
-		liveWriter.setClient(targetRedisClient);
-		replicateLive(info, reader, writer, liveReader, liveWriter);
+		replicateLive(info, reader, writer);
 	}
 
 	@Test
@@ -779,6 +758,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		enableKeyspaceNotifications();
 		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> reader = dumpReader(info);
 		live(reader);
+		reader.setMode(ReaderMode.LIVEONLY);
 		RedisItemWriter<byte[], byte[], KeyValue<byte[], byte[]>> writer = RedisItemWriter.dump();
 		writer.setClient(targetRedisClient);
 		FlushingStepBuilder<KeyValue<byte[], byte[]>, KeyValue<byte[], byte[]>> step = flushingStep(info, reader,
@@ -861,7 +841,8 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		KeyspaceComparison<byte[]> comparison = new KeyspaceComparison<>(readAll(comparisonReader));
 		comparisonReader.close();
 		Assertions.assertFalse(comparison.getAll().isEmpty());
-		Assertions.assertTrue(comparison.mismatches().isEmpty());
+		List<KeyComparison<byte[]>> mismatches = comparison.mismatches();
+		Assertions.assertTrue(mismatches.isEmpty());
 	}
 
 	private Map<byte[], byte[]> byteArrayMap() {

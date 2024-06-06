@@ -7,7 +7,6 @@ import java.util.concurrent.TimeoutException;
 import org.hsqldb.jdbc.JDBCDataSource;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
 import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
@@ -19,8 +18,6 @@ import org.springframework.boot.jdbc.init.DataSourceScriptDatabaseInitializer;
 import org.springframework.boot.sql.init.DatabaseInitializationMode;
 
 public abstract class JobUtils {
-
-	private static final String STEP_ERROR = "Error executing step %s: %s";
 
 	private JobUtils() {
 	}
@@ -49,28 +46,13 @@ public abstract class JobUtils {
 		return source;
 	}
 
-	public static JobExecution checkJobExecution(JobExecution jobExecution) throws JobExecutionException {
-		if (isFailed(jobExecution.getExitStatus())) {
-			Optional<JobExecutionException> stepExecutionException = jobExecution.getStepExecutions().stream()
-					.filter(e -> isFailed(e.getExitStatus())).map(JobUtils::stepExecutionException).findAny();
-			if (stepExecutionException.isPresent()) {
-				throw stepExecutionException.get();
-			}
-			if (jobExecution.getAllFailureExceptions().isEmpty()) {
-				throw new JobExecutionException(String.format("Error executing job %s: %s",
-						jobExecution.getJobInstance(), jobExecution.getExitStatus().getExitDescription()));
+	public static Optional<Throwable> exception(JobExecution jobExecution) {
+		for (StepExecution stepExecution : jobExecution.getStepExecutions()) {
+			if (!stepExecution.getFailureExceptions().isEmpty()) {
+				return Optional.of(stepExecution.getFailureExceptions().get(0));
 			}
 		}
-		return jobExecution;
-	}
-
-	public static JobExecutionException stepExecutionException(StepExecution stepExecution) {
-		String message = String.format(STEP_ERROR, stepExecution.getStepName(),
-				stepExecution.getExitStatus().getExitDescription());
-		if (stepExecution.getFailureExceptions().isEmpty()) {
-			return new JobExecutionException(message);
-		}
-		return new JobExecutionException(message, stepExecution.getFailureExceptions().get(0));
+		return Optional.empty();
 	}
 
 	public static boolean isFailed(ExitStatus exitStatus) {

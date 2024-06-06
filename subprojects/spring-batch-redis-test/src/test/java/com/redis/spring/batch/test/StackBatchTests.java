@@ -25,6 +25,7 @@ import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.item.support.ListItemWriter;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -92,6 +93,16 @@ class StackBatchTests extends BatchTests {
 	}
 
 	@Test
+	void configCheck(TestInfo info) throws Exception {
+		RedisItemReader<String, String, KeyValue<String, Object>> reader = RedisItemReader.struct();
+		configure(info, reader);
+		live(reader);
+		reader.setClient(targetRedisClient);
+		ExecutionContext executionContext = new ExecutionContext();
+		Assertions.assertThrows(ItemStreamException.class, () -> reader.open(executionContext));
+	}
+
+	@Test
 	void readStructLive(TestInfo info) throws Exception {
 		enableKeyspaceNotifications();
 		RedisItemReader<byte[], byte[], KeyValue<byte[], Object>> reader = RedisItemReader
@@ -137,8 +148,7 @@ class StackBatchTests extends BatchTests {
 		generate(info, generator(100));
 		List<KeyValue<String, Object>> keyValues = readAll(reader);
 		reader.close();
-		Assertions.assertTrue(
-				keyValues.stream().map(KeyValue::getType).allMatch(DataType.HASH.getString()::equalsIgnoreCase));
+		keyValues.forEach(v -> Assertions.assertEquals(DataType.HASH.getString(), v.getType()));
 	}
 
 	@Test

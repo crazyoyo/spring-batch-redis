@@ -1,8 +1,15 @@
 package com.redis.spring.batch.item;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionTimeoutException;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
@@ -21,16 +28,22 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.CollectionUtils;
 
-import com.redis.spring.batch.Await;
 import com.redis.spring.batch.JobUtils;
 
 public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItemReader<T> {
 
+	public static final Duration DEFAULT_POLL_DELAY = Duration.ZERO;
+	public static final Duration DEFAULT_AWAIT_POLL_INTERVAL = Duration.ofMillis(1);
+	public static final Duration DEFAULT_AWAIT_TIMEOUT = Duration.ofSeconds(3);
 	public static final int DEFAULT_THREADS = 1;
 	public static final int DEFAULT_CHUNK_SIZE = 50;
 	public static final String DEFAULT_JOB_REPOSITORY_NAME = "redis";
 
-	private ItemProcessor<S, S> processor;
+	private final Log log = LogFactory.getLog(getClass());
+
+	private Duration awaitPollDelay = DEFAULT_POLL_DELAY;
+	private Duration awaitPollInterval = DEFAULT_AWAIT_POLL_INTERVAL;
+	private Duration awaitTimeout = DEFAULT_AWAIT_TIMEOUT;
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private int threads = DEFAULT_THREADS;
 	private int skipLimit;
@@ -38,9 +51,10 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 	private String jobRepositoryName = DEFAULT_JOB_REPOSITORY_NAME;
 	private JobRepository jobRepository;
 	private PlatformTransactionManager transactionManager = JobUtils.resourcelessTransactionManager();
+	private ItemProcessor<S, S> processor;
 
 	private JobExecution jobExecution;
-	private ItemReader<S> reader;
+	protected ItemReader<S> reader;
 
 	@Override
 	protected synchronized void doOpen() throws Exception {
@@ -50,34 +64,53 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 		if (jobExecution == null) {
 			SimpleStepBuilder<S, S> step = step();
 			Job job = new JobBuilder(getName(), jobRepository).start(step.build()).build();
-			jobExecution = runJob(job);
+			TaskExecutorJobLauncher jobLauncher = new TaskExecutorJobLauncher();
+			jobLauncher.setJobRepository(jobRepository);
+			jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+			jobLauncher.afterPropertiesSet();
+			jobExecution = jobLauncher.run(job, new JobParameters());
+			try {
+				awaitUntil(() -> jobRunning() || jobFailed());
+			} catch (ConditionTimeoutException e) {
+				List<Throwable> exceptions = jobExecution.getAllFailureExceptions();
+				if (!CollectionUtils.isEmpty(exceptions)) {
+					throw new JobExecutionException("Job execution unsuccessful", exceptions.get(0));
+				}
+			}
+			Optional<Throwable> exception = JobUtils.exception(jobExecution);
+			if (exception.isPresent()) {
+				throw new JobExecutionException("Could not run job", exception.get());
+			}
 		}
 	}
 
-	private JobExecution runJob(Job job) throws Exception {
-		TaskExecutorJobLauncher jobLauncher = new TaskExecutorJobLauncher();
-		jobLauncher.setJobRepository(jobRepository);
-		jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-		jobLauncher.afterPropertiesSet();
-		JobExecution execution = jobLauncher.run(job, new JobParameters());
-		try {
-			Await.await().until(() -> execution.isRunning() || execution.getStatus().isUnsuccessful());
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw e;
-		} catch (TimeoutException e) {
-			List<Throwable> exceptions = execution.getAllFailureExceptions();
-			if (!CollectionUtils.isEmpty(exceptions)) {
-				throw new JobExecutionException("Job execution unsuccessful", exceptions.get(0));
-			}
+	private void awaitUntil(Callable<Boolean> condition) {
+		Awaitility.await().pollDelay(awaitPollDelay).pollInterval(awaitPollInterval).timeout(awaitTimeout)
+				.until(condition);
+	}
+
+	protected boolean jobRunning() {
+		if (jobExecution.isRunning()) {
+			log.info(String.format("Job %s running", jobExecution.getJobInstance().getJobName()));
+			return true;
 		}
-		return execution;
+		return false;
+	}
+
+	protected boolean jobFailed() {
+		if (jobExecution.getStatus().isUnsuccessful()) {
+			log.warn(String.format("Job %s failed: %s", jobExecution.getJobInstance().getJobName(),
+					jobExecution.getStatus()));
+			return true;
+		}
+		return false;
+
 	}
 
 	@Override
 	protected synchronized void doClose() throws TimeoutException, InterruptedException {
 		if (jobExecution != null) {
-			Await.await().untilFalse(jobExecution::isRunning);
+			Awaitility.await().until(() -> !jobExecution.isRunning());
 			jobExecution = null;
 		}
 	}
@@ -191,6 +224,30 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 
 	public void setRetryLimit(int retryLimit) {
 		this.retryLimit = retryLimit;
+	}
+
+	public Duration getAwaitPollDelay() {
+		return awaitPollDelay;
+	}
+
+	public void setAwaitPollDelay(Duration awaitPollDelay) {
+		this.awaitPollDelay = awaitPollDelay;
+	}
+
+	public Duration getAwaitPollInterval() {
+		return awaitPollInterval;
+	}
+
+	public void setAwaitPollInterval(Duration awaitPollInterval) {
+		this.awaitPollInterval = awaitPollInterval;
+	}
+
+	public Duration getAwaitTimeout() {
+		return awaitTimeout;
+	}
+
+	public void setAwaitTimeout(Duration awaitTimeout) {
+		this.awaitTimeout = awaitTimeout;
 	}
 
 }

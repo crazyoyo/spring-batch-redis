@@ -8,10 +8,11 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BooleanSupplier;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -53,7 +54,6 @@ import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
 import com.redis.lettucemod.util.RedisModulesUtils;
-import com.redis.spring.batch.Await;
 import com.redis.spring.batch.JobUtils;
 import com.redis.spring.batch.Range;
 import com.redis.spring.batch.item.PollableItemReader;
@@ -91,7 +91,7 @@ public abstract class AbstractTestBase {
 
 	private int chunkSize = DEFAULT_CHUNK_SIZE;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
-	private Duration pollDelay = DEFAULT_POLL_DELAY;
+	private Duration awaitPollDelay = DEFAULT_POLL_DELAY;
 	private Duration awaitPollInterval = DEFAULT_AWAIT_POLL_INTERVAL;
 	private Duration awaitTimeout = DEFAULT_AWAIT_TIMEOUT;
 
@@ -190,7 +190,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void live(RedisItemReader<?, ?, ?> reader) {
-		reader.setMode(ReaderMode.LIVEONLY);
+		reader.setMode(ReaderMode.LIVE);
 		reader.setIdleTimeout(idleTimeout);
 	}
 
@@ -229,17 +229,10 @@ public abstract class AbstractTestBase {
 	}
 
 	protected void awaitUntilSubscribers() {
-		try {
-			awaitUntil(() -> redisCommands.pubsubNumpat() > 0);
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new ItemStreamException("Interrupted", e);
-		} catch (TimeoutException e) {
-			throw new ItemStreamException("Timeout while waiting for subscribers", e);
-		}
+		awaitUntil(() -> redisCommands.pubsubNumpat() > 0);
 	}
 
-	protected void awaitUntilNoSubscribers() throws TimeoutException, InterruptedException {
+	protected void awaitUntilNoSubscribers() {
 		awaitUntil(() -> redisCommands.pubsubNumpat() == 0);
 	}
 
@@ -251,8 +244,8 @@ public abstract class AbstractTestBase {
 		this.chunkSize = chunkSize;
 	}
 
-	public Duration getPollDelay() {
-		return pollDelay;
+	public Duration getAwaitPollDelay() {
+		return awaitPollDelay;
 	}
 
 	public Duration getAwaitPollInterval() {
@@ -267,8 +260,8 @@ public abstract class AbstractTestBase {
 		return idleTimeout;
 	}
 
-	public void setPollDelay(Duration pollDelay) {
-		this.pollDelay = pollDelay;
+	public void setAwaitPollDelay(Duration pollDelay) {
+		this.awaitPollDelay = pollDelay;
 	}
 
 	public void setAwaitPollInterval(Duration awaitPollInterval) {
@@ -305,8 +298,9 @@ public abstract class AbstractTestBase {
 	}
 
 	public static String name(TestInfo info) {
-		StringBuilder displayName = new StringBuilder(info.getDisplayName().replace("(TestInfo)", ""));
-		info.getTestClass().ifPresent(c -> displayName.append("-").append(ClassUtils.getShortName(c)));
+		StringBuilder displayName = new StringBuilder();
+		info.getTestClass().ifPresent(c -> displayName.append(ClassUtils.getShortName(c)).append("-"));
+		displayName.append(info.getDisplayName().replace("(TestInfo)", ""));
 		return displayName.toString();
 	}
 
@@ -317,20 +311,21 @@ public abstract class AbstractTestBase {
 		return RedisModulesClient.create(server.getRedisURI());
 	}
 
-	public void awaitRunning(JobExecution jobExecution) throws TimeoutException, InterruptedException {
+	public void awaitRunning(JobExecution jobExecution) {
 		awaitUntil(jobExecution::isRunning);
 	}
 
-	public void awaitTermination(JobExecution jobExecution) throws TimeoutException, InterruptedException {
+	public void awaitTermination(JobExecution jobExecution) {
 		awaitUntilFalse(jobExecution::isRunning);
 	}
 
-	protected void awaitUntilFalse(BooleanSupplier evaluator) throws TimeoutException, InterruptedException {
-		awaitUntil(() -> !evaluator.getAsBoolean());
+	protected void awaitUntilFalse(Callable<Boolean> evaluator) {
+		awaitUntil(() -> !evaluator.call());
 	}
 
-	protected void awaitUntil(BooleanSupplier evaluator) throws TimeoutException, InterruptedException {
-		Await.await().initialDelay(pollDelay).delay(awaitPollInterval).timeout(awaitTimeout).until(evaluator);
+	protected void awaitUntil(Callable<Boolean> evaluator) {
+		Awaitility.await().pollDelay(awaitPollDelay).pollInterval(awaitPollInterval).timeout(awaitTimeout)
+				.until(evaluator);
 	}
 
 	protected JobBuilder job(TestInfo info) {
@@ -391,7 +386,7 @@ public abstract class AbstractTestBase {
 		return ftStep;
 	}
 
-	protected JobExecution run(Job job) throws JobExecutionException, TimeoutException, InterruptedException {
+	protected JobExecution run(Job job) throws JobExecutionException {
 		JobExecution execution = jobLauncher.run(job, new JobParameters());
 		awaitUntilFalse(execution::isRunning);
 		return execution;

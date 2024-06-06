@@ -98,8 +98,26 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 		}
 	}
 
+	@Override
+	protected boolean jobRunning() {
+		return super.jobRunning() && readerOpen();
+	}
+
+	@SuppressWarnings("unchecked")
+	private boolean readerOpen() {
+		switch (mode) {
+		case LIVE:
+		case LIVEONLY:
+			return reader != null && ((KeyNotificationItemReader<K, V>) reader).isOpen();
+		default:
+			return true;
+		}
+	}
+
 	private ItemReader<K> scanNotificationReader() {
-		return new KeyScanNotificationItemReader<>(client, codec, scanReader());
+		KeyScanNotificationItemReader<K, V> reader = new KeyScanNotificationItemReader<>(client, codec, scanReader());
+		configure(reader);
+		return reader;
 	}
 
 	private IteratorItemReader<K> scanReader() {
@@ -108,21 +126,18 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 
 	private KeyNotificationItemReader<K, V> notificationReader() {
 		KeyNotificationItemReader<K, V> reader = new KeyNotificationItemReader<>(client, codec);
-		reader.setName(getName() + "-key-notification-reader");
+		configure(reader);
+		return reader;
+	}
+
+	private void configure(KeyNotificationItemReader<K, V> reader) {
+		reader.setName(getName() + "-key-reader");
 		reader.setQueueCapacity(notificationQueueCapacity);
 		reader.setDatabase(database);
 		reader.setKeyPattern(keyPattern);
 		reader.setKeyType(keyType);
 		reader.setPollTimeout(pollTimeout);
-		return reader;
-	}
 
-	public int getQueueCapacity() {
-		return queueCapacity;
-	}
-
-	public void setQueueCapacity(int queueCapacity) {
-		this.queueCapacity = queueCapacity;
 	}
 
 	@Override
@@ -199,32 +214,32 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 		return poolSize;
 	}
 
-	public void setPoolSize(int poolSize) {
-		this.poolSize = poolSize;
+	public void setPoolSize(int size) {
+		this.poolSize = size;
 	}
 
 	public String getKeyPattern() {
 		return keyPattern;
 	}
 
-	public void setKeyPattern(String keyPattern) {
-		this.keyPattern = keyPattern;
+	public void setKeyPattern(String pattern) {
+		this.keyPattern = pattern;
 	}
 
 	public String getKeyType() {
 		return keyType;
 	}
 
-	public void setKeyType(String keyType) {
-		this.keyType = keyType;
+	public void setKeyType(String type) {
+		this.keyType = type;
 	}
 
 	public long getScanCount() {
 		return scanCount;
 	}
 
-	public void setScanCount(long scanCount) {
-		this.scanCount = scanCount;
+	public void setScanCount(long count) {
+		this.scanCount = count;
 	}
 
 	public ReadFrom getReadFrom() {
@@ -239,8 +254,8 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 		return notificationQueueCapacity;
 	}
 
-	public void setNotificationQueueCapacity(int notificationQueueCapacity) {
-		this.notificationQueueCapacity = notificationQueueCapacity;
+	public void setNotificationQueueCapacity(int capacity) {
+		this.notificationQueueCapacity = capacity;
 	}
 
 	public int getDatabase() {
@@ -271,8 +286,16 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 		return idleTimeout;
 	}
 
-	public void setIdleTimeout(Duration idleTimeout) {
-		this.idleTimeout = idleTimeout;
+	public void setIdleTimeout(Duration timeout) {
+		this.idleTimeout = timeout;
+	}
+
+	public int getQueueCapacity() {
+		return queueCapacity;
+	}
+
+	public void setQueueCapacity(int capacity) {
+		this.queueCapacity = capacity;
 	}
 
 }

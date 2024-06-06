@@ -1,7 +1,5 @@
 package com.redis.spring.batch.item.redis.common;
 
-import java.util.Objects;
-
 import org.springframework.util.StringUtils;
 
 public class KeyValue<K, T> {
@@ -134,24 +132,6 @@ public class KeyValue<K, T> {
 	@Override
 	public String toString() {
 		return "KeyValue [key=" + key + "]";
-	}
-
-	@Override
-	public int hashCode() {
-		return Objects.hash(KeyWrapper.hashCode(key), memoryUsage, time, ttl, type, value);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		KeyValue<?, ?> other = (KeyValue<?, ?>) obj;
-		return KeyWrapper.equals(this, other) && memoryUsage == other.memoryUsage && time == other.time
-				&& ttl == other.ttl && Objects.equals(type, other.type) && Objects.equals(value, other.value);
 	}
 
 }

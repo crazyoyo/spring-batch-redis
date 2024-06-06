@@ -11,6 +11,7 @@ dependencies {
     api group: 'com.redis', name: 'testcontainers-redis', version: testcontainersRedisVersion
     api group: 'com.redis', name: 'testcontainers-redis-enterprise', version: testcontainersRedisVersion
     api group: 'com.redis', name: 'lettucemod', version: lettucemodVersion
+    api 'org.awaitility:awaitility'
     
     testImplementation 'com.fasterxml.jackson.core:jackson-databind'
     testImplementation group: 'com.redis', name: 'lettucemod', version: lettucemodVersion, classifier: 'tests'
