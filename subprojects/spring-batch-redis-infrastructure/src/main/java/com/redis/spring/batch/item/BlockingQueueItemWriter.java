@@ -5,11 +5,11 @@ import java.util.concurrent.BlockingQueue;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemWriter;
 
-public class QueueItemWriter<T> implements ItemWriter<T> {
+public class BlockingQueueItemWriter<T> implements ItemWriter<T> {
 
 	private final BlockingQueue<T> queue;
 
-	public QueueItemWriter(BlockingQueue<T> queue) {
+	public BlockingQueueItemWriter(BlockingQueue<T> queue) {
 		this.queue = queue;
 	}
 

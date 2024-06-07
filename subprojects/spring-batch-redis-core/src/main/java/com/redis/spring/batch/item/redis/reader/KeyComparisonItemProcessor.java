@@ -15,13 +15,14 @@ import org.springframework.batch.item.ItemStreamException;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.common.OperationExecutor;
 
-public class KeyComparisonItemProcessor<K, V, T extends KeyValue<K, Object>>
-		implements ItemProcessor<Iterable<? extends T>, List<KeyComparison<K>>>, ItemStream {
+public class KeyComparisonItemProcessor<K, V>
+		implements ItemProcessor<Iterable<? extends KeyValue<K, Object>>, List<KeyComparison<K>>>, ItemStream {
 
-	private final OperationExecutor<K, V, K, T> reader;
+	private final OperationExecutor<K, V, K, KeyValue<K, Object>> reader;
 	private final KeyComparator<K> comparator;
 
-	public KeyComparisonItemProcessor(OperationExecutor<K, V, K, T> reader, KeyComparator<K> comparator) {
+	public KeyComparisonItemProcessor(OperationExecutor<K, V, K, KeyValue<K, Object>> reader,
+			KeyComparator<K> comparator) {
 		this.reader = reader;
 		this.comparator = comparator;
 	}
@@ -42,12 +43,13 @@ public class KeyComparisonItemProcessor<K, V, T extends KeyValue<K, Object>>
 	}
 
 	@Override
-	public List<KeyComparison<K>> process(Iterable<? extends T> items) throws Exception {
+	public List<KeyComparison<K>> process(Iterable<? extends KeyValue<K, Object>> items) throws Exception {
 		List<K> keys = StreamSupport.stream(items.spliterator(), false).map(KeyValue::getKey)
 				.collect(Collectors.toList());
-		List<T> targetItems = reader.process(keys);
-		Iterator<? extends T> sourceIterator = items.iterator();
-		Iterator<T> targetIterator = targetItems == null ? Collections.emptyIterator() : targetItems.iterator();
+		List<KeyValue<K, Object>> targetItems = reader.process(keys);
+		Iterator<? extends KeyValue<K, Object>> sourceIterator = items.iterator();
+		Iterator<KeyValue<K, Object>> targetIterator = targetItems == null ? Collections.emptyIterator()
+				: targetItems.iterator();
 		List<KeyComparison<K>> comparisons = new ArrayList<>();
 		while (sourceIterator.hasNext()) {
 			KeyValue<K, Object> source = sourceIterator.next();

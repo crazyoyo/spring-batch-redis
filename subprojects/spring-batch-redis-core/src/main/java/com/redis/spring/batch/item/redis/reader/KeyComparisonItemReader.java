@@ -9,7 +9,7 @@ import org.springframework.batch.item.ItemWriter;
 
 import com.redis.spring.batch.item.AbstractAsyncItemReader;
 import com.redis.spring.batch.item.ProcessingItemWriter;
-import com.redis.spring.batch.item.QueueItemWriter;
+import com.redis.spring.batch.item.BlockingQueueItemWriter;
 import com.redis.spring.batch.item.redis.RedisItemReader;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 
@@ -18,16 +18,16 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<KeyVa
 	public static final int DEFAULT_TARGET_POOL_SIZE = RedisItemReader.DEFAULT_POOL_SIZE;
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 
-	private final RedisItemReader<K, V, KeyValue<K, Object>> sourceReader;
-	private final RedisItemReader<K, V, KeyValue<K, Object>> targetReader;
+	private final RedisItemReader<K, V, Object> sourceReader;
+	private final RedisItemReader<K, V, Object> targetReader;
 
 	private KeyComparator<K> comparator;
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
 	private BlockingQueue<KeyComparison<K>> queue;
 
-	public KeyComparisonItemReader(RedisItemReader<K, V, KeyValue<K, Object>> sourceReader,
-			RedisItemReader<K, V, KeyValue<K, Object>> targetReader) {
+	public KeyComparisonItemReader(RedisItemReader<K, V, Object> sourceReader,
+			RedisItemReader<K, V, Object> targetReader) {
 		this.sourceReader = sourceReader;
 		this.targetReader = targetReader;
 		this.comparator = new DefaultKeyComparator<>(sourceReader.getCodec());
@@ -36,10 +36,10 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<KeyVa
 	@Override
 	protected ItemWriter<KeyValue<K, Object>> writer() {
 		queue = new LinkedBlockingQueue<>(queueCapacity);
-		return new ProcessingItemWriter<>(processor(), new QueueItemWriter<>(queue));
+		return new ProcessingItemWriter<>(processor(), new BlockingQueueItemWriter<>(queue));
 	}
 
-	private KeyComparisonItemProcessor<K, V, KeyValue<K, Object>> processor() {
+	private KeyComparisonItemProcessor<K, V> processor() {
 		return new KeyComparisonItemProcessor<>(targetReader.operationExecutor(), comparator);
 	}
 
@@ -48,11 +48,11 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<KeyVa
 		return queue.poll(timeout, unit);
 	}
 
-	public RedisItemReader<K, V, KeyValue<K, Object>> getSourceReader() {
+	public RedisItemReader<K, V, Object> getSourceReader() {
 		return sourceReader;
 	}
 
-	public RedisItemReader<K, V, KeyValue<K, Object>> getTargetReader() {
+	public RedisItemReader<K, V, Object> getTargetReader() {
 		return targetReader;
 	}
 

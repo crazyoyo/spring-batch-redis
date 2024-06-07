@@ -1,8 +1,10 @@
 package com.redis.spring.batch.item;
 
 import java.time.Duration;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 
@@ -10,9 +12,12 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionTimeoutException;
+import org.springframework.batch.core.ItemReadListener;
+import org.springframework.batch.core.ItemWriteListener;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
+import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
@@ -52,9 +57,12 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 	private JobRepository jobRepository;
 	private PlatformTransactionManager transactionManager = JobUtils.resourcelessTransactionManager();
 	private ItemProcessor<S, S> processor;
+	private Set<JobExecutionListener> jobExecutionListeners = new LinkedHashSet<>();
+	private Set<ItemReadListener<S>> itemReadListeners = new LinkedHashSet<>();
+	private Set<ItemWriteListener<S>> itemWriteListeners = new LinkedHashSet<>();
 
 	private JobExecution jobExecution;
-	protected ItemReader<S> reader;
+	private ItemReader<S> reader;
 
 	@Override
 	protected synchronized void doOpen() throws Exception {
@@ -63,7 +71,7 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 		}
 		if (jobExecution == null) {
 			SimpleStepBuilder<S, S> step = step();
-			Job job = new JobBuilder(getName(), jobRepository).start(step.build()).build();
+			Job job = jobBuilder().start(step.build()).build();
 			TaskExecutorJobLauncher jobLauncher = new TaskExecutorJobLauncher();
 			jobLauncher.setJobRepository(jobRepository);
 			jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
@@ -82,6 +90,12 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 				throw new JobExecutionException("Could not run job", exception.get());
 			}
 		}
+	}
+
+	private JobBuilder jobBuilder() {
+		JobBuilder builder = new JobBuilder(getName(), jobRepository);
+		jobExecutionListeners.forEach(builder::listener);
+		return builder;
 	}
 
 	private void awaitUntil(Callable<Boolean> condition) {
@@ -131,6 +145,8 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 		}
 		step.processor(processor);
 		step.writer(writer());
+		itemReadListeners.forEach(step::listener);
+		itemWriteListeners.forEach(step::listener);
 		return faultTolerant(step);
 	}
 
@@ -152,6 +168,18 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 	@Override
 	public boolean isComplete() {
 		return jobExecution == null || !jobExecution.isRunning();
+	}
+
+	public void addJobExecutionListener(JobExecutionListener listener) {
+		this.jobExecutionListeners.add(listener);
+	}
+
+	public void addItemReadListener(ItemReadListener<S> listener) {
+		this.itemReadListeners.add(listener);
+	}
+
+	public void addItemWriteListener(ItemWriteListener<S> listener) {
+		this.itemWriteListeners.add(listener);
 	}
 
 	public ItemReader<S> getReader() {

@@ -206,20 +206,19 @@ public abstract class AbstractTestBase {
 		streamSupport.setName(name(testInfo(info, allSuffixes.toArray(new String[0]))));
 	}
 
-	protected RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dumpReader(TestInfo info, String... suffixes) {
-		RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> reader = RedisItemReader.dump();
+	protected RedisItemReader<byte[], byte[], byte[]> dumpReader(TestInfo info, String... suffixes) {
+		RedisItemReader<byte[], byte[], byte[]> reader = RedisItemReader.dump();
 		configure(info, reader, suffixes);
 		return reader;
 	}
 
-	protected RedisItemReader<String, String, KeyValue<String, Object>> structReader(TestInfo info,
-			String... suffixes) {
+	protected RedisItemReader<String, String, Object> structReader(TestInfo info, String... suffixes) {
 		return structReader(info, StringCodec.UTF8, suffixes);
 	}
 
-	protected <K, V> RedisItemReader<K, V, KeyValue<K, Object>> structReader(TestInfo info, RedisCodec<K, V> codec,
+	protected <K, V> RedisItemReader<K, V, Object> structReader(TestInfo info, RedisCodec<K, V> codec,
 			String... suffixes) {
-		RedisItemReader<K, V, KeyValue<K, Object>> reader = RedisItemReader.struct(codec);
+		RedisItemReader<K, V, Object> reader = RedisItemReader.struct(codec);
 		configure(info, reader, suffixes);
 		return reader;
 	}

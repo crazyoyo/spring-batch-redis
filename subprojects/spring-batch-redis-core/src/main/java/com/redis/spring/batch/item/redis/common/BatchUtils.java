@@ -13,6 +13,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
@@ -132,6 +133,11 @@ public abstract class BatchUtils {
 			}
 		}
 		return items;
+	}
+
+	public static <K> BiPredicate<K, K> keyEqualityPredicate(RedisCodec<K, ?> codec) {
+		ToIntFunction<K> hashCode = hashCodeFunction(codec);
+		return (k1, k2) -> hashCode.applyAsInt(k1) == hashCode.applyAsInt(k2);
 	}
 
 	public static <K> ToIntFunction<K> hashCodeFunction(RedisCodec<?, ?> codec) {

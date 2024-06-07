@@ -10,7 +10,7 @@ import org.springframework.batch.item.ItemWriter;
 
 import com.redis.spring.batch.item.AbstractAsyncItemReader;
 import com.redis.spring.batch.item.ProcessingItemWriter;
-import com.redis.spring.batch.item.QueueItemWriter;
+import com.redis.spring.batch.item.BlockingQueueItemWriter;
 import com.redis.spring.batch.memcached.reader.LruMetadumpEntry;
 import com.redis.spring.batch.memcached.reader.LruMetadumpItemProcessor;
 import com.redis.spring.batch.memcached.reader.LruMetadumpItemReader;
@@ -39,7 +39,7 @@ public class MemcachedItemReader extends AbstractAsyncItemReader<LruMetadumpEntr
 	@Override
 	protected ItemWriter<LruMetadumpEntry> writer() {
 		queue = new LinkedBlockingQueue<>(queueCapacity);
-		return new ProcessingItemWriter<>(new LruMetadumpItemProcessor(clientSupplier), new QueueItemWriter<>(queue));
+		return new ProcessingItemWriter<>(new LruMetadumpItemProcessor(clientSupplier), new BlockingQueueItemWriter<>(queue));
 	}
 
 	@Override

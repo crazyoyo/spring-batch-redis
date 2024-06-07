@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiPredicate;
 
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
@@ -13,13 +14,15 @@ import org.springframework.util.Assert;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.item.AbstractAsyncItemReader;
+import com.redis.spring.batch.item.BlockingQueueItemWriter;
 import com.redis.spring.batch.item.ProcessingItemWriter;
-import com.redis.spring.batch.item.QueueItemWriter;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.common.Operation;
 import com.redis.spring.batch.item.redis.common.OperationExecutor;
+import com.redis.spring.batch.item.redis.reader.KeyNotification;
 import com.redis.spring.batch.item.redis.reader.KeyNotificationItemReader;
+import com.redis.spring.batch.item.redis.reader.KeyNotificationStatus;
 import com.redis.spring.batch.item.redis.reader.KeyScanNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyValueRead;
 import com.redis.spring.batch.item.redis.reader.KeyValueStructRead;
@@ -34,7 +37,7 @@ import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
+public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, KeyValue<K, T>> {
 
 	public enum ReaderMode {
 		SCAN, LIVE, LIVEONLY
@@ -48,7 +51,8 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 	public static final Duration DEFAULT_IDLE_TIMEOUT = FlushingChunkProvider.DEFAULT_IDLE_TIMEOUT;
 
 	private final RedisCodec<K, V> codec;
-	private final Operation<K, V, K, T> operation;
+	private final BiPredicate<K, K> keyEquals;
+	private final Operation<K, V, K, KeyValue<K, T>> operation;
 
 	private Duration flushInterval = DEFAULT_FLUSH_INTERVAL;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
@@ -63,14 +67,15 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 	private int database;
 
 	private AbstractRedisClient client;
-	private BlockingQueue<T> queue;
+	private BlockingQueue<KeyValue<K, T>> queue;
 
-	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, K, T> operation) {
+	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, K, KeyValue<K, T>> operation) {
 		this.codec = codec;
+		this.keyEquals = BatchUtils.keyEqualityPredicate(codec);
 		this.operation = operation;
 	}
 
-	public Operation<K, V, K, T> getOperation() {
+	public Operation<K, V, K, KeyValue<K, T>> getOperation() {
 		return operation;
 	}
 
@@ -108,7 +113,7 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 		switch (mode) {
 		case LIVE:
 		case LIVEONLY:
-			return reader != null && ((KeyNotificationItemReader<K, V>) reader).isOpen();
+			return getReader() != null && ((KeyNotificationItemReader<K, V>) getReader()).isOpen();
 		default:
 			return true;
 		}
@@ -137,23 +142,29 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 		reader.setKeyPattern(keyPattern);
 		reader.setKeyType(keyType);
 		reader.setPollTimeout(pollTimeout);
+		reader.addListener(this::keyNotification);
+	}
 
+	private void keyNotification(KeyNotification<K> notification, KeyNotificationStatus status) {
+		if (status == KeyNotificationStatus.ACCEPTED) {
+			queue.removeIf(t -> keyEquals.test(t.getKey(), notification.getKey()));
+		}
 	}
 
 	@Override
-	protected T doPoll(long timeout, TimeUnit unit) throws InterruptedException {
+	protected KeyValue<K, T> doPoll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
 	}
 
 	@Override
 	protected ItemWriter<K> writer() {
 		queue = new LinkedBlockingQueue<>(queueCapacity);
-		return new ProcessingItemWriter<>(operationExecutor(), new QueueItemWriter<>(queue));
+		return new ProcessingItemWriter<>(operationExecutor(), new BlockingQueueItemWriter<>(queue));
 	}
 
-	public OperationExecutor<K, V, K, T> operationExecutor() {
+	public OperationExecutor<K, V, K, KeyValue<K, T>> operationExecutor() {
 		Assert.notNull(client, getName() + ": Redis client not set");
-		OperationExecutor<K, V, K, T> executor = new OperationExecutor<>(codec, operation);
+		OperationExecutor<K, V, K, KeyValue<K, T>> executor = new OperationExecutor<>(codec, operation);
 		executor.setClient(client);
 		executor.setPoolSize(poolSize);
 		executor.setReadFrom(readFrom);
@@ -178,23 +189,23 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, T> {
 		return args;
 	}
 
-	public static RedisItemReader<byte[], byte[], KeyValue<byte[], byte[]>> dump() {
+	public static RedisItemReader<byte[], byte[], byte[]> dump() {
 		return new RedisItemReader<>(ByteArrayCodec.INSTANCE, KeyValueRead.dump(ByteArrayCodec.INSTANCE));
 	}
 
-	public static RedisItemReader<String, String, KeyValue<String, Object>> type() {
+	public static RedisItemReader<String, String, Object> type() {
 		return type(StringCodec.UTF8);
 	}
 
-	public static <K, V> RedisItemReader<K, V, KeyValue<K, Object>> type(RedisCodec<K, V> codec) {
+	public static <K, V> RedisItemReader<K, V, Object> type(RedisCodec<K, V> codec) {
 		return new RedisItemReader<>(codec, KeyValueRead.type(codec));
 	}
 
-	public static RedisItemReader<String, String, KeyValue<String, Object>> struct() {
+	public static RedisItemReader<String, String, Object> struct() {
 		return struct(StringCodec.UTF8);
 	}
 
-	public static <K, V> RedisItemReader<K, V, KeyValue<K, Object>> struct(RedisCodec<K, V> codec) {
+	public static <K, V> RedisItemReader<K, V, Object> struct(RedisCodec<K, V> codec) {
 		return new RedisItemReader<>(codec, new KeyValueStructRead<>(codec));
 	}
 
