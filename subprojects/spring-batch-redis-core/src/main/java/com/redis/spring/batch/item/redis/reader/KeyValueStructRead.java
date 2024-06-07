@@ -24,7 +24,7 @@ public class KeyValueStructRead<K, V> extends KeyValueRead<K, V, Object> {
 	}
 
 	@Override
-	protected KeyValue<K, Object> convert(List<Object> list) {
+	public KeyValue<K, Object> convert(List<Object> list) {
 		KeyValue<K, Object> keyValue = super.convert(list);
 		keyValue.setValue(value(keyValue));
 		return keyValue;

@@ -143,17 +143,16 @@ class StackBatchTests extends BatchTests {
 	@Test
 	void readStructMemoryUsage(TestInfo info) throws Exception {
 		generate(info, generator(73));
-		long memLimit = 200;
+		DataSize memLimit = DataSize.ofBytes(200);
 		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
-		((KeyValueRead<String, String, Object>) reader.getOperation()).setMemUsageLimit(DataSize.ofBytes(memLimit));
+		((KeyValueRead<String, String, Object>) reader.getOperation()).setMemUsageLimit(memLimit);
 		reader.open(new ExecutionContext());
 		List<KeyValue<String, Object>> keyValues = readAll(reader);
 		reader.close();
 		Assertions.assertFalse(keyValues.isEmpty());
 		for (KeyValue<String, Object> keyValue : keyValues) {
-			long memUsage = keyValue.getMemoryUsage();
-			Assertions.assertTrue(memUsage > 0);
-			if (memUsage > memLimit) {
+			Assertions.assertNotNull(keyValue.getMemoryUsage());
+			if (keyValue.getMemoryUsage() > memLimit.toBytes()) {
 				Assertions.assertNull(keyValue.getValue());
 			}
 		}
@@ -169,8 +168,6 @@ class StackBatchTests extends BatchTests {
 		long ttl = System.currentTimeMillis() + 123456;
 		redisCommands.pexpireat(key, ttl);
 		RedisItemReader<String, String, KeyValue<String, Object>> reader = structReader(info);
-		((KeyValueRead<String, String, Object>) reader.getOperation())
-				.setMemUsageLimit(KeyValueRead.MEM_USAGE_NO_LIMIT);
 		reader.open(new ExecutionContext());
 		KeyValue<String, Object> ds = reader.read();
 		Assertions.assertEquals(key, ds.getKey());

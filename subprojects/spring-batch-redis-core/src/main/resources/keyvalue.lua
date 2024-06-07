@@ -1,56 +1,63 @@
-local function time ()
-  local now = redis.call('TIME')
-  return tonumber(now[1]) * 1000
+local function now ()
+  local time = redis.call('TIME')
+  return tonumber(time[1]) * 1000
 end
 
-local function struct_value (key, type)
+local function struct (key, type)
   if type == 'hash' then
     return redis.call('HGETALL', key)
-  end
-  if type == 'ReJSON-RL' then
+  elseif type == 'ReJSON-RL' then
     return redis.call('JSON.GET', key)
-  end
-  if type == 'list' then
+  elseif type == 'list' then
     return redis.call('LRANGE', key, 0, -1)
-  end
-  if type == 'set' then
+  elseif type == 'set' then
     return redis.call('SMEMBERS', key)
-  end
-  if type == 'stream' then
+  elseif type == 'stream' then
     return redis.call('XRANGE', key, '-', '+')
-  end
-  if type == 'string' then
+  elseif type == 'string' then
     return redis.call('GET', key)
-  end
-  if type == 'TSDB-TYPE' then
+  elseif type == 'TSDB-TYPE' then
     return redis.call('TS.RANGE', key, '-', '+')
-  end
-  if type == 'zset' then
+  elseif type == 'zset' then
     return redis.call('ZRANGE', key, 0, -1, 'WITHSCORES')
   end
   return nil
 end
 
+--[[
+    KEYS:
+      1. Key for which to fetch time, TTL, mem usage, type, and value
+    ARGV:
+      1. mode: value format
+           DUMP  : DUMP <key>
+           STRUCT: data-structure specific command (string -> GET, hash -> HGETALL, ...)
+           else  : no value
+      2. limit: criteria on key memory usage
+           -1 : no mem usage, no limit
+            0 : mem usage, no limit
+            1+: mem usage, limit
+      3. samples: number of sampled nested values (MEMORY USAGE <key> SAMPLES <samples>) 
+--]]
 local key = KEYS[1]
-local time = time()
+local mode = ARGV[1]
+local limit = tonumber(ARGV[2])
+local samples = tonumber(ARGV[3])
+local time = now()
 local ttl = redis.call('PTTL', key)
-local type = nil
 local mem = 0
-local value = nil
+local type
+local value
 if ttl ~= -2 then
-  type = redis.call('TYPE', key)['ok']
-  local memlimit = tonumber(ARGV[2])  
-  if memlimit > 0 then
-    local samples = tonumber(ARGV[3])
+  if limit >= 0 then
     mem = redis.call('MEMORY', 'USAGE', key, 'SAMPLES', samples)
   end
-  if mem <= memlimit then
-    local mode = ARGV[1]
+  type = redis.call('TYPE', key)['ok']
+  if limit <= 0 or mem <= limit then
     if mode == 'DUMP' then
       value = redis.call('DUMP', key)
     elseif mode == 'STRUCT' then
-      value = struct_value(key, type)
+      value = struct (key, type)
     end
   end
 end
-return { key, time, ttl, type, mem, value }
+return { key, time, ttl, mem, type, value }

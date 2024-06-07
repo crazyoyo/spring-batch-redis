@@ -25,8 +25,9 @@ public class KeyValueRead<K, V, T> implements InitializingOperation<K, V, K, Key
 		DUMP, STRUCT, NONE
 	}
 
-	public static final DataSize MEM_USAGE_NO_LIMIT = DataSize.ofBytes(Long.MAX_VALUE); // Call mem usage, no limit
-	public static final DataSize DEFAULT_MEM_USAGE_LIMIT = DataSize.ofBytes(0); // No mem usage by default
+	public static final DataSize MEM_USAGE_OFF = DataSize.ofBytes(-1);
+	public static final DataSize MEM_USAGE_NO_LIMIT = DataSize.ofBytes(0);
+	public static final DataSize DEFAULT_MEM_USAGE_LIMIT = DataSize.ofMegabytes(10);
 	public static final int DEFAULT_MEM_USAGE_SAMPLES = 5;
 	public static final String ATTR_MEMORY_USAGE = "memory-usage";
 
@@ -55,17 +56,12 @@ public class KeyValueRead<K, V, T> implements InitializingOperation<K, V, K, Key
 	@Override
 	public void afterPropertiesSet() throws Exception {
 		Assert.notNull(client, "Redis client not set");
-		evalsha.setArgs(evalShaArgs());
+		evalsha.setArgs(mode, memUsageLimit.toBytes(), memUsageSamples);
 		String lua = BatchUtils.readFile(SCRIPT_FILENAME);
 		try (StatefulRedisModulesConnection<K, V> connection = RedisModulesUtils.connection(client, codec)) {
 			String digest = connection.sync().scriptLoad(lua);
 			evalsha.setDigest(digest);
 		}
-	}
-
-	private Object[] evalShaArgs() {
-		long memLimitArg = memUsageLimit.toBytes();
-		return new Object[] { mode.name(), memLimitArg, memUsageSamples };
 	}
 
 	@Override
@@ -75,17 +71,17 @@ public class KeyValueRead<K, V, T> implements InitializingOperation<K, V, K, Key
 	}
 
 	@SuppressWarnings("unchecked")
-	protected KeyValue<K, T> convert(List<Object> list) {
+	public KeyValue<K, T> convert(List<Object> list) {
 		Iterator<Object> iterator = list.iterator();
 		KeyValue<K, T> keyValue = new KeyValue<>();
 		keyValue.setKey((K) iterator.next());
 		keyValue.setTime((Long) iterator.next());
 		keyValue.setTtl((Long) iterator.next());
 		if (iterator.hasNext()) {
-			keyValue.setType(toString(iterator.next()));
+			keyValue.setMemoryUsage((Long) iterator.next());
 		}
 		if (iterator.hasNext()) {
-			keyValue.setMemoryUsage((Long) iterator.next());
+			keyValue.setType(toString(iterator.next()));
 		}
 		if (iterator.hasNext()) {
 			keyValue.setValue((T) iterator.next());

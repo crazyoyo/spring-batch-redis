@@ -65,6 +65,7 @@ import com.redis.spring.batch.item.redis.reader.KeyComparison.Status;
 import com.redis.spring.batch.item.redis.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyScanNotificationItemReader;
+import com.redis.spring.batch.item.redis.reader.KeyValueRead;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader.AckPolicy;
 import com.redis.spring.batch.item.redis.writer.operation.Geoadd;
@@ -111,6 +112,12 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		return evalsha;
 	}
 
+	private static final KeyValueRead<String, String, Object> read = KeyValueRead.struct(StringCodec.UTF8);
+
+	private KeyValue<String, Object> convert(List<Object> list) {
+		return read.convert(list);
+	}
+
 	@Test
 	void evalsha() throws Exception {
 		String key = "key:1";
@@ -119,36 +126,38 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Evalsha<String, String, String> evalsha = evalsha(Function.identity());
 		evalsha.setArgs("STRUCT", 0, 0);
 		List<Object> result = evalsha.execute(redisAsyncCommands, key).get();
-		Assertions.assertEquals(key, result.get(0));
-		Assertions.assertEquals(-1L, result.get(2));
-		Assertions.assertEquals(DataType.STRING.getString(), result.get(3));
-		Assertions.assertEquals(0L, result.get(4));
-		Assertions.assertEquals(value, result.get(5));
+		KeyValue<String, Object> kv = convert(result);
+		Assertions.assertEquals(key, kv.getKey());
+		Assertions.assertEquals(-1, kv.getTtl());
+		Assertions.assertEquals(DataType.STRING.getString(), kv.getType());
+		Assertions.assertEquals(100, kv.getMemoryUsage(), 50);
+		Assertions.assertEquals(value, kv.getValue());
 		evalsha.setArgs("NONE", Long.MAX_VALUE, 5);
 		result = evalsha.execute(redisAsyncCommands, key).get();
-		Assertions.assertEquals(5, result.size());
-		Assertions.assertEquals(key, result.get(0));
-		Assertions.assertEquals(-1, (Long) result.get(2));
-		Assertions.assertEquals(DataType.STRING.getString(), result.get(3));
-		Assertions.assertEquals(100, (Long) result.get(4), 50);
+		kv = convert(result);
+		Assertions.assertEquals(key, kv.getKey());
+		Assertions.assertEquals(-1, kv.getTtl());
+		Assertions.assertEquals(DataType.STRING.getString(), kv.getType());
+		Assertions.assertEquals(100, kv.getMemoryUsage(), 50);
+		Assertions.assertNull(kv.getValue());
 		evalsha.setArgs("STRUCT", Long.MAX_VALUE, 5);
 		result = evalsha.execute(redisAsyncCommands, key).get();
-		Assertions.assertEquals(6, result.size());
-		Assertions.assertEquals(key, result.get(0));
-		Assertions.assertEquals(-1, (Long) result.get(2));
-		Assertions.assertEquals(DataType.STRING.getString(), result.get(3));
-		Assertions.assertEquals(100, (Long) result.get(4), 50);
-		Assertions.assertEquals(value, result.get(5));
+		kv = convert(result);
+		Assertions.assertEquals(key, kv.getKey());
+		Assertions.assertEquals(-1, kv.getTtl());
+		Assertions.assertEquals(DataType.STRING.getString(), kv.getType());
+		Assertions.assertEquals(100, kv.getMemoryUsage(), 50);
+		Assertions.assertEquals(value, kv.getValue());
 		Instant expireAt = Instant.now().plusSeconds(4321);
 		redisCommands.expireat(key, expireAt);
 		evalsha.setArgs("STRUCT", Long.MAX_VALUE, 5);
 		result = evalsha.execute(redisAsyncCommands, key).get();
-		Assertions.assertEquals(6, result.size());
-		Assertions.assertEquals(key, result.get(0));
-		Assertions.assertEquals(expireAt.toEpochMilli(), (Long) result.get(1) + (Long) result.get(2), 100);
-		Assertions.assertEquals(DataType.STRING.getString(), result.get(3));
-		Assertions.assertEquals(100, (Long) result.get(4), 50);
-		Assertions.assertEquals(value, result.get(5));
+		kv = convert(result);
+		Assertions.assertEquals(key, kv.getKey());
+		Assertions.assertEquals(expireAt.toEpochMilli(), kv.getTime() + kv.getTtl(), 100);
+		Assertions.assertEquals(DataType.STRING.getString(), kv.getType());
+		Assertions.assertEquals(100, kv.getMemoryUsage(), 50);
+		Assertions.assertEquals(value, kv.getValue());
 	}
 
 	@Test

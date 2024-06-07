@@ -100,8 +100,8 @@ public class KeyValue<K, T> {
 		return memoryUsage;
 	}
 
-	public void setMemoryUsage(long mem) {
-		this.memoryUsage = mem;
+	public void setMemoryUsage(long memUsage) {
+		this.memoryUsage = memUsage;
 	}
 
 	/**
