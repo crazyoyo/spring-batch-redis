@@ -17,7 +17,7 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 
 public class Restore<K, V, T> extends AbstractValueWriteOperation<K, V, byte[], T> {
 
-	private final Predicate<T> deletePredicate = t -> value(t) == null || ttl(t) == KeyValue.TTL_NO_KEY;
+	private final Predicate<T> deletePredicate = t -> ttl(t) == KeyValue.TTL_NO_KEY;
 	private ToLongFunction<T> ttlFunction = t -> 0;
 
 	public Restore(Function<T, K> keyFunction, Function<T, byte[]> valueFunction) {
@@ -52,7 +52,11 @@ public class Restore<K, V, T> extends AbstractValueWriteOperation<K, V, byte[], 
 		if (ttl > 0) {
 			args.absttl().ttl(ttl);
 		}
-		return commands.restore(key(item), value(item), args);
+		byte[] value = value(item);
+		if (value == null) {
+			return null;
+		}
+		return commands.restore(key(item), value, args);
 
 	}
 
