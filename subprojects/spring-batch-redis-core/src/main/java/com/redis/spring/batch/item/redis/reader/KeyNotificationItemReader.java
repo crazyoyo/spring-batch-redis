@@ -1,6 +1,5 @@
 package com.redis.spring.batch.item.redis.reader;
 
-import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -125,8 +124,8 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		KeyNotification<K> notification = new KeyNotification<>();
 		notification.setKey(key);
 		notification.setEvent(event);
-		notification.setTime(Instant.now());
-		notification.setType(eventDataType(event));
+		notification.setTime(System.currentTimeMillis());
+		notification.setType(eventDataType(event).getString());
 		KeyNotificationStatus status = process(notification);
 		statusCounts.get(status).incrementAndGet();
 		for (KeyNotificationListener<K> listener : listeners) {
@@ -134,15 +133,12 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		}
 	}
 
-	private boolean accept(KeyNotification<K> notification) {
-		if (keyType == null) {
-			return true;
-		}
-		return notification.getType() != null && notification.getType().getString().equalsIgnoreCase(keyType);
+	private boolean accept(String type) {
+		return keyType == null || keyType.equalsIgnoreCase(type);
 	}
 
 	private KeyNotificationStatus process(KeyNotification<K> notification) {
-		if (!accept(notification)) {
+		if (!accept(notification.getType())) {
 			return KeyNotificationStatus.REJECTED;
 		}
 		boolean removed = queue.removeIf(k -> keyEquals.test(k, notification.getKey()));

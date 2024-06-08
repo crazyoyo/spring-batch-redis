@@ -36,11 +36,9 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<KeyVa
 	@Override
 	protected ItemWriter<KeyValue<K, Object>> writer() {
 		queue = new LinkedBlockingQueue<>(queueCapacity);
-		return new ProcessingItemWriter<>(processor(), new BlockingQueueItemWriter<>(queue));
-	}
-
-	private KeyComparisonItemProcessor<K, V> processor() {
-		return new KeyComparisonItemProcessor<>(targetReader.operationExecutor(), comparator);
+		return new ProcessingItemWriter<>(
+				new KeyComparisonItemProcessor<>(targetReader.operationExecutor(), comparator),
+				new BlockingQueueItemWriter<>(queue));
 	}
 
 	@Override

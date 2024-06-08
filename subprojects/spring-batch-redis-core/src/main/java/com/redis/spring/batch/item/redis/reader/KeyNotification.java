@@ -1,15 +1,11 @@
 package com.redis.spring.batch.item.redis.reader;
 
-import java.time.Instant;
-
-import com.redis.spring.batch.item.redis.common.DataType;
-
 public class KeyNotification<K> {
 
 	private K key;
 	private String event;
-	private Instant time;
-	private DataType type;
+	private long time;
+	private String type;
 
 	public K getKey() {
 		return key;
@@ -27,19 +23,19 @@ public class KeyNotification<K> {
 		this.event = event;
 	}
 
-	public Instant getTime() {
+	public long getTime() {
 		return time;
 	}
 
-	public void setTime(Instant time) {
+	public void setTime(long time) {
 		this.time = time;
 	}
 
-	public DataType getType() {
+	public String getType() {
 		return type;
 	}
 
-	public void setType(DataType type) {
+	public void setType(String type) {
 		this.type = type;
 	}
 
