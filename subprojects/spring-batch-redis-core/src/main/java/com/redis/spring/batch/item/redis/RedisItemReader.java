@@ -11,6 +11,7 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.item.AbstractAsyncItemReader;
@@ -70,6 +71,7 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, KeyValu
 	private BlockingQueue<KeyValue<K, T>> queue;
 
 	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, K, KeyValue<K, T>> operation) {
+		setName(ClassUtils.getShortName(getClass()));
 		this.codec = codec;
 		this.keyEquals = BatchUtils.keyEqualityPredicate(codec);
 		this.operation = operation;

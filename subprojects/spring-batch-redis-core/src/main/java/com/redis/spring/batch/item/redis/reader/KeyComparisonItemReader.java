@@ -6,10 +6,11 @@ import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.item.AbstractAsyncItemReader;
-import com.redis.spring.batch.item.ProcessingItemWriter;
 import com.redis.spring.batch.item.BlockingQueueItemWriter;
+import com.redis.spring.batch.item.ProcessingItemWriter;
 import com.redis.spring.batch.item.redis.RedisItemReader;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 
@@ -31,6 +32,14 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<KeyVa
 		this.sourceReader = sourceReader;
 		this.targetReader = targetReader;
 		this.comparator = new DefaultKeyComparator<>(sourceReader.getCodec());
+		setName(ClassUtils.getShortName(getClass()));
+	}
+
+	@Override
+	public void setName(String name) {
+		sourceReader.setName(name + "-source-reader");
+		targetReader.setName(name + "-target-reader");
+		super.setName(name);
 	}
 
 	@Override

@@ -5,7 +5,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.lang.Nullable;
-import org.springframework.util.ClassUtils;
 
 public abstract class AbstractPollableItemReader<T> extends AbstractItemCountingItemStreamItemReader<T>
 		implements PollableItemReader<T> {
@@ -13,10 +12,6 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemCounting
 	public static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofMillis(100);
 
 	protected Duration pollTimeout = DEFAULT_POLL_TIMEOUT;
-
-	protected AbstractPollableItemReader() {
-		setName(ClassUtils.getShortName(getClass()));
-	}
 
 	/**
 	 * Read next item from input.
