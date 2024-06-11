@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.item.AbstractPollableItemReader;
 import com.redis.spring.batch.memcached.MemcachedException;
@@ -26,23 +27,11 @@ public class LruMetadumpItemReader extends AbstractPollableItemReader<LruMetadum
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 
 	protected BlockingQueue<LruMetadumpEntry> queue;
-
-	public BlockingQueue<LruMetadumpEntry> getQueue() {
-		return queue;
-	}
-
-	public int getQueueCapacity() {
-		return queueCapacity;
-	}
-
-	public void setQueueCapacity(int queueCapacity) {
-		this.queueCapacity = queueCapacity;
-	}
-
 	private MemcachedClient client;
 	private CountDownLatch latch;
 
 	public LruMetadumpItemReader(Supplier<MemcachedClient> clientSupplier) {
+		setName(ClassUtils.getShortName(getClass()));
 		this.clientSupplier = clientSupplier;
 	}
 
@@ -114,6 +103,18 @@ public class LruMetadumpItemReader extends AbstractPollableItemReader<LruMetadum
 		public void complete() {
 			latch.countDown();
 		}
+	}
+
+	public BlockingQueue<LruMetadumpEntry> getQueue() {
+		return queue;
+	}
+
+	public int getQueueCapacity() {
+		return queueCapacity;
+	}
+
+	public void setQueueCapacity(int queueCapacity) {
+		this.queueCapacity = queueCapacity;
 	}
 
 }
