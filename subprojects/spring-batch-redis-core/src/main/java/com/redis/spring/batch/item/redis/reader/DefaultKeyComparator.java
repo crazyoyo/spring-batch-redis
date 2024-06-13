@@ -173,9 +173,6 @@ public class DefaultKeyComparator<K, V> implements KeyComparator<K> {
 			}
 			StreamMessage<K, V> sourceMessage = sourceIterator.next();
 			StreamMessage<K, V> targetMessage = targetIterator.next();
-			if (!keyEquals(sourceMessage.getStream(), targetMessage.getStream())) {
-				return false;
-			}
 			if (!ignoreStreamMessageId && !Objects.equals(sourceMessage.getId(), targetMessage.getId())) {
 				return false;
 			}

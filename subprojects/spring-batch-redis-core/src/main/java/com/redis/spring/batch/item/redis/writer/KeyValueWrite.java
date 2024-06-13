@@ -84,7 +84,7 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 	}
 
 	private Xadd<K, V, KeyValue<K, Object>> xadd() {
-		return new Xadd<>(KeyValueWrite::value);
+		return new Xadd<>(KeyValue::getKey, KeyValueWrite::value);
 	}
 
 	private Rpush<K, V, KeyValue<K, Object>> rpush() {

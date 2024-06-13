@@ -25,54 +25,55 @@ public class KeyValueStructRead<K, V> extends KeyValueRead<K, V, Object> {
 
 	@Override
 	public KeyValue<K, Object> convert(List<Object> list) {
-		KeyValue<K, Object> keyValue = super.convert(list);
-		keyValue.setValue(value(keyValue));
-		return keyValue;
+		KeyValue<K, Object> struct = super.convert(list);
+		struct.setValue(value(struct));
+		return struct;
 	}
 
-	private Object value(KeyValue<K, Object> keyValue) {
-		if (!KeyValue.hasValue(keyValue)) {
+	private Object value(KeyValue<K, Object> struct) {
+		if (!KeyValue.hasValue(struct)) {
 			return null;
 		}
-		DataType type = KeyValue.type(keyValue);
+		DataType type = KeyValue.type(struct);
 		if (type == null) {
-			return keyValue.getValue();
+			return struct.getValue();
 		}
 		switch (type) {
 		case HASH:
-			return hash(keyValue);
+			return hash(struct);
 		case SET:
-			return set(keyValue);
+			return set(struct);
 		case STREAM:
-			return stream(keyValue);
+			return stream(struct);
 		case TIMESERIES:
-			return timeseries(keyValue);
+			return timeseries(struct);
 		case ZSET:
-			return zset(keyValue);
+			return zset(struct);
 		default:
-			return keyValue.getValue();
+			return struct.getValue();
 		}
 	}
 
 	@SuppressWarnings("unchecked")
-	private Map<K, V> hash(KeyValue<K, Object> keyValue) {
-		return map((List<Object>) keyValue.getValue());
+	private Map<K, V> hash(KeyValue<K, Object> struct) {
+		return map((List<Object>) struct.getValue());
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<Sample> timeseries(KeyValue<K, Object> keyValue) {
-		return ((List<List<Object>>) keyValue.getValue()).stream().map(this::sample).collect(Collectors.toList());
+	private List<Sample> timeseries(KeyValue<K, Object> struct) {
+		List<List<Object>> items = (List<List<Object>>) struct.getValue();
+		return items.stream().map(this::sample).collect(Collectors.toList());
 	}
 
 	@SuppressWarnings("unchecked")
-	private Set<V> set(KeyValue<K, Object> keyValue) {
-		return new HashSet<>((Collection<V>) keyValue.getValue());
+	private Set<V> set(KeyValue<K, Object> struct) {
+		return new HashSet<>((Collection<V>) struct.getValue());
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<StreamMessage<K, V>> stream(KeyValue<K, Object> keyValue) {
-		return ((Collection<List<Object>>) keyValue.getValue()).stream().map(v -> streamMessage(keyValue.getKey(), v))
-				.collect(Collectors.toList());
+	private List<StreamMessage<K, V>> stream(KeyValue<K, Object> struct) {
+		Collection<List<Object>> items = (Collection<List<Object>>) struct.getValue();
+		return items.stream().map(this::message).collect(Collectors.toList());
 	}
 
 	private Sample sample(List<Object> sample) {
@@ -96,8 +97,8 @@ public class KeyValueStructRead<K, V> extends KeyValueRead<K, V, Object> {
 	}
 
 	@SuppressWarnings("unchecked")
-	private Set<ScoredValue<V>> zset(KeyValue<K, Object> keyValue) {
-		List<Object> list = (List<Object>) keyValue.getValue();
+	private Set<ScoredValue<V>> zset(KeyValue<K, Object> struct) {
+		List<Object> list = (List<Object>) struct.getValue();
 		LettuceAssert.isTrue(list.size() % 2 == 0, "List size must be a multiple of 2");
 		Set<ScoredValue<V>> values = new HashSet<>();
 		for (int i = 0; i < list.size(); i += 2) {
@@ -108,11 +109,11 @@ public class KeyValueStructRead<K, V> extends KeyValueRead<K, V, Object> {
 	}
 
 	@SuppressWarnings("unchecked")
-	private StreamMessage<K, V> streamMessage(K stream, List<Object> message) {
+	private StreamMessage<K, V> message(List<Object> message) {
 		LettuceAssert.isTrue(message.size() == 2, "Invalid list size: " + message.size());
 		String id = toString(message.get(0));
 		Map<K, V> body = map((List<Object>) message.get(1));
-		return new StreamMessage<>(stream, id, body);
+		return new StreamMessage<>(null, id, body);
 
 	}
 

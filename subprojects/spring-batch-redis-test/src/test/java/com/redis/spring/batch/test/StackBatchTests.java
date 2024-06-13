@@ -273,8 +273,8 @@ class StackBatchTests extends BatchTests {
 			messages.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(
-				t -> Arrays.asList(new StreamMessage<>(stream, null, t)));
+		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(t -> stream,
+				t -> Arrays.asList(new StreamMessage<>(null, null, t)));
 		xadd.setArgs(null);
 		RedisItemWriter<String, String, Map<String, String>> writer = writer(xadd);
 		writer.setMultiExec(true);
@@ -505,8 +505,8 @@ class StackBatchTests extends BatchTests {
 			messages.add(body);
 		}
 		ListItemReader<Map<String, String>> reader = new ListItemReader<>(messages);
-		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(
-				m -> Arrays.asList(new StreamMessage<>(stream, null, m)));
+		Xadd<String, String, Map<String, String>> xadd = new Xadd<>(t -> stream,
+				m -> Arrays.asList(new StreamMessage<>(null, null, m)));
 		xadd.setArgs(null);
 		RedisItemWriter<String, String, Map<String, String>> writer = writer(xadd);
 		run(info, reader, writer);

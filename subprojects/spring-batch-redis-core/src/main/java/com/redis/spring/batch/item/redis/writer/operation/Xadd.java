@@ -10,21 +10,19 @@ import java.util.stream.Stream;
 import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.item.redis.common.BatchUtils;
-import com.redis.spring.batch.item.redis.common.Operation;
+import com.redis.spring.batch.item.redis.writer.AbstractValueWriteOperation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XAddArgs;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 
-public class Xadd<K, V, T> implements Operation<K, V, T, Object> {
-
-	private final Function<T, Collection<StreamMessage<K, V>>> messagesFunction;
+public class Xadd<K, V, T> extends AbstractValueWriteOperation<K, V, Collection<StreamMessage<K, V>>, T> {
 
 	private Function<StreamMessage<K, V>, XAddArgs> argsFunction = this::defaultArgs;
 
-	public Xadd(Function<T, Collection<StreamMessage<K, V>>> messagesFunction) {
-		this.messagesFunction = messagesFunction;
+	public Xadd(Function<T, K> keyFunction, Function<T, Collection<StreamMessage<K, V>>> messagesFunction) {
+		super(keyFunction, messagesFunction);
 	}
 
 	private XAddArgs defaultArgs(StreamMessage<K, V> message) {
@@ -42,25 +40,25 @@ public class Xadd<K, V, T> implements Operation<K, V, T, Object> {
 		this.argsFunction = function;
 	}
 
-	private Stream<StreamMessage<K, V>> messages(T item) {
-		return messagesFunction.apply(item).stream();
-	}
-
 	@Override
 	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
-		return BatchUtils.stream(items).flatMap(this::messages).map(m -> execute(commands, m))
-				.collect(Collectors.toList());
+		return BatchUtils.stream(items).flatMap(t -> execute(commands, t)).collect(Collectors.toList());
+	}
+
+	private Stream<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, T item) {
+		K key = key(item);
+		Collection<StreamMessage<K, V>> messages = value(item);
+		return messages.stream().map(m -> execute(commands, key, m));
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private RedisFuture<Object> execute(RedisAsyncCommands<K, V> commands, StreamMessage<K, V> message) {
+	private RedisFuture<Object> execute(RedisAsyncCommands<K, V> commands, K key, StreamMessage<K, V> message) {
 		Map<K, V> body = message.getBody();
 		if (CollectionUtils.isEmpty(body)) {
 			return null;
 		}
-		K stream = message.getStream();
 		XAddArgs args = argsFunction.apply(message);
-		return (RedisFuture) commands.xadd(stream, args, body);
+		return (RedisFuture) commands.xadd(key, args, body);
 	}
 
 }

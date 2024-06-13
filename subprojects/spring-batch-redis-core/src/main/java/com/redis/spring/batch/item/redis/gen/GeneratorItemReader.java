@@ -122,11 +122,10 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 	}
 
 	private Collection<StreamMessage<String, String>> streamMessages() {
-		String key = key();
 		Collection<StreamMessage<String, String>> messages = new ArrayList<>();
 		for (int elementIndex = 0; elementIndex < randomInt(
 				options.getStreamOptions().getMessageCount()); elementIndex++) {
-			messages.add(new StreamMessage<>(key, null, map(options.getStreamOptions().getBodyOptions())));
+			messages.add(new StreamMessage<>(null, null, map(options.getStreamOptions().getBodyOptions())));
 		}
 		return messages;
 	}
