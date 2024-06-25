@@ -150,10 +150,6 @@ public class DefaultKeyComparator<K, V> implements KeyComparator<K> {
 		return intMap;
 	}
 
-	private boolean keyEquals(K source, K target) {
-		return keyHashCode(source) == keyHashCode(target);
-	}
-
 	private boolean valueEquals(V source, V target) {
 		return valueHashCode(source) == valueHashCode(target);
 	}

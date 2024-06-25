@@ -16,7 +16,6 @@ import org.springframework.util.ClassUtils;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.item.AbstractAsyncItemReader;
 import com.redis.spring.batch.item.BlockingQueueItemWriter;
-import com.redis.spring.batch.item.ProcessingItemWriter;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.common.Operation;
@@ -161,7 +160,7 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, KeyValu
 	@Override
 	protected ItemWriter<K> writer() {
 		queue = new LinkedBlockingQueue<>(queueCapacity);
-		return new ProcessingItemWriter<>(operationExecutor(), new BlockingQueueItemWriter<>(queue));
+		return new BlockingQueueItemWriter<>(operationExecutor(), queue);
 	}
 
 	public OperationExecutor<K, V, K, KeyValue<K, T>> operationExecutor() {

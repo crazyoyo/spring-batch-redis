@@ -82,7 +82,6 @@ public abstract class BatchUtils {
 		return encode.andThen(ByteArrayCodec.INSTANCE::decodeKey);
 	}
 
-	@SuppressWarnings("resource")
 	public static <K, V> Supplier<StatefulRedisModulesConnection<K, V>> supplier(AbstractRedisClient client,
 			RedisCodec<K, V> codec, ReadFrom readFrom) {
 		if (client instanceof RedisModulesClusterClient) {

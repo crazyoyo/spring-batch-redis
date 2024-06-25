@@ -10,7 +10,6 @@ import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.item.AbstractAsyncItemReader;
 import com.redis.spring.batch.item.BlockingQueueItemWriter;
-import com.redis.spring.batch.item.ProcessingItemWriter;
 import com.redis.spring.batch.item.redis.RedisItemReader;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 
@@ -45,9 +44,8 @@ public class KeyComparisonItemReader<K, V> extends AbstractAsyncItemReader<KeyVa
 	@Override
 	protected ItemWriter<KeyValue<K, Object>> writer() {
 		queue = new LinkedBlockingQueue<>(queueCapacity);
-		return new ProcessingItemWriter<>(
-				new KeyComparisonItemProcessor<>(targetReader.operationExecutor(), comparator),
-				new BlockingQueueItemWriter<>(queue));
+		return new BlockingQueueItemWriter<>(
+				new KeyComparisonItemProcessor<>(targetReader.operationExecutor(), comparator), queue);
 	}
 
 	@Override
