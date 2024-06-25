@@ -1,4 +1,4 @@
-package com.redis.spring.batch.test;
+package com.redis.spring.batch.item.redis.reader;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
