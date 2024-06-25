@@ -1,15 +1,17 @@
 package com.redis.spring.batch.item.redis.writer.operation;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.util.CollectionUtils;
 
-import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.writer.AbstractValueWriteOperation;
 
 import io.lettuce.core.RedisFuture;
@@ -20,6 +22,7 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 public class Xadd<K, V, T> extends AbstractValueWriteOperation<K, V, Collection<StreamMessage<K, V>>, T> {
 
 	private Function<StreamMessage<K, V>, XAddArgs> argsFunction = this::defaultArgs;
+	private boolean ignoreEmptyStreams;
 
 	public Xadd(Function<T, K> keyFunction, Function<T, Collection<StreamMessage<K, V>>> messagesFunction) {
 		super(keyFunction, messagesFunction);
@@ -32,6 +35,18 @@ public class Xadd<K, V, T> extends AbstractValueWriteOperation<K, V, Collection<
 		return new XAddArgs().id(message.getId());
 	}
 
+	public boolean isIgnoreEmptyStreams() {
+		return ignoreEmptyStreams;
+	}
+
+	/**
+	 * 
+	 * @param ignoreEmptyStreams if true empty streams will not be written
+	 */
+	public void setIgnoreEmptyStreams(boolean ignoreEmptyStreams) {
+		this.ignoreEmptyStreams = ignoreEmptyStreams;
+	}
+
 	public void setArgs(XAddArgs args) {
 		setArgsFunction(t -> args);
 	}
@@ -42,21 +57,35 @@ public class Xadd<K, V, T> extends AbstractValueWriteOperation<K, V, Collection<
 
 	@Override
 	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
-		return BatchUtils.stream(items).flatMap(t -> execute(commands, t)).collect(Collectors.toList());
+		List<RedisFuture<Object>> futures = new ArrayList<>();
+		for (T item : items) {
+			futures.addAll(execute(commands, item));
+		}
+		return futures;
 	}
 
-	private Stream<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, T item) {
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, T item) {
 		K key = key(item);
 		Collection<StreamMessage<K, V>> messages = value(item);
-		return messages.stream().map(m -> execute(commands, key, m));
+		if (CollectionUtils.isEmpty(messages)) {
+			if (ignoreEmptyStreams) {
+				return Collections.emptyList();
+			}
+			Map<K, V> dummyBody = new HashMap<>();
+			dummyBody.put(key, (V) key);
+			return (List) Arrays.asList(commands.xadd(key, dummyBody), commands.xtrim(key, 0));
+		}
+		return messages.stream().filter(this::hasBody).map(m -> execute(commands, key, m)).collect(Collectors.toList());
+	}
+
+	private boolean hasBody(StreamMessage<K, V> message) {
+		return !CollectionUtils.isEmpty(message.getBody());
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private RedisFuture<Object> execute(RedisAsyncCommands<K, V> commands, K key, StreamMessage<K, V> message) {
 		Map<K, V> body = message.getBody();
-		if (CollectionUtils.isEmpty(body)) {
-			return null;
-		}
 		XAddArgs args = argsFunction.apply(message);
 		return (RedisFuture) commands.xadd(key, args, body);
 	}

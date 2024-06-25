@@ -187,6 +187,54 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 		this.mode = mode;
 	}
 
+	public Noop<K, V, KeyValue<K, Object>> getNoop() {
+		return noop;
+	}
+
+	public Del<K, V, KeyValue<K, Object>> getDelete() {
+		return delete;
+	}
+
+	public ExpireAt<K, V, KeyValue<K, Object>> getExpire() {
+		return expire;
+	}
+
+	public Hset<K, V, KeyValue<K, Object>> getHset() {
+		return hset;
+	}
+
+	public JsonSet<K, V, KeyValue<K, Object>> getJsonSet() {
+		return jsonSet;
+	}
+
+	public Rpush<K, V, KeyValue<K, Object>> getRpush() {
+		return rpush;
+	}
+
+	public Sadd<K, V, KeyValue<K, Object>> getSadd() {
+		return sadd;
+	}
+
+	public Xadd<K, V, KeyValue<K, Object>> getXadd() {
+		return xadd;
+	}
+
+	public Set<K, V, KeyValue<K, Object>> getSet() {
+		return set;
+	}
+
+	public TsAdd<K, V, KeyValue<K, Object>> getTsAdd() {
+		return tsAdd;
+	}
+
+	public Zadd<K, V, KeyValue<K, Object>> getZadd() {
+		return zadd;
+	}
+
+	public WriteMode getMode() {
+		return mode;
+	}
+
 	public static <K, V> KeyValueWrite<K, V> create(WriteMode mode) {
 		KeyValueWrite<K, V> operation = new KeyValueWrite<>();
 		operation.setMode(mode);
