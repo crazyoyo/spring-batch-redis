@@ -68,7 +68,6 @@ import com.redis.spring.batch.item.redis.reader.KeyScanNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyValueRead;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader.AckPolicy;
-import com.redis.spring.batch.item.redis.writer.KeyValueWrite;
 import com.redis.spring.batch.item.redis.writer.operation.Geoadd;
 import com.redis.spring.batch.item.redis.writer.operation.Hset;
 import com.redis.spring.batch.item.redis.writer.operation.JsonDel;
@@ -633,23 +632,6 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
 		writer.setClient(targetRedisClient);
 		replicate(info, reader, writer);
-	}
-
-	@Test
-	void replicateIgnoreEmptyStream(TestInfo info) throws Exception {
-		String key = "mystream";
-		Map<String, String> body = new HashMap<>();
-		body.put("test", "test");
-		redisCommands.xadd(key, body);
-		redisCommands.xtrim(key, 0);
-		RedisItemReader<String, String, Object> reader = structReader(info);
-		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
-		((KeyValueWrite<String, String>) writer.getOperation()).getXadd().setIgnoreEmptyStreams(true);
-		writer.setClient(targetRedisClient);
-		run(testInfo(info, "replicate"), reader, writer);
-		awaitUntil(reader::isComplete);
-		KeyspaceComparison<String> comparison = compare(testInfo(info, "replicate"));
-		Assertions.assertEquals(key, comparison.get(Status.MISSING).get(0).getSource().getKey());
 	}
 
 	public static <T> Function<T, String> keyFunction(String key) {

@@ -3,7 +3,6 @@ package com.redis.spring.batch.item.redis.writer.operation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +21,6 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 public class Xadd<K, V, T> extends AbstractValueWriteOperation<K, V, Collection<StreamMessage<K, V>>, T> {
 
 	private Function<StreamMessage<K, V>, XAddArgs> argsFunction = this::defaultArgs;
-	private boolean ignoreEmptyStreams;
 
 	public Xadd(Function<T, K> keyFunction, Function<T, Collection<StreamMessage<K, V>>> messagesFunction) {
 		super(keyFunction, messagesFunction);
@@ -33,18 +31,6 @@ public class Xadd<K, V, T> extends AbstractValueWriteOperation<K, V, Collection<
 			return null;
 		}
 		return new XAddArgs().id(message.getId());
-	}
-
-	public boolean isIgnoreEmptyStreams() {
-		return ignoreEmptyStreams;
-	}
-
-	/**
-	 * 
-	 * @param ignoreEmptyStreams if true empty streams will not be written
-	 */
-	public void setIgnoreEmptyStreams(boolean ignoreEmptyStreams) {
-		this.ignoreEmptyStreams = ignoreEmptyStreams;
 	}
 
 	public void setArgs(XAddArgs args) {
@@ -69,9 +55,6 @@ public class Xadd<K, V, T> extends AbstractValueWriteOperation<K, V, Collection<
 		K key = key(item);
 		Collection<StreamMessage<K, V>> messages = value(item);
 		if (CollectionUtils.isEmpty(messages)) {
-			if (ignoreEmptyStreams) {
-				return Collections.emptyList();
-			}
 			Map<K, V> dummyBody = new HashMap<>();
 			dummyBody.put(key, (V) key);
 			return (List) Arrays.asList(commands.xadd(key, dummyBody), commands.xtrim(key, 0));
