@@ -156,7 +156,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		result = evalsha.execute(redisAsyncCommands, key).get();
 		kv = convert(result);
 		Assertions.assertEquals(key, kv.getKey());
-		Assertions.assertEquals(expireAt.toEpochMilli(), kv.getTimestamp() + kv.getTtl(), 100);
+		Assertions.assertEquals(expireAt.toEpochMilli(), kv.getTtl(), 100);
 		Assertions.assertEquals(DataType.STRING.getString(), kv.getType());
 		Assertions.assertEquals(100, kv.getMemoryUsage(), 50);
 		Assertions.assertEquals(value, kv.getValue());
