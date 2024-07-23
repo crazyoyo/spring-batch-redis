@@ -169,7 +169,7 @@ class StackBatchTests extends BatchTests {
 		reader.open(new ExecutionContext());
 		KeyValue<String, Object> ds = reader.read();
 		Assertions.assertEquals(key, ds.getKey());
-		Assertions.assertEquals(ttl, KeyValue.absoluteTTL(ds), 1000);
+		Assertions.assertEquals(ttl, ds.getTtl(), 1000);
 		Assertions.assertEquals(DataType.HASH.getString(), ds.getType());
 		Assertions.assertTrue(ds.getMemoryUsage() > 0);
 		reader.close();

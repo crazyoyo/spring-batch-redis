@@ -39,7 +39,7 @@ public class TsAdd<K, V, T> extends AbstractValueWriteOperation<K, V, Collection
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
-	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
+	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, List<? extends T> items) {
 		return (List) BatchUtils.stream(items).flatMap(t -> execute(commands, t)).collect(Collectors.toList());
 	}
 

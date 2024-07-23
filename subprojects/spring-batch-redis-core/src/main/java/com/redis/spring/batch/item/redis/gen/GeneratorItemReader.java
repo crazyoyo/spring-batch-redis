@@ -27,6 +27,8 @@ import io.lettuce.core.StreamMessage;
 
 public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReader<KeyValue<String, Object>> {
 
+	public static final String EVENT = "datagen";
+
 	private static final int LEFT_LIMIT = 48; // numeral '0'
 	private static final int RIGHT_LIMIT = 122; // letter 'z'
 	private static final Random random = new Random();
@@ -182,18 +184,21 @@ public class GeneratorItemReader extends AbstractItemCountingItemStreamItemReade
 
 	@Override
 	protected KeyValue<String, Object> doRead() throws JsonProcessingException {
-		KeyValue<String, Object> struct = new KeyValue<>();
-		struct.setKey(key());
-		DataType type = options.getTypes().get(getCurrentItemCount() % options.getTypes().size());
-		struct.setType(type.getString());
-		struct.setValue(value(type));
-		if (options.getExpiration() != null) {
-			struct.setTtl(ttl());
-		}
-		return struct;
+		String key = key();
+		DataType type = type();
+		long ttl = ttl();
+		Object value = value(type);
+		return KeyValue.of(EVENT, key, type, ttl, value);
+	}
+
+	private DataType type() {
+		return options.getTypes().get(getCurrentItemCount() % options.getTypes().size());
 	}
 
 	private long ttl() {
+		if (options.getExpiration() == null) {
+			return KeyValue.TTL_NONE;
+		}
 		return System.currentTimeMillis() + randomInt(options.getExpiration());
 	}
 

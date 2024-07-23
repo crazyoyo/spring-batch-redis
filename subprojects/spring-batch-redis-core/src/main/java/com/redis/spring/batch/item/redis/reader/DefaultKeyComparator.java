@@ -74,8 +74,8 @@ public class DefaultKeyComparator<K, V> implements KeyComparator<K> {
 	}
 
 	private boolean ttlEquals(KeyValue<K, Object> source, KeyValue<K, Object> target) {
-		long diff = Math.abs(KeyValue.absoluteTTL(source) - KeyValue.absoluteTTL(target));
-		return diff <= ttlTolerance.toMillis();
+		return source.getTtl() == target.getTtl()
+				|| Math.abs(source.getTtl() - target.getTtl()) <= ttlTolerance.toMillis();
 	}
 
 	@SuppressWarnings("unchecked")

@@ -42,7 +42,7 @@ public class Xadd<K, V, T> extends AbstractValueWriteOperation<K, V, Collection<
 	}
 
 	@Override
-	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
+	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, List<? extends T> items) {
 		List<RedisFuture<Object>> futures = new ArrayList<>();
 		for (T item : items) {
 			futures.addAll(execute(commands, item));

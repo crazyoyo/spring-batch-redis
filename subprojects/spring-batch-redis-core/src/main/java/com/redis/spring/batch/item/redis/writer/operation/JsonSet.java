@@ -33,7 +33,7 @@ public class JsonSet<K, V, T> extends AbstractValueWriteOperation<K, V, V, T> {
 	}
 
 	@Override
-	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
+	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, List<? extends T> items) {
 		return BatchUtils.executeAll(commands, items, this::execute);
 	}
 

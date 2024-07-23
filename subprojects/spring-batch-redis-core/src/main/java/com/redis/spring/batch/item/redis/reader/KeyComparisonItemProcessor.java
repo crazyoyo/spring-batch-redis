@@ -4,24 +4,23 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 
+import com.redis.spring.batch.item.redis.common.KeyEvent;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.common.OperationExecutor;
 
 public class KeyComparisonItemProcessor<K, V>
-		implements ItemProcessor<Iterable<? extends KeyValue<K, Object>>, List<KeyComparison<K>>>, ItemStream {
+		implements ItemProcessor<List<? extends KeyValue<K, Object>>, List<KeyComparison<K>>>, ItemStream {
 
-	private final OperationExecutor<K, V, K, KeyValue<K, Object>> reader;
+	private final OperationExecutor<K, V, KeyEvent<K>, KeyValue<K, Object>> reader;
 	private final KeyComparator<K> comparator;
 
-	public KeyComparisonItemProcessor(OperationExecutor<K, V, K, KeyValue<K, Object>> reader,
+	public KeyComparisonItemProcessor(OperationExecutor<K, V, KeyEvent<K>, KeyValue<K, Object>> reader,
 			KeyComparator<K> comparator) {
 		this.reader = reader;
 		this.comparator = comparator;
@@ -43,10 +42,8 @@ public class KeyComparisonItemProcessor<K, V>
 	}
 
 	@Override
-	public List<KeyComparison<K>> process(Iterable<? extends KeyValue<K, Object>> items) throws Exception {
-		List<K> keys = StreamSupport.stream(items.spliterator(), false).map(KeyValue::getKey)
-				.collect(Collectors.toList());
-		List<KeyValue<K, Object>> targetItems = reader.process(keys);
+	public List<KeyComparison<K>> process(List<? extends KeyValue<K, Object>> items) throws Exception {
+		List<KeyValue<K, Object>> targetItems = reader.process(items);
 		Iterator<? extends KeyValue<K, Object>> sourceIterator = items.iterator();
 		Iterator<KeyValue<K, Object>> targetIterator = targetItems == null ? Collections.emptyIterator()
 				: targetItems.iterator();

@@ -1,5 +1,6 @@
 package com.redis.spring.batch.item.redis.reader;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
@@ -12,6 +13,7 @@ import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.InitializingOperation;
+import com.redis.spring.batch.item.redis.common.KeyEvent;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -19,7 +21,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 
-public class KeyValueRead<K, V, T> implements InitializingOperation<K, V, K, KeyValue<K, T>> {
+public class KeyValueRead<K, V, T> implements InitializingOperation<K, V, KeyEvent<K>, KeyValue<K, T>> {
 
 	protected enum ValueType {
 		DUMP, STRUCT, NONE
@@ -65,9 +67,16 @@ public class KeyValueRead<K, V, T> implements InitializingOperation<K, V, K, Key
 	}
 
 	@Override
-	public List<RedisFuture<KeyValue<K, T>>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends K> items) {
-		List<RedisFuture<List<Object>>> evalOutputs = evalsha.execute(commands, items);
-		return evalOutputs.stream().map(f -> new MappingRedisFuture<>(f, this::convert)).collect(Collectors.toList());
+	public List<RedisFuture<KeyValue<K, T>>> execute(RedisAsyncCommands<K, V> commands,
+			List<? extends KeyEvent<K>> items) {
+		List<K> keys = items.stream().map(KeyEvent::getKey).collect(Collectors.toList());
+		List<RedisFuture<List<Object>>> evalOutputs = evalsha.execute(commands, keys);
+		List<RedisFuture<KeyValue<K, T>>> futures = new ArrayList<>();
+		for (int index = 0; index < evalOutputs.size(); index++) {
+			KeyEvent<K> item = items.get(index);
+			futures.add(new MappingRedisFuture<>(evalOutputs.get(index), l -> convert(l, item)));
+		}
+		return futures;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -75,7 +84,6 @@ public class KeyValueRead<K, V, T> implements InitializingOperation<K, V, K, Key
 		Iterator<Object> iterator = list.iterator();
 		KeyValue<K, T> keyValue = new KeyValue<>();
 		keyValue.setKey((K) iterator.next());
-		keyValue.setTime((Long) iterator.next());
 		keyValue.setTtl((Long) iterator.next());
 		if (iterator.hasNext()) {
 			keyValue.setMemoryUsage((Long) iterator.next());
@@ -86,6 +94,13 @@ public class KeyValueRead<K, V, T> implements InitializingOperation<K, V, K, Key
 		if (iterator.hasNext()) {
 			keyValue.setValue((T) iterator.next());
 		}
+		return keyValue;
+	}
+
+	protected KeyValue<K, T> convert(List<Object> list, KeyEvent<K> keyEvent) {
+		KeyValue<K, T> keyValue = convert(list);
+		keyValue.setEvent(keyEvent.getEvent());
+		keyValue.setTimestamp(keyEvent.getTimestamp());
 		return keyValue;
 	}
 

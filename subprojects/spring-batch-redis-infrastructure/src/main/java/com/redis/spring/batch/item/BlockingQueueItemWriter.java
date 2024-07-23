@@ -14,9 +14,9 @@ import org.springframework.util.CollectionUtils;
 public class BlockingQueueItemWriter<S, T> implements ItemStreamWriter<S> {
 
 	private final BlockingQueue<T> queue;
-	private final ItemProcessor<Iterable<? extends S>, List<T>> processor;
+	private final ItemProcessor<List<? extends S>, List<T>> processor;
 
-	public BlockingQueueItemWriter(ItemProcessor<Iterable<? extends S>, List<T>> processor, BlockingQueue<T> queue) {
+	public BlockingQueueItemWriter(ItemProcessor<List<? extends S>, List<T>> processor, BlockingQueue<T> queue) {
 		this.queue = queue;
 		this.processor = processor;
 	}
@@ -44,7 +44,7 @@ public class BlockingQueueItemWriter<S, T> implements ItemStreamWriter<S> {
 
 	@Override
 	public void write(Chunk<? extends S> chunk) throws Exception {
-		List<T> processedChunk = processor.process(chunk);
+		List<T> processedChunk = processor.process(chunk.getItems());
 		if (!CollectionUtils.isEmpty(processedChunk)) {
 			for (T element : processedChunk) {
 				queue.put(element);

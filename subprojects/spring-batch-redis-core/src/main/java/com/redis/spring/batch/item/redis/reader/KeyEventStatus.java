@@ -1,6 +1,6 @@
 package com.redis.spring.batch.item.redis.reader;
 
-public enum KeyNotificationStatus {
+public enum KeyEventStatus {
 
 	DEBOUNCED, REJECTED, ACCEPTED, DROPPED
 

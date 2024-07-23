@@ -55,6 +55,7 @@ import com.redis.spring.batch.item.redis.RedisItemReader.ReaderMode;
 import com.redis.spring.batch.item.redis.RedisItemWriter;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.DataType;
+import com.redis.spring.batch.item.redis.common.KeyEvent;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.gen.GeneratorItemReader;
 import com.redis.spring.batch.item.redis.gen.TimeSeriesOptions;
@@ -64,6 +65,7 @@ import com.redis.spring.batch.item.redis.reader.KeyComparison;
 import com.redis.spring.batch.item.redis.reader.KeyComparison.Status;
 import com.redis.spring.batch.item.redis.reader.KeyComparisonItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyNotificationItemReader;
+import com.redis.spring.batch.item.redis.reader.KeyScanItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyScanNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyValueRead;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader;
@@ -154,7 +156,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		result = evalsha.execute(redisAsyncCommands, key).get();
 		kv = convert(result);
 		Assertions.assertEquals(key, kv.getKey());
-		Assertions.assertEquals(expireAt.toEpochMilli(), kv.getTime() + kv.getTtl(), 100);
+		Assertions.assertEquals(expireAt.toEpochMilli(), kv.getTimestamp() + kv.getTtl(), 100);
 		Assertions.assertEquals(DataType.STRING.getString(), kv.getType());
 		Assertions.assertEquals(100, kv.getMemoryUsage(), 50);
 		Assertions.assertEquals(value, kv.getValue());
@@ -465,7 +467,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		reader.open(new ExecutionContext());
 		KeyValue<String, Object> keyValue = reader.read();
 		Assertions.assertEquals(key, keyValue.getKey());
-		Assertions.assertEquals(ttl, KeyValue.absoluteTTL(keyValue), 1000);
+		Assertions.assertEquals(ttl, keyValue.getTtl(), 1000);
 		Assertions.assertEquals(DataType.HASH, KeyValue.type(keyValue));
 		Assertions.assertEquals(hash, keyValue.getValue());
 		reader.close();
@@ -537,7 +539,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		reader.open(new ExecutionContext());
 		KeyValue<byte[], byte[]> dump = reader.read();
 		Assertions.assertArrayEquals(toByteArray(key), dump.getKey());
-		Assertions.assertEquals(ttl, KeyValue.absoluteTTL(dump), 1000);
+		Assertions.assertEquals(ttl, dump.getTtl(), 1000);
 		redisCommands.del(key);
 		redisCommands.restore(key, (byte[]) dump.getValue(), RestoreArgs.Builder.ttl(ttl).absttl());
 		Assertions.assertEquals(DataType.STREAM.getString(), redisCommands.type(key));
@@ -724,16 +726,16 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		int scanCount = 10;
 		IntStream.range(0, scanCount).forEach(i -> redisCommands.set("scan:" + i, "value" + i));
 		KeyScanNotificationItemReader<String, String> reader = new KeyScanNotificationItemReader<>(redisClient,
-				StringCodec.UTF8, new IteratorItemReader<>(ScanIterator.scan(redisCommands)));
+				StringCodec.UTF8, new KeyScanItemReader<>(redisClient, StringCodec.UTF8));
 		setName(info, reader);
 		reader.setName(JSON_BEER_1);
 		reader.open(new ExecutionContext());
 		int notificationCount = 10;
 		IntStream.range(0, notificationCount).forEach(i -> redisCommands.set("notification:" + i, "value" + i));
 		Set<String> keys = new HashSet<>();
-		String key;
+		KeyEvent<String> key;
 		while ((key = reader.poll(10, TimeUnit.MILLISECONDS)) != null) {
-			keys.add(key);
+			keys.add(key.getKey());
 		}
 		reader.close();
 		Assertions.assertEquals(scanCount + notificationCount, keys.size());
@@ -751,7 +753,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			redisCommands.zadd(key, 2, "member2");
 			redisCommands.zadd(key, 3, "member3");
 			awaitUntil(() -> keyReader.getQueue().size() == 1);
-			Assertions.assertEquals(key, keyReader.getQueue().take());
+			Assertions.assertEquals(key, keyReader.getQueue().take().getKey());
 		} finally {
 			keyReader.close();
 		}

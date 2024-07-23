@@ -32,7 +32,7 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemCounting
 	public abstract boolean isComplete();
 
 	@Override
-	public T poll(long timeout, TimeUnit unit) throws InterruptedException {
+	public T poll(long timeout, TimeUnit unit) throws Exception {
 		T item = doPoll(timeout, unit);
 		if (item != null) {
 			setCurrentItemCount(getCurrentItemCount() + 1);
@@ -40,7 +40,7 @@ public abstract class AbstractPollableItemReader<T> extends AbstractItemCounting
 		return item;
 	}
 
-	protected abstract T doPoll(long timeout, TimeUnit unit) throws InterruptedException;
+	protected abstract T doPoll(long timeout, TimeUnit unit) throws Exception;
 
 	public void setPollTimeout(Duration timeout) {
 		this.pollTimeout = timeout;

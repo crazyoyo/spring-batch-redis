@@ -22,7 +22,7 @@ import io.lettuce.core.RedisNoScriptException;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
-public class OperationExecutor<K, V, I, O> implements ItemStream, ItemProcessor<Iterable<? extends I>, List<O>> {
+public class OperationExecutor<K, V, I, O> implements ItemStream, ItemProcessor<List<? extends I>, List<O>> {
 
 	public static final int DEFAULT_POOL_SIZE = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
 
@@ -75,7 +75,7 @@ public class OperationExecutor<K, V, I, O> implements ItemStream, ItemProcessor<
 	}
 
 	@Override
-	public List<O> process(Iterable<? extends I> items) throws Exception {
+	public List<O> process(List<? extends I> items) throws Exception {
 		try (StatefulRedisModulesConnection<K, V> connection = pool.borrowObject()) {
 			connection.setAutoFlushCommands(false);
 			try {
@@ -90,7 +90,7 @@ public class OperationExecutor<K, V, I, O> implements ItemStream, ItemProcessor<
 		}
 	}
 
-	private List<O> execute(StatefulRedisModulesConnection<K, V> connection, Iterable<? extends I> items)
+	private List<O> execute(StatefulRedisModulesConnection<K, V> connection, List<? extends I> items)
 			throws TimeoutException, InterruptedException, ExecutionException {
 		List<RedisFuture<O>> futures = operation.execute(connection.async(), items);
 		connection.flushCommands();

@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.spring.batch.item.redis.common.DataType;
+import com.redis.spring.batch.item.redis.common.KeyEvent;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 
 import io.lettuce.core.ScoredValue;
@@ -24,8 +25,8 @@ public class KeyValueStructRead<K, V> extends KeyValueRead<K, V, Object> {
 	}
 
 	@Override
-	public KeyValue<K, Object> convert(List<Object> list) {
-		KeyValue<K, Object> struct = super.convert(list);
+	public KeyValue<K, Object> convert(List<Object> list, KeyEvent<K> keyEvent) {
+		KeyValue<K, Object> struct = super.convert(list, keyEvent);
 		struct.setValue(value(struct));
 		return struct;
 	}

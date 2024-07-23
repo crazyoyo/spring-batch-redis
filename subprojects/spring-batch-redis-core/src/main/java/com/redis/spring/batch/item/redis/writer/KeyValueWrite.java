@@ -55,7 +55,7 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 
 	@Override
 	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands,
-			Iterable<? extends KeyValue<K, Object>> items) {
+			List<? extends KeyValue<K, Object>> items) {
 		List<RedisFuture<Object>> futures = new ArrayList<>();
 		futures.addAll(delete.execute(commands, toDelete(items)));
 		groupByOperation(items).forEach((k, v) -> futures.addAll(operation(k).execute(commands, v)));
@@ -79,7 +79,7 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 
 	private ExpireAt<K, V, KeyValue<K, Object>> expire() {
 		ExpireAt<K, V, KeyValue<K, Object>> operation = new ExpireAt<>(KeyValue::getKey);
-		operation.setTimestampFunction(KeyValue::absoluteTTL);
+		operation.setTimestampFunction(KeyValue::getTtl);
 		return operation;
 	}
 

@@ -19,7 +19,7 @@ import net.spy.memcached.MemcachedClient;
 import net.spy.memcached.transcoders.Transcoder;
 
 public class LruMetadumpItemProcessor
-		implements ItemProcessor<Iterable<? extends LruMetadumpEntry>, List<MemcachedEntry>>, ItemStream {
+		implements ItemProcessor<List<? extends LruMetadumpEntry>, List<MemcachedEntry>>, ItemStream {
 
 	private final Transcoder<byte[]> transcoder = new ByteArrayTranscoder();
 	private final Supplier<MemcachedClient> clientSupplier;
@@ -46,7 +46,7 @@ public class LruMetadumpItemProcessor
 	}
 
 	@Override
-	public List<MemcachedEntry> process(Iterable<? extends LruMetadumpEntry> items) {
+	public List<MemcachedEntry> process(List<? extends LruMetadumpEntry> items) {
 		Iterator<String> keys = StreamSupport.stream(items.spliterator(), false).map(LruMetadumpEntry::getKey)
 				.iterator();
 		Map<String, byte[]> values = client.getBulk(keys, transcoder);

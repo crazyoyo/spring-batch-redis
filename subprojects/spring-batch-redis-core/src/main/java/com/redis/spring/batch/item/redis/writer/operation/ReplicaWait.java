@@ -26,7 +26,7 @@ public class ReplicaWait<K, V, T> extends CompositeOperation<K, V, T, Object> {
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
-	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
+	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, List<? extends T> items) {
 		List<RedisFuture<Object>> futures = new ArrayList<>();
 		futures.addAll(delegate.execute(commands, items));
 		RedisFuture<Long> waitFuture = commands.waitForReplication(replicas, timeout);

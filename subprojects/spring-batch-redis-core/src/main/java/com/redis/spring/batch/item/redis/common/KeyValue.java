@@ -2,37 +2,19 @@ package com.redis.spring.batch.item.redis.common;
 
 import org.springframework.util.StringUtils;
 
-public class KeyValue<K, T> {
+public class KeyValue<K, T> extends KeyEvent<K> {
 
 	public static final long TTL_NONE = -1;
 	public static final long TTL_NO_KEY = -2;
 
-	private K key;
 	private String type;
-	private T value;
-	private long time;
 	private long ttl;
+	private T value;
 	private long memoryUsage;
-
-	public KeyValue() {
-	}
-
-	public KeyValue(KeyValue<K, T> other) {
-		this.key = other.key;
-		this.ttl = other.ttl;
-		this.type = other.type;
-		this.value = other.value;
-		this.memoryUsage = other.memoryUsage;
-		this.time = other.time;
-	}
 
 	public static boolean exists(KeyValue<?, ?> keyValue) {
 		return keyValue != null && hasKey(keyValue) && keyValue.getTtl() != TTL_NO_KEY
 				&& type(keyValue) != DataType.NONE;
-	}
-
-	public static boolean hasKey(KeyValue<?, ?> keyValue) {
-		return keyValue.key != null;
 	}
 
 	public static boolean hasTtl(KeyValue<?, ?> keyValue) {
@@ -52,27 +34,6 @@ public class KeyValue<K, T> {
 			return DataType.of(keyValue.getType());
 		}
 		return null;
-	}
-
-	/**
-	 * 
-	 * @param keyValue the KeyValue to get expiration time from
-	 * @return Expiration time of a Redis key or -1 if no expire time is set for
-	 *         this key
-	 */
-	public static long absoluteTTL(KeyValue<?, ?> keyValue) {
-		if (hasTtl(keyValue)) {
-			return keyValue.getTime() + keyValue.getTtl();
-		}
-		return TTL_NONE;
-	}
-
-	public K getKey() {
-		return key;
-	}
-
-	public void setKey(K key) {
-		this.key = key;
 	}
 
 	public String getType() {
@@ -117,21 +78,15 @@ public class KeyValue<K, T> {
 		this.ttl = ttl;
 	}
 
-	/**
-	 * 
-	 * @return POSIX time in milliseconds when the key was read from Redis
-	 */
-	public long getTime() {
-		return time;
-	}
-
-	public void setTime(long time) {
-		this.time = time;
-	}
-
-	@Override
-	public String toString() {
-		return "KeyValue [key=" + key + "]";
+	public static <K, T> KeyValue<K, T> of(String event, K key, DataType type, long ttl, T value) {
+		KeyValue<K, T> kv = new KeyValue<>();
+		kv.setKey(key);
+		kv.setEvent(event);
+		kv.setTimestamp(System.currentTimeMillis());
+		kv.setType(type.getString());
+		kv.setTtl(ttl);
+		kv.setValue(value);
+		return kv;
 	}
 
 }

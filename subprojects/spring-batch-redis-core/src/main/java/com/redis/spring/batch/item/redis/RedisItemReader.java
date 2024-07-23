@@ -9,20 +9,19 @@ import java.util.function.BiPredicate;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.support.IteratorItemReader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.item.AbstractAsyncItemReader;
 import com.redis.spring.batch.item.BlockingQueueItemWriter;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
+import com.redis.spring.batch.item.redis.common.KeyEvent;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.common.Operation;
 import com.redis.spring.batch.item.redis.common.OperationExecutor;
-import com.redis.spring.batch.item.redis.reader.KeyNotification;
+import com.redis.spring.batch.item.redis.reader.KeyEventStatus;
 import com.redis.spring.batch.item.redis.reader.KeyNotificationItemReader;
-import com.redis.spring.batch.item.redis.reader.KeyNotificationStatus;
+import com.redis.spring.batch.item.redis.reader.KeyScanItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyScanNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyValueRead;
 import com.redis.spring.batch.item.redis.reader.KeyValueStructRead;
@@ -32,12 +31,11 @@ import com.redis.spring.batch.step.FlushingStepBuilder;
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.KeyScanArgs;
 import io.lettuce.core.ReadFrom;
-import io.lettuce.core.ScanIterator;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
 
-public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, KeyValue<K, T>> {
+public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<KeyEvent<K>, KeyValue<K, T>> {
 
 	public enum ReaderMode {
 		SCAN, LIVE, LIVEONLY
@@ -52,7 +50,7 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, KeyValu
 
 	private final RedisCodec<K, V> codec;
 	private final BiPredicate<K, K> keyEquals;
-	private final Operation<K, V, K, KeyValue<K, T>> operation;
+	private final Operation<K, V, KeyEvent<K>, KeyValue<K, T>> operation;
 
 	private Duration flushInterval = DEFAULT_FLUSH_INTERVAL;
 	private Duration idleTimeout = DEFAULT_IDLE_TIMEOUT;
@@ -69,31 +67,31 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, KeyValu
 	private AbstractRedisClient client;
 	private BlockingQueue<KeyValue<K, T>> queue;
 
-	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, K, KeyValue<K, T>> operation) {
+	public RedisItemReader(RedisCodec<K, V> codec, Operation<K, V, KeyEvent<K>, KeyValue<K, T>> operation) {
 		setName(ClassUtils.getShortName(getClass()));
 		this.codec = codec;
 		this.keyEquals = BatchUtils.keyEqualityPredicate(codec);
 		this.operation = operation;
 	}
 
-	public Operation<K, V, K, KeyValue<K, T>> getOperation() {
+	public Operation<K, V, KeyEvent<K>, KeyValue<K, T>> getOperation() {
 		return operation;
 	}
 
 	@Override
-	protected SimpleStepBuilder<K, K> stepBuilder() {
-		SimpleStepBuilder<K, K> step = super.stepBuilder();
+	protected SimpleStepBuilder<KeyEvent<K>, KeyEvent<K>> stepBuilder() {
+		SimpleStepBuilder<KeyEvent<K>, KeyEvent<K>> step = super.stepBuilder();
 		if (mode == ReaderMode.SCAN) {
 			return step;
 		}
-		FlushingStepBuilder<K, K> flushingStep = new FlushingStepBuilder<>(step);
+		FlushingStepBuilder<KeyEvent<K>, KeyEvent<K>> flushingStep = new FlushingStepBuilder<>(step);
 		flushingStep.flushInterval(flushInterval);
 		flushingStep.idleTimeout(idleTimeout);
 		return flushingStep;
 	}
 
 	@Override
-	protected ItemReader<K> reader() {
+	protected ItemReader<KeyEvent<K>> reader() {
 		switch (mode) {
 		case LIVEONLY:
 			return notificationReader();
@@ -120,14 +118,17 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, KeyValu
 		}
 	}
 
-	private ItemReader<K> scanNotificationReader() {
+	private KeyScanNotificationItemReader<K, V> scanNotificationReader() {
 		KeyScanNotificationItemReader<K, V> reader = new KeyScanNotificationItemReader<>(client, codec, scanReader());
 		configure(reader);
 		return reader;
 	}
 
-	private IteratorItemReader<K> scanReader() {
-		return new IteratorItemReader<>(ScanIterator.scan(connection().sync(), scanArgs()));
+	private KeyScanItemReader<K, V> scanReader() {
+		KeyScanItemReader<K, V> reader = new KeyScanItemReader<>(client, codec);
+		reader.setReadFrom(readFrom);
+		reader.setScanArgs(scanArgs());
+		return reader;
 	}
 
 	private KeyNotificationItemReader<K, V> notificationReader() {
@@ -146,8 +147,8 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, KeyValu
 		reader.addListener(this::keyNotification);
 	}
 
-	private void keyNotification(KeyNotification<K> notification, KeyNotificationStatus status) {
-		if (status == KeyNotificationStatus.ACCEPTED) {
+	private void keyNotification(KeyEvent<K> notification, KeyEventStatus status) {
+		if (status == KeyEventStatus.ACCEPTED) {
 			queue.removeIf(t -> keyEquals.test(t.getKey(), notification.getKey()));
 		}
 	}
@@ -158,22 +159,18 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<K, KeyValu
 	}
 
 	@Override
-	protected ItemWriter<K> writer() {
+	protected ItemWriter<KeyEvent<K>> writer() {
 		queue = new LinkedBlockingQueue<>(queueCapacity);
 		return new BlockingQueueItemWriter<>(operationExecutor(), queue);
 	}
 
-	public OperationExecutor<K, V, K, KeyValue<K, T>> operationExecutor() {
+	public OperationExecutor<K, V, KeyEvent<K>, KeyValue<K, T>> operationExecutor() {
 		Assert.notNull(client, getName() + ": Redis client not set");
-		OperationExecutor<K, V, K, KeyValue<K, T>> executor = new OperationExecutor<>(codec, operation);
+		OperationExecutor<K, V, KeyEvent<K>, KeyValue<K, T>> executor = new OperationExecutor<>(codec, operation);
 		executor.setClient(client);
 		executor.setPoolSize(poolSize);
 		executor.setReadFrom(readFrom);
 		return executor;
-	}
-
-	private StatefulRedisModulesConnection<K, V> connection() {
-		return BatchUtils.connection(client, codec, readFrom);
 	}
 
 	private KeyScanArgs scanArgs() {

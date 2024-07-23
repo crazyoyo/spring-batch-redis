@@ -26,8 +26,10 @@ import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.SynchronizedItemReader;
+import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -70,8 +72,7 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 			jobRepository = JobUtils.jobRepositoryFactoryBean(jobRepositoryName).getObject();
 		}
 		if (jobExecution == null) {
-			SimpleStepBuilder<S, S> step = step();
-			Job job = jobBuilder().start(step.build()).build();
+			Job job = jobBuilder().start(step().build()).build();
 			TaskExecutorJobLauncher jobLauncher = new TaskExecutorJobLauncher();
 			jobLauncher.setJobRepository(jobRepository);
 			jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
@@ -139,7 +140,7 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 			taskExecutor.setQueueCapacity(threads);
 			taskExecutor.afterPropertiesSet();
 			step.taskExecutor(taskExecutor);
-			step.reader(new SynchronizedItemReader<>(reader));
+			step.reader(synchronize(reader));
 		} else {
 			step.reader(reader);
 		}
@@ -148,6 +149,15 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 		itemReadListeners.forEach(step::listener);
 		itemWriteListeners.forEach(step::listener);
 		return faultTolerant(step);
+	}
+
+	private ItemReader<? extends S> synchronize(ItemReader<S> reader) {
+		if (reader instanceof ItemStreamReader) {
+			SynchronizedItemStreamReader<S> synchronizedReader = new SynchronizedItemStreamReader<>();
+			synchronizedReader.setDelegate((ItemStreamReader<S>) reader);
+			return synchronizedReader;
+		}
+		return new SynchronizedItemReader<>(reader);
 	}
 
 	protected abstract ItemReader<S> reader();

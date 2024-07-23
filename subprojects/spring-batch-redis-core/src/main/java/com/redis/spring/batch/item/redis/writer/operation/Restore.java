@@ -34,7 +34,7 @@ public class Restore<K, V, T> extends AbstractValueWriteOperation<K, V, byte[], 
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
+	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, List<? extends T> items) {
 		List<RedisFuture<?>> futures = new ArrayList<>();
 		List<K> toDelete = BatchUtils.stream(items).filter(deletePredicate).map(keyFunction)
 				.collect(Collectors.toList());

@@ -27,7 +27,7 @@ public class Expire<K, V, T> extends AbstractWriteOperation<K, V, T> {
 	}
 
 	@Override
-	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
+	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, List<? extends T> items) {
 		return BatchUtils.executeAll(commands, items, this::execute);
 	}
 

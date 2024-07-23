@@ -17,7 +17,7 @@ public class MultiExec<K, V, T> extends CompositeOperation<K, V, T, Object> {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
+	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, List<? extends T> items) {
 		List<RedisFuture<Object>> futures = new ArrayList<>();
 		futures.add((RedisFuture) commands.multi());
 		futures.addAll(delegate.execute(commands, items));

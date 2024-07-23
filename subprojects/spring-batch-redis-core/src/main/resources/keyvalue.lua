@@ -26,7 +26,7 @@ end
 
 --[[
     KEYS:
-      1. Key for which to fetch time, TTL, mem usage, type, and value
+      1. Key for which to fetch TTL, mem usage, type, and value
     ARGV:
       1. mode: value format
            DUMP  : DUMP <key>
@@ -42,8 +42,10 @@ local key = KEYS[1]
 local mode = ARGV[1]
 local limit = tonumber(ARGV[2])
 local samples = tonumber(ARGV[3])
-local time = now()
 local ttl = redis.call('PTTL', key)
+if ttl >= 0 then
+  ttl = now() + ttl
+end
 local mem = 0
 local type
 local value
@@ -60,4 +62,4 @@ if ttl ~= -2 then
     end
   end
 end
-return { key, time, ttl, mem, type, value }
+return { key, ttl, mem, type, value }

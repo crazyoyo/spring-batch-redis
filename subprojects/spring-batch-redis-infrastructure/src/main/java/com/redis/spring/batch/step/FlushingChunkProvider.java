@@ -98,7 +98,8 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 		return System.currentTimeMillis() - start;
 	}
 
-	protected I read(StepContribution contribution, Chunk<I> chunk, long timeout) throws InterruptedException {
+	protected I read(StepContribution contribution, Chunk<I> chunk, long timeout)
+			throws Exception, InterruptedException {
 		while (true) {
 			try {
 				return doRead(timeout);
@@ -110,7 +111,7 @@ public class FlushingChunkProvider<I> extends SimpleChunkProvider<I> {
 	}
 
 	@SuppressWarnings("unchecked")
-	protected final I doRead(long timeout) throws InterruptedException {
+	protected final I doRead(long timeout) throws Exception, InterruptedException {
 		try {
 			getListener().beforeRead();
 			I item = ((PollableItemReader<I>) itemReader).poll(timeout, TimeUnit.MILLISECONDS);

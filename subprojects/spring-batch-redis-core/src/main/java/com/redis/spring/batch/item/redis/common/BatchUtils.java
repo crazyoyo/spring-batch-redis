@@ -43,8 +43,8 @@ public abstract class BatchUtils {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static <K, V, T, O> List<RedisFuture<O>> executeAll(RedisAsyncCommands<K, V> commands,
-			Iterable<? extends T> items, BiFunction<RedisAsyncCommands<K, V>, T, RedisFuture<?>> function) {
-		return (List) BatchUtils.stream(items).map(item -> function.apply(commands, item)).collect(Collectors.toList());
+			List<? extends T> items, BiFunction<RedisAsyncCommands<K, V>, T, RedisFuture<?>> function) {
+		return (List) items.stream().map(item -> function.apply(commands, item)).collect(Collectors.toList());
 	}
 
 	public static String readFile(String filename) throws IOException {

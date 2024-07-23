@@ -87,7 +87,7 @@ public class RedisItemWriter<K, V, T> implements ItemStreamWriter<T> {
 
 	@Override
 	public void write(Chunk<? extends T> items) throws Exception {
-		operationExecutor.process(items);
+		operationExecutor.process(items.getItems());
 	}
 
 	private Operation<K, V, T, Object> operation() {

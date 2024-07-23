@@ -3,7 +3,6 @@ package com.redis.spring.batch.item.redis.reader;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.Operation;
@@ -30,9 +29,8 @@ public class Evalsha<K, V, I> implements Operation<K, V, I, List<Object>> {
 	}
 
 	@Override
-	public List<RedisFuture<List<Object>>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends I> items) {
-		return StreamSupport.stream(items.spliterator(), false).map(t -> execute(commands, t))
-				.collect(Collectors.toList());
+	public List<RedisFuture<List<Object>>> execute(RedisAsyncCommands<K, V> commands, List<? extends I> items) {
+		return items.stream().map(t -> execute(commands, t)).collect(Collectors.toList());
 	}
 
 	public RedisFuture<List<Object>> execute(RedisAsyncCommands<K, V> commands, I item) {

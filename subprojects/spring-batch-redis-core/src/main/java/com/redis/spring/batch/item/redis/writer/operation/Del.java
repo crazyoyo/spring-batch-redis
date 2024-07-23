@@ -4,8 +4,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import com.redis.spring.batch.item.redis.common.Operation;
 
@@ -22,12 +20,11 @@ public class Del<K, V, T> implements Operation<K, V, T, Object> {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
-		List<K> keys = StreamSupport.stream(items.spliterator(), false).map(keyFunction).collect(Collectors.toList());
-		if (keys.isEmpty()) {
+	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, List<? extends T> items) {
+		if (items.isEmpty()) {
 			return Collections.emptyList();
 		}
-		return Arrays.asList((RedisFuture) commands.del((K[]) keys.toArray()));
+		return (List) Arrays.asList(commands.del((K[]) items.stream().map(keyFunction).toArray()));
 	}
 
 }

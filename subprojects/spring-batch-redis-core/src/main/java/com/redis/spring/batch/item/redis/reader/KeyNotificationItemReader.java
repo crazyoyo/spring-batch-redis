@@ -19,6 +19,7 @@ import org.springframework.util.ClassUtils;
 import com.redis.spring.batch.item.AbstractPollableItemReader;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.DataType;
+import com.redis.spring.batch.item.redis.common.KeyEvent;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisClient;
@@ -27,7 +28,7 @@ import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 
-public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<K> {
+public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<KeyEvent<K>> {
 
 	public static final int DEFAULT_QUEUE_CAPACITY = 10000;
 
@@ -41,16 +42,16 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 	private final Function<String, K> keyEncoder;
 	private final Function<K, String> keyDecoder;
 	private final Function<V, String> valueDecoder;
-	private final Map<KeyNotificationStatus, AtomicLong> statusCounts = Stream.of(KeyNotificationStatus.values())
+	private final Map<KeyEventStatus, AtomicLong> statusCounts = Stream.of(KeyEventStatus.values())
 			.collect(Collectors.toMap(Function.identity(), s -> new AtomicLong()));
 
 	private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
 	private int database;
 	private String keyPattern;
 	private String keyType;
-	private Set<KeyNotificationListener<K>> listeners = new LinkedHashSet<>();
+	private Set<KeyEventListener<K>> listeners = new LinkedHashSet<>();
 
-	protected BlockingQueue<K> queue;
+	protected BlockingQueue<KeyEvent<K>> queue;
 	private KeyNotificationPublisher publisher;
 
 	public KeyNotificationItemReader(AbstractRedisClient client, RedisCodec<K, V> codec) {
@@ -63,7 +64,7 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		this.valueDecoder = BatchUtils.toStringValueFunction(codec);
 	}
 
-	public void addListener(KeyNotificationListener<K> listener) {
+	public void addListener(KeyEventListener<K> listener) {
 		this.listeners.add(listener);
 	}
 
@@ -110,53 +111,49 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 	private void keySpaceNotification(K channel, V message) {
 		K key = keyEncoder.apply(suffix(channel));
 		String event = valueDecoder.apply(message);
-		notification(key, event);
+		onKeyEvent(key, event);
 	}
 
 	@SuppressWarnings("unchecked")
 	private void keyEventNotification(K channel, V message) {
 		K key = (K) message;
 		String event = suffix(channel);
-		notification(key, event);
+		onKeyEvent(key, event);
 	}
 
-	private void notification(K key, String event) {
-		KeyNotification<K> notification = new KeyNotification<>();
-		notification.setKey(key);
-		notification.setEvent(event);
-		notification.setTime(System.currentTimeMillis());
-		notification.setType(eventDataType(event).getString());
-		KeyNotificationStatus status = process(notification);
+	private void onKeyEvent(K key, String event) {
+		KeyEvent<K> keyEvent = KeyEvent.of(key, event);
+		KeyEventStatus status = process(keyEvent);
 		statusCounts.get(status).incrementAndGet();
-		for (KeyNotificationListener<K> listener : listeners) {
-			listener.notification(notification, status);
+		for (KeyEventListener<K> listener : listeners) {
+			listener.event(keyEvent, status);
 		}
 	}
 
-	private boolean accept(String type) {
-		return keyType == null || keyType.equalsIgnoreCase(type);
+	private boolean accept(KeyEvent<K> event) {
+		return keyType == null || keyType.equalsIgnoreCase(dataType(event).getString());
 	}
 
-	private KeyNotificationStatus process(KeyNotification<K> notification) {
-		if (!accept(notification.getType())) {
-			return KeyNotificationStatus.REJECTED;
+	private KeyEventStatus process(KeyEvent<K> notification) {
+		if (!accept(notification)) {
+			return KeyEventStatus.REJECTED;
 		}
-		boolean removed = queue.removeIf(k -> keyEquals.test(k, notification.getKey()));
+		boolean removed = queue.removeIf(e -> keyEquals.test(e.getKey(), notification.getKey()));
 		if (removed) {
-			return KeyNotificationStatus.DEBOUNCED;
+			return KeyEventStatus.DEBOUNCED;
 		}
-		boolean added = queue.offer(notification.getKey());
+		boolean added = queue.offer(notification);
 		if (added) {
-			return KeyNotificationStatus.ACCEPTED;
+			return KeyEventStatus.ACCEPTED;
 		}
-		return KeyNotificationStatus.DROPPED;
+		return KeyEventStatus.DROPPED;
 	}
 
-	private DataType eventDataType(String event) {
+	public static DataType dataType(KeyEvent<?> event) {
 		if (event == null) {
 			return DataType.NONE;
 		}
-		String code = event.toLowerCase();
+		String code = event.getEvent();
 		if (code.startsWith("xgroup-")) {
 			return DataType.STREAM;
 		}
@@ -241,11 +238,11 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 	}
 
 	@Override
-	protected K doPoll(long timeout, TimeUnit unit) throws InterruptedException {
+	protected KeyEvent<K> doPoll(long timeout, TimeUnit unit) throws Exception {
 		return queue.poll(timeout, unit);
 	}
 
-	public BlockingQueue<K> getQueue() {
+	public BlockingQueue<KeyEvent<K>> getQueue() {
 		return queue;
 	}
 
@@ -253,11 +250,11 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 		return statusCounts.entrySet().stream().map(this::statusCount).collect(Collectors.toList());
 	}
 
-	private KeyNotificationStatusCount statusCount(Entry<KeyNotificationStatus, AtomicLong> entry) {
+	private KeyNotificationStatusCount statusCount(Entry<KeyEventStatus, AtomicLong> entry) {
 		return new KeyNotificationStatusCount(entry.getKey(), entry.getValue().get());
 	}
 
-	public long count(KeyNotificationStatus status) {
+	public long count(KeyEventStatus status) {
 		return statusCounts.get(status).get();
 	}
 

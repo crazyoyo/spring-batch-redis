@@ -11,7 +11,7 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 public class Noop<K, V, T> implements Operation<K, V, T, Object> {
 
 	@Override
-	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, Iterable<? extends T> items) {
+	public List<RedisFuture<Object>> execute(RedisAsyncCommands<K, V> commands, List<? extends T> items) {
 		return Collections.emptyList();
 	}
 
