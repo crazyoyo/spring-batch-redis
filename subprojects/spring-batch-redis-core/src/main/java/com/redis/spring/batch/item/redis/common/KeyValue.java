@@ -12,30 +12,6 @@ public class KeyValue<K, T> extends KeyEvent<K> {
 	private T value;
 	private long memoryUsage;
 
-	public static boolean exists(KeyValue<?, ?> keyValue) {
-		return keyValue != null && hasKey(keyValue) && keyValue.getTtl() != TTL_NO_KEY
-				&& type(keyValue) != DataType.NONE;
-	}
-
-	public static boolean hasTtl(KeyValue<?, ?> keyValue) {
-		return keyValue.getTtl() > 0;
-	}
-
-	public static boolean hasValue(KeyValue<?, ?> keyValue) {
-		return keyValue.getValue() != null;
-	}
-
-	public static boolean hasType(KeyValue<?, ?> keyValue) {
-		return StringUtils.hasLength(keyValue.getType());
-	}
-
-	public static DataType type(KeyValue<?, ?> keyValue) {
-		if (hasType(keyValue)) {
-			return DataType.of(keyValue.getType());
-		}
-		return null;
-	}
-
 	public String getType() {
 		return type;
 	}
@@ -87,6 +63,30 @@ public class KeyValue<K, T> extends KeyEvent<K> {
 		kv.setTtl(ttl);
 		kv.setValue(value);
 		return kv;
+	}
+
+	public static boolean exists(KeyValue<?, ?> keyValue) {
+		return keyValue != null && hasKey(keyValue) && keyValue.getTtl() != TTL_NO_KEY
+				&& type(keyValue) != DataType.NONE;
+	}
+
+	public static boolean hasTtl(KeyValue<?, ?> keyValue) {
+		return keyValue.getTtl() > 0;
+	}
+
+	public static boolean hasValue(KeyValue<?, ?> keyValue) {
+		return keyValue.getValue() != null;
+	}
+
+	public static boolean hasType(KeyValue<?, ?> keyValue) {
+		return StringUtils.hasLength(keyValue.getType());
+	}
+
+	public static DataType type(KeyValue<?, ?> keyValue) {
+		if (hasType(keyValue)) {
+			return DataType.of(keyValue.getType());
+		}
+		return null;
 	}
 
 }
