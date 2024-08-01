@@ -49,11 +49,11 @@ import org.springframework.util.ObjectUtils;
 import org.testcontainers.lifecycle.Startable;
 
 import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import com.redis.lettucemod.cluster.RedisModulesClusterClient;
-import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.JobUtils;
 import com.redis.spring.batch.Range;
 import com.redis.spring.batch.item.PollableItemReader;

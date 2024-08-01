@@ -11,9 +11,9 @@ import java.util.stream.StreamSupport;
 
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 
+import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.spring.batch.item.PollableItemReader;
-import com.redis.spring.batch.item.redis.common.BatchUtils;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.Consumer;
@@ -69,7 +69,7 @@ public class StreamItemReader<K, V> extends AbstractItemCountingItemStreamItemRe
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		if (messageReader == null) {
-			connection = BatchUtils.connection(client, codec, readFrom);
+			connection = RedisModulesUtils.connection(client, codec, readFrom);
 			commands = connection.sync();
 			StreamOffset<K> streamOffset = StreamOffset.from(stream, offset);
 			XGroupCreateArgs args = XGroupCreateArgs.Builder.mkstream(true);

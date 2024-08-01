@@ -13,9 +13,9 @@ import org.junit.jupiter.api.TestInfo;
 import org.springframework.batch.item.ExecutionContext;
 import org.testcontainers.lifecycle.Startable;
 
+import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.item.redis.RedisItemReader;
 import com.redis.spring.batch.item.redis.reader.DefaultKeyComparator;
 import com.redis.spring.batch.item.redis.reader.KeyComparison;

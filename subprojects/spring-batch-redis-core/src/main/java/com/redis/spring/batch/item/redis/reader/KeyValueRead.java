@@ -9,8 +9,8 @@ import java.util.stream.Collectors;
 import org.springframework.util.Assert;
 import org.springframework.util.unit.DataSize;
 
+import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.lettucemod.util.RedisModulesUtils;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.InitializingOperation;
 import com.redis.spring.batch.item.redis.common.KeyEvent;

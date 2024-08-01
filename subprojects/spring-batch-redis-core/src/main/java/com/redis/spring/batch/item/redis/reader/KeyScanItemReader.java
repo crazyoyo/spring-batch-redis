@@ -3,8 +3,8 @@ package com.redis.spring.batch.item.redis.reader;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
 import org.springframework.util.ClassUtils;
 
+import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.KeyEvent;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -35,7 +35,7 @@ public class KeyScanItemReader<K, V> extends AbstractItemCountingItemStreamItemR
 	@Override
 	protected synchronized void doOpen() throws Exception {
 		if (connection == null) {
-			connection = BatchUtils.connection(client, codec, readFrom);
+			connection = RedisModulesUtils.connection(client, codec, readFrom);
 		}
 		if (iterator == null) {
 			iterator = ScanIterator.scan(connection.sync(), scanArgs);

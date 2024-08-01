@@ -13,6 +13,7 @@ import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
 
+import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 
 import io.lettuce.core.AbstractRedisClient;
@@ -50,7 +51,7 @@ public class OperationExecutor<K, V, I, O> implements ItemStream, ItemProcessor<
 		initializeOperation();
 		GenericObjectPoolConfig<StatefulRedisModulesConnection<K, V>> config = new GenericObjectPoolConfig<>();
 		config.setMaxTotal(poolSize);
-		Supplier<StatefulRedisModulesConnection<K, V>> supplier = BatchUtils.supplier(client, codec, readFrom);
+		Supplier<StatefulRedisModulesConnection<K, V>> supplier = RedisModulesUtils.supplier(client, codec, readFrom);
 		pool = ConnectionPoolSupport.createGenericObjectPool(supplier, config);
 	}
 
@@ -94,7 +95,7 @@ public class OperationExecutor<K, V, I, O> implements ItemStream, ItemProcessor<
 			throws TimeoutException, InterruptedException, ExecutionException {
 		List<RedisFuture<O>> futures = operation.execute(connection.async(), items);
 		connection.flushCommands();
-		return BatchUtils.getAll(connection.getTimeout(), futures);
+		return RedisModulesUtils.getAll(connection.getTimeout(), futures);
 	}
 
 	public void setReadFrom(ReadFrom readFrom) {
