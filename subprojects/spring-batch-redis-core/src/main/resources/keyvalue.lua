@@ -58,7 +58,7 @@ if ttl ~= -2 then
     if mode == 'DUMP' then
       value = redis.call('DUMP', key)
     elseif mode == 'STRUCT' then
-      value = struct (key, type)
+      value = struct(key, type)
     end
   end
 end
