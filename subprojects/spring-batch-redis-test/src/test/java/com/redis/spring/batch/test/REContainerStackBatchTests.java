@@ -4,22 +4,22 @@ import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 import com.redis.enterprise.testcontainers.RedisEnterpriseContainer;
-import com.redis.testcontainers.RedisStackContainer;
+import com.redis.testcontainers.RedisServer;
 
 @EnabledOnOs(OS.LINUX)
 class REContainerStackBatchTests extends BatchTests {
 
 	private static final RedisEnterpriseContainer source = RedisContainerFactory.enterprise();
 
-	private static final RedisStackContainer target = RedisContainerFactory.stack();
+	private static final RedisServer target = RedisContainerFactory.stack();
 
 	@Override
-	protected RedisEnterpriseContainer getRedisServer() {
+	protected RedisServer getRedisServer() {
 		return source;
 	}
 
 	@Override
-	protected RedisStackContainer getTargetRedisServer() {
+	protected RedisServer getTargetRedisServer() {
 		return target;
 	}
 

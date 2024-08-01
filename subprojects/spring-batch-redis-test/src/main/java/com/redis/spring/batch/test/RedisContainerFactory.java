@@ -9,13 +9,13 @@ import com.redis.testcontainers.RedisStackContainer;
 public interface RedisContainerFactory {
 
 	static RedisStackContainer stack() {
-		return new RedisStackContainer(RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(RedisStackContainer.DEFAULT_TAG));
+		return new RedisStackContainer(RedisStackContainer.DEFAULT_IMAGE_NAME.withTag("7.2.0-v11"));
 	}
 
 	@SuppressWarnings("resource")
 	static RedisEnterpriseContainer enterprise() {
 		return new RedisEnterpriseContainer(
-				RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag("7.4.2-216"))
+				RedisEnterpriseContainer.DEFAULT_IMAGE_NAME.withTag(RedisEnterpriseContainer.DEFAULT_TAG))
 				.withDatabase(Database.builder().name("BatchTests").memoryMB(90).ossCluster(true)
 						.modules(RedisModule.JSON, RedisModule.TIMESERIES, RedisModule.SEARCH).build());
 	}

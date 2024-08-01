@@ -56,7 +56,7 @@ import com.redis.spring.batch.item.redis.writer.operation.Rpush;
 import com.redis.spring.batch.item.redis.writer.operation.Sadd;
 import com.redis.spring.batch.item.redis.writer.operation.Xadd;
 import com.redis.spring.batch.item.redis.writer.operation.Zadd;
-import com.redis.testcontainers.RedisStackContainer;
+import com.redis.testcontainers.RedisServer;
 
 import io.lettuce.core.Consumer;
 import io.lettuce.core.KeyScanArgs;
@@ -68,16 +68,16 @@ import io.lettuce.core.codec.ByteArrayCodec;
 
 class StackBatchTests extends BatchTests {
 
-	private static final RedisStackContainer source = RedisContainerFactory.stack();
-	private static final RedisStackContainer target = RedisContainerFactory.stack();
+	private static final RedisServer source = RedisContainerFactory.stack();
+	private static final RedisServer target = RedisContainerFactory.stack();
 
 	@Override
-	protected RedisStackContainer getRedisServer() {
+	protected RedisServer getRedisServer() {
 		return source;
 	}
 
 	@Override
-	protected RedisStackContainer getTargetRedisServer() {
+	protected RedisServer getTargetRedisServer() {
 		return target;
 	}
 
