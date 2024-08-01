@@ -124,6 +124,7 @@ public abstract class AbstractTestBase {
 		redisConnection = RedisModulesUtils.connection(redisClient);
 		redisCommands = redisConnection.sync();
 		redisAsyncCommands = redisConnection.async();
+		log.info("Successfully set up Redis:\n{}", redisCommands.info());
 		jobRepository = JobUtils.jobRepositoryFactoryBean(ClassUtils.getShortName(getClass())).getObject();
 		Assert.notNull(jobRepository, "Job repository is null");
 		transactionManager = JobUtils.resourcelessTransactionManager();

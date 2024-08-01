@@ -47,6 +47,7 @@ public abstract class AbstractTargetTestBase extends AbstractTestBase {
 		targetRedisClient = client(targetRedis);
 		targetRedisConnection = RedisModulesUtils.connection(targetRedisClient);
 		targetRedisCommands = targetRedisConnection.sync();
+		log.info("Successfully set up target Redis:\n{}", targetRedisCommands.info());
 	}
 
 	@AfterAll
