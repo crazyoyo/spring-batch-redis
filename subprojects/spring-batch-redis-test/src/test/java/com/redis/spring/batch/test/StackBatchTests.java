@@ -102,7 +102,8 @@ class StackBatchTests extends BatchTests {
 		reader.open(new ExecutionContext());
 		int count = 1234;
 		generate(info, generator(count, DataType.HASH, DataType.STRING));
-		List<KeyValue<byte[], Object>> list = readAll(reader);
+		awaitUntil(reader::isComplete);
+		Collection<KeyValue<byte[], Object>> list = reader.getQueue();
 		Function<byte[], String> toString = BatchUtils.toStringKeyFunction(ByteArrayCodec.INSTANCE);
 		Set<String> keys = list.stream().map(KeyValue::getKey).map(toString).collect(Collectors.toSet());
 		Assertions.assertEquals(count, keys.size());

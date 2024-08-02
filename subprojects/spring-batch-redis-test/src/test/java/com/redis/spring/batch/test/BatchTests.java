@@ -603,6 +603,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 			RedisItemWriter<K, V, KeyValue<K, T>> writer) throws Exception {
 		run(testInfo(info, "replicate"), reader, writer);
 		awaitUntil(reader::isComplete);
+		awaitUntilFalse(writer::isOpen);
 		KeyspaceComparison<String> comparison = compare(testInfo(info, "replicate"));
 		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
 	}

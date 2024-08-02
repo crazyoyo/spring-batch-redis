@@ -78,6 +78,10 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<KeyEvent<K
 		return operation;
 	}
 
+	public BlockingQueue<KeyValue<K, T>> getQueue() {
+		return queue;
+	}
+
 	@Override
 	protected SimpleStepBuilder<KeyEvent<K>, KeyEvent<K>> stepBuilder() {
 		SimpleStepBuilder<KeyEvent<K>, KeyEvent<K>> step = super.stepBuilder();

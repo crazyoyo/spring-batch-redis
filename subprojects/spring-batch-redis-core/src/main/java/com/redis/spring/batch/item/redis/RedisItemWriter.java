@@ -85,6 +85,10 @@ public class RedisItemWriter<K, V, T> implements ItemStreamWriter<T> {
 		}
 	}
 
+	public boolean isOpen() {
+		return operationExecutor != null;
+	}
+
 	@Override
 	public void write(Chunk<? extends T> items) throws Exception {
 		operationExecutor.process(items.getItems());
