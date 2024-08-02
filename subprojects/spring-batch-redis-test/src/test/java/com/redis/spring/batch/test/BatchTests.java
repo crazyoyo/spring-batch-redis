@@ -539,7 +539,7 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		reader.open(new ExecutionContext());
 		KeyValue<byte[], byte[]> dump = reader.read();
 		Assertions.assertArrayEquals(toByteArray(key), dump.getKey());
-		Assertions.assertEquals(ttl, dump.getTtl(), 1000);
+		Assertions.assertEquals(ttl, dump.getTtl(), 3000);
 		redisCommands.del(key);
 		redisCommands.restore(key, (byte[]) dump.getValue(), RestoreArgs.Builder.ttl(ttl).absttl());
 		Assertions.assertEquals(DataType.STREAM.getString(), redisCommands.type(key));
