@@ -4,7 +4,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.apache.commons.logging.Log;
@@ -12,7 +11,6 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.util.ClassUtils;
 
 import com.redis.spring.batch.item.AbstractPollableItemReader;
-import com.redis.spring.batch.memcached.MemcachedException;
 import com.redis.spring.batch.memcached.reader.LruCrawlerMetadumpOperation.Callback;
 
 import net.spy.memcached.MemcachedClient;
@@ -42,23 +40,13 @@ public class LruMetadumpItemReader extends AbstractPollableItemReader<LruMetadum
 		}
 		if (client == null) {
 			client = clientSupplier.get();
-			latch = client.broadcastOp(
-					(n, l) -> new LruCrawlerMetadumpOperationImpl("all", new MetadumpCallback(l, this::safePut)));
+			latch = client.broadcastOp((n, l) -> new LruCrawlerMetadumpOperationImpl("all", new MetadumpCallback(l)));
 		}
 	}
 
 	@Override
 	protected LruMetadumpEntry doPoll(long timeout, TimeUnit unit) throws InterruptedException {
 		return queue.poll(timeout, unit);
-	}
-
-	private void safePut(LruMetadumpEntry entry) {
-		try {
-			queue.put(entry);
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new MemcachedException("Interrupted while trying to add entry to queue", e);
-		}
 	}
 
 	@Override
@@ -75,21 +63,23 @@ public class LruMetadumpItemReader extends AbstractPollableItemReader<LruMetadum
 		return latch.getCount() == 0 && queue.isEmpty();
 	}
 
-	private static class MetadumpCallback implements Callback {
+	private class MetadumpCallback implements Callback {
 
 		private final Log log = LogFactory.getLog(getClass());
 
 		private final CountDownLatch latch;
-		private final Consumer<LruMetadumpEntry> consumer;
 
-		public MetadumpCallback(CountDownLatch latch, Consumer<LruMetadumpEntry> consumer) {
+		public MetadumpCallback(CountDownLatch latch) {
 			this.latch = latch;
-			this.consumer = consumer;
 		}
 
 		@Override
 		public void gotMetadump(LruMetadumpEntry entry) {
-			consumer.accept(entry);
+			try {
+				queue.put(entry);
+			} catch (InterruptedException e) {
+				// ignore
+			}
 		}
 
 		@Override

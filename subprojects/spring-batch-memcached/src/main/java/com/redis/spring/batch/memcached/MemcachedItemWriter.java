@@ -9,6 +9,7 @@ import java.util.stream.Stream;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStreamWriter;
+import org.springframework.util.Assert;
 
 import net.spy.memcached.MemcachedClient;
 import net.spy.memcached.internal.OperationFuture;
@@ -50,9 +51,7 @@ public class MemcachedItemWriter implements ItemStreamWriter<MemcachedEntry> {
 		List<Boolean> results = MemcachedUtils.getAll(timeout, stream.collect(Collectors.toList()));
 		for (int index = 0; index < results.size(); index++) {
 			Boolean result = results.get(index);
-			if (!Boolean.TRUE.equals(result)) {
-				throw new MemcachedException("Could not write key " + chunk.getItems().get(index).getKey());
-			}
+			Assert.isTrue(Boolean.TRUE.equals(result), "Could not write key " + chunk.getItems().get(index).getKey());
 		}
 	}
 

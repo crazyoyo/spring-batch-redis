@@ -1,9 +1,7 @@
 package com.redis.spring.batch.item.redis.reader;
 
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -244,14 +242,6 @@ public class KeyNotificationItemReader<K, V> extends AbstractPollableItemReader<
 
 	public BlockingQueue<KeyEvent<K>> getQueue() {
 		return queue;
-	}
-
-	public List<KeyNotificationStatusCount> statusCounts() {
-		return statusCounts.entrySet().stream().map(this::statusCount).collect(Collectors.toList());
-	}
-
-	private KeyNotificationStatusCount statusCount(Entry<KeyEventStatus, AtomicLong> entry) {
-		return new KeyNotificationStatusCount(entry.getKey(), entry.getValue().get());
 	}
 
 	public long count(KeyEventStatus status) {
