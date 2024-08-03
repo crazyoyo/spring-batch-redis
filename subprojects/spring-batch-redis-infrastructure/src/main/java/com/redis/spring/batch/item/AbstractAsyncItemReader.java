@@ -31,6 +31,7 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.SynchronizedItemReader;
 import org.springframework.batch.item.support.SynchronizedItemStreamReader;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.CollectionUtils;
@@ -134,12 +135,8 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 		SimpleStepBuilder<S, S> step = stepBuilder();
 		reader = reader();
 		if (threads > 1) {
-			ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-			taskExecutor.setMaxPoolSize(threads);
-			taskExecutor.setCorePoolSize(threads);
-			taskExecutor.setQueueCapacity(threads);
-			taskExecutor.afterPropertiesSet();
-			step.taskExecutor(taskExecutor);
+			step.taskExecutor(taskExecutor());
+			step.throttleLimit(threads);
 			step.reader(synchronize(reader));
 		} else {
 			step.reader(reader);
@@ -149,6 +146,15 @@ public abstract class AbstractAsyncItemReader<S, T> extends AbstractPollableItem
 		itemReadListeners.forEach(step::listener);
 		itemWriteListeners.forEach(step::listener);
 		return faultTolerant(step);
+	}
+
+	private TaskExecutor taskExecutor() {
+		ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+		taskExecutor.setMaxPoolSize(threads);
+		taskExecutor.setCorePoolSize(threads);
+		taskExecutor.setQueueCapacity(threads);
+		taskExecutor.afterPropertiesSet();
+		return taskExecutor;
 	}
 
 	private ItemReader<? extends S> synchronize(ItemReader<S> reader) {
