@@ -450,7 +450,7 @@ public abstract class AbstractTestBase {
 	}
 
 	protected <T> RedisItemWriter<String, String, T> writer(Operation<String, String, T, Object> operation) {
-		RedisItemWriter<String, String, T> writer = new RedisItemWriter<>(StringCodec.UTF8, operation);
+		RedisItemWriter<String, String, T> writer = RedisItemWriter.operation(operation);
 		writer.setClient(redisClient);
 		return writer;
 	}

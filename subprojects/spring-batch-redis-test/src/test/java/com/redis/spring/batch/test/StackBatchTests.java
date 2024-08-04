@@ -37,6 +37,7 @@ import com.redis.spring.batch.item.redis.RedisItemWriter;
 import com.redis.spring.batch.item.redis.common.BatchUtils;
 import com.redis.spring.batch.item.redis.common.DataType;
 import com.redis.spring.batch.item.redis.common.KeyValue;
+import com.redis.spring.batch.item.redis.common.MultiOperation;
 import com.redis.spring.batch.item.redis.gen.GeneratorItemReader;
 import com.redis.spring.batch.item.redis.gen.GeneratorOptions;
 import com.redis.spring.batch.item.redis.gen.MapOptions;
@@ -554,6 +555,30 @@ class StackBatchTests extends BatchTests {
 		run(testInfo(info, "replicate"), reader, writer);
 		Map<String, String> actual = targetRedisCommands.hgetall("gen:1");
 		assertEquals(10, actual.size());
+	}
+
+	@Test
+	void writeMultiOperation(TestInfo info) throws Exception {
+		int count = 100;
+		List<Map<String, String>> maps = new ArrayList<>();
+		for (int index = 0; index < count; index++) {
+			Map<String, String> body = new HashMap<>();
+			body.put("id", String.valueOf(index));
+			body.put("field1", "value1");
+			body.put("field2", "value2");
+			maps.add(body);
+		}
+		ListItemReader<Map<String, String>> reader = new ListItemReader<>(maps);
+		Hset<String, String, Map<String, String>> hset = new Hset<>(m -> "hash:" + m.get("id"), Function.identity());
+		Hset<String, String, Map<String, String>> hset2 = new Hset<>(m -> "hash2:" + m.get("id"), Function.identity());
+		RedisItemWriter<String, String, Map<String, String>> writer = writer(new MultiOperation<>(hset, hset2));
+		run(info, reader, writer);
+		assertEquals(count, keyCount("hash:*"));
+		assertEquals(count, keyCount("hash2:*"));
+		for (int index = 0; index < maps.size(); index++) {
+			assertEquals(maps.get(index), redisCommands.hgetall("hash:" + index));
+			assertEquals(maps.get(index), redisCommands.hgetall("hash2:" + index));
+		}
 	}
 
 	@Test

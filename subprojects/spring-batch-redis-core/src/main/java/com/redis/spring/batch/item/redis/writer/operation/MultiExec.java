@@ -3,13 +3,13 @@ package com.redis.spring.batch.item.redis.writer.operation;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.redis.spring.batch.item.redis.common.CompositeOperation;
+import com.redis.spring.batch.item.redis.common.AbstractCompositeOperation;
 import com.redis.spring.batch.item.redis.common.Operation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 
-public class MultiExec<K, V, T> extends CompositeOperation<K, V, T, Object> {
+public class MultiExec<K, V, T> extends AbstractCompositeOperation<K, V, T, Object> {
 
 	public MultiExec(Operation<K, V, T, Object> delegate) {
 		super(delegate);

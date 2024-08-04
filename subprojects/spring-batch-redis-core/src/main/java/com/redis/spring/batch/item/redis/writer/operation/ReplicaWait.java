@@ -5,7 +5,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.redis.spring.batch.item.redis.common.CompositeOperation;
+import com.redis.spring.batch.item.redis.common.AbstractCompositeOperation;
 import com.redis.spring.batch.item.redis.common.Operation;
 
 import io.lettuce.core.RedisCommandExecutionException;
@@ -13,7 +13,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.cluster.PipelinedRedisFuture;
 
-public class ReplicaWait<K, V, T> extends CompositeOperation<K, V, T, Object> {
+public class ReplicaWait<K, V, T> extends AbstractCompositeOperation<K, V, T, Object> {
 
 	private final int replicas;
 	private final long timeout;
