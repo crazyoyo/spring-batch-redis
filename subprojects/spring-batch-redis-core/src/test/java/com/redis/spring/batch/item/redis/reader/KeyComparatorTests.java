@@ -16,7 +16,7 @@ import io.lettuce.core.codec.StringCodec;
 class KeyComparatorTests {
 
 	@Test
-	void testStreamMessageId() {
+	void streamMessageId() {
 		DefaultKeyComparator<String, String> comparator = new DefaultKeyComparator<>(StringCodec.UTF8);
 		String key = "key:1";
 		String type = "stream";
@@ -34,6 +34,19 @@ class KeyComparatorTests {
 		Assertions.assertEquals(Status.VALUE, comparator.compare(kv1, kv2).getStatus());
 		comparator.setIgnoreStreamMessageId(true);
 		Assertions.assertEquals(Status.OK, comparator.compare(kv1, kv2).getStatus());
+	}
+
+	@Test
+	void keyEquals() {
+		KeyValue<byte[], Object> kv1 = new KeyValue<>();
+		kv1.setKey(new byte[] { 1, 2, 3, 4, 5 });
+		kv1.setValue("sdfsdf");
+		KeyValue<byte[], Object> kv2 = new KeyValue<>();
+		kv2.setKey(new byte[] { 1, 2, 3, 4, 5 });
+		kv2.setValue("sdfsdfasdasdasd");
+		Assertions.assertEquals(kv1, kv2);
+		kv2.setKey(new byte[] { 2, 3, 4 });
+		Assertions.assertNotEquals(kv1, kv2);
 	}
 
 }

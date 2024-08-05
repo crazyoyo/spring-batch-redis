@@ -1,5 +1,7 @@
 package com.redis.spring.batch.item.redis.common;
 
+import java.util.Arrays;
+
 public class KeyEvent<K> {
 
 	private K key;
@@ -41,6 +43,31 @@ public class KeyEvent<K> {
 	@Override
 	public String toString() {
 		return "KeyEvent [key=" + key + "]";
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		KeyEvent<K> other = (KeyEvent<K>) obj;
+		return keyEquals(this.key, other.key);
+	}
+
+	public static <K> boolean keyEquals(K key, K other) {
+		if (key == other) {
+			return true;
+		}
+		if (key == null) {
+			return false;
+		}
+		if (key instanceof byte[] && other instanceof byte[]) {
+			return Arrays.equals((byte[]) key, (byte[]) other);
+		}
+		return key.equals(other);
 	}
 
 	public static boolean hasKey(KeyEvent<?> keyEvent) {
