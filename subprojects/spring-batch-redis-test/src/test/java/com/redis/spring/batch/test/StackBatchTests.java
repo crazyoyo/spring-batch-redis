@@ -342,6 +342,40 @@ class StackBatchTests extends BatchTests {
 		replicate(info, reader, writer);
 	}
 
+	@Test
+	void replicateDumpLive(TestInfo info) throws Exception {
+		enableKeyspaceNotifications();
+		RedisItemReader<byte[], byte[], byte[]> reader = dumpReader(info);
+		RedisItemWriter<byte[], byte[], KeyValue<byte[], byte[]>> writer = RedisItemWriter.dump();
+		writer.setClient(targetRedisClient);
+		replicateLive(info, reader, writer);
+	}
+
+	private <K, V, T> void replicateLive(TestInfo info, RedisItemReader<K, V, T> reader,
+			RedisItemWriter<K, V, KeyValue<K, T>> writer) throws Exception {
+		live(reader);
+		DataType[] types = new DataType[] { DataType.HASH, DataType.STRING };
+		generate(info, generator(300, types));
+		TaskletStep step = faultTolerant(flushingStep(new SimpleTestInfo(info, "step"), reader, writer)).build();
+		GeneratorItemReader liveGen = generator(700, types);
+		liveGen.getOptions().setExpiration(Range.of(100));
+		liveGen.getOptions().setKeyRange(Range.from(300));
+		generateAsync(testInfo(info, "genasync"), liveGen);
+		run(job(info).start(step).build());
+		awaitUntilNoSubscribers();
+		KeyspaceComparison<String> comparison = compare(info);
+		Assertions.assertEquals(Collections.emptyList(), comparison.mismatches());
+	}
+
+	@Test
+	void replicateStructLive(TestInfo info) throws Exception {
+		enableKeyspaceNotifications();
+		RedisItemReader<String, String, Object> reader = structReader(info);
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.struct();
+		writer.setClient(targetRedisClient);
+		replicateLive(info, reader, writer);
+	}
+
 	private static FlowBuilder<SimpleFlow> flow(String name) {
 		return new FlowBuilder<>(name);
 	}
