@@ -11,12 +11,11 @@ import java.util.stream.Collectors;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
-import com.hrakaroo.glob.GlobPattern;
-import com.hrakaroo.glob.MatchingEngine;
 import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.spring.batch.item.redis.RedisItemReader;
+import com.redis.spring.batch.item.redis.common.GlobPredicate;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.RedisFuture;
@@ -94,8 +93,7 @@ public class RedisScanSizeEstimator implements LongSupplier {
 
 	private Predicate<String> matchPredicate() {
 		if (StringUtils.hasLength(keyPattern)) {
-			MatchingEngine engine = GlobPattern.compile(keyPattern);
-			return engine::matches;
+			return new GlobPredicate(keyPattern);
 		}
 		return s -> true;
 	}
