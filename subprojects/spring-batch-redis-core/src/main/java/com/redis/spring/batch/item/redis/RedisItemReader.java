@@ -25,6 +25,7 @@ import com.redis.spring.batch.item.redis.reader.KeyScanItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyScanNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyValueRead;
 import com.redis.spring.batch.item.redis.reader.KeyValueStructRead;
+import com.redis.spring.batch.item.redis.reader.RedisScanSizeEstimator;
 import com.redis.spring.batch.step.FlushingChunkProvider;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 
@@ -72,14 +73,6 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<KeyEvent<K
 		this.codec = codec;
 		this.keyEquals = BatchUtils.keyEqualityPredicate(codec);
 		this.operation = operation;
-	}
-
-	public Operation<K, V, KeyEvent<K>, KeyValue<K, T>> getOperation() {
-		return operation;
-	}
-
-	public BlockingQueue<KeyValue<K, T>> getQueue() {
-		return queue;
 	}
 
 	@Override
@@ -191,6 +184,10 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<KeyEvent<K
 		return args;
 	}
 
+	public RedisScanSizeEstimator scanSizeEstimator() {
+		return RedisScanSizeEstimator.from(this);
+	}
+
 	public static RedisItemReader<byte[], byte[], byte[]> dump() {
 		return new RedisItemReader<>(ByteArrayCodec.INSTANCE, KeyValueRead.dump(ByteArrayCodec.INSTANCE));
 	}
@@ -209,6 +206,14 @@ public class RedisItemReader<K, V, T> extends AbstractAsyncItemReader<KeyEvent<K
 
 	public static <K, V> RedisItemReader<K, V, Object> struct(RedisCodec<K, V> codec) {
 		return new RedisItemReader<>(codec, new KeyValueStructRead<>(codec));
+	}
+
+	public Operation<K, V, KeyEvent<K>, KeyValue<K, T>> getOperation() {
+		return operation;
+	}
+
+	public BlockingQueue<KeyValue<K, T>> getQueue() {
+		return queue;
 	}
 
 	public RedisCodec<K, V> getCodec() {

@@ -57,6 +57,7 @@ import com.redis.spring.batch.item.redis.common.DataType;
 import com.redis.spring.batch.item.redis.common.KeyEvent;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.gen.GeneratorItemReader;
+import com.redis.spring.batch.item.redis.gen.GeneratorOptions;
 import com.redis.spring.batch.item.redis.gen.TimeSeriesOptions;
 import com.redis.spring.batch.item.redis.reader.DefaultKeyComparator;
 import com.redis.spring.batch.item.redis.reader.Evalsha;
@@ -67,6 +68,7 @@ import com.redis.spring.batch.item.redis.reader.KeyNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyScanItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyScanNotificationItemReader;
 import com.redis.spring.batch.item.redis.reader.KeyValueRead;
+import com.redis.spring.batch.item.redis.reader.RedisScanSizeEstimator;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader.AckPolicy;
 import com.redis.spring.batch.item.redis.writer.operation.Geoadd;
@@ -117,6 +119,20 @@ abstract class BatchTests extends AbstractTargetTestBase {
 
 	private KeyValue<String, Object> convert(List<Object> list) {
 		return read.convert(list);
+	}
+
+	@Test
+	void estimateScanSize(TestInfo info) throws Exception {
+		GeneratorItemReader gen = generator(3000, DataType.HASH, DataType.STRING);
+		generate(info, gen);
+		long expectedCount = redisCommands.dbsize();
+		RedisScanSizeEstimator estimator = new RedisScanSizeEstimator();
+		estimator.setClient(redisClient);
+		estimator.setKeyPattern(GeneratorOptions.DEFAULT_KEYSPACE + ":*");
+		estimator.setSamples(300);
+		assertEquals(expectedCount, estimator.getAsLong(), expectedCount / 10);
+		estimator.setKeyType(DataType.HASH.getString());
+		assertEquals(expectedCount / 2, estimator.getAsLong(), expectedCount / 10);
 	}
 
 	@Test
