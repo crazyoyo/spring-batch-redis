@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.runner.RunWith;
 import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.step.builder.SimpleStepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.support.IteratorItemReader;
@@ -48,6 +49,7 @@ import com.redis.lettucemod.timeseries.DuplicatePolicy;
 import com.redis.lettucemod.timeseries.RangeOptions;
 import com.redis.lettucemod.timeseries.Sample;
 import com.redis.lettucemod.timeseries.TimeRange;
+import com.redis.spring.batch.JobUtils;
 import com.redis.spring.batch.Range;
 import com.redis.spring.batch.item.redis.RedisItemReader;
 import com.redis.spring.batch.item.redis.RedisItemReader.ReaderMode;
@@ -71,12 +73,15 @@ import com.redis.spring.batch.item.redis.reader.KeyValueRead;
 import com.redis.spring.batch.item.redis.reader.RedisScanSizeEstimator;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader.AckPolicy;
-import com.redis.spring.batch.item.redis.writer.operation.Geoadd;
-import com.redis.spring.batch.item.redis.writer.operation.Hset;
-import com.redis.spring.batch.item.redis.writer.operation.JsonDel;
-import com.redis.spring.batch.item.redis.writer.operation.JsonSet;
-import com.redis.spring.batch.item.redis.writer.operation.Sugadd;
-import com.redis.spring.batch.item.redis.writer.operation.TsAdd;
+import com.redis.spring.batch.item.redis.writer.KeyValueWrite;
+import com.redis.spring.batch.item.redis.writer.impl.ClassifierOperation;
+import com.redis.spring.batch.item.redis.writer.impl.Del;
+import com.redis.spring.batch.item.redis.writer.impl.Geoadd;
+import com.redis.spring.batch.item.redis.writer.impl.Hset;
+import com.redis.spring.batch.item.redis.writer.impl.JsonDel;
+import com.redis.spring.batch.item.redis.writer.impl.JsonSet;
+import com.redis.spring.batch.item.redis.writer.impl.Sugadd;
+import com.redis.spring.batch.item.redis.writer.impl.TsAdd;
 import com.redis.spring.batch.step.FlushingStepBuilder;
 
 import io.lettuce.core.Consumer;
@@ -970,6 +975,40 @@ abstract class BatchTests extends AbstractTargetTestBase {
 		Assertions.assertEquals(BEER_COUNT, keyCount("beer:*"));
 		Assertions.assertEquals(new ObjectMapper().readTree(JSON_BEER_1),
 				new ObjectMapper().readTree(redisCommands.jsonGet("beer:1", "$")));
+	}
+
+	@Test
+	void writeConditionalDel(TestInfo info) throws Throwable {
+		generate(info, generator(100));
+		GeneratorItemReader reader = generator(100, DataType.HASH);
+		Function<KeyValue<String, Object>, Boolean> classifier = t -> t.getKey().endsWith("3");
+		ClassifierOperation<String, String, KeyValue<String, Object>, Boolean> operation = new ClassifierOperation<>(
+				classifier);
+		operation.setOperation(Boolean.FALSE, new KeyValueWrite<>());
+		operation.setOperation(Boolean.TRUE, new Del<>(KeyValue::getKey));
+		RedisItemWriter<String, String, KeyValue<String, Object>> writer = RedisItemWriter.operation(operation);
+		writer.setClient(redisClient);
+		checkJobExecution(run(info, reader, writer));
+		reader.open(new ExecutionContext());
+		List<KeyValue<String, Object>> items = readAll(reader);
+		for (KeyValue<String, Object> item : items) {
+			if (classifier.apply(item)) {
+				Assertions.assertEquals(0, redisCommands.exists(item.getKey()));
+			} else {
+				Assertions.assertEquals(DataType.HASH.getString(), redisCommands.type(item.getKey()));
+			}
+		}
+	}
+
+	private void checkJobExecution(JobExecution jobExecution) throws Throwable {
+		for (StepExecution stepExecution : jobExecution.getStepExecutions()) {
+			if (JobUtils.isFailed(stepExecution.getExitStatus())) {
+				throw stepExecution.getFailureExceptions().get(0);
+			}
+		}
+		if (JobUtils.isFailed(jobExecution.getExitStatus())) {
+			throw jobExecution.getFailureExceptions().get(0);
+		}
 	}
 
 	@Test

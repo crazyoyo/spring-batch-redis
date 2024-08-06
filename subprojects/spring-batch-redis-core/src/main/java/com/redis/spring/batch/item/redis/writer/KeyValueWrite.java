@@ -2,7 +2,6 @@ package com.redis.spring.batch.item.redis.writer;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -12,17 +11,17 @@ import com.redis.lettucemod.timeseries.DuplicatePolicy;
 import com.redis.spring.batch.item.redis.common.DataType;
 import com.redis.spring.batch.item.redis.common.KeyValue;
 import com.redis.spring.batch.item.redis.common.Operation;
-import com.redis.spring.batch.item.redis.writer.operation.Del;
-import com.redis.spring.batch.item.redis.writer.operation.ExpireAt;
-import com.redis.spring.batch.item.redis.writer.operation.Hset;
-import com.redis.spring.batch.item.redis.writer.operation.JsonSet;
-import com.redis.spring.batch.item.redis.writer.operation.Noop;
-import com.redis.spring.batch.item.redis.writer.operation.Rpush;
-import com.redis.spring.batch.item.redis.writer.operation.Sadd;
-import com.redis.spring.batch.item.redis.writer.operation.Set;
-import com.redis.spring.batch.item.redis.writer.operation.TsAdd;
-import com.redis.spring.batch.item.redis.writer.operation.Xadd;
-import com.redis.spring.batch.item.redis.writer.operation.Zadd;
+import com.redis.spring.batch.item.redis.writer.impl.ClassifierOperation;
+import com.redis.spring.batch.item.redis.writer.impl.Del;
+import com.redis.spring.batch.item.redis.writer.impl.ExpireAt;
+import com.redis.spring.batch.item.redis.writer.impl.Hset;
+import com.redis.spring.batch.item.redis.writer.impl.JsonSet;
+import com.redis.spring.batch.item.redis.writer.impl.Rpush;
+import com.redis.spring.batch.item.redis.writer.impl.Sadd;
+import com.redis.spring.batch.item.redis.writer.impl.Set;
+import com.redis.spring.batch.item.redis.writer.impl.TsAdd;
+import com.redis.spring.batch.item.redis.writer.impl.Xadd;
+import com.redis.spring.batch.item.redis.writer.impl.Zadd;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.RedisAsyncCommands;
@@ -33,23 +32,11 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 		MERGE, OVERWRITE
 	}
 
-	private enum OperationType {
-		HSET, JSON_SET, RPUSH, SADD, XADD, SET, TS_ADD, ZADD, NONE
-	}
-
 	public static final WriteMode DEFAULT_MODE = WriteMode.OVERWRITE;
 
-	private final Noop<K, V, KeyValue<K, Object>> noop = new Noop<>();
 	private final Del<K, V, KeyValue<K, Object>> delete = delete();
 	private final ExpireAt<K, V, KeyValue<K, Object>> expire = expire();
-	private final Hset<K, V, KeyValue<K, Object>> hset = hset();
-	private final JsonSet<K, V, KeyValue<K, Object>> jsonSet = jsonSet();
-	private final Rpush<K, V, KeyValue<K, Object>> rpush = rpush();
-	private final Sadd<K, V, KeyValue<K, Object>> sadd = sadd();
-	private final Xadd<K, V, KeyValue<K, Object>> xadd = xadd();
-	private final Set<K, V, KeyValue<K, Object>> set = set();
-	private final TsAdd<K, V, KeyValue<K, Object>> tsAdd = tsAdd();
-	private final Zadd<K, V, KeyValue<K, Object>> zadd = zadd();
+	private final ClassifierOperation<K, V, KeyValue<K, Object>, DataType> write = writeOperation();
 
 	private WriteMode mode = DEFAULT_MODE;
 
@@ -58,18 +45,27 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 			List<? extends KeyValue<K, Object>> items) {
 		List<RedisFuture<Object>> futures = new ArrayList<>();
 		futures.addAll(delete.execute(commands, toDelete(items)));
-		groupByOperation(items).forEach((k, v) -> futures.addAll(operation(k).execute(commands, v)));
+		futures.addAll(write.execute(commands, toWrite(items)));
 		futures.addAll(expire.execute(commands, toExpire(items)));
 		return futures;
 	}
 
-	private Zadd<K, V, KeyValue<K, Object>> zadd() {
-		return new Zadd<>(KeyValue::getKey, KeyValueWrite::value);
+	private List<? extends KeyValue<K, Object>> toWrite(List<? extends KeyValue<K, Object>> items) {
+		return stream(items).filter(KeyValue::exists).collect(Collectors.toList());
 	}
 
-	private TsAdd<K, V, KeyValue<K, Object>> tsAdd() {
-		TsAdd<K, V, KeyValue<K, Object>> operation = new TsAdd<>(KeyValue::getKey, KeyValueWrite::value);
-		operation.setOptions(AddOptions.<K, V>builder().policy(DuplicatePolicy.LAST).build());
+	private ClassifierOperation<K, V, KeyValue<K, Object>, DataType> writeOperation() {
+		ClassifierOperation<K, V, KeyValue<K, Object>, DataType> operation = new ClassifierOperation<>(KeyValue::type);
+		operation.setOperation(DataType.HASH, new Hset<>(KeyValue::getKey, KeyValueWrite::value));
+		operation.setOperation(DataType.JSON, new JsonSet<>(KeyValue::getKey, KeyValueWrite::value));
+		operation.setOperation(DataType.STRING, new Set<>(KeyValue::getKey, KeyValueWrite::value));
+		operation.setOperation(DataType.LIST, new Rpush<>(KeyValue::getKey, KeyValueWrite::value));
+		operation.setOperation(DataType.SET, new Sadd<>(KeyValue::getKey, KeyValueWrite::value));
+		operation.setOperation(DataType.STREAM, new Xadd<>(KeyValue::getKey, KeyValueWrite::value));
+		TsAdd<K, V, KeyValue<K, Object>> tsAdd = new TsAdd<>(KeyValue::getKey, KeyValueWrite::value);
+		tsAdd.setOptions(AddOptions.<K, V>builder().policy(DuplicatePolicy.LAST).build());
+		operation.setOperation(DataType.TIMESERIES, tsAdd);
+		operation.setOperation(DataType.ZSET, new Zadd<>(KeyValue::getKey, KeyValueWrite::value));
 		return operation;
 	}
 
@@ -83,30 +79,6 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 		return operation;
 	}
 
-	private Xadd<K, V, KeyValue<K, Object>> xadd() {
-		return new Xadd<>(KeyValue::getKey, KeyValueWrite::value);
-	}
-
-	private Rpush<K, V, KeyValue<K, Object>> rpush() {
-		return new Rpush<>(KeyValue::getKey, KeyValueWrite::value);
-	}
-
-	private Sadd<K, V, KeyValue<K, Object>> sadd() {
-		return new Sadd<>(KeyValue::getKey, KeyValueWrite::value);
-	}
-
-	private Set<K, V, KeyValue<K, Object>> set() {
-		return new Set<>(KeyValue::getKey, KeyValueWrite::value);
-	}
-
-	private JsonSet<K, V, KeyValue<K, Object>> jsonSet() {
-		return new JsonSet<>(KeyValue::getKey, KeyValueWrite::value);
-	}
-
-	private Hset<K, V, KeyValue<K, Object>> hset() {
-		return new Hset<>(KeyValue::getKey, KeyValueWrite::value);
-	}
-
 	private List<KeyValue<K, Object>> toExpire(Iterable<? extends KeyValue<K, Object>> items) {
 		return stream(items).filter(KeyValue::hasTtl).collect(Collectors.toList());
 	}
@@ -115,63 +87,8 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 		return stream(items).filter(this::shouldDelete).collect(Collectors.toList());
 	}
 
-	private Map<OperationType, List<KeyValue<K, Object>>> groupByOperation(
-			Iterable<? extends KeyValue<K, Object>> items) {
-		return stream(items).filter(KeyValue::exists).collect(Collectors.groupingBy(this::operationType));
-	}
-
 	private Stream<? extends KeyValue<K, Object>> stream(Iterable<? extends KeyValue<K, Object>> items) {
 		return StreamSupport.stream(items.spliterator(), false);
-	}
-
-	private OperationType operationType(KeyValue<K, Object> item) {
-		DataType type = KeyValue.type(item);
-		if (type == null) {
-			return OperationType.NONE;
-		}
-		switch (type) {
-		case HASH:
-			return OperationType.HSET;
-		case JSON:
-			return OperationType.JSON_SET;
-		case LIST:
-			return OperationType.RPUSH;
-		case SET:
-			return OperationType.SADD;
-		case STREAM:
-			return OperationType.XADD;
-		case STRING:
-			return OperationType.SET;
-		case TIMESERIES:
-			return OperationType.TS_ADD;
-		case ZSET:
-			return OperationType.ZADD;
-		default:
-			return OperationType.NONE;
-		}
-	}
-
-	private Operation<K, V, KeyValue<K, Object>, Object> operation(OperationType operationType) {
-		switch (operationType) {
-		case HSET:
-			return hset;
-		case JSON_SET:
-			return jsonSet;
-		case RPUSH:
-			return rpush;
-		case SADD:
-			return sadd;
-		case XADD:
-			return xadd;
-		case SET:
-			return set;
-		case TS_ADD:
-			return tsAdd;
-		case ZADD:
-			return zadd;
-		default:
-			return noop;
-		}
 	}
 
 	private boolean shouldDelete(KeyValue<K, Object> item) {
@@ -187,10 +104,6 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 		this.mode = mode;
 	}
 
-	public Noop<K, V, KeyValue<K, Object>> getNoop() {
-		return noop;
-	}
-
 	public Del<K, V, KeyValue<K, Object>> getDelete() {
 		return delete;
 	}
@@ -199,36 +112,8 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 		return expire;
 	}
 
-	public Hset<K, V, KeyValue<K, Object>> getHset() {
-		return hset;
-	}
-
-	public JsonSet<K, V, KeyValue<K, Object>> getJsonSet() {
-		return jsonSet;
-	}
-
-	public Rpush<K, V, KeyValue<K, Object>> getRpush() {
-		return rpush;
-	}
-
-	public Sadd<K, V, KeyValue<K, Object>> getSadd() {
-		return sadd;
-	}
-
-	public Xadd<K, V, KeyValue<K, Object>> getXadd() {
-		return xadd;
-	}
-
-	public Set<K, V, KeyValue<K, Object>> getSet() {
-		return set;
-	}
-
-	public TsAdd<K, V, KeyValue<K, Object>> getTsAdd() {
-		return tsAdd;
-	}
-
-	public Zadd<K, V, KeyValue<K, Object>> getZadd() {
-		return zadd;
+	public ClassifierOperation<K, V, KeyValue<K, Object>, DataType> getWrite() {
+		return write;
 	}
 
 	public WriteMode getMode() {

@@ -53,7 +53,7 @@ public class KeyEvent<K> {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		KeyEvent<K> other = (KeyEvent<K>) obj;
+		KeyEvent<?> other = (KeyEvent<?>) obj;
 		return keyEquals(this.key, other.key);
 	}
 

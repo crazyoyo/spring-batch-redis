@@ -1,4 +1,4 @@
-package com.redis.spring.batch.item.redis.writer.operation;
+package com.redis.spring.batch.item.redis.writer.impl;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,8 +10,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.util.CollectionUtils;
-
-import com.redis.spring.batch.item.redis.writer.AbstractValueWriteOperation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.StreamMessage;

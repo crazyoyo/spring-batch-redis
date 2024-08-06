@@ -52,7 +52,7 @@ public class KeyScanItemReader<K, V> extends AbstractItemCountingItemStreamItemR
 	}
 
 	@Override
-	protected KeyEvent<K> doRead() throws Exception {
+	protected KeyEvent<K> doRead() {
 		if (iterator.hasNext()) {
 			return keyEvent(iterator.next());
 		}

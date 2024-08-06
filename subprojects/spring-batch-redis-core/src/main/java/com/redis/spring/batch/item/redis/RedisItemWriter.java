@@ -13,8 +13,8 @@ import com.redis.spring.batch.item.redis.common.OperationExecutor;
 import com.redis.spring.batch.item.redis.writer.KeyValueRestore;
 import com.redis.spring.batch.item.redis.writer.KeyValueWrite;
 import com.redis.spring.batch.item.redis.writer.KeyValueWrite.WriteMode;
-import com.redis.spring.batch.item.redis.writer.operation.MultiExec;
-import com.redis.spring.batch.item.redis.writer.operation.ReplicaWait;
+import com.redis.spring.batch.item.redis.writer.impl.MultiExec;
+import com.redis.spring.batch.item.redis.writer.impl.ReplicaWait;
 
 import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.codec.ByteArrayCodec;

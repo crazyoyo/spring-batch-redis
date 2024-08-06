@@ -1,4 +1,4 @@
-package com.redis.spring.batch.item.redis.writer.operation;
+package com.redis.spring.batch.item.redis.writer.impl;
 
 import java.text.MessageFormat;
 import java.time.Duration;

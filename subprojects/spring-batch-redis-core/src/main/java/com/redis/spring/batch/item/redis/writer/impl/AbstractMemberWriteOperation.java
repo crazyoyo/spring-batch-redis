@@ -1,4 +1,4 @@
-package com.redis.spring.batch.item.redis.writer;
+package com.redis.spring.batch.item.redis.writer.impl;
 
 import java.util.Collection;
 import java.util.List;

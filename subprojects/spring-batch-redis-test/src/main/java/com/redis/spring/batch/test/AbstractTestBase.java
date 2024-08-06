@@ -387,9 +387,9 @@ public abstract class AbstractTestBase {
 	}
 
 	protected JobExecution run(Job job) throws JobExecutionException {
-		JobExecution execution = jobLauncher.run(job, new JobParameters());
-		awaitUntilFalse(execution::isRunning);
-		return execution;
+		JobExecution jobExecution = jobLauncher.run(job, new JobParameters());
+		awaitUntilFalse(jobExecution::isRunning);
+		return jobExecution;
 	}
 
 	protected void enableKeyspaceNotifications() {

@@ -1,4 +1,4 @@
-package com.redis.spring.batch.item.redis.writer.operation;
+package com.redis.spring.batch.item.redis.writer.impl;
 
 import java.util.List;
 import java.util.Map;
@@ -7,7 +7,6 @@ import java.util.function.Function;
 import org.springframework.util.CollectionUtils;
 
 import com.redis.spring.batch.item.redis.common.BatchUtils;
-import com.redis.spring.batch.item.redis.writer.AbstractValueWriteOperation;
 
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.RedisAsyncCommands;
