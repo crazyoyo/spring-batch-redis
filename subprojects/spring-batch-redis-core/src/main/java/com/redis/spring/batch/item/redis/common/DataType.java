@@ -7,7 +7,7 @@ import java.util.stream.Stream;
 
 public enum DataType {
 
-	NONE("none"), HASH("hash"), JSON("ReJSON-RL"), LIST("list"), SET("set"), STREAM("stream"), STRING("string"),
+	NONE("none"), HASH("hash"), UPSTASH_JSON("json"), JSON("ReJSON-RL"), LIST("list"), SET("set"), STREAM("stream"), STRING("string"),
 	TIMESERIES("TSDB-TYPE"), ZSET("zset");
 
 	private static final Map<String, DataType> TYPE_MAP = Stream.of(DataType.values())

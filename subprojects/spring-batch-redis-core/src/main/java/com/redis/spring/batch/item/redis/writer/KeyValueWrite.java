@@ -58,6 +58,7 @@ public class KeyValueWrite<K, V> implements Operation<K, V, KeyValue<K, Object>,
 		ClassifierOperation<K, V, KeyValue<K, Object>, DataType> operation = new ClassifierOperation<>(KeyValue::type);
 		operation.setOperation(DataType.HASH, new Hset<>(KeyValue::getKey, KeyValueWrite::value));
 		operation.setOperation(DataType.JSON, new JsonSet<>(KeyValue::getKey, KeyValueWrite::value));
+		operation.setOperation(DataType.UPSTASH_JSON, new JsonSet<>(KeyValue::getKey, KeyValueWrite::value));
 		operation.setOperation(DataType.STRING, new Set<>(KeyValue::getKey, KeyValueWrite::value));
 		operation.setOperation(DataType.LIST, new Rpush<>(KeyValue::getKey, KeyValueWrite::value));
 		operation.setOperation(DataType.SET, new Sadd<>(KeyValue::getKey, KeyValueWrite::value));

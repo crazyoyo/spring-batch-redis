@@ -6,7 +6,7 @@ end
 local function struct (key, type)
   if type == 'hash' then
     return redis.call('HGETALL', key)
-  elseif type == 'ReJSON-RL' then
+  elseif type == 'ReJSON-RL' or type == 'json' then
     return redis.call('JSON.GET', key)
   elseif type == 'list' then
     return redis.call('LRANGE', key, 0, -1)
